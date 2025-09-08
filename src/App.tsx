@@ -72,10 +72,12 @@ export default function App(): JSX.Element {
               const id = crypto.randomUUID();
               setProjectId(id);
               setProjectName(name);
+              const firstId = Object.keys(data.masters)[0];
+              const first = data.masters[firstId];
               setBlock({
-                template: data.master.template,
-                visual: data.master.visual,
-                aspect: data.master.aspect,
+                template: first.template,
+                visual: first.visual,
+                aspect: first.aspect,
               });
               setMalla(data);
               navigate('/malla');
@@ -83,13 +85,16 @@ export default function App(): JSX.Element {
             onOpenProject={(id, data, name) => {
               setProjectId(id);
               setProjectName(name);
-              if ('master' in data) {
+              if ('masters' in data) {
+                const m = data as MallaExport;
+                const firstId = Object.keys(m.masters)[0];
+                const first = m.masters[firstId];
                 setBlock({
-                  template: data.master.template,
-                  visual: data.master.visual,
-                  aspect: data.master.aspect,
+                  template: first.template,
+                  visual: first.visual,
+                  aspect: first.aspect,
                 });
-                setMalla(data as MallaExport);
+                setMalla(m);
                 navigate('/malla');
               } else {
                 const b = data as BlockExport;

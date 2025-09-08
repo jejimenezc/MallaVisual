@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { exportMalla, importMalla } from './malla-io.ts';
-import type { BlockTemplate, CurricularPieceRef } from '../types/curricular.ts';
+import type { BlockTemplate, CurricularPieceRef, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
 
 test('exportMalla followed by importMalla yields same data including booleans', () => {
@@ -13,7 +13,7 @@ test('exportMalla followed by importMalla yields same data including booleans', 
     kind: 'ref',
     id: 'p1',
     ref: {
-      sourceId: 'master',
+      sourceId: 'm1',
       bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 0, rows: 1, cols: 1 },
       aspect,
     },
@@ -21,8 +21,12 @@ test('exportMalla followed by importMalla yields same data including booleans', 
     y: 0,
   };
 
+  const masters: Record<string, MasterBlockData> = {
+    m1: { template, visual, aspect },
+  };
+
   const json = exportMalla({
-    master: { template, visual, aspect },
+    masters,
     grid: { cols: 1, rows: 1 },
     pieces: [piece],
     values: { p1: { done: true } },
@@ -31,7 +35,7 @@ test('exportMalla followed by importMalla yields same data including booleans', 
 
   const result = importMalla(json);
 
-  assert.deepEqual(result.master.template, template);
+  assert.deepEqual(result.masters, masters);
   assert.deepEqual(result.grid, { cols: 1, rows: 1 });
   assert.deepEqual(result.pieces, [piece]);
   assert.deepEqual(result.values, { p1: { done: true } });

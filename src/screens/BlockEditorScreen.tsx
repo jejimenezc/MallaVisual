@@ -67,7 +67,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     if (!projectId) return;
     const data: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
-      master: { template, visual, aspect },
+      masters: { master: { template, visual, aspect } },
       grid: { cols: 5, rows: 5 },
       pieces: [],
       values: {},

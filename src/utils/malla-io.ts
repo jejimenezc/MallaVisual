@@ -1,21 +1,16 @@
 // src/utils/malla-io.ts
-import type { BlockTemplate, CurricularPiece } from '../types/curricular';
-import type { VisualTemplate, BlockAspect } from '../types/visual';
+import type { CurricularPiece, MasterBlockData } from '../types/curricular';
 
 export interface MallaExport {
   version: number;
-  master: {
-    template: BlockTemplate;
-    visual: VisualTemplate;
-    aspect: BlockAspect;
-  };
+  masters: Record<string, MasterBlockData>;
   grid?: { cols: number; rows: number };
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
   floatingPieces?: string[];
 }
 
-export const MALLA_SCHEMA_VERSION = 1;
+export const MALLA_SCHEMA_VERSION = 2;
 
 // No aceptar 'version' desde fuera: se fija aquí adentro
 export function exportMalla(
@@ -42,12 +37,12 @@ export function importMalla(json: string): MallaExport {
   if (data.version !== MALLA_SCHEMA_VERSION) {
     throw new Error('Versión incompatible');
   }
-  if (!data.master?.template || !data.master?.visual || !data.master?.aspect) {
-    throw new Error('Datos “master” incompletos');
+  if (!data.masters || typeof data.masters !== 'object') {
+    throw new Error('Datos "masters" incompletos');
   }
   return {
     version: MALLA_SCHEMA_VERSION,
-    master: data.master,
+    masters: data.masters as Record<string, MasterBlockData>,
     grid: data.grid ?? { cols: 5, rows: 5 },
     pieces: data.pieces ?? [],
     values: data.values ?? {},

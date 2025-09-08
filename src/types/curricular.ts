@@ -52,8 +52,8 @@ export interface CurricularBlock {
 // --- NUEVO: piezas en la malla con doble modalidad ---
 
 export interface BlockSourceRef {
-  /** Identificador de la fuente; en este flujo usamos un único maestro */
-  sourceId: 'master';
+  /** Identificador del maestro asociado a la pieza */
+  sourceId: string;
   /** Recorte activo */
   bounds: { minRow: number; maxRow: number; minCol: number; maxCol: number; rows: number; cols: number; };
   /** Aspecto heredado del maestro en el momento de creación (puedes recalcular si lo prefieres) */

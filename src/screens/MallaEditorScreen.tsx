@@ -6,6 +6,7 @@ import type {
   CurricularPieceRef,
   CurricularPieceSnapshot,
   BlockSourceRef,
+  MasterBlockData,
 } from '../types/curricular.ts';
 import { TemplateGrid } from '../components/TemplateGrid';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
@@ -126,15 +127,32 @@ export const MallaEditorScreen: React.FC<Props> = ({
     () => createLocalStorageProjectRepository<MallaExport>(),
     []);
   
-    // --- repositorio de maestros
+  // --- repositorio y estado de maestros
   const masterRepo = useMemo(() => createLocalStorageMasterRepository(), []);
   const [availableMasters, setAvailableMasters] = useState<string[]>([]);
-  const [selectedMasterId, setSelectedMasterId] = useState('');
+  const initialMasters = useMemo<Record<string, MasterBlockData>>(
+    () => initialMalla?.masters ?? { master: { template, visual, aspect } },
+    [initialMalla, template, visual, aspect]
+  );
+  const initialMasterId = useMemo(
+    () => Object.keys(initialMasters)[0] ?? 'master',
+    [initialMasters]
+  );
+  const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
+  const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
   const [newMasterId, setNewMasterId] = useState('');
 
   useEffect(() => {
     setAvailableMasters(masterRepo.list());
   }, [masterRepo]);
+
+  // Sincroniza el maestro activo con el mapa local
+  useEffect(() => {
+    setMastersById((prev) => ({
+      ...prev,
+      [selectedMasterId]: { template, visual, aspect },
+    }));
+  }, [selectedMasterId, template, visual, aspect]);
 
   // --- drag & drop
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -156,9 +174,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
       let tpl: BlockTemplate;
       let pieceAspect: BlockAspect;
       if (p.kind === 'ref') {
-        const safeBounds = expandBoundsToMerges(template, p.ref.bounds);
-        tpl = cropTemplate(template, safeBounds);
-        pieceAspect = aspect;
+        const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
+        const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
+        tpl = cropTemplate(master.template, safeBounds);
+        pieceAspect = master.aspect;
       } else {
         tpl = p.template;
         pieceAspect = p.aspect;
@@ -178,7 +197,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const gridWidth = colWidths.reduce((a, b) => a + b, 0);
     const gridHeight = rowHeights.reduce((a, b) => a + b, 0);
     return { colWidths, rowHeights, colOffsets, rowOffsets, gridWidth, gridHeight };
-  }, [pieces, cols, rows, template, aspect, baseMetrics.outerW, baseMetrics.outerH]);
+  }, [pieces, cols, rows, template, visual, aspect, mastersById, baseMetrics.outerW, baseMetrics.outerH]);
 
   const gridAreaStyle = useMemo(
     () =>
@@ -196,7 +215,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setSelectedMasterId(id);
     const data = masterRepo.load(id);
     if (data) {
-      onUpdateMaster?.({
+      setMastersById((prev) => ({ ...prev, [id]: data }));
+        onUpdateMaster?.({
         template: data.template,
         visual: data.visual,
         aspect: data.aspect,
@@ -206,8 +226,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   const handleSaveMaster = () => {
     if (!newMasterId) return;
-    masterRepo.save(newMasterId, { template, visual, aspect });
+    const data = { template, visual, aspect };
+    masterRepo.save(newMasterId, data);
     setAvailableMasters(masterRepo.list());
+    setMastersById((prev) => ({ ...prev, [newMasterId]: data }));
     setSelectedMasterId(newMasterId);
     setNewMasterId('');
   };
@@ -222,7 +244,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     // --- persistencia
   const handleSave = () => {
     const json = exportMalla({
-      master: { template, visual, aspect },
+      masters: mastersById,
       grid: { cols, rows },
       pieces,
       values: pieceValues,
@@ -253,11 +275,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
     reader.onload = (ev) => {
       try {
         const data = importMalla(String(ev.target?.result));
+        const firstId = Object.keys(data.masters)[0];
+        const first = data.masters[firstId];
         onUpdateMaster?.({
-          template: data.master.template,
-          visual: data.master.visual,
-          aspect: data.master.aspect,
+          template: first.template,
+          visual: first.visual,
+          aspect: first.aspect,
         });
+        setSelectedMasterId(firstId);
+        setMastersById(data.masters);
         setCols(data.grid?.cols ?? 5);
         setRows(data.grid?.rows ?? 5);
         setPieces(data.pieces);
@@ -283,7 +309,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       try {
         const project: MallaExport = {
           version: MALLA_SCHEMA_VERSION,
-          master: { template, visual, aspect },
+          masters: mastersById,
           grid: { cols, rows },
           pieces,
           values: pieceValues,
@@ -298,7 +324,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
         /* ignore */
       }
     }, 300);
-  }, [template, visual, aspect, cols, rows, pieces, pieceValues, floatingPieces, projectId, projectName, projectRepo, onMallaChange]);
+  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, projectId, projectName, projectRepo, onMallaChange]);
 
   const handleRestoreDraft = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -306,11 +332,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const data = importMalla(raw);
+      const firstId = Object.keys(data.masters)[0];
+      const first = data.masters[firstId];
       onUpdateMaster?.({
-        template: data.master.template,
-        visual: data.master.visual,
-        aspect: data.master.aspect,
+        template: first.template,
+        visual: first.visual,
+        aspect: first.aspect,
       });
+      setSelectedMasterId(firstId);
+      setMastersById(data.masters);
       setCols(data.grid?.cols ?? 5);
       setRows(data.grid?.rows ?? 5);
       setPieces(data.pieces);
@@ -332,7 +362,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces((prev) => {
       let changed = false;
       const next = prev.map((p) => {
-        if (p.kind === 'ref') {
+        if (p.kind === 'ref' && p.ref.sourceId === selectedMasterId) {
           const needsBounds = !boundsEqual(p.ref.bounds, nextBounds);
           const needsAspect = p.ref.aspect !== aspect;
           if (!needsBounds && !needsAspect) return p;
@@ -342,7 +372,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             ref: { ...p.ref, bounds: needsBounds ? nextBounds : p.ref.bounds, aspect },
           };
         }
-        if (p.kind === 'snapshot' && p.origin) {
+        if (p.kind === 'ref' && p.ref.sourceId === selectedMasterId) {
           const needsBounds = !boundsEqual(p.origin.bounds, nextBounds);
           const needsAspect = p.origin.aspect !== aspect;
           if (!needsBounds && !needsAspect) return p;
@@ -360,7 +390,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       });
       return changed ? next : prev;
     });
-  }, [template, aspect]);
+  }, [template, aspect, selectedMasterId]);
 
   // --- validación de reducción de la macro-grilla
   const handleRowsChange = (newRows: number) => {
@@ -414,7 +444,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const piece: CurricularPieceRef = {
       kind: 'ref',
       id,
-      ref: { sourceId: 'master', bounds, aspect }, // guarda bounds completos
+      ref: { sourceId: selectedMasterId, bounds, aspect }, // guarda bounds completos
       x: pos.x,
       y: pos.y,
     };
@@ -441,7 +471,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       aspect: snap.aspect,
       x: pos.x,
       y: pos.y,
-      origin: { sourceId: 'master', bounds, aspect }, // para poder "descongelar"
+      origin: { sourceId: selectedMasterId, bounds, aspect }, // para poder "descongelar"
     };
     setPieces((prev) => [...prev, piece]);
     setFloatingPieces((prev) => [...prev, id]);
@@ -455,15 +485,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
         if (p.kind === 'ref') {
           // ref -> snapshot (congelar)
-          const tpl = cropTemplate(template, p.ref.bounds);
-          const vis = cropVisualTemplate(visual, p.ref.bounds);
+          const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
+          const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
+          const tpl = cropTemplate(master.template, safeBounds);
+          const vis = cropVisualTemplate(master.visual, safeBounds);
           const origin: BlockSourceRef = { ...p.ref };
           return {
             kind: 'snapshot',
             id: p.id,
             template: tpl,
             visual: vis,
-            aspect,
+            aspect: master.aspect,
             x: p.x,
             y: p.y,
             origin,
@@ -471,11 +503,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
         } else {
           // snapshot -> ref (descongelar) solo si hay origen
           if (!p.origin) return p;
-          const bounds = expandBoundsToMerges(template, getActiveBounds(template));
           return {
             kind: 'ref',
             id: p.id,
-            ref: { sourceId: 'master', bounds, aspect },
+            ref: { ...p.origin },
             x: p.x,
             y: p.y,
           } as CurricularPieceRef;
@@ -548,7 +579,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             additions.push({
               kind: 'ref',
               id: crypto.randomUUID(),
-              ref: { sourceId: 'master', bounds, aspect },
+              ref: { sourceId: selectedMasterId, bounds, aspect },
               x: c,
               y: r,
             });
@@ -799,16 +830,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
             let pieceVisual: VisualTemplate;
             let pieceAspect: BlockAspect;
             if (p.kind === 'ref') {
+              const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
               // Expande los bounds guardados a los merges vigentes del maestro
-              const safeBounds = expandBoundsToMerges(template, p.ref.bounds);
+              const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
 
-              pieceTemplate = cropTemplate(template, safeBounds);
-              pieceVisual   = cropVisualTemplate(visual, safeBounds);
+              pieceTemplate = cropTemplate(master.template, safeBounds);
+              pieceVisual   = cropVisualTemplate(master.visual, safeBounds);
 
-              // Si quieres que sigan el aspecto del maestro “en vivo”, usa `aspect` aquí:
-              pieceAspect = aspect;
-              // Si prefieres que usen el aspecto con el que se crearon:
-              // pieceAspect = p.ref.aspect;
+              // Las piezas referenciadas siguen el aspecto del maestro asociado
+              pieceAspect = master.aspect;
             } else {
               // Snapshot: usa su copia materializada tal cual
               pieceTemplate = p.template;
