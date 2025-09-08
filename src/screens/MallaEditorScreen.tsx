@@ -118,16 +118,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
     Record<string, Record<string, string | number | boolean>>
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
-    initialMalla?.floatingPieces ?? []
-  );
+    initialMalla?.floatingPieces ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<number | null>(null);
 
   const projectRepo = useMemo(
     () => createLocalStorageProjectRepository<MallaExport>(),
-    []
-  );
-
+    []);
+  
     // --- repositorio de maestros
   const masterRepo = useMemo(() => createLocalStorageMasterRepository(), []);
   const [availableMasters, setAvailableMasters] = useState<string[]>([]);
@@ -144,17 +142,55 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
+  const {
+    colWidths,
+    rowHeights,
+    colOffsets,
+    rowOffsets,
+    gridWidth,
+    gridHeight,
+  } = useMemo(() => {
+    const colWidths = Array(cols).fill(baseMetrics.outerW);
+    const rowHeights = Array(rows).fill(baseMetrics.outerH);
+    for (const p of pieces) {
+      let tpl: BlockTemplate;
+      let pieceAspect: BlockAspect;
+      if (p.kind === 'ref') {
+        const safeBounds = expandBoundsToMerges(template, p.ref.bounds);
+        tpl = cropTemplate(template, safeBounds);
+        pieceAspect = p.ref.aspect;
+      } else {
+        tpl = p.template;
+        pieceAspect = p.aspect;
+      }
+      const { outerW, outerH } = computeMetrics(tpl, pieceAspect);
+      if (outerW > colWidths[p.x]) colWidths[p.x] = outerW;
+      if (outerH > rowHeights[p.y]) rowHeights[p.y] = outerH;
+    }
+    const colOffsets = [0];
+    for (let i = 1; i < colWidths.length; i++) {
+      colOffsets[i] = colOffsets[i - 1] + colWidths[i - 1];
+    }
+    const rowOffsets = [0];
+    for (let i = 1; i < rowHeights.length; i++) {
+      rowOffsets[i] = rowOffsets[i - 1] + rowHeights[i - 1];
+    }
+    const gridWidth = colWidths.reduce((a, b) => a + b, 0);
+    const gridHeight = rowHeights.reduce((a, b) => a + b, 0);
+    return { colWidths, rowHeights, colOffsets, rowOffsets, gridWidth, gridHeight };
+  }, [pieces, cols, rows, template, baseMetrics.outerW, baseMetrics.outerH]);
 
   const gridAreaStyle = useMemo(
     () =>
       ({
         '--cols': String(cols),
         '--rows': String(rows),
-        width: cols * baseMetrics.outerW,
-        height: rows * baseMetrics.outerH,
+        width: gridWidth,
+        height: gridHeight,
       }) as React.CSSProperties,
-    [cols, rows, baseMetrics.outerW, baseMetrics.outerH]
+    [cols, rows, gridWidth, gridHeight]
   );
+
 
   const handleSelectMaster = (id: string) => {
     setSelectedMasterId(id);
@@ -292,19 +328,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [initialMalla, handleRestoreDraft]);
 
   useEffect(() => {
-    const newBounds = expandBoundsToMerges(template, getActiveBounds(template));
+    const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
     setPieces((prev) => {
       let changed = false;
       const next = prev.map((p) => {
         if (p.kind === 'ref') {
-          if (boundsEqual(p.ref.bounds, newBounds)) return p;
+          if (boundsEqual(p.ref.bounds, nextBounds)) return p;
           changed = true;
-          return { ...p, ref: { ...p.ref, bounds: newBounds } };
+          return { ...p, ref: { ...p.ref, bounds: nextBounds } };
         }
         if (p.kind === 'snapshot' && p.origin) {
-          if (boundsEqual(p.origin.bounds, newBounds)) return p;
+          if (boundsEqual(p.origin.bounds, nextBounds)) return p;
           changed = true;
-          return { ...p, origin: { ...p.origin, bounds: newBounds } };
+          return { ...p, origin: { ...p.origin, bounds: nextBounds } };
         }
         return p;
       });
@@ -527,7 +563,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const rect = e.currentTarget.getBoundingClientRect();
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     dragPieceOuter.current = { w: pieceOuterW, h: pieceOuterH };
-    setDragPos({ x: piece.x * baseMetrics.outerW, y: piece.y * baseMetrics.outerH });
+    setDragPos({ x: colOffsets[piece.x], y: rowOffsets[piece.y] });
     setFloatingPieces((prev) => prev.filter((id) => id !== piece.id));
     e.stopPropagation();
   };
@@ -537,8 +573,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const rect = gridRef.current.getBoundingClientRect();
     let x = e.clientX - rect.left - dragOffset.current.x;
     let y = e.clientY - rect.top - dragOffset.current.y;
-    const maxX = cols * baseMetrics.outerW - dragPieceOuter.current.w;
-    const maxY = rows * baseMetrics.outerH - dragPieceOuter.current.h;
+    const maxX = gridWidth - dragPieceOuter.current.w;
+    const maxY = gridHeight - dragPieceOuter.current.h;
     x = Math.max(0, Math.min(x, maxX));
     y = Math.max(0, Math.min(y, maxY));
     setDragPos({ x, y });
@@ -546,8 +582,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   const handleMouseUp = () => {
     if (!draggingId) return;
-    const desiredCol = Math.round(dragPos.x / baseMetrics.outerW);
-    const desiredRow = Math.round(dragPos.y / baseMetrics.outerH);
+    const centerX = dragPos.x + dragPieceOuter.current.w / 2;
+    const centerY = dragPos.y + dragPieceOuter.current.h / 2;
+    let desiredCol = colWidths.length - 1;
+    let accX = 0;
+    for (let i = 0; i < colWidths.length; i++) {
+      if (centerX < accX + colWidths[i]) { desiredCol = i; break; }
+      accX += colWidths[i];
+    }
+    let desiredRow = rowHeights.length - 1;
+    let accY = 0;
+    for (let i = 0; i < rowHeights.length; i++) {
+      if (centerY < accY + rowHeights[i]) { desiredRow = i; break; }
+      accY += rowHeights[i];
+    }
     let placed = true;
     setPieces((prev) => {
       const occupied = new Set(
@@ -756,8 +804,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
             const m = computeMetrics(pieceTemplate, pieceAspect);
 
-            const left = draggingId === p.id ? dragPos.x : p.x * baseMetrics.outerW;
-            const top = draggingId === p.id ? dragPos.y : p.y * baseMetrics.outerH;
+            const left = draggingId === p.id ? dragPos.x : colOffsets[p.x];
+            const top = draggingId === p.id ? dragPos.y : rowOffsets[p.y];
 
             const values = pieceValues[p.id] ?? {};
             const onValueChange = (key: string, value: string | number | boolean) => {
