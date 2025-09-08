@@ -14,6 +14,7 @@ import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
     cropVisualTemplate,
     getActiveBounds,
     expandBoundsToMerges,
+    type ActiveBounds,
   } from '../utils/block-active.ts';
   import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
   import { duplicateActiveCrop } from '../utils/block-clone.ts';
@@ -55,6 +56,17 @@ function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
   };
 
   return { cellW, cellH, cols, rows, contentW, contentH, outerW, outerH, gridStyle };
+}
+
+function boundsEqual(a: ActiveBounds, b: ActiveBounds) {
+  return (
+    a.minRow === b.minRow &&
+    a.maxRow === b.maxRow &&
+    a.minCol === b.minCol &&
+    a.maxCol === b.maxCol &&
+    a.rows === b.rows &&
+    a.cols === b.cols
+  );
 }
 
 function isInteractive(target: HTMLElement) {
@@ -279,6 +291,27 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   }, [initialMalla, handleRestoreDraft]);
 
+  useEffect(() => {
+    const newBounds = expandBoundsToMerges(template, getActiveBounds(template));
+    setPieces((prev) => {
+      let changed = false;
+      const next = prev.map((p) => {
+        if (p.kind === 'ref') {
+          if (boundsEqual(p.ref.bounds, newBounds)) return p;
+          changed = true;
+          return { ...p, ref: { ...p.ref, bounds: newBounds } };
+        }
+        if (p.kind === 'snapshot' && p.origin) {
+          if (boundsEqual(p.origin.bounds, newBounds)) return p;
+          changed = true;
+          return { ...p, origin: { ...p.origin, bounds: newBounds } };
+        }
+        return p;
+      });
+      return changed ? next : prev;
+    });
+  }, [template]);
+
   // --- validación de reducción de la macro-grilla
   const handleRowsChange = (newRows: number) => {
     if (newRows < rows) {
@@ -388,10 +421,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
         } else {
           // snapshot -> ref (descongelar) solo si hay origen
           if (!p.origin) return p;
+          const bounds = expandBoundsToMerges(template, getActiveBounds(template));
           return {
             kind: 'ref',
             id: p.id,
-            ref: { ...p.origin },
+            ref: { sourceId: 'master', bounds, aspect },
             x: p.x,
             y: p.y,
           } as CurricularPieceRef;
