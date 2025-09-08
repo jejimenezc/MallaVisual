@@ -28,13 +28,14 @@ export default function App(): JSX.Element {
     visual: VisualTemplate,
     aspect: BlockAspect
   ) => {
-    try {
-      window.localStorage.removeItem('malla-editor-state');
-    } catch {
-      /* ignore */
+    if (!malla) {
+      try {
+        window.localStorage.removeItem('malla-editor-state');
+      } catch {
+        /* ignore */
+      }
     }
     setBlock({ template, visual, aspect });
-    setMalla(null);
     navigate('/malla');
   };
 
@@ -123,6 +124,7 @@ export default function App(): JSX.Element {
             onBack={() => navigate('/bloque')}
             onUpdateMaster={setBlock}
             initialMalla={malla ?? undefined}
+            onMallaChange={setMalla}
             projectId={projectId ?? undefined}
             projectName={projectName}
           />

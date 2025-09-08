@@ -1,5 +1,5 @@
 // src/screens/MallaEditorScreen.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -77,7 +77,8 @@ interface Props {
     } | null>
   >;
   initialMalla?: MallaExport;
-  projectId?: string;
+  onMallaChange?: React.Dispatch<React.SetStateAction<MallaExport | null>>;
+projectId?: string;
   projectName?: string;
 }
 
@@ -88,6 +89,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   onBack,
   onUpdateMaster,
   initialMalla,
+  onMallaChange,
   projectId,
   projectName,
 }) => {
@@ -239,6 +241,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           values: pieceValues,
           floatingPieces,
         };
+        onMallaChange?.(project);
         window.localStorage.setItem(STORAGE_KEY, exportMalla(project));
         if (projectId) {
           projectRepo.save(projectId, projectName ?? 'Proyecto', project);
@@ -247,9 +250,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
         /* ignore */
       }
     }, 300);
-  }, [template, visual, aspect, cols, rows, pieces, pieceValues, floatingPieces, projectId, projectName, projectRepo]);
+  }, [template, visual, aspect, cols, rows, pieces, pieceValues, floatingPieces, projectId, projectName, projectRepo, onMallaChange]);
 
-  const handleRestoreDraft = () => {
+  const handleRestoreDraft = useCallback(() => {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -268,7 +271,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
     } catch (err) {
       console.error('Error restoring draft:', err);
     }
-  };
+  }, [onUpdateMaster]);
+
+  useEffect(() => {
+    if (!initialMalla) {
+      handleRestoreDraft();
+    }
+  }, [initialMalla, handleRestoreDraft]);
 
   // --- validación de reducción de la macro-grilla
   const handleRowsChange = (newRows: number) => {
