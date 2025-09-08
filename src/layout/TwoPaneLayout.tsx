@@ -10,7 +10,7 @@ interface TwoPaneLayoutProps {
 export const TwoPaneLayout: React.FC<TwoPaneLayoutProps> = ({ header, left, right }) => {
   return (
     <div className="screen">
-      {header && <div className="screen-header">{header}</div>}
+      {header}
       <div className="two-pane">
         <div className="left-pane">{left}</div>
         {right && <div className="right-pane sidebar-panel">{right}</div>}

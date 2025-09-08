@@ -6,6 +6,8 @@ import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
 import { ContextSidebarPanel } from '../components/ContextSidebarPanel';
 import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
+import { Button } from '../components/Button';
+import { Header } from '../components/Header';
 import { VisualTemplate, BlockAspect } from '../types/visual.ts';
 import { exportBlock, importBlock } from '../utils/block-io.ts';
 import type { BlockExport } from '../utils/block-io.ts';
@@ -109,24 +111,24 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     useEffect(() => { setSelectedCoord(undefined); }, [mode]);
 
   const header = (
-    <div className="header-controls">
-      <button
+    <Header title="Editor de Bloques">
+      <Button
         className={mode === 'edit' ? 'active' : ''}
         onClick={() => setMode('edit')}
       >
         ✏️ Editar
-      </button>
-      <button
+      </Button>
+      <Button
         className={mode === 'view' ? 'active' : ''}
         onClick={() => setMode('view')}
       >
         👁️ Vista
-      </button>
-      <button onClick={handleExport}>⬇️ Exportar</button>
-      <button onClick={() => fileInputRef.current?.click()}>⬆️ Importar</button>
-      <button onClick={() => onProceedToMalla?.(template, visual, aspect)}>
+      </Button>
+      <Button onClick={handleExport}>⬇️ Exportar</Button>
+      <Button onClick={() => fileInputRef.current?.click()}>⬆️ Importar</Button>
+      <Button onClick={() => onProceedToMalla?.(template, visual, aspect)}>
         ➡️ Malla
-      </button>
+      </Button>
       <input
         type="file"
         accept="application/json"
@@ -134,7 +136,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         style={{ display: 'none' }}
         onChange={handleImportFile}
       />
-    </div>
+    </Header>
   );
 
   if (mode === 'edit') {

@@ -1,9 +1,5 @@
-:root {
-  --grid-gap: 2px;
-  --grid-pad: 4px;
-}
-
 body {
   margin: 0;
-  background-color: #f4f4f4;
+  background-color: var(--color-bg);
+  font-family: var(--font-base);
 }

@@ -29,6 +29,8 @@ import {
 } from '../utils/master-repo.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
+import { Button } from '../components/Button';
+import { Header } from '../components/Header';
 
 const STORAGE_KEY = 'malla-editor-state';
 
@@ -549,9 +551,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     <div className={styles.mallaScreen}>
       <div className={styles.repository}>
         {onBack && (
-          <button onClick={onBack} title="Volver a inicio">
+          <Button onClick={onBack} title="Volver a inicio">
             ⬅️ Volver
-          </button>
+          </Button>
         )}
         <h3>Repositorio</h3>
 
@@ -574,22 +576,22 @@ export const MallaEditorScreen: React.FC<Props> = ({
               value={newMasterId}
               onChange={(e) => setNewMasterId(e.target.value)}
             />
-            <button
+            <Button
               type="button"
               onClick={handleSaveMaster}
               disabled={!newMasterId}
               title="Guardar maestro actual"
             >
               Guardar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleDeleteMaster}
               disabled={!selectedMasterId}
               title="Eliminar maestro seleccionado"
             >
               Eliminar
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -598,24 +600,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
         </div>
 
         <div className={styles.repoActions}>
-          <button
+          <Button
             onClick={handleAddReferenced}
             title="Agregar bloque sincronizado con el maestro"
           >
             Agregar bloque (referenciado)
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleAddSnapshot}
             title="Agregar copia estática del bloque actual"
           >
             Agregar bloque (snapshot)
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className={styles.mallaWrapper}>
-        <div className={styles.gridControls}>
-          <h2>Editor de Malla</h2>
+        <Header title="Editor de Malla">
           <label>
             Filas
             <input
@@ -623,7 +624,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
               min={1}
               value={rows}
               onChange={(e) => handleRowsChange(Number(e.target.value))}
-            />          </label>
+            />
+          </label>
           <label>
             Columnas
             <input
@@ -633,28 +635,28 @@ export const MallaEditorScreen: React.FC<Props> = ({
               onChange={(e) => handleColsChange(Number(e.target.value))}
             />
           </label>
-          <div>
-            <button
+          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+            <Button
               type="button"
               onClick={handleSave}
               title="Guardar malla en archivo"
             >
               Guardar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleLoadClick}
               title="Cargar malla desde archivo"
             >
               Cargar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleRestoreDraft}
               title="Restaurar último borrador guardado"
             >
               Recuperar borrador
-            </button>
+            </Button>
             <input
               type="file"
               accept="application/json"
@@ -663,21 +665,21 @@ export const MallaEditorScreen: React.FC<Props> = ({
               onChange={handleFileChange}
             />
           </div>
-          <button
+          <Button
             type="button"
             onClick={handleFillGrid}
             title="Completar todas las posiciones vacías"
           >
             Generar malla completa
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleClearGrid}
             title="Eliminar todas las piezas de la malla"
           >
             Borrar malla completa
-          </button>   
-        </div>
+          </Button>
+        </Header>
 
         <div
           className={styles.mallaArea}
@@ -736,7 +738,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   {/* Toolbar por pieza */}
                   <div className={styles.pieceToolbar}>
                   {/* Toggle congelar/descongelar */}
-                  <button
+                  <Button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -746,16 +748,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     title={toggleLabel}
                     disabled={p.kind === 'snapshot' && !p.origin}
                     style={{
-                      background: p.kind === 'ref' || canUnfreeze ? '#fff' : '#eee',
+                      background: p.kind === 'ref' || canUnfreeze ? 'var(--color-surface)' : 'var(--color-bg)',
                       color: p.kind === 'ref' || canUnfreeze ? 'inherit' : '#999',
                       cursor: p.kind === 'ref' || canUnfreeze ? 'pointer' : 'not-allowed',
                     }}
                   >
                     {toggleLabel}
-                  </button>
+                  </Button>
 
                   {/* Duplicar */}
-                  <button
+                  <Button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -764,10 +766,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     title="Duplicar"
                   >
                     ⧉
-                  </button>
+                  </Button>
 
                   {/* Eliminar */}
-                  <button
+                  <Button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -776,7 +778,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     title="Eliminar"
                   >
                     🗑️
-                  </button>
+                  </Button>
                 </div>
 
                 <TemplateGrid
