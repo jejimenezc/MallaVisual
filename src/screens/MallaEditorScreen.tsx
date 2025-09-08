@@ -158,7 +158,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       if (p.kind === 'ref') {
         const safeBounds = expandBoundsToMerges(template, p.ref.bounds);
         tpl = cropTemplate(template, safeBounds);
-        pieceAspect = p.ref.aspect;
+        pieceAspect = aspect;
       } else {
         tpl = p.template;
         pieceAspect = p.aspect;
@@ -178,7 +178,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const gridWidth = colWidths.reduce((a, b) => a + b, 0);
     const gridHeight = rowHeights.reduce((a, b) => a + b, 0);
     return { colWidths, rowHeights, colOffsets, rowOffsets, gridWidth, gridHeight };
-  }, [pieces, cols, rows, template, baseMetrics.outerW, baseMetrics.outerH]);
+  }, [pieces, cols, rows, template, aspect, baseMetrics.outerW, baseMetrics.outerH]);
 
   const gridAreaStyle = useMemo(
     () =>
@@ -333,20 +333,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
       let changed = false;
       const next = prev.map((p) => {
         if (p.kind === 'ref') {
-          if (boundsEqual(p.ref.bounds, nextBounds)) return p;
+          const needsBounds = !boundsEqual(p.ref.bounds, nextBounds);
+          const needsAspect = p.ref.aspect !== aspect;
+          if (!needsBounds && !needsAspect) return p;
           changed = true;
-          return { ...p, ref: { ...p.ref, bounds: nextBounds } };
+          return {
+            ...p,
+            ref: { ...p.ref, bounds: needsBounds ? nextBounds : p.ref.bounds, aspect },
+          };
         }
         if (p.kind === 'snapshot' && p.origin) {
-          if (boundsEqual(p.origin.bounds, nextBounds)) return p;
+          const needsBounds = !boundsEqual(p.origin.bounds, nextBounds);
+          const needsAspect = p.origin.aspect !== aspect;
+          if (!needsBounds && !needsAspect) return p;
           changed = true;
-          return { ...p, origin: { ...p.origin, bounds: nextBounds } };
+          return {
+            ...p,
+            origin: {
+              ...p.origin,
+              bounds: needsBounds ? nextBounds : p.origin.bounds,
+              aspect,
+            },
+          };
         }
         return p;
       });
       return changed ? next : prev;
     });
-  }, [template]);
+  }, [template, aspect]);
 
   // --- validación de reducción de la macro-grilla
   const handleRowsChange = (newRows: number) => {
@@ -449,7 +463,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             id: p.id,
             template: tpl,
             visual: vis,
-            aspect: p.ref.aspect,
+            aspect,
             x: p.x,
             y: p.y,
             origin,
@@ -792,9 +806,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
               pieceVisual   = cropVisualTemplate(visual, safeBounds);
 
               // Si quieres que sigan el aspecto del maestro “en vivo”, usa `aspect` aquí:
-              // pieceAspect = aspect;
+              pieceAspect = aspect;
               // Si prefieres que usen el aspecto con el que se crearon:
-              pieceAspect = p.ref.aspect;
+              // pieceAspect = p.ref.aspect;
             } else {
               // Snapshot: usa su copia materializada tal cual
               pieceTemplate = p.template;
