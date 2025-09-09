@@ -372,16 +372,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
             ref: { ...p.ref, bounds: needsBounds ? nextBounds : p.ref.bounds, aspect },
           };
         }
-        if (p.kind === 'ref' && p.ref.sourceId === selectedMasterId) {
-          const needsBounds = !boundsEqual(p.origin.bounds, nextBounds);
-          const needsAspect = p.origin.aspect !== aspect;
+        if (p.kind === 'snapshot' && p.origin?.sourceId === selectedMasterId) {
+          const origin = p.origin!;
+          const needsBounds = !boundsEqual(origin.bounds, nextBounds);
+          const needsAspect = origin.aspect !== aspect;
           if (!needsBounds && !needsAspect) return p;
           changed = true;
           return {
             ...p,
             origin: {
-              ...p.origin,
-              bounds: needsBounds ? nextBounds : p.origin.bounds,
+              ...origin,
+              bounds: needsBounds ? nextBounds : origin.bounds,
               aspect,
             },
           };
