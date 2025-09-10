@@ -73,11 +73,12 @@ export default function App(): JSX.Element {
               setProjectId(id);
               setProjectName(name);
               const firstId = Object.keys(data.masters)[0];
-              const first = data.masters[firstId];
+              const activeId = data.activeMasterId ?? firstId;
+              const active = data.masters[activeId];
               setBlock({
-                template: first.template,
-                visual: first.visual,
-                aspect: first.aspect,
+                template: active.template,
+                visual: active.visual,
+                aspect: active.aspect,
               });
               setMalla(data);
               navigate('/malla');
@@ -88,11 +89,12 @@ export default function App(): JSX.Element {
               if ('masters' in data) {
                 const m = data as MallaExport;
                 const firstId = Object.keys(m.masters)[0];
-                const first = m.masters[firstId];
+                const activeId = m.activeMasterId ?? firstId;
+                const active = m.masters[activeId];
                 setBlock({
-                  template: first.template,
-                  visual: first.visual,
-                  aspect: first.aspect,
+                  template: active.template,
+                  visual: active.visual,
+                  aspect: active.aspect,
                 });
                 setMalla(m);
                 navigate('/malla');

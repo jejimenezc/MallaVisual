@@ -8,6 +8,7 @@ export interface MallaExport {
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
   floatingPieces?: string[];
+  activeMasterId?: string;
 }
 
 export const MALLA_SCHEMA_VERSION = 2;
@@ -47,5 +48,6 @@ export function importMalla(json: string): MallaExport {
     pieces: data.pieces ?? [],
     values: data.values ?? {},
     floatingPieces: data.floatingPieces ?? [],
+    activeMasterId: data.activeMasterId,
   };
 }

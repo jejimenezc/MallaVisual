@@ -31,6 +31,7 @@ test('exportMalla followed by importMalla yields same data including booleans', 
     pieces: [piece],
     values: { p1: { done: true } },
     floatingPieces: ['p1'],
+    activeMasterId: 'm1',
   });
 
   const result = importMalla(json);
@@ -40,4 +41,5 @@ test('exportMalla followed by importMalla yields same data including booleans', 
   assert.deepEqual(result.pieces, [piece]);
   assert.deepEqual(result.values, { p1: { done: true } });
   assert.deepEqual(result.floatingPieces, ['p1']);
+  assert.equal(result.activeMasterId, 'm1');
 });

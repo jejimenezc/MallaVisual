@@ -135,8 +135,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [initialMalla, template, visual, aspect]
   );
   const initialMasterId = useMemo(
-    () => Object.keys(initialMasters)[0] ?? 'master',
-    [initialMasters]
+    () => initialMalla?.activeMasterId ?? Object.keys(initialMasters)[0] ?? 'master',
+    [initialMalla, initialMasters]
   );
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
@@ -249,6 +249,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       pieces,
       values: pieceValues,
       floatingPieces,
+      activeMasterId: selectedMasterId,
     });
     try {
       window.localStorage.setItem(STORAGE_KEY, json);
@@ -276,13 +277,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
       try {
         const data = importMalla(String(ev.target?.result));
         const firstId = Object.keys(data.masters)[0];
-        const first = data.masters[firstId];
+        const activeId = data.activeMasterId ?? firstId;
+        const active = data.masters[activeId];
         onUpdateMaster?.({
-          template: first.template,
-          visual: first.visual,
-          aspect: first.aspect,
+          template: active.template,
+          visual: active.visual,
+          aspect: active.aspect,
         });
-        setSelectedMasterId(firstId);
+        setSelectedMasterId(activeId);
         setMastersById(data.masters);
         setCols(data.grid?.cols ?? 5);
         setRows(data.grid?.rows ?? 5);
@@ -314,6 +316,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           pieces,
           values: pieceValues,
           floatingPieces,
+          activeMasterId: selectedMasterId,
         };
         onMallaChange?.(project);
         window.localStorage.setItem(STORAGE_KEY, exportMalla(project));
@@ -324,7 +327,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
         /* ignore */
       }
     }, 300);
-  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, projectId, projectName, projectRepo, onMallaChange]);
+  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, projectId, projectName, projectRepo, onMallaChange]);
 
   const handleRestoreDraft = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -333,13 +336,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
       if (!raw) return;
       const data = importMalla(raw);
       const firstId = Object.keys(data.masters)[0];
-      const first = data.masters[firstId];
+      const activeId = data.activeMasterId ?? firstId;
+      const active = data.masters[activeId];
       onUpdateMaster?.({
-        template: first.template,
-        visual: first.visual,
-        aspect: first.aspect,
+        template: active.template,
+        visual: active.visual,
+        aspect: active.aspect,
       });
-      setSelectedMasterId(firstId);
+      setSelectedMasterId(activeId);
       setMastersById(data.masters);
       setCols(data.grid?.cols ?? 5);
       setRows(data.grid?.rows ?? 5);

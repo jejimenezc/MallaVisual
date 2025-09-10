@@ -72,6 +72,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       pieces: [],
       values: {},
       floatingPieces: [],
+      activeMasterId: 'master',
     };
     projectRepo.save(projectId, projectName ?? 'Proyecto', data);
   }, [template, visual, aspect, projectId, projectName, projectRepo]);
