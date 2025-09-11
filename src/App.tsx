@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import type { BlockTemplate } from './types/curricular.ts';
+import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -106,6 +108,7 @@ export default function App(): JSX.Element {
                 onLoadBlock={handleLoadBlock}
                 onLoadMalla={handleLoadMalla}
                 onOpenProject={handleOpenProject}
+                currentProjectId={projectId ?? undefined}
               />
             }
           />

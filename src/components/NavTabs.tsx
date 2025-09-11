@@ -10,7 +10,6 @@ export const NavTabs: React.FC = () => {
         Escritorio
       </NavLink>
       <NavLink to="/block/design">Diseño de bloque</NavLink>
-      <NavLink to="/block/style">Estilo de bloque</NavLink>
       <NavLink to="/blocks">Repositorio de bloques</NavLink>
       <NavLink to="/malla/design">Diseño de malla</NavLink>
     </nav>
