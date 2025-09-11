@@ -1,0 +1,22 @@
+.block-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1rem;
+}
+.gallery-item {
+  cursor: pointer;
+  border: 2px solid transparent;
+  padding: 0.5rem;
+}
+.gallery-item.selected {
+  border-color: #007acc;
+}
+.block-name {
+  text-align: center;
+  margin-top: 0.25rem;
+}
+.repo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
