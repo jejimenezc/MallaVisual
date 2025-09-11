@@ -8,6 +8,7 @@ import { importMalla } from '../utils/malla-io.ts';
 import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
+import './HomeScreen.css';
 
 interface Props {
   onNewBlock: () => void;
@@ -18,6 +19,7 @@ interface Props {
     data: BlockExport | MallaExport,
     name: string,
   ) => void;
+  currentProjectId?: string;
 }
 
 export const HomeScreen: React.FC<Props> = ({
@@ -25,6 +27,7 @@ export const HomeScreen: React.FC<Props> = ({
   onLoadBlock,
   onLoadMalla,
   onOpenProject,
+  currentProjectId,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const repo = useMemo(
@@ -83,15 +86,45 @@ export const HomeScreen: React.FC<Props> = ({
   };
 
   const left = (
-    <ul>
-      {projects.map((p) => (
-        <li key={p.id}>
-          {p.name} - {new Date(p.date).toLocaleString()}{' '}
-          <Button onClick={() => handleOpenProject(p.id)}>Abrir</Button>{' '}
-          <Button onClick={() => handleDeleteProject(p.id)}>Eliminar</Button>
-        </li>
-      ))}
-    </ul>
+    <table className="project-list">
+      <tbody>
+        {projects.map((p) => (
+          <tr key={p.id}>
+            <td>
+              {p.id === currentProjectId ? (
+                <span>
+                  {p.name} (actual) - {new Date(p.date).toLocaleString()}
+                </span>
+              ) : (
+                <>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleOpenProject(p.id);
+                    }}
+                  >
+                    {p.name}
+                  </a>{' '}
+                  - {new Date(p.date).toLocaleString()}
+                </>
+              )}
+            </td>
+            <td className="trash-cell">
+              {p.id === currentProjectId ? null : (
+                <button
+                  className="trash-button"
+                  title="Eliminar"
+                  onClick={() => handleDeleteProject(p.id)}
+                >
+                  🗑️
+                </button>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 
   const right = (
