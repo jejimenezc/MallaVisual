@@ -14,6 +14,8 @@ import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
+import { saveBlock as repoSaveBlock } from '../utils/block-repo.ts';
+import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 
 
@@ -31,6 +33,7 @@ interface BlockEditorScreenProps {
   initialData?: BlockExport;
   projectId?: string;
   projectName?: string;
+  initialMode?: 'edit' | 'view';
 }
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
@@ -38,8 +41,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   initialData,
   projectId,
   projectName,
+  initialMode = 'edit',
 }) => {
-  const [mode, setMode] = useState<'edit' | 'view'>('edit');
+  const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
   );
@@ -77,6 +81,17 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     projectRepo.save(projectId, projectName ?? 'Proyecto', data);
   }, [template, visual, aspect, projectId, projectName, projectRepo]);
 
+  const handleSaveToRepo = () => {
+    const name = prompt('Nombre del bloque') || '';
+    if (!name) return;
+    repoSaveBlock({
+      id: name,
+      data: { version: BLOCK_SCHEMA_VERSION, template, visual, aspect },
+    });
+    window.dispatchEvent(new Event('block-repo-updated'));
+    alert('Bloque guardado');
+  };
+  
   const handleExport = () => {
     const json = exportBlock(template, visual, aspect);
     const blob = new Blob([json], { type: 'application/json' });
@@ -152,25 +167,26 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           />
         }
         right={
-          <ContextSidebarPanel
-  selectedCount={editorSidebar?.selectedCount ?? 0}
-  canCombine={editorSidebar?.canCombine ?? false}
-  canSeparate={editorSidebar?.canSeparate ?? false}
-  onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-  onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
-  selectedCell={editorSidebar?.selectedCell ?? null}
-  selectedCoord={editorSidebar?.selectedCoord}
-  onUpdateCell={(updated, coord) => {
-    const fallback = editorSidebar?.selectedCoord;
-    const target = coord ?? fallback;
-    if (!target || !editorSidebar?.handlers.onUpdateCell) return;
-    editorSidebar.handlers.onUpdateCell(updated, target);
-  }}
-  combineDisabledReason={editorSidebar?.combineDisabledReason}
-  template={template}
-
-
-          />
+          <div>
+            <ContextSidebarPanel
+              selectedCount={editorSidebar?.selectedCount ?? 0}
+              canCombine={editorSidebar?.canCombine ?? false}
+              canSeparate={editorSidebar?.canSeparate ?? false}
+              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
+              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+              selectedCell={editorSidebar?.selectedCell ?? null}
+              selectedCoord={editorSidebar?.selectedCoord}
+              onUpdateCell={(updated, coord) => {
+                const fallback = editorSidebar?.selectedCoord;
+                const target = coord ?? fallback;
+                if (!target || !editorSidebar?.handlers.onUpdateCell) return;
+                editorSidebar.handlers.onUpdateCell(updated, target);
+              }}
+              combineDisabledReason={editorSidebar?.combineDisabledReason}
+              template={template}
+            />
+            <Button onClick={handleSaveToRepo}>Agregar al repositorio</Button>
+          </div>
         }
       />
     );
@@ -190,14 +206,17 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         />
       }
       right={
-        <FormatStylePanel
-          selectedCoord={selectedCoord}
-          visualTemplate={visual}
-          onUpdateVisual={setVisual}
-          template={template}
-          blockAspect={aspect}
-          onUpdateAspect={setAspect}
-        />
+        <div>
+          <FormatStylePanel
+            selectedCoord={selectedCoord}
+            visualTemplate={visual}
+            onUpdateVisual={setVisual}
+            template={template}
+            blockAspect={aspect}
+            onUpdateAspect={setAspect}
+          />
+          <Button onClick={handleSaveToRepo}>Agregar al repositorio</Button>
+        </div>
       }
     />
   );

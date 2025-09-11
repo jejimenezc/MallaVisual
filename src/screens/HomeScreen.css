@@ -1,0 +1,19 @@
+.project-list {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.project-list td {
+  padding: 0.25rem 0.5rem;
+}
+
+.trash-cell {
+  width: 2rem;
+  text-align: right;
+}
+
+.trash-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+}

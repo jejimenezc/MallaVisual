@@ -6,6 +6,9 @@ import { importBlock } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { importMalla } from '../utils/malla-io.ts';
 import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
+import { TwoPaneLayout } from '../layout/TwoPaneLayout';
+import { Button } from '../components/Button';
+import './HomeScreen.css';
 
 interface Props {
   onNewBlock: () => void;
@@ -16,6 +19,7 @@ interface Props {
     data: BlockExport | MallaExport,
     name: string,
   ) => void;
+  currentProjectId?: string;
 }
 
 export const HomeScreen: React.FC<Props> = ({
@@ -23,6 +27,7 @@ export const HomeScreen: React.FC<Props> = ({
   onLoadBlock,
   onLoadMalla,
   onOpenProject,
+  currentProjectId,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const repo = useMemo(
@@ -80,17 +85,52 @@ export const HomeScreen: React.FC<Props> = ({
     onOpenProject(id, proj.data, proj.meta.name);
   };
 
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-        alignItems: 'center',
-      }}
-    >
-      <button onClick={onNewBlock}>Nuevo bloque</button>
-      <button onClick={handleLoadClick}>Cargar bloque/malla</button>
+  const left = (
+    <table className="project-list">
+      <tbody>
+        {projects.map((p) => (
+          <tr key={p.id}>
+            <td>
+              {p.id === currentProjectId ? (
+                <span>
+                  {p.name} (actual) - {new Date(p.date).toLocaleString()}
+                </span>
+              ) : (
+                <>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleOpenProject(p.id);
+                    }}
+                  >
+                    {p.name}
+                  </a>{' '}
+                  - {new Date(p.date).toLocaleString()}
+                </>
+              )}
+            </td>
+            <td className="trash-cell">
+              {p.id === currentProjectId ? null : (
+                <button
+                  className="trash-button"
+                  title="Eliminar"
+                  onClick={() => handleDeleteProject(p.id)}
+                >
+                  🗑️
+                </button>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  const right = (
+    <div className="home-actions">
+      <Button onClick={onNewBlock}>Crear nuevo proyecto</Button>
+      <Button onClick={handleLoadClick}>Cargar proyecto guardado</Button>
       <input
         type="file"
         accept="application/json"
@@ -98,16 +138,13 @@ export const HomeScreen: React.FC<Props> = ({
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
-      <ul>
-        {projects.map((p) => (
-          <li key={p.id}>
-            {p.name} - {new Date(p.date).toLocaleString()}{' '}
-            <button onClick={() => handleOpenProject(p.id)}>Abrir</button>{' '}
-            <button onClick={() => handleDeleteProject(p.id)}>Eliminar</button>
-          </li>
-        ))}
-      </ul>
-      {showIntro && <IntroOverlay onClose={() => setShowIntro(false)} />}
     </div>
+  );
+
+  return (
+    <>
+      <TwoPaneLayout left={left} right={right} />
+      {showIntro && <IntroOverlay onClose={() => setShowIntro(false)} />}
+    </>
   );
 };

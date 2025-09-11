@@ -25,10 +25,15 @@ import {
   type MallaExport,
   MALLA_SCHEMA_VERSION,
 } from '../utils/malla-io.ts';
+import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
 import {
-  createLocalStorageMasterRepository,
-  createLocalStorageProjectRepository,
-} from '../utils/master-repo.ts';
+  listBlocks,
+  saveBlock as repoSaveBlock,
+  removeBlock as repoRemoveBlock,
+  type StoredBlock,
+} from '../utils/block-repo.ts';
+import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
+import type { BlockExport } from '../utils/block-io.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
@@ -128,8 +133,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     []);
   
   // --- repositorio y estado de maestros
-  const masterRepo = useMemo(() => createLocalStorageMasterRepository(), []);
-  const [availableMasters, setAvailableMasters] = useState<string[]>([]);
+  const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
   const initialMasters = useMemo<Record<string, MasterBlockData>>(
     () => initialMalla?.masters ?? { master: { template, visual, aspect } },
     [initialMalla, template, visual, aspect]
@@ -143,8 +147,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [newMasterId, setNewMasterId] = useState('');
 
   useEffect(() => {
-    setAvailableMasters(masterRepo.list());
-  }, [masterRepo]);
+    setAvailableMasters(listBlocks());
+    const handler = () => setAvailableMasters(listBlocks());
+    window.addEventListener('block-repo-updated', handler);
+    return () => window.removeEventListener('block-repo-updated', handler);
+  }, []);
 
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
@@ -213,10 +220,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   const handleSelectMaster = (id: string) => {
     setSelectedMasterId(id);
-    const data = masterRepo.load(id);
-    if (data) {
+    const rec = listBlocks().find((b) => b.id === id);
+    if (rec) {
+      const data = rec.data;
       setMastersById((prev) => ({ ...prev, [id]: data }));
-        onUpdateMaster?.({
+      onUpdateMaster?.({
         template: data.template,
         visual: data.visual,
         aspect: data.aspect,
@@ -226,19 +234,26 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   const handleSaveMaster = () => {
     if (!newMasterId) return;
-    const data = { template, visual, aspect };
-    masterRepo.save(newMasterId, data);
-    setAvailableMasters(masterRepo.list());
+    const data: BlockExport = {
+      version: BLOCK_SCHEMA_VERSION,
+      template,
+      visual,
+      aspect,
+    };
+    repoSaveBlock({ id: newMasterId, data });
+    setAvailableMasters(listBlocks());
     setMastersById((prev) => ({ ...prev, [newMasterId]: data }));
     setSelectedMasterId(newMasterId);
     setNewMasterId('');
+    window.dispatchEvent(new Event('block-repo-updated'));
   };
 
   const handleDeleteMaster = () => {
     if (!selectedMasterId) return;
-    masterRepo.remove(selectedMasterId);
-    setAvailableMasters(masterRepo.list());
+    repoRemoveBlock(selectedMasterId);
+    setAvailableMasters(listBlocks());
     setSelectedMasterId('');
+    window.dispatchEvent(new Event('block-repo-updated'));
   };
   
     // --- persistencia
@@ -704,7 +719,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             onChange={(e) => handleSelectMaster(e.target.value)}
           >
             <option value="">(Actual)</option>
-            {availableMasters.map((id) => (
+            {availableMasters.map(({ id }) => (
               <option key={id} value={id}>
                 {id}
               </option>
