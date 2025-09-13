@@ -1,0 +1,16 @@
+.nav-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: #f0f0f0;
+}
+.nav-tabs a {
+  text-decoration: none;
+  padding: 0.25rem 0.75rem;
+  color: inherit;
+  border-bottom: 2px solid transparent;
+}
+.nav-tabs a.active {
+  border-color: #007acc;
+  font-weight: bold;
+}
