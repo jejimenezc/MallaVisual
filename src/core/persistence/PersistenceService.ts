@@ -19,6 +19,7 @@ export class PersistenceService {
   private listeners = new Set<() => void>();
   private saveTimer: number | null = null;
   private lastSaved: number | null = null;
+  private snapshot = { status: this.status as AutosaveStatus, lastSaved: this.lastSaved };
 
   constructor() {
     this.projectRepo = createLocalStorageProjectRepository<MallaExport>();
@@ -26,6 +27,7 @@ export class PersistenceService {
 
   private setStatus(s: AutosaveStatus) {
     this.status = s;
+    this.snapshot = { status: this.status, lastSaved: this.lastSaved };
     this.listeners.forEach((l) => l());
   }
 
@@ -36,6 +38,10 @@ export class PersistenceService {
 
   getStatus(): AutosaveStatus {
     return this.status;
+  }
+
+  getSnapshotInfo() {
+    return this.snapshot; // referencia estable
   }
 
     getLastSaved(): number | null {
@@ -60,6 +66,7 @@ export class PersistenceService {
           this.projectRepo.save(projectId, projectName ?? 'Proyecto', data);
         }
         this.lastSaved = Date.now();
+        this.snapshot = { status: this.status, lastSaved: this.lastSaved };
         this.setStatus('idle');
       } catch {
         this.setStatus('error');

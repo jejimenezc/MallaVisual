@@ -5,10 +5,7 @@ import type { MallaExport } from '../../utils/malla-io.ts';
 export function useAutosaveInfo() {
   return useSyncExternalStore(
     (cb) => persistenceService.subscribe(cb),
-    () => ({
-      status: persistenceService.getStatus(),
-      lastSaved: persistenceService.getLastSaved(),
-    }),
+    () => persistenceService.getSnapshotInfo(),
   );
 }
 
