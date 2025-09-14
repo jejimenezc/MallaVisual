@@ -29,7 +29,7 @@ export function useProject(options: UseProjectOptions = {}) {
   return {
     autoSave,
     loadDraft,
-    cancelAutoSave: () => persistenceService.cancelAutoSave(),
+    flushAutoSave: () => persistenceService.flushAutoSave(),
     exportProject: persistenceService.exportProject,
     importProject: persistenceService.importProject,
     listProjects: persistenceService.listProjects,

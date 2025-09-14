@@ -51,7 +51,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [aspect, setAspect] = useState<BlockAspect>(
     initialData?.aspect ?? '1/1'
   );
-  const { autoSave, cancelAutoSave } = useProject({ projectId, projectName });
+  const { autoSave, flushAutoSave } = useProject({ projectId, projectName });
   const { saveBlock: repoSaveBlock } = useBlocksRepo();
   const savedRef = useRef<string | null>(null);
 
@@ -80,7 +80,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     autoSave(data);
   }, [template, visual, aspect, projectId, projectName, autoSave]);
 
-  useEffect(() => () => cancelAutoSave(), [cancelAutoSave]);
+  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
 
   const [repoId, setRepoId] = useState<string | null>(null);
 
