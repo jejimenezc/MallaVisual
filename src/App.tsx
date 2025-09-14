@@ -9,16 +9,12 @@ import { MallaEditorScreen } from './screens/MallaEditorScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
-import {
-  StatusBar,
-  StatusBarIndicators,
-  StatusBarProject,
-  StatusBarScreen,
-} from './components/StatusBar/StatusBar';
+import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
-import type { MallaExport } from './utils/malla-io';
+import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io';
 import styles from './App.module.css';
+import { useProject } from './core/persistence/hooks.ts';
 
 export default function App(): JSX.Element {
   const navigate = useNavigate();
@@ -31,6 +27,41 @@ export default function App(): JSX.Element {
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
+  const { exportProject } = useProject();
+
+  const currentProject: MallaExport | null = useMemo(() => {
+    if (malla) return malla;
+    if (block) {
+      return {
+        version: MALLA_SCHEMA_VERSION,
+        masters: {
+          master: {
+            template: block.template,
+            visual: block.visual,
+            aspect: block.aspect,
+          },
+        },
+        grid: { cols: 5, rows: 5 },
+        pieces: [],
+        values: {},
+        floatingPieces: [],
+        activeMasterId: 'master',
+      };
+    }
+    return null;
+  }, [malla, block]);
+
+  const handleExportProject = () => {
+    if (!currentProject) return;
+    const json = exportProject({ ...currentProject });
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectName || 'proyecto'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleNewProject = () => {
     const name = prompt('Nombre del proyecto') || 'Sin nombre';
@@ -119,11 +150,13 @@ export default function App(): JSX.Element {
     <div className={styles.appContainer}>
       <AppHeader />
       <NavTabs />
-      <StatusBar>
-        <StatusBarProject>{projectName || 'Sin nombre'}</StatusBarProject>
-        <StatusBarScreen>{screenTitle}</StatusBarScreen>
-        <StatusBarIndicators>{`schema v${BLOCK_SCHEMA_VERSION}`}</StatusBarIndicators>
-      </StatusBar>
+      <StatusBar
+        projectName={projectName}
+        screenTitle={screenTitle}
+        schemaVersion={BLOCK_SCHEMA_VERSION}
+        onExportProject={handleExportProject}
+        hasProject={!!currentProject}
+      />
       <main className={styles.appMain}>
         <Routes>
           <Route

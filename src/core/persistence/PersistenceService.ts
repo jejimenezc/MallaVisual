@@ -18,6 +18,7 @@ export class PersistenceService {
   private status: AutosaveStatus = 'idle';
   private listeners = new Set<() => void>();
   private saveTimer: number | null = null;
+  private lastSaved: number | null = null;
 
   constructor() {
     this.projectRepo = createLocalStorageProjectRepository<MallaExport>();
@@ -37,6 +38,10 @@ export class PersistenceService {
     return this.status;
   }
 
+    getLastSaved(): number | null {
+    return this.lastSaved;
+  }
+  
   autoSave(
     storageKey: string | undefined,
     projectId: string | undefined,
@@ -54,11 +59,22 @@ export class PersistenceService {
         if (projectId) {
           this.projectRepo.save(projectId, projectName ?? 'Proyecto', data);
         }
+        this.lastSaved = Date.now();
         this.setStatus('idle');
       } catch {
         this.setStatus('error');
       }
     }, delay);
+  }
+
+  cancelAutoSave(): void {
+    if (this.saveTimer !== null) {
+      window.clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+      if (this.status === 'saving') {
+        this.setStatus('idle');
+      }
+    }
   }
 
   loadDraft(storageKey: string): MallaExport | null {

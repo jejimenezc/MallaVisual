@@ -2,10 +2,13 @@ import { useCallback, useSyncExternalStore } from 'react';
 import { persistenceService } from './PersistenceService.ts';
 import type { MallaExport } from '../../utils/malla-io.ts';
 
-export function useAutosaveStatus() {
+export function useAutosaveInfo() {
   return useSyncExternalStore(
     (cb) => persistenceService.subscribe(cb),
-    () => persistenceService.getStatus(),
+    () => ({
+      status: persistenceService.getStatus(),
+      lastSaved: persistenceService.getLastSaved(),
+    }),
   );
 }
 
@@ -29,6 +32,7 @@ export function useProject(options: UseProjectOptions = {}) {
   return {
     autoSave,
     loadDraft,
+    cancelAutoSave: () => persistenceService.cancelAutoSave(),
     exportProject: persistenceService.exportProject,
     importProject: persistenceService.importProject,
     listProjects: persistenceService.listProjects,

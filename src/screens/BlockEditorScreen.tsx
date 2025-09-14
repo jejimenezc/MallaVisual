@@ -51,9 +51,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [aspect, setAspect] = useState<BlockAspect>(
     initialData?.aspect ?? '1/1'
   );
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { autoSave } = useProject({ projectId, projectName });
-  const { saveBlock: repoSaveBlock, exportBlock, importBlock } = useBlocksRepo();
+  const { autoSave, cancelAutoSave } = useProject({ projectId, projectName });
+  const { saveBlock: repoSaveBlock } = useBlocksRepo();
+  const savedRef = useRef<string | null>(null);
 
     useEffect(() => {
     if (initialData) {
@@ -74,49 +74,30 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       floatingPieces: [],
       activeMasterId: 'master',
     };
+    const serialized = JSON.stringify(data);
+    if (savedRef.current === serialized) return;
+    savedRef.current = serialized;
     autoSave(data);
   }, [template, visual, aspect, projectId, projectName, autoSave]);
 
+  useEffect(() => () => cancelAutoSave(), [cancelAutoSave]);
+
+  const [repoId, setRepoId] = useState<string | null>(null);
+
   const handleSaveToRepo = () => {
-    const name = prompt('Nombre del bloque') || '';
-    if (!name) return;
+    let id = repoId;
+    if (!id) {
+    const defaultName = savedRef.current ?? '';
+    id = prompt('Nombre del bloque', defaultName) || defaultName;
+      if (!id) return;
+      setRepoId(id);
+    }
     repoSaveBlock({
-      id: name,
+      id,
       data: { version: BLOCK_SCHEMA_VERSION, template, visual, aspect },
     });
     window.dispatchEvent(new Event('block-repo-updated'));
-    alert('Bloque guardado');
-  };
-  
-  const handleExport = () => {
-    const json = exportBlock({
-      version: BLOCK_SCHEMA_VERSION,
-      template,
-      visual,
-      aspect,
-    });
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'block.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    file.text().then((text) => {
-      try {
-        const data = importBlock(text);
-        setTemplate(data.template);
-        setVisual(data.visual);
-        setAspect(data.aspect);
-      } catch (err) {
-        alert((err as Error).message);
-      }
-    });
+    alert(repoId ? 'Bloque actualizado' : 'Bloque guardado');
   };
 
   // Estado que publica el editor para poblar el ContextSidebarPanel
@@ -141,18 +122,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       >
         👁️ Vista
       </Button>
-      <Button onClick={handleExport}>⬇️ Exportar</Button>
-      <Button onClick={() => fileInputRef.current?.click()}>⬆️ Importar</Button>
       <Button onClick={() => onProceedToMalla?.(template, visual, aspect)}>
         ➡️ Malla
       </Button>
-      <input
-        type="file"
-        accept="application/json"
-        ref={fileInputRef}
-        style={{ display: 'none' }}
-        onChange={handleImportFile}
-      />
     </Header>
   );
 
@@ -186,7 +158,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               combineDisabledReason={editorSidebar?.combineDisabledReason}
               template={template}
             />
-            <Button onClick={handleSaveToRepo}>Agregar al repositorio</Button>
+            <Button onClick={handleSaveToRepo}>
+              {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
+            </Button>
           </div>
         }
       />
@@ -216,7 +190,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             blockAspect={aspect}
             onUpdateAspect={setAspect}
           />
-          <Button onClick={handleSaveToRepo}>Agregar al repositorio</Button>
+          <Button onClick={handleSaveToRepo}>
+            {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
+          </Button>
         </div>
       }
     />

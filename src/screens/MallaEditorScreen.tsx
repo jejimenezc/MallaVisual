@@ -1,5 +1,5 @@
 // src/screens/MallaEditorScreen.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -20,8 +20,6 @@ import {
 import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
 import { duplicateActiveCrop } from '../utils/block-clone.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
-import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
-import type { BlockExport } from '../utils/block-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import styles from './MallaEditorScreen.module.css';
@@ -115,14 +113,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { autoSave, exportProject, importProject, loadDraft } = useProject({
+  const { autoSave, cancelAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
     projectName,
   });
-  const { listBlocks, saveBlock: repoSaveBlock, removeBlock: repoRemoveBlock } =
-    useBlocksRepo();
+  const { listBlocks } = useBlocksRepo();
   
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
@@ -136,7 +132,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
-  const [newMasterId, setNewMasterId] = useState('');
 
   useEffect(() => {
     setAvailableMasters(listBlocks());
@@ -159,6 +154,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
+  const savedRef = useRef<string | null>(null);
   const {
     colWidths,
     rowHeights,
@@ -224,84 +220,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   };
 
-  const handleSaveMaster = () => {
-    if (!newMasterId) return;
-    const data: BlockExport = {
-      version: BLOCK_SCHEMA_VERSION,
-      template,
-      visual,
-      aspect,
-    };
-    repoSaveBlock({ id: newMasterId, data });
-    setAvailableMasters(listBlocks());
-    setMastersById((prev) => ({ ...prev, [newMasterId]: data }));
-    setSelectedMasterId(newMasterId);
-    setNewMasterId('');
-    window.dispatchEvent(new Event('block-repo-updated'));
-  };
-
-  const handleDeleteMaster = () => {
-    if (!selectedMasterId) return;
-    repoRemoveBlock(selectedMasterId);
-    setAvailableMasters(listBlocks());
-    setSelectedMasterId('');
-    window.dispatchEvent(new Event('block-repo-updated'));
-  };
-  
-    // --- persistencia
-  const handleSave = () => {
-    const json = exportProject({
-      version: MALLA_SCHEMA_VERSION,
-      masters: mastersById,
-      grid: { cols, rows },
-      pieces,
-      values: pieceValues,
-      floatingPieces,
-      activeMasterId: selectedMasterId,
-    });
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'malla.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleLoadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = importProject(String(ev.target?.result));
-        const firstId = Object.keys(data.masters)[0];
-        const activeId = data.activeMasterId ?? firstId;
-        const active = data.masters[activeId];
-        onUpdateMaster?.({
-          template: active.template,
-          visual: active.visual,
-          aspect: active.aspect,
-        });
-        setSelectedMasterId(activeId);
-        setMastersById(data.masters);
-        setCols(data.grid?.cols ?? 5);
-        setRows(data.grid?.rows ?? 5);
-        setPieces(data.pieces);
-        setPieceValues(data.values);
-        setFloatingPieces(data.floatingPieces ?? []);
-      } catch (err) {
-        console.error('Error loading malla:', err);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
   useEffect(() => {
     const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
@@ -312,35 +230,36 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       activeMasterId: selectedMasterId,
     };
+    const serialized = JSON.stringify(project);
+    if (savedRef.current === serialized) return;
+    savedRef.current = serialized;
     onMallaChange?.(project);
     autoSave(project);
   }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, autoSave, onMallaChange]);
 
-  const handleRestoreDraft = useCallback(() => {
-    const data = loadDraft();
-    if (!data) return;
-    const firstId = Object.keys(data.masters)[0];
-    const activeId = data.activeMasterId ?? firstId;
-    const active = data.masters[activeId];
-    onUpdateMaster?.({
-      template: active.template,
-      visual: active.visual,
-      aspect: active.aspect,
-    });
-    setSelectedMasterId(activeId);
-    setMastersById(data.masters);
-    setCols(data.grid?.cols ?? 5);
-    setRows(data.grid?.rows ?? 5);
-    setPieces(data.pieces);
-    setPieceValues(data.values);
-    setFloatingPieces(data.floatingPieces ?? []);
-  }, [loadDraft, onUpdateMaster]);
+  useEffect(() => () => cancelAutoSave(), [cancelAutoSave]);
   
   useEffect(() => {
     if (!initialMalla) {
-      handleRestoreDraft();
+      const data = loadDraft();
+      if (!data) return;
+      const firstId = Object.keys(data.masters)[0];
+      const activeId = data.activeMasterId ?? firstId;
+      const active = data.masters[activeId];
+      onUpdateMaster?.({
+        template: active.template,
+        visual: active.visual,
+        aspect: active.aspect,
+      });
+      setSelectedMasterId(activeId);
+      setMastersById(data.masters);
+      setCols(data.grid?.cols ?? 5);
+      setRows(data.grid?.rows ?? 5);
+      setPieces(data.pieces);
+      setPieceValues(data.values);
+      setFloatingPieces(data.floatingPieces ?? []);
     }
-  }, [initialMalla, handleRestoreDraft]);
+  }, [initialMalla, loadDraft, onUpdateMaster]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
@@ -691,30 +610,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
               </option>
             ))}
           </select>
-          <div className={styles.masterRepoActions}>
-            <input
-              type="text"
-              placeholder="Nombre"
-              value={newMasterId}
-              onChange={(e) => setNewMasterId(e.target.value)}
-            />
-            <Button
-              type="button"
-              onClick={handleSaveMaster}
-              disabled={!newMasterId}
-              title="Guardar maestro actual"
-            >
-              Guardar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleDeleteMaster}
-              disabled={!selectedMasterId}
-              title="Eliminar maestro seleccionado"
-            >
-              Eliminar
-            </Button>
-          </div>
         </div>
 
         <div className={styles.repoSnapshot}>
@@ -757,36 +652,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
               onChange={(e) => handleColsChange(Number(e.target.value))}
             />
           </label>
-          <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-            <Button
-              type="button"
-              onClick={handleSave}
-              title="Guardar malla en archivo"
-            >
-              Guardar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleLoadClick}
-              title="Cargar malla desde archivo"
-            >
-              Cargar
-            </Button>
-            <Button
-              type="button"
-              onClick={handleRestoreDraft}
-              title="Restaurar último borrador guardado"
-            >
-              Recuperar borrador
-            </Button>
-            <input
-              type="file"
-              accept="application/json"
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-          </div>
           <Button
             type="button"
             onClick={handleFillGrid}

@@ -124,8 +124,8 @@ export const HomeScreen: React.FC<Props> = ({
 
   const right = (
     <div className="home-actions">
-      <Button onClick={onNewBlock}>Crear nuevo proyecto</Button>
-      <Button onClick={handleLoadClick}>Cargar proyecto guardado</Button>
+      <Button onClick={onNewBlock}>Nuevo proyecto...</Button>
+      <Button onClick={handleLoadClick}>Abrir proyecto...</Button>
       <input
         type="file"
         accept="application/json"
