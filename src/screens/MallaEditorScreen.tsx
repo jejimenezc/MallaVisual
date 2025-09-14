@@ -10,30 +10,20 @@ import type {
 } from '../types/curricular.ts';
 import { TemplateGrid } from '../components/TemplateGrid';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
-  import {
-    cropTemplate,
-    cropVisualTemplate,
-    getActiveBounds,
-    expandBoundsToMerges,
-    type ActiveBounds,
-  } from '../utils/block-active.ts';
-  import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
-  import { duplicateActiveCrop } from '../utils/block-clone.ts';
 import {
-  exportMalla,
-  importMalla,
-  type MallaExport,
-  MALLA_SCHEMA_VERSION,
-} from '../utils/malla-io.ts';
-import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
-import {
-  listBlocks,
-  saveBlock as repoSaveBlock,
-  removeBlock as repoRemoveBlock,
-  type StoredBlock,
-} from '../utils/block-repo.ts';
+  cropTemplate,
+  cropVisualTemplate,
+  getActiveBounds,
+  expandBoundsToMerges,
+  type ActiveBounds,
+} from '../utils/block-active.ts';
+import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
+import { duplicateActiveCrop } from '../utils/block-clone.ts';
+import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import type { BlockExport } from '../utils/block-io.ts';
+import type { StoredBlock } from '../utils/block-repo.ts';
+import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
@@ -126,11 +116,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const saveTimer = useRef<number | null>(null);
-
-  const projectRepo = useMemo(
-    () => createLocalStorageProjectRepository<MallaExport>(),
-    []);
+  const { autoSave, exportProject, importProject, loadDraft } = useProject({
+    storageKey: STORAGE_KEY,
+    projectId,
+    projectName,
+  });
+  const { listBlocks, saveBlock: repoSaveBlock, removeBlock: repoRemoveBlock } =
+    useBlocksRepo();
   
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
@@ -151,7 +143,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const handler = () => setAvailableMasters(listBlocks());
     window.addEventListener('block-repo-updated', handler);
     return () => window.removeEventListener('block-repo-updated', handler);
-  }, []);
+  }, [listBlocks]);
 
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
@@ -258,7 +250,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   
     // --- persistencia
   const handleSave = () => {
-    const json = exportMalla({
+    const json = exportProject({
+      version: MALLA_SCHEMA_VERSION,
       masters: mastersById,
       grid: { cols, rows },
       pieces,
@@ -266,11 +259,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       activeMasterId: selectedMasterId,
     });
-    try {
-      window.localStorage.setItem(STORAGE_KEY, json);
-    } catch {
-      /* ignore */
-    }
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -290,7 +278,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const data = importMalla(String(ev.target?.result));
+        const data = importProject(String(ev.target?.result));
         const firstId = Object.keys(data.masters)[0];
         const activeId = data.activeMasterId ?? firstId;
         const active = data.masters[activeId];
@@ -306,11 +294,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
         setPieces(data.pieces);
         setPieceValues(data.values);
         setFloatingPieces(data.floatingPieces ?? []);
-        try {
-          window.localStorage.setItem(STORAGE_KEY, String(ev.target?.result));
-        } catch {
-          /* ignore */
-        }
       } catch (err) {
         console.error('Error loading malla:', err);
       }
@@ -320,56 +303,39 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      try {
-        const project: MallaExport = {
-          version: MALLA_SCHEMA_VERSION,
-          masters: mastersById,
-          grid: { cols, rows },
-          pieces,
-          values: pieceValues,
-          floatingPieces,
-          activeMasterId: selectedMasterId,
-        };
-        onMallaChange?.(project);
-        window.localStorage.setItem(STORAGE_KEY, exportMalla(project));
-        if (projectId) {
-          projectRepo.save(projectId, projectName ?? 'Proyecto', project);
-        }
-      } catch {
-        /* ignore */
-      }
-    }, 300);
-  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, projectId, projectName, projectRepo, onMallaChange]);
+    const project: MallaExport = {
+      version: MALLA_SCHEMA_VERSION,
+      masters: mastersById,
+      grid: { cols, rows },
+      pieces,
+      values: pieceValues,
+      floatingPieces,
+      activeMasterId: selectedMasterId,
+    };
+    onMallaChange?.(project);
+    autoSave(project);
+  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, autoSave, onMallaChange]);
 
   const handleRestoreDraft = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const data = importMalla(raw);
-      const firstId = Object.keys(data.masters)[0];
-      const activeId = data.activeMasterId ?? firstId;
-      const active = data.masters[activeId];
-      onUpdateMaster?.({
-        template: active.template,
-        visual: active.visual,
-        aspect: active.aspect,
-      });
-      setSelectedMasterId(activeId);
-      setMastersById(data.masters);
-      setCols(data.grid?.cols ?? 5);
-      setRows(data.grid?.rows ?? 5);
-      setPieces(data.pieces);
-      setPieceValues(data.values);
-      setFloatingPieces(data.floatingPieces ?? []);
-    } catch (err) {
-      console.error('Error restoring draft:', err);
-    }
-  }, [onUpdateMaster]);
-
+    const data = loadDraft();
+    if (!data) return;
+    const firstId = Object.keys(data.masters)[0];
+    const activeId = data.activeMasterId ?? firstId;
+    const active = data.masters[activeId];
+    onUpdateMaster?.({
+      template: active.template,
+      visual: active.visual,
+      aspect: active.aspect,
+    });
+    setSelectedMasterId(activeId);
+    setMastersById(data.masters);
+    setCols(data.grid?.cols ?? 5);
+    setRows(data.grid?.rows ?? 5);
+    setPieces(data.pieces);
+    setPieceValues(data.values);
+    setFloatingPieces(data.floatingPieces ?? []);
+  }, [loadDraft, onUpdateMaster]);
+  
   useEffect(() => {
     if (!initialMalla) {
       handleRestoreDraft();

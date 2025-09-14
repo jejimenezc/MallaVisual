@@ -3,18 +3,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { BlockSnapshot } from '../components/BlockSnapshot';
 import { Button } from '../components/Button';
-import {
-  listBlocks,
-  saveBlock,
-  removeBlock,
-  importBlock,
-  exportBlock,
-  type StoredBlock,
-} from '../utils/block-repo.ts';
+import { useBlocksRepo } from '../core/persistence/hooks.ts';
+import type { StoredBlock } from '../utils/block-repo.ts';
 import './BlockRepositoryScreen.css';
 
 export const BlockRepositoryScreen: React.FC = () => {
-  const [blocks, setBlocks] = useState<StoredBlock[]>([]);
+  const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
+    useBlocksRepo();  const [blocks, setBlocks] = useState<StoredBlock[]>([]);
   const [selected, setSelected] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +20,7 @@ export const BlockRepositoryScreen: React.FC = () => {
     const handler = () => refresh();
     window.addEventListener('block-repo-updated', handler);
     return () => window.removeEventListener('block-repo-updated', handler);
-  }, []);
+  }, [listBlocks]);
 
   const handleImport = () => fileInputRef.current?.click();
 

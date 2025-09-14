@@ -1,5 +1,5 @@
 // src/screens/BlockEditorScreen.tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
@@ -9,13 +9,11 @@ import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { VisualTemplate, BlockAspect } from '../types/visual.ts';
-import { exportBlock, importBlock } from '../utils/block-io.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
-import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
-import { saveBlock as repoSaveBlock } from '../utils/block-repo.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
+import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 
 
@@ -54,10 +52,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     initialData?.aspect ?? '1/1'
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const projectRepo = useMemo(
-    () => createLocalStorageProjectRepository<MallaExport>(),
-    []
-  );
+  const { autoSave } = useProject({ projectId, projectName });
+  const { saveBlock: repoSaveBlock, exportBlock, importBlock } = useBlocksRepo();
 
     useEffect(() => {
     if (initialData) {
@@ -78,8 +74,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       floatingPieces: [],
       activeMasterId: 'master',
     };
-    projectRepo.save(projectId, projectName ?? 'Proyecto', data);
-  }, [template, visual, aspect, projectId, projectName, projectRepo]);
+    autoSave(data);
+  }, [template, visual, aspect, projectId, projectName, autoSave]);
 
   const handleSaveToRepo = () => {
     const name = prompt('Nombre del bloque') || '';
@@ -93,7 +89,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   };
   
   const handleExport = () => {
-    const json = exportBlock(template, visual, aspect);
+    const json = exportBlock({
+      version: BLOCK_SCHEMA_VERSION,
+      template,
+      visual,
+      aspect,
+    });
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
