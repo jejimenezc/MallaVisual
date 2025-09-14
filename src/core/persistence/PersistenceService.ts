@@ -18,7 +18,14 @@ export class PersistenceService {
   private status: AutosaveStatus = 'idle';
   private listeners = new Set<() => void>();
   private saveTimer: number | null = null;
-  private lastSaved: number | null = null;
+  private pendingSave:
+    | {
+        storageKey?: string;
+        projectId?: string;
+        projectName?: string;
+        data: MallaExport;
+      }
+    | null = null;  private lastSaved: number | null = null;
   private snapshot = { status: this.status as AutosaveStatus, lastSaved: this.lastSaved };
 
   constructor() {
@@ -48,6 +55,27 @@ export class PersistenceService {
     return this.lastSaved;
   }
   
+  private performSave(pending: {
+    storageKey?: string;
+    projectId?: string;
+    projectName?: string;
+    data: MallaExport;
+  }) {
+    try {
+      const { storageKey, projectId, projectName, data } = pending;
+      if (storageKey) {
+        window.localStorage.setItem(storageKey, exportMalla(data));
+      }
+      if (projectId) {
+        this.projectRepo.save(projectId, projectName ?? 'Proyecto', data);
+      }
+      this.lastSaved = Date.now();
+      this.setStatus('idle');
+    } catch {
+      this.setStatus('error');
+    }
+  }
+
   autoSave(
     storageKey: string | undefined,
     projectId: string | undefined,
@@ -57,30 +85,26 @@ export class PersistenceService {
   ): void {
     if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
     this.setStatus('saving');
+    this.pendingSave = { storageKey, projectId, projectName, data };
     this.saveTimer = window.setTimeout(() => {
-      try {
-        if (storageKey) {
-          window.localStorage.setItem(storageKey, exportMalla(data));
-        }
-        if (projectId) {
-          this.projectRepo.save(projectId, projectName ?? 'Proyecto', data);
-        }
-        this.lastSaved = Date.now();
-        this.snapshot = { status: this.status, lastSaved: this.lastSaved };
-        this.setStatus('idle');
-      } catch {
-        this.setStatus('error');
+      this.saveTimer = null;
+      if (this.pendingSave) {
+        this.performSave(this.pendingSave);
+        this.pendingSave = null;
       }
     }, delay);
   }
 
-  cancelAutoSave(): void {
+  flushAutoSave(): void {
     if (this.saveTimer !== null) {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
-      if (this.status === 'saving') {
-        this.setStatus('idle');
-      }
+    }
+    if (this.pendingSave) {
+      this.performSave(this.pendingSave);
+      this.pendingSave = null;
+    } else if (this.status === 'saving') {
+      this.setStatus('idle');
     }
   }
 

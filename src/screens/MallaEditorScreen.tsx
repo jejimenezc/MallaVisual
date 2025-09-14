@@ -113,7 +113,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
-  const { autoSave, cancelAutoSave, loadDraft } = useProject({
+  const { autoSave, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
     projectName,
@@ -237,7 +237,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     autoSave(project);
   }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, autoSave, onMallaChange]);
 
-  useEffect(() => () => cancelAutoSave(), [cancelAutoSave]);
+  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
   
   useEffect(() => {
     if (!initialMalla) {
