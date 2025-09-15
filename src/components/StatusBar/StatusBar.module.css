@@ -1,0 +1,61 @@
+/* src/components/StatusBar/StatusBar.module.css */
+.statusBar {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  background-color: #fafafa;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.875rem;
+}
+
+.project {
+  flex: 1;
+  text-align: left;
+}
+
+.screen {
+  flex: 1;
+  text-align: center;
+}
+
+.indicators {
+  flex: 1;
+  text-align: right;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.5rem;
+}
+
+.dot {
+  font-size: 1rem;
+}
+
+.idle {
+  color: green;
+}
+
+.saving {
+  color: orange;
+  animation: blink 1s infinite;
+}
+
+.error {
+  color: red;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.exportButton {
+  margin-left: 0.5rem;
+}

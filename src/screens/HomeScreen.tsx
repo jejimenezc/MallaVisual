@@ -1,11 +1,11 @@
 // src/screens/HomeScreen.tsx
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { IntroOverlay } from '../components/IntroOverlay';
 import type { BlockExport } from '../utils/block-io.ts';
 import { importBlock } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { importMalla } from '../utils/malla-io.ts';
-import { createLocalStorageProjectRepository } from '../utils/master-repo.ts';
+import { useProject } from '../core/persistence/hooks.ts';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import './HomeScreen.css';
@@ -30,18 +30,13 @@ export const HomeScreen: React.FC<Props> = ({
   currentProjectId,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const repo = useMemo(
-    () => createLocalStorageProjectRepository<BlockExport | MallaExport>(),
-    []
-  );
-  const [projects, setProjects] = useState(
-    () => repo.list()
-  );
+  const { listProjects, loadProject, removeProject } = useProject();
+  const [projects, setProjects] = useState(() => listProjects());
   const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
-    setProjects(repo.list());
-  }, [repo]);
+    setProjects(listProjects());
+  }, [listProjects]);
 
   useEffect(() => {
     const key = 'introOverlaySeen';
@@ -75,12 +70,12 @@ export const HomeScreen: React.FC<Props> = ({
   };
 
   const handleDeleteProject = (id: string) => {
-    repo.remove(id);
-    setProjects(repo.list());
+    removeProject(id);
+    setProjects(listProjects());
   };
 
   const handleOpenProject = (id: string) => {
-    const proj = repo.load(id);
+    const proj = loadProject(id);
     if (!proj) return;
     onOpenProject(id, proj.data, proj.meta.name);
   };
@@ -129,8 +124,8 @@ export const HomeScreen: React.FC<Props> = ({
 
   const right = (
     <div className="home-actions">
-      <Button onClick={onNewBlock}>Crear nuevo proyecto</Button>
-      <Button onClick={handleLoadClick}>Cargar proyecto guardado</Button>
+      <Button onClick={onNewBlock}>Nuevo proyecto...</Button>
+      <Button onClick={handleLoadClick}>Abrir proyecto...</Button>
       <input
         type="file"
         accept="application/json"

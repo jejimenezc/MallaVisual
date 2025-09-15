@@ -7,9 +7,22 @@
 }
 
 .appHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   padding: 1rem;
   background-color: #f5f5f5;
   border-bottom: 1px solid #ddd;
+}
+
+.headerTitle {
+  flex: 1;
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.headerToggle {
+  margin-left: auto;
 }
 
 .appMain {

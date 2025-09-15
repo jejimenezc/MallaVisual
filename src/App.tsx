@@ -1,7 +1,7 @@
 // src/App.tsx
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { JSX } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import type { BlockTemplate } from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
@@ -9,12 +9,17 @@ import { MallaEditorScreen } from './screens/MallaEditorScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
-import type { MallaExport } from './utils/malla-io';
+import { StatusBar } from './components/StatusBar/StatusBar';
+import { AppHeader } from './components/AppHeader';
+import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io';
 import styles from './App.module.css';
+import { useProject } from './core/persistence/hooks.ts';
+import { ProceedToMallaProvider } from './state/proceed-to-malla';
 
 export default function App(): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   const [block, setBlock] = useState<{
     template: BlockTemplate;
     visual: VisualTemplate;
@@ -23,6 +28,41 @@ export default function App(): JSX.Element {
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
+  const { exportProject } = useProject();
+
+  const currentProject: MallaExport | null = useMemo(() => {
+    if (malla) return malla;
+    if (block) {
+      return {
+        version: MALLA_SCHEMA_VERSION,
+        masters: {
+          master: {
+            template: block.template,
+            visual: block.visual,
+            aspect: block.aspect,
+          },
+        },
+        grid: { cols: 5, rows: 5 },
+        pieces: [],
+        values: {},
+        floatingPieces: [],
+        activeMasterId: 'master',
+      };
+    }
+    return null;
+  }, [malla, block]);
+
+  const handleExportProject = () => {
+    if (!currentProject) return;
+    const json = exportProject({ ...currentProject });
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectName || 'proyecto'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleNewProject = () => {
     const name = prompt('Nombre del proyecto') || 'Sin nombre';
@@ -92,13 +132,34 @@ export default function App(): JSX.Element {
     navigate('/malla/design');
   };
 
+  const screenTitle = useMemo(() => {
+    switch (location.pathname) {
+      case '/block/design':
+        return 'Diseño de bloque';
+      case '/block/style':
+        return 'Estilo de bloque';
+      case '/blocks':
+        return 'Repositorio de bloques';
+      case '/malla/design':
+        return 'Diseño de malla';
+      default:
+        return 'Escritorio';
+    }
+  }, [location.pathname]);
+
   return (
-    <div className={styles.appContainer}>
-      <header className={styles.appHeader}>
-        <h1>Mallas Curriculares</h1>
-      </header>
-      <NavTabs />
-      <main className={styles.appMain}>
+    <ProceedToMallaProvider>
+      <div className={styles.appContainer}>
+        <AppHeader />
+        <NavTabs />
+        <StatusBar
+          projectName={projectName}
+          screenTitle={screenTitle}
+          schemaVersion={BLOCK_SCHEMA_VERSION}
+          onExportProject={handleExportProject}
+          hasProject={!!currentProject}
+        />
+        <main className={styles.appMain}>
         <Routes>
           <Route
             path="/"
@@ -166,5 +227,6 @@ export default function App(): JSX.Element {
         </Routes>
       </main>
     </div>
+  </ProceedToMallaProvider>
   );
 }
