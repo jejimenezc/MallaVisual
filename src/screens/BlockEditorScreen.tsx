@@ -15,6 +15,7 @@ import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
+import { useProceedToMalla } from '../state/proceed-to-malla';
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -41,6 +42,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   projectName,
   initialMode = 'edit',
 }) => {
+  const { setHandler } = useProceedToMalla();
   const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
@@ -127,6 +129,15 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       </Button>
     </Header>
   );
+
+  useEffect(() => {
+    if (!onProceedToMalla) {
+      setHandler(null);
+      return;
+    }
+    setHandler(() => () => onProceedToMalla(template, visual, aspect));
+    return () => setHandler(null);
+  }, [setHandler, onProceedToMalla, template, visual, aspect]);
 
   if (mode === 'edit') {
     return (

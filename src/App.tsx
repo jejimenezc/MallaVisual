@@ -15,6 +15,7 @@ import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io';
 import styles from './App.module.css';
 import { useProject } from './core/persistence/hooks.ts';
+import { ProceedToMallaProvider } from './state/proceed-to-malla';
 
 export default function App(): JSX.Element {
   const navigate = useNavigate();
@@ -147,17 +148,18 @@ export default function App(): JSX.Element {
   }, [location.pathname]);
 
   return (
-    <div className={styles.appContainer}>
-      <AppHeader />
-      <NavTabs />
-      <StatusBar
-        projectName={projectName}
-        screenTitle={screenTitle}
-        schemaVersion={BLOCK_SCHEMA_VERSION}
-        onExportProject={handleExportProject}
-        hasProject={!!currentProject}
-      />
-      <main className={styles.appMain}>
+    <ProceedToMallaProvider>
+      <div className={styles.appContainer}>
+        <AppHeader />
+        <NavTabs />
+        <StatusBar
+          projectName={projectName}
+          screenTitle={screenTitle}
+          schemaVersion={BLOCK_SCHEMA_VERSION}
+          onExportProject={handleExportProject}
+          hasProject={!!currentProject}
+        />
+        <main className={styles.appMain}>
         <Routes>
           <Route
             path="/"
@@ -225,5 +227,6 @@ export default function App(): JSX.Element {
         </Routes>
       </main>
     </div>
+  </ProceedToMallaProvider>
   );
 }
