@@ -89,9 +89,15 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const handleSaveToRepo = () => {
     let id = repoId;
     if (!id) {
-    const defaultName = savedRef.current ?? '';
-    id = prompt('Nombre del bloque', defaultName) || defaultName;
-      if (!id) return;
+      const defaultName = repoId ?? projectName ?? '';
+      const input = prompt('Nombre del bloque', defaultName);
+      if (input === null) return;
+      const trimmed = input.trim();
+      if (!trimmed) {
+        alert('Debes ingresar un nombre para el bloque.');
+        return;
+      }
+      id = trimmed;
       setRepoId(id);
     }
     repoSaveBlock({
