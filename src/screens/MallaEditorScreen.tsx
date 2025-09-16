@@ -80,6 +80,7 @@ interface Props {
       template: BlockTemplate;
       visual: VisualTemplate;
       aspect: BlockAspect;
+      repoId?: string | null;
     } | null>
   >;
   initialMalla?: MallaExport;
@@ -216,6 +217,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
         template: data.template,
         visual: data.visual,
         aspect: data.aspect,
+        repoId: id,
       });
     }
   };

@@ -27,12 +27,16 @@ interface BlockEditorScreenProps {
   onProceedToMalla?: (
     template: BlockTemplate,
     visual: VisualTemplate,
-    aspect: BlockAspect
+    aspect: BlockAspect,
+    targetPath?: string,
+    repoId?: string | null,
   ) => void;
   initialData?: BlockExport;
   projectId?: string;
   projectName?: string;
   initialMode?: 'edit' | 'view';
+  initialRepoId?: string | null;
+  onRepoIdChange?: (repoId: string | null) => void;
 }
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
@@ -41,6 +45,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   projectId,
   projectName,
   initialMode = 'edit',
+  initialRepoId,
+  onRepoIdChange,
 }) => {
   const { setHandler } = useProceedToMalla();
   const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
@@ -84,7 +90,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
 
-  const [repoId, setRepoId] = useState<string | null>(null);
+  const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
+
+  useEffect(() => {
+    setRepoId(initialRepoId ?? null);
+  }, [initialRepoId]);
 
   const handleSaveToRepo = () => {
     let id = repoId;
@@ -99,6 +109,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       }
       id = trimmed;
       setRepoId(id);
+      onRepoIdChange?.(id);
     }
     repoSaveBlock({
       id,
@@ -130,7 +141,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       >
         👁️ Vista
       </Button>
-      <Button onClick={() => onProceedToMalla?.(template, visual, aspect)}>
+      <Button onClick={() => onProceedToMalla?.(template, visual, aspect, undefined, repoId)}>
         ➡️ Malla
       </Button>
     </Header>
@@ -141,9 +152,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       setHandler(null);
       return;
     }
-    setHandler(() => () => onProceedToMalla(template, visual, aspect));
+    setHandler(
+      () => (targetPath?: string) =>
+        onProceedToMalla(template, visual, aspect, targetPath, repoId)
+    );
     return () => setHandler(null);
-  }, [setHandler, onProceedToMalla, template, visual, aspect]);
+  }, [setHandler, onProceedToMalla, template, visual, aspect, repoId]);
 
   if (mode === 'edit') {
     return (

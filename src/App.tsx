@@ -24,6 +24,7 @@ export default function App(): JSX.Element {
     template: BlockTemplate;
     visual: VisualTemplate;
     aspect: BlockAspect;
+    repoId?: string | null;
   } | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -79,7 +80,12 @@ export default function App(): JSX.Element {
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    setBlock({ template: data.template, visual: data.visual, aspect: data.aspect });
+    setBlock({
+      template: data.template,
+      visual: data.visual,
+      aspect: data.aspect,
+      repoId: null,
+    });
     setMalla(null);
     navigate('/block/design');
   };
@@ -92,7 +98,12 @@ export default function App(): JSX.Element {
     const firstId = Object.keys(data.masters)[0];
     const activeId = data.activeMasterId ?? firstId;
     const active = data.masters[activeId];
-    setBlock({ template: active.template, visual: active.visual, aspect: active.aspect });
+    setBlock({
+      template: active.template,
+      visual: active.visual,
+      aspect: active.aspect,
+      repoId: null,
+    });
     setMalla(data);
     navigate('/malla/design');
   };
@@ -105,12 +116,22 @@ export default function App(): JSX.Element {
       const firstId = Object.keys(m.masters)[0];
       const activeId = m.activeMasterId ?? firstId;
       const active = m.masters[activeId];
-      setBlock({ template: active.template, visual: active.visual, aspect: active.aspect });
+      setBlock({
+        template: active.template,
+        visual: active.visual,
+        aspect: active.aspect,
+        repoId: null,
+      });
       setMalla(m);
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
-      setBlock({ template: b.template, visual: b.visual, aspect: b.aspect });
+      setBlock({
+        template: b.template,
+        visual: b.visual,
+        aspect: b.aspect,
+        repoId: null,
+      });
       setMalla(null);
       navigate('/block/design');
     }
@@ -120,16 +141,61 @@ export default function App(): JSX.Element {
     template: BlockTemplate,
     visual: VisualTemplate,
     aspect: BlockAspect,
+    targetPath?: string,
+    repoId?: string | null,
   ) => {
-    if (!malla) {
+    const destination = targetPath ?? '/malla/design';
+    if (!malla && destination === '/malla/design') {
       try {
         window.localStorage.removeItem('malla-editor-state');
       } catch {
         /* ignore */
       }
     }
-    setBlock({ template, visual, aspect });
-    navigate('/malla/design');
+    setBlock((prev) => ({
+      template,
+      visual,
+      aspect,
+      repoId: repoId !== undefined ? repoId : prev?.repoId ?? null,
+    }));
+    navigate(destination);
+  };
+
+  const handleRepoIdChange = (repoId: string | null) => {
+    setBlock((prev) => {
+      if (!prev) return prev;
+      if (prev.repoId === repoId) return prev;
+      return { ...prev, repoId };
+    });
+  };
+
+  const handleUpdateMaster: React.Dispatch<
+    React.SetStateAction<{
+      template: BlockTemplate;
+      visual: VisualTemplate;
+      aspect: BlockAspect;
+      repoId?: string | null;
+    } | null>
+  > = (update) => {
+    setBlock((prev) => {
+      const prevState = prev
+        ? {
+            template: prev.template,
+            visual: prev.visual,
+            aspect: prev.aspect,
+            repoId: prev.repoId ?? null,
+          }
+        : null;
+      const nextState =
+        typeof update === 'function' ? update(prevState) : update;
+      if (!nextState) return null;
+      return {
+        template: nextState.template,
+        visual: nextState.visual,
+        aspect: nextState.aspect,
+        repoId: nextState.repoId ?? prev?.repoId ?? null,
+      };
+    });
   };
 
   const screenTitle = useMemo(() => {
@@ -179,11 +245,20 @@ export default function App(): JSX.Element {
               <BlockEditorScreen
                 onProceedToMalla={handleProceedToMalla}
                 initialData={
-                  block ? { version: BLOCK_SCHEMA_VERSION, ...block } : undefined
+                  block
+                    ? {
+                        version: BLOCK_SCHEMA_VERSION,
+                        template: block.template,
+                        visual: block.visual,
+                        aspect: block.aspect,
+                      }
+                    : undefined
                 }
                 projectId={projectId ?? undefined}
                 projectName={projectName}
                 initialMode="edit"
+                initialRepoId={block?.repoId ?? null}
+                onRepoIdChange={handleRepoIdChange}
               />
             }
           />
@@ -192,10 +267,17 @@ export default function App(): JSX.Element {
             element={
               block ? (
                 <BlockEditorScreen
-                  initialData={{ version: BLOCK_SCHEMA_VERSION, ...block }}
+                  initialData={{
+                    version: BLOCK_SCHEMA_VERSION,
+                    template: block.template,
+                    visual: block.visual,
+                    aspect: block.aspect,
+                  }}
                   projectId={projectId ?? undefined}
                   projectName={projectName}
                   initialMode="view"
+                  initialRepoId={block.repoId ?? null}
+                  onRepoIdChange={handleRepoIdChange}
                 />
               ) : (
                 <Navigate to="/block/design" />
@@ -212,7 +294,7 @@ export default function App(): JSX.Element {
                   visual={block.visual}
                   aspect={block.aspect}
                   onBack={() => navigate('/block/design')}
-                  onUpdateMaster={setBlock}
+                  onUpdateMaster={handleUpdateMaster}
                   initialMalla={malla ?? undefined}
                   onMallaChange={setMalla}
                   projectId={projectId ?? undefined}
