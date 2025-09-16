@@ -27,7 +27,8 @@ interface BlockEditorScreenProps {
   onProceedToMalla?: (
     template: BlockTemplate,
     visual: VisualTemplate,
-    aspect: BlockAspect
+    aspect: BlockAspect,
+    targetPath?: string,
   ) => void;
   initialData?: BlockExport;
   projectId?: string;
@@ -141,7 +142,10 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       setHandler(null);
       return;
     }
-    setHandler(() => () => onProceedToMalla(template, visual, aspect));
+    setHandler(
+      () => (targetPath?: string) =>
+        onProceedToMalla(template, visual, aspect, targetPath)
+    );
     return () => setHandler(null);
   }, [setHandler, onProceedToMalla, template, visual, aspect]);
 

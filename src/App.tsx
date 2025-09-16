@@ -120,8 +120,10 @@ export default function App(): JSX.Element {
     template: BlockTemplate,
     visual: VisualTemplate,
     aspect: BlockAspect,
+    targetPath?: string,
   ) => {
-    if (!malla) {
+    const destination = targetPath ?? '/malla/design';
+    if (!malla && destination === '/malla/design') {
       try {
         window.localStorage.removeItem('malla-editor-state');
       } catch {
@@ -129,7 +131,7 @@ export default function App(): JSX.Element {
       }
     }
     setBlock({ template, visual, aspect });
-    navigate('/malla/design');
+    navigate(destination);
   };
 
   const screenTitle = useMemo(() => {
