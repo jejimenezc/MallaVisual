@@ -293,6 +293,7 @@ export default function App(): JSX.Element {
                   template={block.template}
                   visual={block.visual}
                   aspect={block.aspect}
+                  repoId={block.repoId ?? null}
                   onBack={() => navigate('/block/design')}
                   onUpdateMaster={handleUpdateMaster}
                   initialMalla={malla ?? undefined}
