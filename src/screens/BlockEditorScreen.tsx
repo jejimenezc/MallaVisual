@@ -1,5 +1,5 @@
 // src/screens/BlockEditorScreen.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
@@ -96,16 +96,17 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setRepoId(initialRepoId ?? null);
   }, [initialRepoId]);
 
-  const handleSaveToRepo = () => {
+  const handleSaveToRepo = useCallback((): string | null => {
+    const wasNew = !repoId;
     let id = repoId;
     if (!id) {
       const defaultName = repoId ?? projectName ?? '';
       const input = prompt('Nombre del bloque', defaultName);
-      if (input === null) return;
+      if (input === null) return null;
       const trimmed = input.trim();
       if (!trimmed) {
         alert('Debes ingresar un nombre para el bloque.');
-        return;
+        return null;
       }
       id = trimmed;
       setRepoId(id);
@@ -116,8 +117,34 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       data: { version: BLOCK_SCHEMA_VERSION, template, visual, aspect },
     });
     window.dispatchEvent(new Event('block-repo-updated'));
-    alert(repoId ? 'Bloque actualizado' : 'Bloque guardado');
-  };
+    alert(wasNew ? 'Bloque guardado' : 'Bloque actualizado');
+    return id;
+  }, [repoId, projectName, repoSaveBlock, template, visual, aspect, onRepoIdChange]);
+
+  const ensurePublishedAndProceed = useCallback(
+    (targetPath?: string) => {
+      if (!onProceedToMalla) return;
+      const destination = targetPath ?? '/malla/design';
+      if (destination === '/malla/design' && !repoId) {
+        const confirmed = window.confirm(
+          'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?'
+        );
+        if (!confirmed) return;
+        const savedId = handleSaveToRepo();
+        if (!savedId) return;
+        onProceedToMalla(template, visual, aspect, destination, savedId);
+        return;
+      }
+      onProceedToMalla(
+        template,
+        visual,
+        aspect,
+        destination,
+        repoId ?? null,
+      );
+    },
+    [onProceedToMalla, repoId, template, visual, aspect, handleSaveToRepo]
+  );
 
   // Estado que publica el editor para poblar el ContextSidebarPanel
   const [editorSidebar, setEditorSidebar] = useState<EditorSidebarState | null>(null);
@@ -141,7 +168,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       >
         👁️ Vista
       </Button>
-      <Button onClick={() => onProceedToMalla?.(template, visual, aspect, undefined, repoId)}>
+      <Button onClick={() => ensurePublishedAndProceed()}>
         ➡️ Malla
       </Button>
     </Header>
@@ -152,12 +179,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       setHandler(null);
       return;
     }
-    setHandler(
-      () => (targetPath?: string) =>
-        onProceedToMalla(template, visual, aspect, targetPath, repoId)
-    );
+    setHandler(() => ensurePublishedAndProceed);
     return () => setHandler(null);
-  }, [setHandler, onProceedToMalla, template, visual, aspect, repoId]);
+  }, [setHandler, onProceedToMalla, ensurePublishedAndProceed]);
 
   if (mode === 'edit') {
     return (
@@ -189,7 +213,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               combineDisabledReason={editorSidebar?.combineDisabledReason}
               template={template}
             />
-            <Button onClick={handleSaveToRepo}>
+            <Button onClick={() => handleSaveToRepo()}>
               {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
             </Button>
           </div>
@@ -221,7 +245,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             blockAspect={aspect}
             onUpdateAspect={setAspect}
           />
-          <Button onClick={handleSaveToRepo}>
+          <Button onClick={() => handleSaveToRepo()}>
             {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
           </Button>
         </div>

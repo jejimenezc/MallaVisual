@@ -28,8 +28,6 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 
 const STORAGE_KEY = 'malla-editor-state';
-const CURRENT_MASTER_ID = 'master';
-
 /** Cálculo unificado de métricas de una pieza (recorte) */
 function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
   const { cellW, cellH } = getCellSizeByAspect(aspect);
@@ -75,6 +73,7 @@ interface Props {
   template: BlockTemplate;
   visual: VisualTemplate;
   aspect: BlockAspect;
+  repoId?: string | null;
   onBack?: () => void;
   onUpdateMaster?: React.Dispatch<
     React.SetStateAction<{
@@ -94,6 +93,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   template,
   visual,
   aspect,
+  repoId,
   onBack,
   onUpdateMaster,
   initialMalla,
@@ -124,18 +124,29 @@ export const MallaEditorScreen: React.FC<Props> = ({
   
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
-  const initialMasters = useMemo<Record<string, MasterBlockData>>(
-    () => initialMalla?.masters ?? { [CURRENT_MASTER_ID]: { template, visual, aspect } },
-    [initialMalla, template, visual, aspect]
-  );
-  const initialMasterId = useMemo(
-    () => initialMalla?.activeMasterId ?? Object.keys(initialMasters)[0] ?? CURRENT_MASTER_ID,
-    [initialMalla, initialMasters]
-  );
+  const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
+    if (initialMalla?.masters) {
+      return initialMalla.masters;
+    }
+    if (repoId) {
+      return { [repoId]: { template, visual, aspect } };
+    }
+    return {};
+  }, [initialMalla, repoId, template, visual, aspect]);
+  const initialMasterId = useMemo(() => {
+    if (initialMalla?.activeMasterId) {
+      return initialMalla.activeMasterId;
+    }
+    const keys = Object.keys(initialMasters);
+    if (keys.length > 0) {
+      return keys[0];
+    }
+    if (repoId) {
+      return repoId;
+    }
+    return '';
+  }, [initialMalla, initialMasters, repoId]);
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
-  const [currentMaster, setCurrentMaster] = useState<MasterBlockData>(
-    initialMasters[CURRENT_MASTER_ID] ?? { template, visual, aspect }
-  );
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
 
   useEffect(() => {
@@ -147,14 +158,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
+    if (!selectedMasterId) return;
     const data: MasterBlockData = { template, visual, aspect };
     setMastersById((prev) => ({
       ...prev,
       [selectedMasterId]: data,
     }));
-    if (selectedMasterId === CURRENT_MASTER_ID) {
-      setCurrentMaster(data);
-    }
   }, [selectedMasterId, template, visual, aspect]);
 
   // --- drag & drop
@@ -216,21 +225,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
 
   const handleSelectMaster = (id: string) => {
-    if (id === CURRENT_MASTER_ID) {
-      setSelectedMasterId(id);
-      const data = mastersById[id] ?? currentMaster;
-      setMastersById((prev) => ({ ...prev, [id]: data }));
-      setCurrentMaster(data);
-      onUpdateMaster?.({
-        template: data.template,
-        visual: data.visual,
-        aspect: data.aspect,
-        repoId: null,
-      });
+    setSelectedMasterId(id);
+    if (!id) {
       return;
     }
 
-    setSelectedMasterId(id);
     const stored = mastersById[id];
     if (stored) {
       onUpdateMaster?.({
@@ -635,15 +634,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
         <div className={styles.masterRepo}>
           <select
-            value={selectedMasterId}
+            value={selectedMasterId || ''}
             onChange={(e) => handleSelectMaster(e.target.value)}
           >
-            <option value={CURRENT_MASTER_ID}>(Borrador)</option>
-            {availableMasters.map(({ id }) => (
-              <option key={id} value={id}>
-                {id}
+            {availableMasters.length === 0 ? (
+              <option value="" disabled>
+                No hay bloques publicados
               </option>
-            ))}
+            ) : (
+              availableMasters.map(({ id }) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))
+            )}
           </select>
         </div>
 
