@@ -28,6 +28,7 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 
 const STORAGE_KEY = 'malla-editor-state';
+const CURRENT_MASTER_ID = 'master';
 
 /** Cálculo unificado de métricas de una pieza (recorte) */
 function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
@@ -124,14 +125,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
   const initialMasters = useMemo<Record<string, MasterBlockData>>(
-    () => initialMalla?.masters ?? { master: { template, visual, aspect } },
+    () => initialMalla?.masters ?? { [CURRENT_MASTER_ID]: { template, visual, aspect } },
     [initialMalla, template, visual, aspect]
   );
   const initialMasterId = useMemo(
-    () => initialMalla?.activeMasterId ?? Object.keys(initialMasters)[0] ?? 'master',
+    () => initialMalla?.activeMasterId ?? Object.keys(initialMasters)[0] ?? CURRENT_MASTER_ID,
     [initialMalla, initialMasters]
   );
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
+  const [currentMaster, setCurrentMaster] = useState<MasterBlockData>(
+    initialMasters[CURRENT_MASTER_ID] ?? { template, visual, aspect }
+  );
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
 
   useEffect(() => {
@@ -143,10 +147,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
+    const data: MasterBlockData = { template, visual, aspect };
     setMastersById((prev) => ({
       ...prev,
-      [selectedMasterId]: { template, visual, aspect },
+      [selectedMasterId]: data,
     }));
+    if (selectedMasterId === CURRENT_MASTER_ID) {
+      setCurrentMaster(data);
+    }
   }, [selectedMasterId, template, visual, aspect]);
 
   // --- drag & drop
@@ -208,7 +216,32 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
 
   const handleSelectMaster = (id: string) => {
+    if (id === CURRENT_MASTER_ID) {
+      setSelectedMasterId(id);
+      const data = mastersById[id] ?? currentMaster;
+      setMastersById((prev) => ({ ...prev, [id]: data }));
+      setCurrentMaster(data);
+      onUpdateMaster?.({
+        template: data.template,
+        visual: data.visual,
+        aspect: data.aspect,
+        repoId: null,
+      });
+      return;
+    }
+
     setSelectedMasterId(id);
+    const stored = mastersById[id];
+    if (stored) {
+      onUpdateMaster?.({
+        template: stored.template,
+        visual: stored.visual,
+        aspect: stored.aspect,
+        repoId: id,
+      });
+      return;
+    }
+
     const rec = listBlocks().find((b) => b.id === id);
     if (rec) {
       const data = rec.data;
@@ -605,7 +638,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             value={selectedMasterId}
             onChange={(e) => handleSelectMaster(e.target.value)}
           >
-            <option value="">(Actual)</option>
+            <option value={CURRENT_MASTER_ID}>(Borrador)</option>
             {availableMasters.map(({ id }) => (
               <option key={id} value={id}>
                 {id}
