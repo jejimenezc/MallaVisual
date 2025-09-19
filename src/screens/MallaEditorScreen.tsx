@@ -266,6 +266,47 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   useEffect(() => {
+    if (!initialMalla) {
+      savedRef.current = null;
+      return;
+    }
+
+    const nextGrid = {
+      cols: initialMalla.grid?.cols ?? 5,
+      rows: initialMalla.grid?.rows ?? 5,
+    };
+    const nextMasters = { ...initialMalla.masters };
+    const nextPieces = (initialMalla.pieces ?? []).slice();
+    const nextValues = { ...(initialMalla.values ?? {}) };
+    const nextFloating = (initialMalla.floatingPieces ?? []).slice();
+    const nextActiveId =
+      initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
+
+    const incomingProject: MallaExport = {
+      version: MALLA_SCHEMA_VERSION,
+      masters: nextMasters,
+      grid: nextGrid,
+      pieces: nextPieces,
+      values: nextValues,
+      floatingPieces: nextFloating,
+      activeMasterId: nextActiveId,
+      repository: initialMalla.repository ?? {},
+    };
+
+    const serialized = JSON.stringify(incomingProject);
+    if (savedRef.current === serialized) return;
+
+    savedRef.current = serialized;
+    setMastersById(nextMasters);
+    setCols(nextGrid.cols);
+    setRows(nextGrid.rows);
+    setPieces(nextPieces);
+    setPieceValues(nextValues);
+    setFloatingPieces(nextFloating);
+    setSelectedMasterId(nextActiveId);
+  }, [initialMalla]);
+
+  useEffect(() => {
     const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
       masters: mastersById,
