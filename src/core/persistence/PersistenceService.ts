@@ -5,6 +5,8 @@ import {
   removeBlock as repoRemoveBlock,
   importBlock as repoImportBlock,
   exportBlock as repoExportBlock,
+  replaceBlocks as repoReplaceBlocks,
+  clearBlocks as repoClearBlocks,
   type StoredBlock,
 } from '../../utils/block-repo.ts';
 import { createLocalStorageProjectRepository } from '../../utils/master-repo.ts';
@@ -141,6 +143,14 @@ export class PersistenceService {
   importBlock = (json: string): BlockExport => repoImportBlock(json);
 
   exportBlock = (block: BlockExport): string => repoExportBlock(block);
+
+  replaceRepository = (blocks: Record<string, BlockExport>): void => {
+    repoReplaceBlocks(blocks);
+  };
+
+  clearRepository = (): void => {
+    repoClearBlocks();
+  };
 
   // Project repository helpers
   listProjects = () => this.projectRepo.list();

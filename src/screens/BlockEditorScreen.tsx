@@ -14,6 +14,7 @@ import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
+import type { StoredBlock } from '../utils/block-repo.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
 
@@ -60,10 +61,19 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     initialData?.aspect ?? '1/1'
   );
   const { autoSave, flushAutoSave } = useProject({ projectId, projectName });
-  const { saveBlock: repoSaveBlock } = useBlocksRepo();
+  const { saveBlock: repoSaveBlock, listBlocks } = useBlocksRepo();
   const savedRef = useRef<string | null>(null);
+  const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
 
-    useEffect(() => {
+  useEffect(() => {
+    const sync = () => setRepoBlocks(listBlocks());
+    sync();
+    if (typeof window === 'undefined') return;
+    window.addEventListener('block-repo-updated', sync);
+    return () => window.removeEventListener('block-repo-updated', sync);
+  }, [listBlocks]);
+
+  useEffect(() => {
     if (initialData) {
       setTemplate(initialData.template);
       setVisual(initialData.visual);
@@ -73,6 +83,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   useEffect(() => {
     if (!projectId) return;
+    const repository = Object.fromEntries(
+      repoBlocks
+        .slice()
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(({ id, data }) => [id, data]),
+    );
+
     const data: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
       masters: { master: { template, visual, aspect } },
@@ -81,12 +98,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       values: {},
       floatingPieces: [],
       activeMasterId: 'master',
+      repository,
     };
     const serialized = JSON.stringify(data);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
     autoSave(data);
-  }, [template, visual, aspect, projectId, projectName, autoSave]);
+  }, [template, visual, aspect, projectId, projectName, autoSave, repoBlocks]);
 
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
 
@@ -116,7 +134,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       id,
       data: { version: BLOCK_SCHEMA_VERSION, template, visual, aspect },
     });
-    window.dispatchEvent(new Event('block-repo-updated'));
     alert(wasNew ? 'Bloque guardado' : 'Bloque actualizado');
     return id;
   }, [repoId, projectName, repoSaveBlock, template, visual, aspect, onRepoIdChange]);

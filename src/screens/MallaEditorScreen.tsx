@@ -156,6 +156,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
     return () => window.removeEventListener('block-repo-updated', handler);
   }, [listBlocks]);
 
+  const repository = useMemo(
+    () =>
+      Object.fromEntries(
+        availableMasters
+          .slice()
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map(({ id, data }) => [id, data]),
+      ),
+    [availableMasters],
+  );
+
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
     if (!selectedMasterId) return;
@@ -263,14 +274,26 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values: pieceValues,
       floatingPieces,
       activeMasterId: selectedMasterId,
+      repository,
     };
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
     onMallaChange?.(project);
     autoSave(project);
-  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, autoSave, onMallaChange]);
-
+  }, [
+    mastersById,
+    cols,
+    rows,
+    pieces,
+    pieceValues,
+    floatingPieces,
+    selectedMasterId,
+    repository,
+    autoSave,
+    onMallaChange,
+  ]);
+  
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
   
   useEffect(() => {
