@@ -9,7 +9,8 @@ import './BlockRepositoryScreen.css';
 
 export const BlockRepositoryScreen: React.FC = () => {
   const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
-    useBlocksRepo();  const [blocks, setBlocks] = useState<StoredBlock[]>([]);
+    useBlocksRepo();
+  const [blocks, setBlocks] = useState<StoredBlock[]>([]);
   const [selected, setSelected] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,7 +34,6 @@ export const BlockRepositoryScreen: React.FC = () => {
         const name = prompt('Nombre del bloque') || 'sin-nombre';
         saveBlock({ id: name, data });
         refresh();
-        window.dispatchEvent(new Event('block-repo-updated'));
       } catch (err) {
         alert((err as Error).message);
       }
@@ -57,7 +57,6 @@ export const BlockRepositoryScreen: React.FC = () => {
     if (!selected) return;
     removeBlock(selected);
     refresh();
-    window.dispatchEvent(new Event('block-repo-updated'));
     setSelected('');
   };
 
