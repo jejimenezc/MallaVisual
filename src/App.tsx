@@ -173,11 +173,12 @@ export default function App(): JSX.Element {
     const firstId = Object.keys(data.masters)[0];
     const activeId = data.activeMasterId ?? firstId;
     const active = data.masters[activeId];
+    const repoId = normalizedRepo[activeId] ? activeId : null;
     setBlock({
       template: active.template,
       visual: active.visual,
       aspect: active.aspect,
-      repoId: null,
+      repoId,
     });
     setMalla({ ...data, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
     navigate('/malla/design');
@@ -196,11 +197,12 @@ export default function App(): JSX.Element {
       const firstId = Object.keys(m.masters)[0];
       const activeId = m.activeMasterId ?? firstId;
       const active = m.masters[activeId];
+      const repoId = normalizedRepo[activeId] ? activeId : null;
       setBlock({
         template: active.template,
         visual: active.visual,
         aspect: active.aspect,
-        repoId: null,
+        repoId,
       });
       setMalla({ ...m, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
       navigate('/malla/design');
