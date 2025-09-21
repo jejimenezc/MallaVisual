@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import type { BlockTemplate } from './types/curricular.ts';
@@ -11,37 +11,105 @@ import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
-import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io';
-import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io';
+import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
+import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
-import { useProject } from './core/persistence/hooks.ts';
+import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider } from './state/proceed-to-malla';
+import type { StoredBlock } from './utils/block-repo.ts';
+import {
+  blockContentEquals,
+  cloneBlockContent,
+  toBlockContent,
+  type BlockContent,
+} from './utils/block-content.ts';
+
+function normalizeRepository(repo: Record<string, BlockExport>): Record<string, BlockExport> {
+  return Object.fromEntries(
+    Object.entries(repo)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, data]) => [id, data]),
+  );
+}
+
+function blocksToRepository(blocks: StoredBlock[]): Record<string, BlockExport> {
+  return normalizeRepository(
+    blocks.reduce<Record<string, BlockExport>>((acc, { id, data }) => {
+      acc[id] = data;
+      return acc;
+    }, {}),
+  );
+}
+
+interface BlockState {
+  draft: BlockContent;
+  repoId: string | null;
+  published: BlockContent | null;
+}
 
 export default function App(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
-  const [block, setBlock] = useState<{
-    template: BlockTemplate;
-    visual: VisualTemplate;
-    aspect: BlockAspect;
-  } | null>(null);
+  const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
   const { exportProject } = useProject();
+  const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
+  const [repositorySnapshot, setRepositorySnapshot] = useState<Record<string, BlockExport>>(() =>
+    blocksToRepository(listBlocks()),
+  );
+
+  useEffect(() => {
+    const sync = () => setRepositorySnapshot(blocksToRepository(listBlocks()));
+    sync();
+    if (typeof window === 'undefined') return;
+    window.addEventListener('block-repo-updated', sync);
+    return () => window.removeEventListener('block-repo-updated', sync);
+  }, [listBlocks]);
+
+  const applyRepositoryChange = (
+    repo: Record<string, BlockExport>,
+    options: { reason: string; targetDescription: string },
+  ): Record<string, BlockExport> | null => {
+    const normalized = normalizeRepository(repo);
+    const sameAsCurrent =
+      JSON.stringify(repositorySnapshot) === JSON.stringify(normalized);
+    if (!sameAsCurrent) {
+      const hasCurrentData = Object.keys(repositorySnapshot).length > 0;
+      if (hasCurrentData) {
+        const message =
+          Object.keys(normalized).length === 0
+            ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
+            : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
+        if (!window.confirm(message)) {
+          return null;
+        }
+      }
+      if (Object.keys(normalized).length === 0) {
+        clearRepository();
+      } else {
+        replaceRepository(normalized);
+      }
+    }
+    return normalized;
+  };
 
   const currentProject: MallaExport | null = useMemo(() => {
-    if (malla) return malla;
+    if (malla) {
+      return { ...malla, version: MALLA_SCHEMA_VERSION, repository: repositorySnapshot };
+    }
     if (block) {
       return {
         version: MALLA_SCHEMA_VERSION,
         masters: {
           master: {
-            template: block.template,
-            visual: block.visual,
-            aspect: block.aspect,
+            template: block.draft.template,
+            visual: block.draft.visual,
+            aspect: block.draft.aspect,
           },
         },
+        repository: repositorySnapshot,
         grid: { cols: 5, rows: 5 },
         pieces: [],
         values: {},
@@ -50,7 +118,7 @@ export default function App(): JSX.Element {
       };
     }
     return null;
-  }, [malla, block]);
+  }, [malla, block, repositorySnapshot]);
 
   const handleExportProject = () => {
     if (!currentProject) return;
@@ -65,6 +133,11 @@ export default function App(): JSX.Element {
   };
 
   const handleNewProject = () => {
+    const normalized = applyRepositoryChange({}, {
+      reason: 'crear un proyecto nuevo',
+      targetDescription: 'el nuevo proyecto',
+    });
+    if (!normalized) return;
     const name = prompt('Nombre del proyecto') || 'Sin nombre';
     const id = crypto.randomUUID();
     setProjectId(id);
@@ -75,16 +148,30 @@ export default function App(): JSX.Element {
   };
 
   const handleLoadBlock = (data: BlockExport) => {
+    const normalized = applyRepositoryChange({}, {
+      reason: 'importar el bloque seleccionado',
+      targetDescription: 'el bloque importado',
+    });
+    if (!normalized) return;
     const name = prompt('Nombre del proyecto') || 'Importado';
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    setBlock({ template: data.template, visual: data.visual, aspect: data.aspect });
+    setBlock({
+      draft: cloneBlockContent(toBlockContent(data)),
+      repoId: null,
+      published: null,
+    });
     setMalla(null);
     navigate('/block/design');
   };
 
   const handleLoadMalla = (data: MallaExport) => {
+    const normalizedRepo = applyRepositoryChange(data.repository ?? {}, {
+      reason: 'importar el proyecto',
+      targetDescription: 'el proyecto importado',
+    });
+    if (!normalizedRepo) return;
     const name = prompt('Nombre del proyecto') || 'Importado';
     const id = crypto.randomUUID();
     setProjectId(id);
@@ -92,25 +179,63 @@ export default function App(): JSX.Element {
     const firstId = Object.keys(data.masters)[0];
     const activeId = data.activeMasterId ?? firstId;
     const active = data.masters[activeId];
-    setBlock({ template: active.template, visual: active.visual, aspect: active.aspect });
-    setMalla(data);
+    const repoId = normalizedRepo[activeId] ? activeId : null;
+    const draft = cloneBlockContent(toBlockContent(active));
+    const published = repoId
+      ? normalizedRepo[repoId]
+        ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
+        : null
+      : null;
+    setBlock({
+      draft,
+      repoId,
+      published,
+    });
+    setMalla({ ...data, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
     navigate('/malla/design');
   };
 
   const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
-    setProjectId(id);
-    setProjectName(name);
     if ('masters' in data) {
       const m = data as MallaExport;
+      const normalizedRepo = applyRepositoryChange(m.repository ?? {}, {
+        reason: 'abrir el proyecto seleccionado',
+        targetDescription: 'el proyecto seleccionado',
+      });
+      if (!normalizedRepo) return;
+      setProjectId(id);
+      setProjectName(name);
       const firstId = Object.keys(m.masters)[0];
       const activeId = m.activeMasterId ?? firstId;
       const active = m.masters[activeId];
-      setBlock({ template: active.template, visual: active.visual, aspect: active.aspect });
-      setMalla(m);
+      const repoId = normalizedRepo[activeId] ? activeId : null;
+      const draft = cloneBlockContent(toBlockContent(active));
+      const published = repoId
+        ? normalizedRepo[repoId]
+          ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
+          : null
+        : null;
+      setBlock({
+        draft,
+        repoId,
+        published,
+      });
+      setMalla({ ...m, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
-      setBlock({ template: b.template, visual: b.visual, aspect: b.aspect });
+      const normalizedRepo = applyRepositoryChange({}, {
+        reason: 'abrir el proyecto seleccionado',
+        targetDescription: 'el proyecto seleccionado',
+      });
+      if (!normalizedRepo) return;
+      setProjectId(id);
+      setProjectName(name);
+      setBlock({
+        draft: cloneBlockContent(toBlockContent(b)),
+        repoId: null,
+        published: null,
+      });
       setMalla(null);
       navigate('/block/design');
     }
@@ -120,16 +245,125 @@ export default function App(): JSX.Element {
     template: BlockTemplate,
     visual: VisualTemplate,
     aspect: BlockAspect,
+    targetPath?: string,
+    repoId?: string | null,
+    published?: BlockContent | null,
   ) => {
-    if (!malla) {
+    const destination = targetPath ?? '/malla/design';
+    if (!malla && destination === '/malla/design') {
       try {
         window.localStorage.removeItem('malla-editor-state');
       } catch {
         /* ignore */
       }
     }
-    setBlock({ template, visual, aspect });
-    navigate('/malla/design');
+    const content: BlockContent = { template, visual, aspect };
+    setBlock((prev) => {
+      const nextRepoId =
+        repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
+      const draft = cloneBlockContent(content);
+      const nextPublished = nextRepoId
+        ? published
+          ? cloneBlockContent(published)
+          : prev?.published ?? null
+        : null;
+      return {
+        draft,
+        repoId: nextRepoId,
+        published: nextPublished,
+      };
+    });
+    navigate(destination);
+  };
+
+  const handleRepoIdChange = (repoId: string | null) => {
+    setBlock((prev) => {
+      if (!prev) return prev;
+      const nextRepoId = repoId ?? null;
+      if (prev.repoId === nextRepoId) return prev;
+      return {
+        ...prev,
+        repoId: nextRepoId,
+        published: nextRepoId ? prev.published : null,
+      };
+    });
+  };
+
+  const handleBlockPublish = (
+    payload: {
+      repoId: string;
+      template: BlockTemplate;
+      visual: VisualTemplate;
+      aspect: BlockAspect;
+    },
+  ) => {
+    const content: BlockContent = {
+      template: payload.template,
+      visual: payload.visual,
+      aspect: payload.aspect,
+    };
+    setBlock({
+      draft: cloneBlockContent(content),
+      repoId: payload.repoId,
+      published: cloneBlockContent(content),
+    });
+  };
+
+  const blockInUse = useMemo(() => {
+    if (!block?.repoId) return false;
+    if (!malla) return false;
+    return malla.pieces?.some(
+      (piece) => piece.kind === 'ref' && piece.ref.sourceId === block.repoId,
+    );
+  }, [block?.repoId, malla]);
+
+  useEffect(() => {
+    setBlock((prev) => {
+      if (!prev?.repoId) return prev;
+      const repoData = repositorySnapshot[prev.repoId];
+      const content = repoData ? toBlockContent(repoData) : null;
+      if (blockContentEquals(prev.published, content)) return prev;
+      return {
+        ...prev,
+        published: content ? cloneBlockContent(content) : null,
+      };
+    });
+  }, [repositorySnapshot]);
+
+  const handleUpdateMaster: React.Dispatch<
+    React.SetStateAction<{
+      template: BlockTemplate;
+      visual: VisualTemplate;
+      aspect: BlockAspect;
+      repoId?: string | null;
+    } | null>
+  > = (update) => {
+    setBlock((prev) => {
+      const prevState = prev
+        ? {
+            template: prev.draft.template,
+            visual: prev.draft.visual,
+            aspect: prev.draft.aspect,
+            repoId: prev.repoId,
+          }
+        : null;
+      const nextState =
+        typeof update === 'function' ? update(prevState) : update;
+      if (!nextState) return null;
+      const nextRepoId = nextState.repoId ?? prev?.repoId ?? null;
+      const draft = cloneBlockContent(toBlockContent(nextState));
+      const repoData =
+        nextRepoId && repositorySnapshot[nextRepoId]
+          ? cloneBlockContent(toBlockContent(repositorySnapshot[nextRepoId]))
+          : nextRepoId
+            ? prev?.published ?? null
+            : null;
+      return {
+        draft,
+        repoId: nextRepoId,
+        published: repoData,
+      };
+    });
   };
 
   const screenTitle = useMemo(() => {
@@ -179,11 +413,22 @@ export default function App(): JSX.Element {
               <BlockEditorScreen
                 onProceedToMalla={handleProceedToMalla}
                 initialData={
-                  block ? { version: BLOCK_SCHEMA_VERSION, ...block } : undefined
+                  block
+                    ? {
+                        version: BLOCK_SCHEMA_VERSION,
+                        template: block.draft.template,
+                        visual: block.draft.visual,
+                        aspect: block.draft.aspect,
+                      }
+                    : undefined
                 }
                 projectId={projectId ?? undefined}
                 projectName={projectName}
                 initialMode="edit"
+                initialRepoId={block?.repoId ?? null}
+                onRepoIdChange={handleRepoIdChange}
+                onPublishBlock={handleBlockPublish}
+                isBlockInUse={blockInUse}
               />
             }
           />
@@ -192,10 +437,19 @@ export default function App(): JSX.Element {
             element={
               block ? (
                 <BlockEditorScreen
-                  initialData={{ version: BLOCK_SCHEMA_VERSION, ...block }}
+                  initialData={{
+                    version: BLOCK_SCHEMA_VERSION,
+                    template: block.draft.template,
+                    visual: block.draft.visual,
+                    aspect: block.draft.aspect,
+                  }}
                   projectId={projectId ?? undefined}
                   projectName={projectName}
                   initialMode="view"
+                  initialRepoId={block.repoId ?? null}
+                  onRepoIdChange={handleRepoIdChange}
+                  onPublishBlock={handleBlockPublish}
+                  isBlockInUse={blockInUse}
                 />
               ) : (
                 <Navigate to="/block/design" />
@@ -208,11 +462,12 @@ export default function App(): JSX.Element {
             element={
               block ? (
                 <MallaEditorScreen
-                  template={block.template}
-                  visual={block.visual}
-                  aspect={block.aspect}
+                  template={block.published?.template ?? block.draft.template}
+                  visual={block.published?.visual ?? block.draft.visual}
+                  aspect={block.published?.aspect ?? block.draft.aspect}
+                  repoId={block.repoId ?? null}
                   onBack={() => navigate('/block/design')}
-                  onUpdateMaster={setBlock}
+                  onUpdateMaster={handleUpdateMaster}
                   initialMalla={malla ?? undefined}
                   onMallaChange={setMalla}
                   projectId={projectId ?? undefined}

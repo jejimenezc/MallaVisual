@@ -19,6 +19,7 @@ import {
 } from '../utils/block-active.ts';
 import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
 import { duplicateActiveCrop } from '../utils/block-clone.ts';
+import { blockContentEquals } from '../utils/block-content.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
@@ -28,7 +29,6 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 
 const STORAGE_KEY = 'malla-editor-state';
-
 /** Cálculo unificado de métricas de una pieza (recorte) */
 function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
   const { cellW, cellH } = getCellSizeByAspect(aspect);
@@ -74,12 +74,14 @@ interface Props {
   template: BlockTemplate;
   visual: VisualTemplate;
   aspect: BlockAspect;
+  repoId?: string | null;
   onBack?: () => void;
   onUpdateMaster?: React.Dispatch<
     React.SetStateAction<{
       template: BlockTemplate;
       visual: VisualTemplate;
       aspect: BlockAspect;
+      repoId?: string | null;
     } | null>
   >;
   initialMalla?: MallaExport;
@@ -92,6 +94,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   template,
   visual,
   aspect,
+  repoId,
   onBack,
   onUpdateMaster,
   initialMalla,
@@ -122,14 +125,28 @@ export const MallaEditorScreen: React.FC<Props> = ({
   
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
-  const initialMasters = useMemo<Record<string, MasterBlockData>>(
-    () => initialMalla?.masters ?? { master: { template, visual, aspect } },
-    [initialMalla, template, visual, aspect]
-  );
-  const initialMasterId = useMemo(
-    () => initialMalla?.activeMasterId ?? Object.keys(initialMasters)[0] ?? 'master',
-    [initialMalla, initialMasters]
-  );
+  const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
+    if (initialMalla?.masters) {
+      return initialMalla.masters;
+    }
+    if (repoId) {
+      return { [repoId]: { template, visual, aspect } };
+    }
+    return {};
+  }, [initialMalla, repoId, template, visual, aspect]);
+  const initialMasterId = useMemo(() => {
+    if (initialMalla?.activeMasterId) {
+      return initialMalla.activeMasterId;
+    }
+    const keys = Object.keys(initialMasters);
+    if (keys.length > 0) {
+      return keys[0];
+    }
+    if (repoId) {
+      return repoId;
+    }
+    return '';
+  }, [initialMalla, initialMasters, repoId]);
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
 
@@ -140,11 +157,48 @@ export const MallaEditorScreen: React.FC<Props> = ({
     return () => window.removeEventListener('block-repo-updated', handler);
   }, [listBlocks]);
 
+  const repository = useMemo(
+    () =>
+      Object.fromEntries(
+        availableMasters
+          .slice()
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map(({ id, data }) => [id, data]),
+      ),
+    [availableMasters],
+  );
+
+  // Refresca los maestros almacenados cuando el repositorio cambia
+  useEffect(() => {
+    if (availableMasters.length === 0) return;
+    setMastersById((prev) => {
+      let updated = false;
+      let next = prev;
+      for (const { id, data } of availableMasters) {
+        const incoming: MasterBlockData = {
+          template: data.template,
+          visual: data.visual,
+          aspect: data.aspect,
+        };
+        if (!blockContentEquals(prev[id], incoming)) {
+          if (!updated) {
+            next = { ...prev };
+            updated = true;
+          }
+          next[id] = incoming;
+        }
+      }
+      return updated ? next : prev;
+    });
+  }, [availableMasters]);
+
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
+    if (!selectedMasterId) return;
+    const data: MasterBlockData = { template, visual, aspect };
     setMastersById((prev) => ({
       ...prev,
-      [selectedMasterId]: { template, visual, aspect },
+      [selectedMasterId]: data,
     }));
   }, [selectedMasterId, template, visual, aspect]);
 
@@ -208,6 +262,21 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   const handleSelectMaster = (id: string) => {
     setSelectedMasterId(id);
+    if (!id) {
+      return;
+    }
+
+    const stored = mastersById[id];
+    if (stored) {
+      onUpdateMaster?.({
+        template: stored.template,
+        visual: stored.visual,
+        aspect: stored.aspect,
+        repoId: id,
+      });
+      return;
+    }
+
     const rec = listBlocks().find((b) => b.id === id);
     if (rec) {
       const data = rec.data;
@@ -216,9 +285,51 @@ export const MallaEditorScreen: React.FC<Props> = ({
         template: data.template,
         visual: data.visual,
         aspect: data.aspect,
+        repoId: id,
       });
     }
   };
+
+  useEffect(() => {
+    if (!initialMalla) {
+      savedRef.current = null;
+      return;
+    }
+
+    const nextGrid = {
+      cols: initialMalla.grid?.cols ?? 5,
+      rows: initialMalla.grid?.rows ?? 5,
+    };
+    const nextMasters = { ...initialMalla.masters };
+    const nextPieces = (initialMalla.pieces ?? []).slice();
+    const nextValues = { ...(initialMalla.values ?? {}) };
+    const nextFloating = (initialMalla.floatingPieces ?? []).slice();
+    const nextActiveId =
+      initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
+
+    const incomingProject: MallaExport = {
+      version: MALLA_SCHEMA_VERSION,
+      masters: nextMasters,
+      grid: nextGrid,
+      pieces: nextPieces,
+      values: nextValues,
+      floatingPieces: nextFloating,
+      activeMasterId: nextActiveId,
+      repository: initialMalla.repository ?? {},
+    };
+
+    const serialized = JSON.stringify(incomingProject);
+    if (savedRef.current === serialized) return;
+
+    savedRef.current = serialized;
+    setMastersById(nextMasters);
+    setCols(nextGrid.cols);
+    setRows(nextGrid.rows);
+    setPieces(nextPieces);
+    setPieceValues(nextValues);
+    setFloatingPieces(nextFloating);
+    setSelectedMasterId(nextActiveId);
+  }, [initialMalla]);
 
   useEffect(() => {
     const project: MallaExport = {
@@ -229,14 +340,26 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values: pieceValues,
       floatingPieces,
       activeMasterId: selectedMasterId,
+      repository,
     };
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
     onMallaChange?.(project);
     autoSave(project);
-  }, [mastersById, cols, rows, pieces, pieceValues, floatingPieces, selectedMasterId, autoSave, onMallaChange]);
-
+  }, [
+    mastersById,
+    cols,
+    rows,
+    pieces,
+    pieceValues,
+    floatingPieces,
+    selectedMasterId,
+    repository,
+    autoSave,
+    onMallaChange,
+  ]);
+  
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
   
   useEffect(() => {
@@ -600,15 +723,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
         <div className={styles.masterRepo}>
           <select
-            value={selectedMasterId}
+            value={selectedMasterId || ''}
             onChange={(e) => handleSelectMaster(e.target.value)}
           >
-            <option value="">(Actual)</option>
-            {availableMasters.map(({ id }) => (
-              <option key={id} value={id}>
-                {id}
+            {availableMasters.length === 0 ? (
+              <option value="" disabled>
+                No hay bloques publicados
               </option>
-            ))}
+            ) : (
+              availableMasters.map(({ id }) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))
+            )}
           </select>
         </div>
 

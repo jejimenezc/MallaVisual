@@ -1,9 +1,10 @@
 // src/utils/malla-io.test.ts
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { exportMalla, importMalla } from './malla-io.ts';
+import { exportMalla, importMalla, MALLA_SCHEMA_VERSION } from './malla-io.ts';
 import type { BlockTemplate, CurricularPieceRef, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
+import { BLOCK_SCHEMA_VERSION } from './block-io.ts';
 
 test('exportMalla followed by importMalla yields same data including booleans', () => {
   const template: BlockTemplate = [[{ active: true }]];
@@ -25,8 +26,18 @@ test('exportMalla followed by importMalla yields same data including booleans', 
     m1: { template, visual, aspect },
   };
 
+  const repository = {
+    repo: {
+      version: BLOCK_SCHEMA_VERSION,
+      template,
+      visual,
+      aspect,
+    },
+  };
+
   const json = exportMalla({
     masters,
+    repository,
     grid: { cols: 1, rows: 1 },
     pieces: [piece],
     values: { p1: { done: true } },
@@ -37,9 +48,35 @@ test('exportMalla followed by importMalla yields same data including booleans', 
   const result = importMalla(json);
 
   assert.deepEqual(result.masters, masters);
+  assert.deepEqual(result.repository, repository);
   assert.deepEqual(result.grid, { cols: 1, rows: 1 });
   assert.deepEqual(result.pieces, [piece]);
   assert.deepEqual(result.values, { p1: { done: true } });
   assert.deepEqual(result.floatingPieces, ['p1']);
   assert.equal(result.activeMasterId, 'm1');
+});
+
+test('importMalla accepts schema v2 without repository data', () => {
+  const template: BlockTemplate = [[{ active: true }]];
+  const visual: VisualTemplate = {};
+  const aspect: BlockAspect = '1/1';
+  const masters: Record<string, MasterBlockData> = {
+    m1: { template, visual, aspect },
+  };
+
+  const legacyPayload = {
+    version: 2,
+    masters,
+    grid: { cols: 1, rows: 1 },
+    pieces: [],
+    values: {},
+    floatingPieces: [],
+    activeMasterId: 'm1',
+  };
+
+  const result = importMalla(JSON.stringify(legacyPayload));
+
+  assert.equal(result.version, MALLA_SCHEMA_VERSION);
+  assert.deepEqual(result.repository, {});
+  assert.deepEqual(result.masters, masters);
 });

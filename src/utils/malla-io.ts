@@ -1,9 +1,11 @@
 // src/utils/malla-io.ts
 import type { CurricularPiece, MasterBlockData } from '../types/curricular';
+import type { BlockExport } from './block-io.ts';
 
 export interface MallaExport {
   version: number;
   masters: Record<string, MasterBlockData>;
+  repository: Record<string, BlockExport>;
   grid?: { cols: number; rows: number };
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
@@ -11,7 +13,7 @@ export interface MallaExport {
   activeMasterId?: string;
 }
 
-export const MALLA_SCHEMA_VERSION = 2;
+export const MALLA_SCHEMA_VERSION = 3;
 
 // No aceptar 'version' desde fuera: se fija aquí adentro
 export function exportMalla(
@@ -19,6 +21,7 @@ export function exportMalla(
 ): string {
   const payload: MallaExport = {
     ...data,
+    repository: data.repository ?? {},
     version: MALLA_SCHEMA_VERSION,
   };
   return JSON.stringify(payload, null, 2);
@@ -35,7 +38,7 @@ export function importMalla(json: string): MallaExport {
     throw new Error('JSON inválido');
   }
   const data = parsed as Partial<MallaExport>;
-  if (data.version !== MALLA_SCHEMA_VERSION) {
+  if (data.version !== MALLA_SCHEMA_VERSION && data.version !== 2) {
     throw new Error('Versión incompatible');
   }
   if (!data.masters || typeof data.masters !== 'object') {
@@ -44,6 +47,7 @@ export function importMalla(json: string): MallaExport {
   return {
     version: MALLA_SCHEMA_VERSION,
     masters: data.masters as Record<string, MasterBlockData>,
+    repository: (data.repository as Record<string, BlockExport> | undefined) ?? {},
     grid: data.grid ?? { cols: 5, rows: 5 },
     pieces: data.pieces ?? [],
     values: data.values ?? {},

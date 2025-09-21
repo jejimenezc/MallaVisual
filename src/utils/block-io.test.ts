@@ -1,5 +1,5 @@
 // src/utils/block-io.test.ts
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { exportBlock, importBlock } from './block-io.ts';
 import type { BlockTemplate } from '../types/curricular.ts';

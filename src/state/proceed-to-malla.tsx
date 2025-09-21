@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useState } from 'react';
 import type { JSX } from 'react';
 
+type ProceedToMallaHandler = (targetPath?: string) => void;
+
 interface ProceedToMallaContextValue {
-  handler: (() => void) | null;
-  setHandler: (fn: (() => void) | null) => void;
+  handler: ProceedToMallaHandler | null;
+  setHandler: (fn: ProceedToMallaHandler | null) => void;
 }
 
 const ProceedToMallaContext = createContext<ProceedToMallaContextValue | undefined>(undefined);
 
 export function ProceedToMallaProvider({ children }: { children: React.ReactNode }): JSX.Element {
-  const [handler, setHandler] = useState<(() => void) | null>(null);
+  const [handler, setHandler] = useState<ProceedToMallaHandler | null>(null);
   return (
     <ProceedToMallaContext.Provider value={{ handler, setHandler }}>
       {children}

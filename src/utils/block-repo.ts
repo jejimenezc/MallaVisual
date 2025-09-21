@@ -6,6 +6,7 @@ import {
 } from './block-io.ts';
 
 const STORAGE_KEY = 'block-repo';
+const UPDATED_EVENT = 'block-repo-updated';
 
 interface LS {
   getItem(k: string): string | null;
@@ -15,7 +16,7 @@ interface LS {
 
 const g = globalThis as unknown as {
   localStorage?: LS;
-  window?: { localStorage?: LS };
+  window?: (Window & { localStorage?: LS }) | undefined;
 };
 
 function getLocalStorage(): LS | undefined {
@@ -34,14 +35,31 @@ function readAll(): Record<string, BlockExport> {
   }
 }
 
+function emitUpdate(): void {
+  const target =
+    (g.window as Window | undefined) ?? (typeof window !== 'undefined' ? window : undefined);
+  if (!target || typeof target.dispatchEvent !== 'function' || typeof Event !== 'function') {
+    return;
+  }
+  target.dispatchEvent(new Event(UPDATED_EVENT));
+}
+
 function writeAll(data: Record<string, BlockExport>): void {
   const ls = getLocalStorage();
-  if (!ls) return;
+  if (!ls) {
+    emitUpdate();
+    return;
+  }
   try {
-    ls.setItem(STORAGE_KEY, JSON.stringify(data));
+    if (Object.keys(data).length === 0) {
+      ls.removeItem(STORAGE_KEY);
+    } else {
+      ls.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
   } catch {
     /* ignore */
   }
+  emitUpdate();
 }
 
 export interface StoredBlock {
@@ -71,4 +89,12 @@ export function removeBlock(id: string): void {
 export const importBlock = ioImportBlock;
 export function exportBlock(block: BlockExport): string {
   return ioExportBlock(block.template, block.visual, block.aspect);
+}
+
+export function replaceBlocks(blocks: Record<string, BlockExport>): void {
+  writeAll(blocks);
+}
+
+export function clearBlocks(): void {
+  writeAll({});
 }

@@ -11,8 +11,16 @@ export const NavTabs: React.FC = () => {
   ) => {
     if (handler) {
       e.preventDefault();
-      handler();
+      handler('/malla/design');
     }
+  };
+
+  const handleRepoClick = (
+    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+  ) => {
+    if (handler) {
+      e.preventDefault();
+      handler('/blocks');    }
   };
 
   return (
@@ -21,7 +29,9 @@ export const NavTabs: React.FC = () => {
         Escritorio
       </NavLink>
       <NavLink to="/block/design">Diseño de bloque</NavLink>
-      <NavLink to="/blocks">Repositorio de bloques</NavLink>
+      <NavLink to="/blocks" onClick={handleRepoClick}>
+        Repositorio de bloques
+      </NavLink>
       <NavLink to="/malla/design" onClick={handleMallaClick}>
         Diseño de malla
       </NavLink>
