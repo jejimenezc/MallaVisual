@@ -17,6 +17,12 @@ import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider } from './state/proceed-to-malla';
 import type { StoredBlock } from './utils/block-repo.ts';
+import {
+  blockContentEquals,
+  cloneBlockContent,
+  toBlockContent,
+  type BlockContent,
+} from './utils/block-content.ts';
 
 function normalizeRepository(repo: Record<string, BlockExport>): Record<string, BlockExport> {
   return Object.fromEntries(
@@ -35,15 +41,16 @@ function blocksToRepository(blocks: StoredBlock[]): Record<string, BlockExport> 
   );
 }
 
+interface BlockState {
+  draft: BlockContent;
+  repoId: string | null;
+  published: BlockContent | null;
+}
+
 export default function App(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
-  const [block, setBlock] = useState<{
-    template: BlockTemplate;
-    visual: VisualTemplate;
-    aspect: BlockAspect;
-    repoId?: string | null;
-  } | null>(null);
+  const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
@@ -97,9 +104,9 @@ export default function App(): JSX.Element {
         version: MALLA_SCHEMA_VERSION,
         masters: {
           master: {
-            template: block.template,
-            visual: block.visual,
-            aspect: block.aspect,
+            template: block.draft.template,
+            visual: block.draft.visual,
+            aspect: block.draft.aspect,
           },
         },
         repository: repositorySnapshot,
@@ -151,10 +158,9 @@ export default function App(): JSX.Element {
     setProjectId(id);
     setProjectName(name);
     setBlock({
-      template: data.template,
-      visual: data.visual,
-      aspect: data.aspect,
+      draft: cloneBlockContent(toBlockContent(data)),
       repoId: null,
+      published: null,
     });
     setMalla(null);
     navigate('/block/design');
@@ -174,11 +180,16 @@ export default function App(): JSX.Element {
     const activeId = data.activeMasterId ?? firstId;
     const active = data.masters[activeId];
     const repoId = normalizedRepo[activeId] ? activeId : null;
+    const draft = cloneBlockContent(toBlockContent(active));
+    const published = repoId
+      ? normalizedRepo[repoId]
+        ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
+        : null
+      : null;
     setBlock({
-      template: active.template,
-      visual: active.visual,
-      aspect: active.aspect,
+      draft,
       repoId,
+      published,
     });
     setMalla({ ...data, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
     navigate('/malla/design');
@@ -198,11 +209,16 @@ export default function App(): JSX.Element {
       const activeId = m.activeMasterId ?? firstId;
       const active = m.masters[activeId];
       const repoId = normalizedRepo[activeId] ? activeId : null;
+      const draft = cloneBlockContent(toBlockContent(active));
+      const published = repoId
+        ? normalizedRepo[repoId]
+          ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
+          : null
+        : null;
       setBlock({
-        template: active.template,
-        visual: active.visual,
-        aspect: active.aspect,
+        draft,
         repoId,
+        published,
       });
       setMalla({ ...m, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
       navigate('/malla/design');
@@ -216,10 +232,9 @@ export default function App(): JSX.Element {
       setProjectId(id);
       setProjectName(name);
       setBlock({
-        template: b.template,
-        visual: b.visual,
-        aspect: b.aspect,
+        draft: cloneBlockContent(toBlockContent(b)),
         repoId: null,
+        published: null,
       });
       setMalla(null);
       navigate('/block/design');
@@ -232,6 +247,7 @@ export default function App(): JSX.Element {
     aspect: BlockAspect,
     targetPath?: string,
     repoId?: string | null,
+    published?: BlockContent | null,
   ) => {
     const destination = targetPath ?? '/malla/design';
     if (!malla && destination === '/malla/design') {
@@ -241,22 +257,78 @@ export default function App(): JSX.Element {
         /* ignore */
       }
     }
-    setBlock((prev) => ({
-      template,
-      visual,
-      aspect,
-      repoId: repoId !== undefined ? repoId : prev?.repoId ?? null,
-    }));
+    const content: BlockContent = { template, visual, aspect };
+    setBlock((prev) => {
+      const nextRepoId =
+        repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
+      const draft = cloneBlockContent(content);
+      const nextPublished = nextRepoId
+        ? published
+          ? cloneBlockContent(published)
+          : prev?.published ?? null
+        : null;
+      return {
+        draft,
+        repoId: nextRepoId,
+        published: nextPublished,
+      };
+    });
     navigate(destination);
   };
 
   const handleRepoIdChange = (repoId: string | null) => {
     setBlock((prev) => {
       if (!prev) return prev;
-      if (prev.repoId === repoId) return prev;
-      return { ...prev, repoId };
+      const nextRepoId = repoId ?? null;
+      if (prev.repoId === nextRepoId) return prev;
+      return {
+        ...prev,
+        repoId: nextRepoId,
+        published: nextRepoId ? prev.published : null,
+      };
     });
   };
+
+  const handleBlockPublish = (
+    payload: {
+      repoId: string;
+      template: BlockTemplate;
+      visual: VisualTemplate;
+      aspect: BlockAspect;
+    },
+  ) => {
+    const content: BlockContent = {
+      template: payload.template,
+      visual: payload.visual,
+      aspect: payload.aspect,
+    };
+    setBlock({
+      draft: cloneBlockContent(content),
+      repoId: payload.repoId,
+      published: cloneBlockContent(content),
+    });
+  };
+
+  const blockInUse = useMemo(() => {
+    if (!block?.repoId) return false;
+    if (!malla) return false;
+    return malla.pieces?.some(
+      (piece) => piece.kind === 'ref' && piece.ref.sourceId === block.repoId,
+    );
+  }, [block?.repoId, malla]);
+
+  useEffect(() => {
+    setBlock((prev) => {
+      if (!prev?.repoId) return prev;
+      const repoData = repositorySnapshot[prev.repoId];
+      const content = repoData ? toBlockContent(repoData) : null;
+      if (blockContentEquals(prev.published, content)) return prev;
+      return {
+        ...prev,
+        published: content ? cloneBlockContent(content) : null,
+      };
+    });
+  }, [repositorySnapshot]);
 
   const handleUpdateMaster: React.Dispatch<
     React.SetStateAction<{
@@ -269,20 +341,27 @@ export default function App(): JSX.Element {
     setBlock((prev) => {
       const prevState = prev
         ? {
-            template: prev.template,
-            visual: prev.visual,
-            aspect: prev.aspect,
-            repoId: prev.repoId ?? null,
+            template: prev.draft.template,
+            visual: prev.draft.visual,
+            aspect: prev.draft.aspect,
+            repoId: prev.repoId,
           }
         : null;
       const nextState =
         typeof update === 'function' ? update(prevState) : update;
       if (!nextState) return null;
+      const nextRepoId = nextState.repoId ?? prev?.repoId ?? null;
+      const draft = cloneBlockContent(toBlockContent(nextState));
+      const repoData =
+        nextRepoId && repositorySnapshot[nextRepoId]
+          ? cloneBlockContent(toBlockContent(repositorySnapshot[nextRepoId]))
+          : nextRepoId
+            ? prev?.published ?? null
+            : null;
       return {
-        template: nextState.template,
-        visual: nextState.visual,
-        aspect: nextState.aspect,
-        repoId: nextState.repoId ?? prev?.repoId ?? null,
+        draft,
+        repoId: nextRepoId,
+        published: repoData,
       };
     });
   };
@@ -337,9 +416,9 @@ export default function App(): JSX.Element {
                   block
                     ? {
                         version: BLOCK_SCHEMA_VERSION,
-                        template: block.template,
-                        visual: block.visual,
-                        aspect: block.aspect,
+                        template: block.draft.template,
+                        visual: block.draft.visual,
+                        aspect: block.draft.aspect,
                       }
                     : undefined
                 }
@@ -348,6 +427,8 @@ export default function App(): JSX.Element {
                 initialMode="edit"
                 initialRepoId={block?.repoId ?? null}
                 onRepoIdChange={handleRepoIdChange}
+                onPublishBlock={handleBlockPublish}
+                isBlockInUse={blockInUse}
               />
             }
           />
@@ -358,15 +439,17 @@ export default function App(): JSX.Element {
                 <BlockEditorScreen
                   initialData={{
                     version: BLOCK_SCHEMA_VERSION,
-                    template: block.template,
-                    visual: block.visual,
-                    aspect: block.aspect,
+                    template: block.draft.template,
+                    visual: block.draft.visual,
+                    aspect: block.draft.aspect,
                   }}
                   projectId={projectId ?? undefined}
                   projectName={projectName}
                   initialMode="view"
                   initialRepoId={block.repoId ?? null}
                   onRepoIdChange={handleRepoIdChange}
+                  onPublishBlock={handleBlockPublish}
+                  isBlockInUse={blockInUse}
                 />
               ) : (
                 <Navigate to="/block/design" />
@@ -379,9 +462,9 @@ export default function App(): JSX.Element {
             element={
               block ? (
                 <MallaEditorScreen
-                  template={block.template}
-                  visual={block.visual}
-                  aspect={block.aspect}
+                  template={block.published?.template ?? block.draft.template}
+                  visual={block.published?.visual ?? block.draft.visual}
+                  aspect={block.published?.aspect ?? block.draft.aspect}
                   repoId={block.repoId ?? null}
                   onBack={() => navigate('/block/design')}
                   onUpdateMaster={handleUpdateMaster}

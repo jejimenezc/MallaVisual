@@ -1,5 +1,5 @@
 // src/screens/BlockEditorScreen.tsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
@@ -17,6 +17,12 @@ import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
+import {
+  blockContentEquals,
+  cloneBlockContent,
+  toBlockContent,
+  type BlockContent,
+} from '../utils/block-content.ts';
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -31,6 +37,7 @@ interface BlockEditorScreenProps {
     aspect: BlockAspect,
     targetPath?: string,
     repoId?: string | null,
+    published?: BlockContent | null,
   ) => void;
   initialData?: BlockExport;
   projectId?: string;
@@ -38,6 +45,13 @@ interface BlockEditorScreenProps {
   initialMode?: 'edit' | 'view';
   initialRepoId?: string | null;
   onRepoIdChange?: (repoId: string | null) => void;
+  onPublishBlock?: (payload: {
+    repoId: string;
+    template: BlockTemplate;
+    visual: VisualTemplate;
+    aspect: BlockAspect;
+  }) => void;
+  isBlockInUse?: boolean;
 }
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
@@ -48,6 +62,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   initialMode = 'edit',
   initialRepoId,
   onRepoIdChange,
+  onPublishBlock,
+  isBlockInUse = false,
 }) => {
   const { setHandler } = useProceedToMalla();
   const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
@@ -114,11 +130,34 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setRepoId(initialRepoId ?? null);
   }, [initialRepoId]);
 
+  const draftContent = useMemo<BlockContent>(
+    () => ({ template, visual, aspect }),
+    [template, visual, aspect],
+  );
+  const repoRecord = useMemo(
+    () => (repoId ? repoBlocks.find((b) => b.id === repoId) ?? null : null),
+    [repoBlocks, repoId],
+  );
+  const repoContent = useMemo(
+    () => (repoRecord ? toBlockContent(repoRecord.data) : null),
+    [repoRecord],
+  );
+  const isDraftDirty = useMemo(
+    () => (!repoId || !repoContent || !blockContentEquals(repoContent, draftContent)),
+    [repoId, repoContent, draftContent],
+  );
+
   const handleSaveToRepo = useCallback((): string | null => {
+    if (repoId && isBlockInUse) {
+      const confirmed = window.confirm(
+        'Se publicará la actualización de un bloque en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?'
+      );
+      if (!confirmed) return null;
+    }
     const wasNew = !repoId;
     let id = repoId;
     if (!id) {
-      const defaultName = repoId ?? projectName ?? '';
+      const defaultName = projectName ?? '';
       const input = prompt('Nombre del bloque', defaultName);
       if (input === null) return null;
       const trimmed = input.trim();
@@ -132,35 +171,77 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     }
     repoSaveBlock({
       id,
-      data: { version: BLOCK_SCHEMA_VERSION, template, visual, aspect },
+      data: {
+        version: BLOCK_SCHEMA_VERSION,
+        template: draftContent.template,
+        visual: draftContent.visual,
+        aspect: draftContent.aspect,
+      },
+    });
+    const savedContent = cloneBlockContent(draftContent);
+    onPublishBlock?.({
+      repoId: id,
+      template: savedContent.template,
+      visual: savedContent.visual,
+      aspect: savedContent.aspect,
     });
     alert(wasNew ? 'Bloque guardado' : 'Bloque actualizado');
     return id;
-  }, [repoId, projectName, repoSaveBlock, template, visual, aspect, onRepoIdChange]);
+  }, [
+    repoId,
+    projectName,
+    repoSaveBlock,
+    draftContent,
+    onRepoIdChange,
+    onPublishBlock,
+    isBlockInUse,
+  ]);
 
   const ensurePublishedAndProceed = useCallback(
     (targetPath?: string) => {
       if (!onProceedToMalla) return;
       const destination = targetPath ?? '/malla/design';
-      if (destination === '/malla/design' && !repoId) {
-        const confirmed = window.confirm(
-          'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?'
-        );
+      if (destination === '/malla/design' && isDraftDirty) {
+        const message = repoId
+          ? 'Para pasar al diseño de malla, actualiza la publicación del bloque en el repositorio. ¿Deseas hacerlo ahora?'
+          : 'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?';
+        const confirmed = window.confirm(message);
         if (!confirmed) return;
         const savedId = handleSaveToRepo();
         if (!savedId) return;
-        onProceedToMalla(template, visual, aspect, destination, savedId);
+        onProceedToMalla(
+          draftContent.template,
+          draftContent.visual,
+          draftContent.aspect,
+          destination,
+          savedId,
+          draftContent,
+        );
         return;
       }
+      const publishedContent =
+        repoId && repoContent && !isDraftDirty
+          ? repoContent
+          : repoId
+            ? draftContent
+            : null;
       onProceedToMalla(
-        template,
-        visual,
-        aspect,
+        draftContent.template,
+        draftContent.visual,
+        draftContent.aspect,
         destination,
         repoId ?? null,
+        publishedContent,
       );
     },
-    [onProceedToMalla, repoId, template, visual, aspect, handleSaveToRepo]
+    [
+      onProceedToMalla,
+      isDraftDirty,
+      repoId,
+      handleSaveToRepo,
+      draftContent,
+      repoContent,
+    ],
   );
 
   // Estado que publica el editor para poblar el ContextSidebarPanel
