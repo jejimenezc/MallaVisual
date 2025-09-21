@@ -19,6 +19,7 @@ import {
 } from '../utils/block-active.ts';
 import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
 import { duplicateActiveCrop } from '../utils/block-clone.ts';
+import { blockContentEquals } from '../utils/block-content.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
@@ -166,6 +167,30 @@ export const MallaEditorScreen: React.FC<Props> = ({
       ),
     [availableMasters],
   );
+
+  // Refresca los maestros almacenados cuando el repositorio cambia
+  useEffect(() => {
+    if (availableMasters.length === 0) return;
+    setMastersById((prev) => {
+      let updated = false;
+      let next = prev;
+      for (const { id, data } of availableMasters) {
+        const incoming: MasterBlockData = {
+          template: data.template,
+          visual: data.visual,
+          aspect: data.aspect,
+        };
+        if (!blockContentEquals(prev[id], incoming)) {
+          if (!updated) {
+            next = { ...prev };
+            updated = true;
+          }
+          next[id] = incoming;
+        }
+      }
+      return updated ? next : prev;
+    });
+  }, [availableMasters]);
 
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
