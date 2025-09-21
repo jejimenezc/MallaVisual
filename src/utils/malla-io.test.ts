@@ -1,5 +1,5 @@
 // src/utils/malla-io.test.ts
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { exportMalla, importMalla, MALLA_SCHEMA_VERSION } from './malla-io.ts';
 import type { BlockTemplate, CurricularPieceRef, MasterBlockData } from '../types/curricular.ts';

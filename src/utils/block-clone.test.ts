@@ -1,5 +1,5 @@
 // src/utils/block-clone.test.ts
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { duplicateBlock } from './block-clone.ts';
 import type { BlockTemplate } from '../types/curricular.ts';
