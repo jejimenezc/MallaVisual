@@ -7,7 +7,13 @@ import { useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import './BlockRepositoryScreen.css';
 
-export const BlockRepositoryScreen: React.FC = () => {
+interface BlockRepositoryScreenProps {
+  onBlockImported?: (block: StoredBlock) => void;
+}
+
+export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
+  onBlockImported,
+}) => {
   const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
     useBlocksRepo();
   const [blocks, setBlocks] = useState<StoredBlock[]>([]);
@@ -32,8 +38,11 @@ export const BlockRepositoryScreen: React.FC = () => {
       try {
         const data = importBlock(text);
         const name = prompt('Nombre del bloque') || 'sin-nombre';
-        saveBlock({ id: name, data });
+        const block: StoredBlock = { id: name, data };
+        saveBlock(block);
         refresh();
+        onBlockImported?.(block);
+        setSelected(name);
       } catch (err) {
         alert((err as Error).message);
       }

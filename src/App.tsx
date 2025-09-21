@@ -309,6 +309,18 @@ export default function App(): JSX.Element {
     });
   };
 
+  const handleBlockImported = (stored: StoredBlock) => {
+    setBlock((prev) => {
+      if (prev) return prev;
+      const content = toBlockContent(stored.data);
+      return {
+        draft: cloneBlockContent(content),
+        repoId: stored.id,
+        published: cloneBlockContent(content),
+      };
+    });
+  };
+
   const blockInUse = useMemo(() => {
     if (!block?.repoId) return false;
     if (!malla) return false;
@@ -456,7 +468,10 @@ export default function App(): JSX.Element {
               )
             }
           />
-          <Route path="/blocks" element={<BlockRepositoryScreen />} />
+          <Route
+            path="/blocks"
+            element={<BlockRepositoryScreen onBlockImported={handleBlockImported} />}
+          />
           <Route
             path="/malla/design"
             element={
