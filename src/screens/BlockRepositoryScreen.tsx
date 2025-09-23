@@ -6,6 +6,7 @@ import { Button } from '../components/Button';
 import { useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import './BlockRepositoryScreen.css';
+import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 
 interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
@@ -34,10 +35,11 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const inferredName = getFileNameWithoutExtension(file.name);
     file.text().then((text) => {
       try {
         const data = importBlock(text);
-        const name = prompt('Nombre del bloque') || 'sin-nombre';
+        const name = inferredName || 'sin-nombre';
         const block: StoredBlock = { id: name, data };
         saveBlock(block);
         refresh();

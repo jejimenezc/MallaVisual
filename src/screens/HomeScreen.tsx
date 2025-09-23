@@ -8,12 +8,13 @@ import { importMalla } from '../utils/malla-io.ts';
 import { useProject } from '../core/persistence/hooks.ts';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
+import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 import './HomeScreen.css';
 
 interface Props {
   onNewBlock: () => void;
-  onLoadBlock: (data: BlockExport) => void;
-  onLoadMalla: (data: MallaExport) => void;
+  onLoadBlock: (data: BlockExport, inferredName?: string) => void;
+  onLoadMalla: (data: MallaExport, inferredName?: string) => void;
   onOpenProject: (
     id: string,
     data: BlockExport | MallaExport,
@@ -53,14 +54,15 @@ export const HomeScreen: React.FC<Props> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const inferredName = getFileNameWithoutExtension(file.name);
     file.text().then((text) => {
       try {
         const malla = importMalla(text);
-        onLoadMalla(malla);
+        onLoadMalla(malla, inferredName);
       } catch {
         try {
           const block = importBlock(text);
-          onLoadBlock(block);
+          onLoadBlock(block, inferredName);
         } catch {
           alert('Archivo inválido');
         }
