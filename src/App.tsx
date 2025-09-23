@@ -147,13 +147,13 @@ export default function App(): JSX.Element {
     navigate('/block/design');
   };
 
-  const handleLoadBlock = (data: BlockExport) => {
+  const handleLoadBlock = (data: BlockExport, inferredName?: string) => {
     const normalized = applyRepositoryChange({}, {
       reason: 'importar el bloque seleccionado',
       targetDescription: 'el bloque importado',
     });
     if (!normalized) return;
-    const name = prompt('Nombre del proyecto') || 'Importado';
+    const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
@@ -166,13 +166,13 @@ export default function App(): JSX.Element {
     navigate('/block/design');
   };
 
-  const handleLoadMalla = (data: MallaExport) => {
+  const handleLoadMalla = (data: MallaExport, inferredName?: string) => {
     const normalizedRepo = applyRepositoryChange(data.repository ?? {}, {
       reason: 'importar el proyecto',
       targetDescription: 'el proyecto importado',
     });
     if (!normalizedRepo) return;
-    const name = prompt('Nombre del proyecto') || 'Importado';
+    const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
