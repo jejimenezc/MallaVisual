@@ -60,6 +60,34 @@ export default function App(): JSX.Element {
     blocksToRepository(listBlocks()),
   );
 
+  // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
+  const isDraftNonEmpty = useCallback((draft: BlockContent): boolean => {
+    const hasActiveCell = draft.template.some((row) =>
+      row.some((cell) => Boolean(cell?.active)),
+    );
+    const merges = (draft.visual as unknown as { merges?: Record<string, unknown> | null })?.merges;
+    const hasMerges =
+      !!merges &&
+      typeof merges === 'object' &&
+      Object.keys(merges as Record<string, unknown>).length > 0;
+    const metaName = (draft as unknown as { meta?: { name?: string | null } }).meta?.name;
+    const hasName = typeof metaName === 'string' && metaName.trim().length > 0;
+    return hasActiveCell || hasMerges || hasName;
+  }, []);
+
+  const computeDirty = useCallback(
+    (b: BlockState | null = block): boolean => {
+      if (!b) return false;
+      if (!b.published) {
+        // Bloque nunca publicado => dirty si draft no vacío.
+        return isDraftNonEmpty(b.draft);
+      }
+      // Bloque publicado => dirty si draft deep-distinto a published.
+      return !blockContentEquals(b.draft, b.published);
+    },
+    [block, isDraftNonEmpty],
+  );
+
   useEffect(() => {
     const sync = () => setRepositorySnapshot(blocksToRepository(listBlocks()));
     sync();
@@ -302,10 +330,20 @@ export default function App(): JSX.Element {
       visual: payload.visual,
       aspect: payload.aspect,
     };
-    setBlock({
-      draft: cloneBlockContent(content),
-      repoId: payload.repoId,
-      published: cloneBlockContent(content),
+    setBlock((prev) => {
+      if (!prev) {
+        const nextDraft = cloneBlockContent(content);
+        return {
+          draft: nextDraft,
+          repoId: payload.repoId,
+          published: cloneBlockContent(nextDraft),
+        };
+      }
+      return {
+        ...prev,
+        repoId: payload.repoId ?? prev.repoId,
+        published: cloneBlockContent(prev.draft),
+      };
     });
   };
 
@@ -349,8 +387,7 @@ export default function App(): JSX.Element {
   }, []);
 
   const handleOpenRepositoryBlock = (stored: StoredBlock) => {
-    const hasUnsavedChanges =
-      block !== null && !blockContentEquals(block.draft, block.published);
+    const hasUnsavedChanges = computeDirty();
     if (hasUnsavedChanges) {
       const message =
         'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
