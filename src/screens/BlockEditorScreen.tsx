@@ -39,6 +39,7 @@ interface BlockEditorScreenProps {
     repoId?: string | null,
     published?: BlockContent | null,
   ) => void;
+  onDraftChange?: (draft: BlockContent) => void;
   initialData?: BlockExport;
   projectId?: string;
   projectName?: string;
@@ -56,6 +57,7 @@ interface BlockEditorScreenProps {
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onProceedToMalla,
+  onDraftChange,
   initialData,
   projectId,
   projectName,
@@ -134,6 +136,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => ({ template, visual, aspect }),
     [template, visual, aspect],
   );
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    onDraftChange(cloneBlockContent(draftContent));
+  }, [draftContent, onDraftChange]);
   const repoRecord = useMemo(
     () => (repoId ? repoBlocks.find((b) => b.id === repoId) ?? null : null),
     [repoBlocks, repoId],

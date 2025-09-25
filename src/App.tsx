@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import type { BlockTemplate } from './types/curricular.ts';
@@ -309,9 +309,63 @@ export default function App(): JSX.Element {
     });
   };
 
+  const loadRepositoryBlock = (stored: StoredBlock) => {
+    const content = toBlockContent(stored.data);
+    const draft = cloneBlockContent(content);
+    const published = cloneBlockContent(content);
+    setBlock({
+      draft,
+      repoId: stored.id,
+      published,
+    });
+    if (malla) {
+      try {
+        window.localStorage.removeItem('malla-editor-state');
+      } catch {
+        /* ignore */
+      }
+      setMalla(null);
+    }
+    navigate('/block/design');
+  };
+
+  const handleBlockDraftChange = useCallback((draft: BlockContent) => {
+    setBlock((prev) => {
+      if (!prev) {
+        return {
+          draft: cloneBlockContent(draft),
+          repoId: null,
+          published: null,
+        };
+      }
+      if (blockContentEquals(prev.draft, draft)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        draft: cloneBlockContent(draft),
+      };
+    });
+  }, []);
+
+  const handleOpenRepositoryBlock = (stored: StoredBlock) => {
+    const hasUnsavedChanges =
+      block !== null && !blockContentEquals(block.draft, block.published);
+    if (hasUnsavedChanges) {
+      const message =
+        'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
+      if (!window.confirm(message)) {
+        return;
+      }
+    }
+    loadRepositoryBlock(stored);
+  };
+
   const handleBlockImported = (stored: StoredBlock) => {
+    let shouldLoadImmediately = false;
     setBlock((prev) => {
       if (prev) return prev;
+      shouldLoadImmediately = true;
       const content = toBlockContent(stored.data);
       return {
         draft: cloneBlockContent(content),
@@ -319,6 +373,10 @@ export default function App(): JSX.Element {
         published: cloneBlockContent(content),
       };
     });
+    if (!shouldLoadImmediately) {
+      return;
+    }
+    loadRepositoryBlock(stored);
   };
 
   const blockInUse = useMemo(() => {
@@ -424,6 +482,7 @@ export default function App(): JSX.Element {
             element={
               <BlockEditorScreen
                 onProceedToMalla={handleProceedToMalla}
+                onDraftChange={handleBlockDraftChange}
                 initialData={
                   block
                     ? {
@@ -449,6 +508,7 @@ export default function App(): JSX.Element {
             element={
               block ? (
                 <BlockEditorScreen
+                  onDraftChange={handleBlockDraftChange}
                   initialData={{
                     version: BLOCK_SCHEMA_VERSION,
                     template: block.draft.template,
@@ -470,8 +530,12 @@ export default function App(): JSX.Element {
           />
           <Route
             path="/blocks"
-            element={<BlockRepositoryScreen onBlockImported={handleBlockImported} />}
-          />
+            element={
+              <BlockRepositoryScreen
+                onBlockImported={handleBlockImported}
+                onOpenBlock={handleOpenRepositoryBlock}
+              />
+            }          />
           <Route
             path="/malla/design"
             element={
