@@ -290,13 +290,15 @@ export default function App(): JSX.Element {
       const nextRepoId =
         repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
       const draft = cloneBlockContent(content);
-      const nextPublished = nextRepoId
-        ? published
-          ? cloneBlockContent(published)
-          : prev?.published
+      const nextPublished = !nextRepoId
+        ? null
+        : published === undefined
+          ? prev?.published
             ? cloneBlockContent(prev.published)
             : null
-        : null;
+          : published === null
+            ? null
+            : cloneBlockContent(published);
       return {
         draft,
         repoId: nextRepoId,
