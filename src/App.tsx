@@ -60,6 +60,34 @@ export default function App(): JSX.Element {
     blocksToRepository(listBlocks()),
   );
 
+  // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
+  const isDraftNonEmpty = useCallback((draft: BlockContent): boolean => {
+    const hasActiveCell = draft.template.some((row) =>
+      row.some((cell) => Boolean(cell?.active)),
+    );
+    const merges = (draft.visual as unknown as { merges?: Record<string, unknown> | null })?.merges;
+    const hasMerges =
+      !!merges &&
+      typeof merges === 'object' &&
+      Object.keys(merges as Record<string, unknown>).length > 0;
+    const metaName = (draft as unknown as { meta?: { name?: string | null } }).meta?.name;
+    const hasName = typeof metaName === 'string' && metaName.trim().length > 0;
+    return hasActiveCell || hasMerges || hasName;
+  }, []);
+
+  const computeDirty = useCallback(
+    (b: BlockState | null = block): boolean => {
+      if (!b) return false;
+      if (!b.published) {
+        // Bloque nunca publicado => dirty si draft no vacío.
+        return isDraftNonEmpty(b.draft);
+      }
+      // Bloque publicado => dirty si draft deep-distinto a published.
+      return !blockContentEquals(b.draft, b.published);
+    },
+    [block, isDraftNonEmpty],
+  );
+
   useEffect(() => {
     const sync = () => setRepositorySnapshot(blocksToRepository(listBlocks()));
     sync();
@@ -262,11 +290,15 @@ export default function App(): JSX.Element {
       const nextRepoId =
         repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
       const draft = cloneBlockContent(content);
-      const nextPublished = nextRepoId
-        ? published
-          ? cloneBlockContent(published)
-          : prev?.published ?? null
-        : null;
+      const nextPublished = !nextRepoId
+        ? null
+        : published === undefined
+          ? prev?.published
+            ? cloneBlockContent(prev.published)
+            : null
+          : published === null
+            ? null
+            : cloneBlockContent(published);
       return {
         draft,
         repoId: nextRepoId,
@@ -284,7 +316,10 @@ export default function App(): JSX.Element {
       return {
         ...prev,
         repoId: nextRepoId,
-        published: nextRepoId ? prev.published : null,
+        published:
+          nextRepoId && prev.published
+            ? cloneBlockContent(prev.published)
+            : null,
       };
     });
   };
@@ -302,10 +337,21 @@ export default function App(): JSX.Element {
       visual: payload.visual,
       aspect: payload.aspect,
     };
-    setBlock({
-      draft: cloneBlockContent(content),
-      repoId: payload.repoId,
-      published: cloneBlockContent(content),
+    setBlock((prev) => {
+      const nextDraft = cloneBlockContent(content);
+      if (!prev) {
+        return {
+          draft: nextDraft,
+          repoId: payload.repoId,
+          published: cloneBlockContent(nextDraft),
+        };
+      }
+      return {
+        ...prev,
+        draft: nextDraft,
+        repoId: payload.repoId ?? prev.repoId,
+        published: cloneBlockContent(nextDraft),
+      };
     });
   };
 
@@ -330,27 +376,27 @@ export default function App(): JSX.Element {
   };
 
   const handleBlockDraftChange = useCallback((draft: BlockContent) => {
+    const nextDraft = cloneBlockContent(draft);
     setBlock((prev) => {
       if (!prev) {
         return {
-          draft: cloneBlockContent(draft),
+          draft: nextDraft,
           repoId: null,
           published: null,
         };
       }
-      if (blockContentEquals(prev.draft, draft)) {
+      if (blockContentEquals(prev.draft, nextDraft)) {
         return prev;
       }
       return {
         ...prev,
-        draft: cloneBlockContent(draft),
+        draft: nextDraft,
       };
     });
   }, []);
 
   const handleOpenRepositoryBlock = (stored: StoredBlock) => {
-    const hasUnsavedChanges =
-      block !== null && !blockContentEquals(block.draft, block.published);
+    const hasUnsavedChanges = computeDirty();
     if (hasUnsavedChanges) {
       const message =
         'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
@@ -410,12 +456,15 @@ export default function App(): JSX.Element {
   > = (update) => {
     setBlock((prev) => {
       const prevState = prev
-        ? {
-            template: prev.draft.template,
-            visual: prev.draft.visual,
-            aspect: prev.draft.aspect,
-            repoId: prev.repoId,
-          }
+        ? (() => {
+            const prevContent = cloneBlockContent(prev.draft);
+            return {
+              template: prevContent.template,
+              visual: prevContent.visual,
+              aspect: prevContent.aspect,
+              repoId: prev.repoId,
+            };
+          })()
         : null;
       const nextState =
         typeof update === 'function' ? update(prevState) : update;
@@ -426,7 +475,9 @@ export default function App(): JSX.Element {
         nextRepoId && repositorySnapshot[nextRepoId]
           ? cloneBlockContent(toBlockContent(repositorySnapshot[nextRepoId]))
           : nextRepoId
-            ? prev?.published ?? null
+            ? prev?.published
+              ? cloneBlockContent(prev.published)
+              : null
             : null;
       return {
         draft,
