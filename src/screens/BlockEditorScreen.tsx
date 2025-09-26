@@ -67,7 +67,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onPublishBlock,
   isBlockInUse = false,
 }) => {
-  const { setHandler } = useProceedToMalla();
+  const { setHandler, resetHandler, defaultProceedToMalla } = useProceedToMalla();
   const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
@@ -206,8 +206,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const ensurePublishedAndProceed = useCallback(
     (targetPath?: string) => {
-      if (!onProceedToMalla) return;
       const destination = targetPath ?? '/malla/design';
+      if (!onProceedToMalla) {
+        defaultProceedToMalla(destination);
+        return;
+      }
       if (destination === '/malla/design' && isDraftDirty) {
         const message = repoId
           ? 'Para pasar al diseño de malla, actualiza la publicación del bloque en el repositorio. ¿Deseas hacerlo ahora?'
@@ -224,6 +227,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           savedId,
           draftContent,
         );
+        defaultProceedToMalla(destination);
         return;
       }
       const publishedContent =
@@ -242,9 +246,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         repoId ?? null,
         publishedContent,
       );
+      defaultProceedToMalla(destination);
     },
     [
       onProceedToMalla,
+      defaultProceedToMalla,
       isDraftDirty,
       repoId,
       handleSaveToRepo,
@@ -282,13 +288,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   );
 
   useEffect(() => {
-    if (!onProceedToMalla) {
-      setHandler(null);
-      return;
-    }
     setHandler(() => ensurePublishedAndProceed);
-    return () => setHandler(null);
-  }, [setHandler, onProceedToMalla, ensurePublishedAndProceed]);
+    return () => {
+      resetHandler();
+    };
+  }, [setHandler, resetHandler, ensurePublishedAndProceed]);
 
   if (mode === 'edit') {
     return (

@@ -9,10 +9,8 @@ export const NavTabs: React.FC = () => {
   const handleMallaClick = (
     e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
   ) => {
-    if (handler) {
-      e.preventDefault();
-      handler('/malla/design');
-    }
+    e.preventDefault();
+    handler('/malla/design');
   };
 
   const handleRepoClick = (
@@ -20,7 +18,8 @@ export const NavTabs: React.FC = () => {
   ) => {
     if (handler) {
       e.preventDefault();
-      handler('/blocks');    }
+      handler('/blocks');
+    }
   };
 
   return (

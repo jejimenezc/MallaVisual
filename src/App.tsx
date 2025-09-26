@@ -305,7 +305,6 @@ export default function App(): JSX.Element {
         published: nextPublished,
       };
     });
-    navigate(destination);
   };
 
   const handleRepoIdChange = (repoId: string | null) => {
@@ -502,8 +501,14 @@ export default function App(): JSX.Element {
     }
   }, [location.pathname]);
 
+  const hasCurrentProject = currentProject !== null;
+  const hasPublishedBlock = Boolean(block?.published);
+
   return (
-    <ProceedToMallaProvider>
+    <ProceedToMallaProvider
+      hasCurrentProject={hasCurrentProject}
+      hasPublishedBlock={hasPublishedBlock}
+    >
       <div className={styles.appContainer}>
         <AppHeader />
         <NavTabs />
