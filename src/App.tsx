@@ -293,7 +293,9 @@ export default function App(): JSX.Element {
       const nextPublished = nextRepoId
         ? published
           ? cloneBlockContent(published)
-          : prev?.published ?? null
+          : prev?.published
+            ? cloneBlockContent(prev.published)
+            : null
         : null;
       return {
         draft,
@@ -312,7 +314,10 @@ export default function App(): JSX.Element {
       return {
         ...prev,
         repoId: nextRepoId,
-        published: nextRepoId ? prev.published : null,
+        published:
+          nextRepoId && prev.published
+            ? cloneBlockContent(prev.published)
+            : null,
       };
     });
   };
@@ -331,8 +336,8 @@ export default function App(): JSX.Element {
       aspect: payload.aspect,
     };
     setBlock((prev) => {
+      const nextDraft = cloneBlockContent(content);
       if (!prev) {
-        const nextDraft = cloneBlockContent(content);
         return {
           draft: nextDraft,
           repoId: payload.repoId,
@@ -341,8 +346,9 @@ export default function App(): JSX.Element {
       }
       return {
         ...prev,
+        draft: nextDraft,
         repoId: payload.repoId ?? prev.repoId,
-        published: cloneBlockContent(prev.draft),
+        published: cloneBlockContent(nextDraft),
       };
     });
   };
@@ -368,20 +374,21 @@ export default function App(): JSX.Element {
   };
 
   const handleBlockDraftChange = useCallback((draft: BlockContent) => {
+    const nextDraft = cloneBlockContent(draft);
     setBlock((prev) => {
       if (!prev) {
         return {
-          draft: cloneBlockContent(draft),
+          draft: nextDraft,
           repoId: null,
           published: null,
         };
       }
-      if (blockContentEquals(prev.draft, draft)) {
+      if (blockContentEquals(prev.draft, nextDraft)) {
         return prev;
       }
       return {
         ...prev,
-        draft: cloneBlockContent(draft),
+        draft: nextDraft,
       };
     });
   }, []);
@@ -447,12 +454,15 @@ export default function App(): JSX.Element {
   > = (update) => {
     setBlock((prev) => {
       const prevState = prev
-        ? {
-            template: prev.draft.template,
-            visual: prev.draft.visual,
-            aspect: prev.draft.aspect,
-            repoId: prev.repoId,
-          }
+        ? (() => {
+            const prevContent = cloneBlockContent(prev.draft);
+            return {
+              template: prevContent.template,
+              visual: prevContent.visual,
+              aspect: prevContent.aspect,
+              repoId: prev.repoId,
+            };
+          })()
         : null;
       const nextState =
         typeof update === 'function' ? update(prevState) : update;
@@ -463,7 +473,9 @@ export default function App(): JSX.Element {
         nextRepoId && repositorySnapshot[nextRepoId]
           ? cloneBlockContent(toBlockContent(repositorySnapshot[nextRepoId]))
           : nextRepoId
-            ? prev?.published ?? null
+            ? prev?.published
+              ? cloneBlockContent(prev.published)
+              : null
             : null;
       return {
         draft,

@@ -92,11 +92,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [listBlocks]);
 
   useEffect(() => {
-    if (initialData) {
-      setTemplate(initialData.template);
-      setVisual(initialData.visual);
-      setAspect(initialData.aspect);
-    }
+    if (!initialData) return;
+    const content = cloneBlockContent(toBlockContent(initialData));
+    setTemplate(content.template);
+    setVisual(content.visual);
+    setAspect(content.aspect);
   }, [initialData]);
 
   useEffect(() => {
