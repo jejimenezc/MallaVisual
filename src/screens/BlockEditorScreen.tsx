@@ -17,6 +17,7 @@ import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
+import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
 import {
   blockContentEquals,
   cloneBlockContent,
@@ -204,21 +205,20 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     isBlockInUse,
   ]);
 
-  const ensurePublishedAndProceed = useCallback(
-    (targetPath?: string) => {
+  const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
+    (targetPath) => {
       const destination = targetPath ?? '/malla/design';
       if (!onProceedToMalla) {
-        defaultProceedToMalla(destination);
-        return;
+        return defaultProceedToMalla(destination);
       }
       if (destination === '/malla/design' && isDraftDirty) {
         const message = repoId
           ? 'Para pasar al diseño de malla, actualiza la publicación del bloque en el repositorio. ¿Deseas hacerlo ahora?'
           : 'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?';
         const confirmed = window.confirm(message);
-        if (!confirmed) return;
+        if (!confirmed) return true;
         const savedId = handleSaveToRepo();
-        if (!savedId) return;
+        if (!savedId) return true;
         onProceedToMalla(
           draftContent.template,
           draftContent.visual,
@@ -227,8 +227,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           savedId,
           draftContent,
         );
-        defaultProceedToMalla(destination);
-        return;
+        return defaultProceedToMalla(destination);
       }
       const publishedContent =
         destination === '/blocks'
@@ -246,7 +245,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         repoId ?? null,
         publishedContent,
       );
-      defaultProceedToMalla(destination);
+      return defaultProceedToMalla(destination);
     },
     [
       onProceedToMalla,
@@ -288,7 +287,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   );
 
   useEffect(() => {
-    setHandler(() => ensurePublishedAndProceed);
+    setHandler(ensurePublishedAndProceed);
     return () => {
       resetHandler();
     };

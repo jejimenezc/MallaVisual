@@ -8,7 +8,7 @@ import React, {
 import type { JSX } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-export type ProceedToMallaHandler = (targetPath?: string) => void;
+export type ProceedToMallaHandler = (targetPath?: string) => boolean;
 
 interface ProceedToMallaContextValue {
   /** Handler disponible para los consumidores (pestañas) */
@@ -43,19 +43,31 @@ export function ProceedToMallaProvider({
       const destination = targetPath ?? '/malla/design';
       if (destination === '/malla/design') {
         if (!hasCurrentProject && !hasPublishedBlock) {
-          window.confirm(EMPTY_BLOCK_CONFIRM_MESSAGE);
-          return;
+          const confirmed = window.confirm(EMPTY_BLOCK_CONFIRM_MESSAGE);
+          if (confirmed) {
+            navigate('/blocks');
+          }
+          return true;
         }
       }
       navigate(destination);
+      return true;
     },
     [hasCurrentProject, hasPublishedBlock, navigate],
   );
 
-  const [overrideHandler, setOverrideHandler] = useState<ProceedToMallaHandler | null>(null);
+  const [overrideHandler, setOverrideHandler] =
+    useState<ProceedToMallaHandler | null>(null);
 
-  const handler = overrideHandler ?? defaultProceedToMalla;
-
+  const handler = useCallback<ProceedToMallaHandler>(
+    (targetPath) => {
+      const fn = overrideHandler ?? defaultProceedToMalla;
+      const result = fn(targetPath);
+      return result !== false;
+    },
+    [overrideHandler, defaultProceedToMalla],
+  );
+  
   const setHandler = useCallback((fn?: ProceedToMallaHandler | null) => {
     if (!fn) {
       setOverrideHandler(null);
