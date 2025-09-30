@@ -17,6 +17,7 @@ import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
+import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
 import {
   blockContentEquals,
   cloneBlockContent,
@@ -67,7 +68,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onPublishBlock,
   isBlockInUse = false,
 }) => {
-  const { setHandler } = useProceedToMalla();
+  const { setHandler, resetHandler, defaultProceedToMalla } = useProceedToMalla();
   const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
@@ -204,18 +205,20 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     isBlockInUse,
   ]);
 
-  const ensurePublishedAndProceed = useCallback(
-    (targetPath?: string) => {
-      if (!onProceedToMalla) return;
+  const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
+    (targetPath) => {
       const destination = targetPath ?? '/malla/design';
+      if (!onProceedToMalla) {
+        return defaultProceedToMalla(destination);
+      }
       if (destination === '/malla/design' && isDraftDirty) {
         const message = repoId
           ? 'Para pasar al diseño de malla, actualiza la publicación del bloque en el repositorio. ¿Deseas hacerlo ahora?'
           : 'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?';
         const confirmed = window.confirm(message);
-        if (!confirmed) return;
+        if (!confirmed) return true;
         const savedId = handleSaveToRepo();
-        if (!savedId) return;
+        if (!savedId) return true;
         onProceedToMalla(
           draftContent.template,
           draftContent.visual,
@@ -224,7 +227,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           savedId,
           draftContent,
         );
-        return;
+        return defaultProceedToMalla(destination);
       }
       const publishedContent =
         destination === '/blocks'
@@ -242,9 +245,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         repoId ?? null,
         publishedContent,
       );
+      return defaultProceedToMalla(destination);
     },
     [
       onProceedToMalla,
+      defaultProceedToMalla,
       isDraftDirty,
       repoId,
       handleSaveToRepo,
@@ -282,13 +287,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   );
 
   useEffect(() => {
-    if (!onProceedToMalla) {
-      setHandler(null);
-      return;
-    }
-    setHandler(() => ensurePublishedAndProceed);
-    return () => setHandler(null);
-  }, [setHandler, onProceedToMalla, ensurePublishedAndProceed]);
+    setHandler(ensurePublishedAndProceed);
+    return () => {
+      resetHandler();
+    };
+  }, [setHandler, resetHandler, ensurePublishedAndProceed]);
 
   if (mode === 'edit') {
     return (
