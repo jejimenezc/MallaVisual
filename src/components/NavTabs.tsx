@@ -6,21 +6,34 @@ import { useProceedToMalla } from '../state/proceed-to-malla';
 
 export const NavTabs: React.FC = () => {
   const { handler } = useProceedToMalla();
+  const shouldBypassCustomNavigation = (
+    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
+  ) =>
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.shiftKey;
+
   const handleMallaClick = (
-    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
   ) => {
-    if (handler) {
-      e.preventDefault();
-      handler('/malla/design');
+    if (shouldBypassCustomNavigation(event)) return;
+    const shouldPreventDefault = handler('/malla/design');
+    if (shouldPreventDefault !== false) {
+      event.preventDefault();
     }
   };
 
   const handleRepoClick = (
-    e: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
   ) => {
-    if (handler) {
-      e.preventDefault();
-      handler('/blocks');    }
+    if (shouldBypassCustomNavigation(event)) return;
+    const shouldPreventDefault = handler('/blocks');
+    if (shouldPreventDefault !== false) {
+      event.preventDefault();
+    }
   };
 
   return (

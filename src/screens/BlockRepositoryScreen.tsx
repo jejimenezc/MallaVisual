@@ -10,10 +10,12 @@ import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 
 interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
+  onOpenBlock?: (block: StoredBlock) => void;
 }
 
 export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   onBlockImported,
+  onOpenBlock,
 }) => {
   const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
     useBlocksRepo();
@@ -71,6 +73,13 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     setSelected('');
   };
 
+  const handleOpen = () => {
+    if (!selected) return;
+    const block = blocks.find((b) => b.id === selected);
+    if (!block) return;
+    onOpenBlock?.(block);
+  };
+
   const gallery = (
     <div className="block-gallery">
       {blocks.map(({ id, data }) => (
@@ -98,6 +107,9 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
       </Button>
       <Button onClick={handleDelete} disabled={!selected}>
         Eliminar
+      </Button>
+      <Button onClick={handleOpen} disabled={!selected}>
+        Abrir en editor
       </Button>
       <input
         type="file"
