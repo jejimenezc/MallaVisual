@@ -501,12 +501,18 @@ export default function App(): JSX.Element {
     }
   }, [location.pathname]);
 
-  const hasCurrentProject = currentProject !== null;
+  const hasActiveBlock = useMemo(() => {
+    if (!block) return false;
+    return isDraftNonEmpty(block.draft);
+  }, [block, isDraftNonEmpty]);
+
+  const hasDirtyBlock = computeDirty();
   const hasPublishedBlock = Boolean(block?.published);
 
   return (
     <ProceedToMallaProvider
-      hasCurrentProject={hasCurrentProject}
+      hasActiveBlock={hasActiveBlock}
+      hasDirtyBlock={hasDirtyBlock}
       hasPublishedBlock={hasPublishedBlock}
     >
       <div className={styles.appContainer}>

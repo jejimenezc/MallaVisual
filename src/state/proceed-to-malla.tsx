@@ -23,18 +23,24 @@ interface ProceedToMallaContextValue {
 
 const ProceedToMallaContext = createContext<ProceedToMallaContextValue | undefined>(undefined);
 
-const EMPTY_BLOCK_CONFIRM_MESSAGE =
-  'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?';
+const NO_ACTIVE_BLOCK_ALERT_MESSAGE =
+  'Para pasar al diseño de malla, activa un bloque en el editor o impórtalo desde el repositorio.';
+const PUBLISH_BLOCK_CONFIRM_MESSAGE =
+  'Para pasar al diseño de malla, publica el bloque en el repositorio. ¿Deseas hacerlo ahora?';
+const UPDATE_BLOCK_CONFIRM_MESSAGE =
+  'Para pasar al diseño de malla, actualiza la publicación del bloque en el repositorio. ¿Deseas hacerlo ahora?';
 
 interface ProceedToMallaProviderProps {
   children: React.ReactNode;
-  hasCurrentProject: boolean;
+  hasActiveBlock: boolean;
+  hasDirtyBlock: boolean;
   hasPublishedBlock: boolean;
 }
 
 export function ProceedToMallaProvider({
   children,
-  hasCurrentProject,
+  hasActiveBlock,
+  hasDirtyBlock,
   hasPublishedBlock,
 }: ProceedToMallaProviderProps): JSX.Element {
   const navigate = useNavigate();
@@ -42,10 +48,17 @@ export function ProceedToMallaProvider({
     (targetPath) => {
       const destination = targetPath ?? '/malla/design';
       if (destination === '/malla/design') {
-        if (!hasCurrentProject && !hasPublishedBlock) {
-          const confirmed = window.confirm(EMPTY_BLOCK_CONFIRM_MESSAGE);
+        if (!hasActiveBlock) {
+          window.alert(NO_ACTIVE_BLOCK_ALERT_MESSAGE);
+          return true;
+        }
+        if (hasDirtyBlock) {
+          const message = hasPublishedBlock
+            ? UPDATE_BLOCK_CONFIRM_MESSAGE
+            : PUBLISH_BLOCK_CONFIRM_MESSAGE;
+          const confirmed = window.confirm(message);
           if (confirmed) {
-            navigate('/blocks');
+            navigate('/block/design');
           }
           return true;
         }
@@ -53,7 +66,7 @@ export function ProceedToMallaProvider({
       navigate(destination);
       return true;
     },
-    [hasCurrentProject, hasPublishedBlock, navigate],
+    [hasActiveBlock, hasDirtyBlock, hasPublishedBlock, navigate],
   );
 
   const [overrideHandler, setOverrideHandler] =
@@ -67,7 +80,7 @@ export function ProceedToMallaProvider({
     },
     [overrideHandler, defaultProceedToMalla],
   );
-  
+
   const setHandler = useCallback((fn?: ProceedToMallaHandler | null) => {
     if (!fn) {
       setOverrideHandler(null);
