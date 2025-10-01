@@ -68,7 +68,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onPublishBlock,
   isBlockInUse = false,
 }) => {
-  const { setHandler, resetHandler, defaultProceedToMalla } = useProceedToMalla();
+  const {
+    setHandler,
+    resetHandler,
+    defaultProceedToMalla,
+    skipNextDirtyBlockCheck,
+  } = useProceedToMalla();
   const [mode, setMode] = useState<'edit' | 'view'>(initialMode);
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
@@ -227,6 +232,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           savedId,
           draftContent,
         );
+        skipNextDirtyBlockCheck();
         return defaultProceedToMalla(destination);
       }
       const publishedContent =
