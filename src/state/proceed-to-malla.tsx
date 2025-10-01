@@ -19,6 +19,8 @@ interface ProceedToMallaContextValue {
   resetHandler: () => void;
   /** Navegación por defecto hacia el destino solicitado */
   defaultProceedToMalla: ProceedToMallaHandler;
+  /** Omite la verificación de bloque sucio en la próxima navegación */
+  skipNextDirtyBlockCheck: () => void;
 }
 
 const ProceedToMallaContext = createContext<ProceedToMallaContextValue | undefined>(undefined);
@@ -44,6 +46,7 @@ export function ProceedToMallaProvider({
   hasPublishedBlock,
 }: ProceedToMallaProviderProps): JSX.Element {
   const navigate = useNavigate();
+  const skipNextDirtyBlockCheckRef = React.useRef(false);
   const defaultProceedToMalla = useCallback<ProceedToMallaHandler>(
     (targetPath) => {
       const destination = targetPath ?? '/malla/design';
@@ -52,17 +55,24 @@ export function ProceedToMallaProvider({
           window.alert(NO_ACTIVE_BLOCK_ALERT_MESSAGE);
           return true;
         }
+        const shouldSkipDirtyCheck = skipNextDirtyBlockCheckRef.current;
+        if (shouldSkipDirtyCheck) {
+          skipNextDirtyBlockCheckRef.current = false;
+        }
         if (hasDirtyBlock) {
-          const message = hasPublishedBlock
-            ? UPDATE_BLOCK_CONFIRM_MESSAGE
-            : PUBLISH_BLOCK_CONFIRM_MESSAGE;
-          const confirmed = window.confirm(message);
-          if (confirmed) {
-            navigate('/block/design');
+          if (!shouldSkipDirtyCheck) {
+            const message = hasPublishedBlock
+              ? UPDATE_BLOCK_CONFIRM_MESSAGE
+              : PUBLISH_BLOCK_CONFIRM_MESSAGE;
+            const confirmed = window.confirm(message);
+            if (confirmed) {
+              navigate('/block/design');
+            }
+            return true;
           }
-          return true;
         }
       }
+      skipNextDirtyBlockCheckRef.current = false;
       navigate(destination);
       return true;
     },
@@ -93,14 +103,19 @@ export function ProceedToMallaProvider({
     setOverrideHandler(null);
   }, []);
 
+  const skipNextDirtyBlockCheck = useCallback(() => {
+    skipNextDirtyBlockCheckRef.current = true;
+  }, []);
+
   const contextValue = useMemo<ProceedToMallaContextValue>(
     () => ({
       handler,
       setHandler,
       resetHandler,
       defaultProceedToMalla,
+      skipNextDirtyBlockCheck,
     }),
-    [handler, setHandler, resetHandler, defaultProceedToMalla],
+    [handler, setHandler, resetHandler, defaultProceedToMalla, skipNextDirtyBlockCheck],
   );
 
   return (

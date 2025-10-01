@@ -510,7 +510,7 @@ export default function App(): JSX.Element {
       repoId: stored.id,
       published,
     });
-    if (malla) {
+    if (malla && !projectId) {
       try {
         window.localStorage.removeItem('malla-editor-state');
       } catch {
