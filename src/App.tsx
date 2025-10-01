@@ -2,7 +2,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import type { BlockTemplate } from './types/curricular.ts';
+import type {
+  BlockTemplate,
+  CurricularPiece,
+  MasterBlockData,
+} from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
@@ -45,6 +49,175 @@ interface BlockState {
   draft: BlockContent;
   repoId: string | null;
   published: BlockContent | null;
+}
+
+function createEmptyMaster(): MasterBlockData {
+  return {
+    template: Array.from({ length: 10 }, () =>
+      Array.from({ length: 10 }, () => ({ active: false, label: '', type: undefined })),
+    ),
+    visual: {},
+    aspect: '1/1',
+  };
+}
+
+function synchronizeMastersWithRepository(
+  masters: Record<string, MasterBlockData>,
+  repository: Record<string, BlockExport>,
+): { masters: Record<string, MasterBlockData>; mapping: Map<string, string> } {
+  const repoContents = Object.entries(repository).map(([id, data]) => [
+    id,
+    toBlockContent(data),
+  ]) as Array<[string, BlockContent]>;
+  const assignedRepoIds = new Set<string>();
+  const mapping = new Map<string, string>();
+  const normalizedMasters: Record<string, MasterBlockData> = {};
+
+  for (const [masterId, masterData] of Object.entries(masters)) {
+    const content = toBlockContent(masterData);
+    let targetId = masterId;
+    if (repository[masterId]) {
+      assignedRepoIds.add(masterId);
+    } else {
+      const match = repoContents.find(([repoId, repoContent]) => {
+        if (assignedRepoIds.has(repoId)) return false;
+        return blockContentEquals(content, repoContent);
+      });
+      if (match) {
+        targetId = match[0];
+        assignedRepoIds.add(targetId);
+      }
+    }
+    mapping.set(masterId, targetId);
+    normalizedMasters[targetId] = cloneBlockContent(content) as MasterBlockData;
+  }
+
+  for (const [repoId, repoContent] of repoContents) {
+    if (!normalizedMasters[repoId]) {
+      normalizedMasters[repoId] = cloneBlockContent(repoContent) as MasterBlockData;
+      mapping.set(repoId, repoId);
+    }
+  }
+
+  return { masters: normalizedMasters, mapping };
+}
+
+function remapPiecesWithMapping(
+  pieces: CurricularPiece[] | undefined,
+  mapping: Map<string, string>,
+): CurricularPiece[] {
+  if (!pieces || pieces.length === 0) return [];
+  return pieces.map((piece) => {
+    if (piece.kind === 'ref') {
+      const mapped = mapping.get(piece.ref.sourceId);
+      if (mapped && mapped !== piece.ref.sourceId) {
+        return {
+          ...piece,
+          ref: { ...piece.ref, sourceId: mapped },
+        };
+      }
+      return piece;
+    }
+    if (piece.kind === 'snapshot' && piece.origin) {
+      const mapped = mapping.get(piece.origin.sourceId);
+      if (mapped && mapped !== piece.origin.sourceId) {
+        return {
+          ...piece,
+          origin: { ...piece.origin, sourceId: mapped },
+        };
+      }
+    }
+    return piece;
+  });
+}
+
+function prepareMallaProjectState(
+  data: MallaExport,
+  repository: Record<string, BlockExport>,
+): { block: BlockState; malla: MallaExport } {
+  const sourceMasters = data.masters ?? {};
+  const { masters: normalizedMasters, mapping } = synchronizeMastersWithRepository(
+    sourceMasters,
+    repository,
+  );
+  const remappedPieces = remapPiecesWithMapping(data.pieces ?? [], mapping);
+  const floatingPieces = (data.floatingPieces ?? []).slice();
+  const values = { ...(data.values ?? {}) };
+
+  let desiredActiveId = data.activeMasterId ?? '';
+  if (desiredActiveId) {
+    const mapped = mapping.get(desiredActiveId);
+    if (mapped) {
+      desiredActiveId = mapped;
+    }
+  }
+
+  const repoIds = Object.keys(repository);
+  const normalizedIds = Object.keys(normalizedMasters);
+  const mappedRepoIds = new Set<string>(mapping.values());
+
+  let activeId = desiredActiveId;
+  if (activeId && !normalizedMasters[activeId]) {
+    const mapped = mapping.get(activeId);
+    if (mapped && normalizedMasters[mapped]) {
+      activeId = mapped;
+    }
+  }
+
+  if (!activeId || !normalizedMasters[activeId] || !repository[activeId]) {
+    const candidate = repoIds.find((id) => mappedRepoIds.has(id) && normalizedMasters[id]);
+    if (candidate) {
+      activeId = candidate;
+    }
+  }
+
+  if ((!activeId || !normalizedMasters[activeId]) && repoIds.length > 0) {
+    const candidate = repoIds.find((id) => normalizedMasters[id]);
+    activeId = candidate ?? repoIds[0];
+  }
+
+  if (!activeId || !normalizedMasters[activeId]) {
+    activeId = normalizedIds[0] ?? '';
+  }
+
+  if (!activeId) {
+    activeId = 'master';
+  }
+
+  if (!normalizedMasters[activeId]) {
+    if (repository[activeId]) {
+      normalizedMasters[activeId] = cloneBlockContent(
+        toBlockContent(repository[activeId]),
+      ) as MasterBlockData;
+    } else {
+      normalizedMasters[activeId] = createEmptyMaster();
+    }
+    mapping.set(activeId, activeId);
+  }
+
+  const activeMaster = normalizedMasters[activeId];
+  const draft = cloneBlockContent(toBlockContent(activeMaster));
+  const repoEntry = repository[activeId];
+  const published = repoEntry ? cloneBlockContent(toBlockContent(repoEntry)) : null;
+
+  const block: BlockState = {
+    draft,
+    repoId: repoEntry ? activeId : null,
+    published,
+  };
+
+  const mallaState: MallaExport = {
+    ...data,
+    version: MALLA_SCHEMA_VERSION,
+    masters: normalizedMasters,
+    pieces: remappedPieces,
+    values,
+    floatingPieces,
+    activeMasterId: activeId,
+    repository,
+  };
+
+  return { block, malla: mallaState };
 }
 
 export default function App(): JSX.Element {
@@ -202,24 +375,11 @@ export default function App(): JSX.Element {
     if (!normalizedRepo) return;
     const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
+    const prepared = prepareMallaProjectState(data, normalizedRepo);
     setProjectId(id);
     setProjectName(name);
-    const firstId = Object.keys(data.masters)[0];
-    const activeId = data.activeMasterId ?? firstId;
-    const active = data.masters[activeId];
-    const repoId = normalizedRepo[activeId] ? activeId : null;
-    const draft = cloneBlockContent(toBlockContent(active));
-    const published = repoId
-      ? normalizedRepo[repoId]
-        ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
-        : null
-      : null;
-    setBlock({
-      draft,
-      repoId,
-      published,
-    });
-    setMalla({ ...data, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
+    setBlock(prepared.block);
+    setMalla(prepared.malla);
     navigate('/malla/design');
   };
 
@@ -231,24 +391,11 @@ export default function App(): JSX.Element {
         targetDescription: 'el proyecto seleccionado',
       });
       if (!normalizedRepo) return;
+      const prepared = prepareMallaProjectState(m, normalizedRepo);
       setProjectId(id);
       setProjectName(name);
-      const firstId = Object.keys(m.masters)[0];
-      const activeId = m.activeMasterId ?? firstId;
-      const active = m.masters[activeId];
-      const repoId = normalizedRepo[activeId] ? activeId : null;
-      const draft = cloneBlockContent(toBlockContent(active));
-      const published = repoId
-        ? normalizedRepo[repoId]
-          ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
-          : null
-        : null;
-      setBlock({
-        draft,
-        repoId,
-        published,
-      });
-      setMalla({ ...m, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
+      setBlock(prepared.block);
+      setMalla(prepared.malla);
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
