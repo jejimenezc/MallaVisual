@@ -1,8 +1,12 @@
 // src/App.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import type { BlockTemplate } from './types/curricular.ts';
+import type {
+  BlockTemplate,
+  CurricularPiece,
+  MasterBlockData,
+} from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
@@ -47,6 +51,175 @@ interface BlockState {
   published: BlockContent | null;
 }
 
+function createEmptyMaster(): MasterBlockData {
+  return {
+    template: Array.from({ length: 10 }, () =>
+      Array.from({ length: 10 }, () => ({ active: false, label: '', type: undefined })),
+    ),
+    visual: {},
+    aspect: '1/1',
+  };
+}
+
+function synchronizeMastersWithRepository(
+  masters: Record<string, MasterBlockData>,
+  repository: Record<string, BlockExport>,
+): { masters: Record<string, MasterBlockData>; mapping: Map<string, string> } {
+  const repoContents = Object.entries(repository).map(([id, data]) => [
+    id,
+    toBlockContent(data),
+  ]) as Array<[string, BlockContent]>;
+  const assignedRepoIds = new Set<string>();
+  const mapping = new Map<string, string>();
+  const normalizedMasters: Record<string, MasterBlockData> = {};
+
+  for (const [masterId, masterData] of Object.entries(masters)) {
+    const content = toBlockContent(masterData);
+    let targetId = masterId;
+    if (repository[masterId]) {
+      assignedRepoIds.add(masterId);
+    } else {
+      const match = repoContents.find(([repoId, repoContent]) => {
+        if (assignedRepoIds.has(repoId)) return false;
+        return blockContentEquals(content, repoContent);
+      });
+      if (match) {
+        targetId = match[0];
+        assignedRepoIds.add(targetId);
+      }
+    }
+    mapping.set(masterId, targetId);
+    normalizedMasters[targetId] = cloneBlockContent(content) as MasterBlockData;
+  }
+
+  for (const [repoId, repoContent] of repoContents) {
+    if (!normalizedMasters[repoId]) {
+      normalizedMasters[repoId] = cloneBlockContent(repoContent) as MasterBlockData;
+      mapping.set(repoId, repoId);
+    }
+  }
+
+  return { masters: normalizedMasters, mapping };
+}
+
+function remapPiecesWithMapping(
+  pieces: CurricularPiece[] | undefined,
+  mapping: Map<string, string>,
+): CurricularPiece[] {
+  if (!pieces || pieces.length === 0) return [];
+  return pieces.map((piece) => {
+    if (piece.kind === 'ref') {
+      const mapped = mapping.get(piece.ref.sourceId);
+      if (mapped && mapped !== piece.ref.sourceId) {
+        return {
+          ...piece,
+          ref: { ...piece.ref, sourceId: mapped },
+        };
+      }
+      return piece;
+    }
+    if (piece.kind === 'snapshot' && piece.origin) {
+      const mapped = mapping.get(piece.origin.sourceId);
+      if (mapped && mapped !== piece.origin.sourceId) {
+        return {
+          ...piece,
+          origin: { ...piece.origin, sourceId: mapped },
+        };
+      }
+    }
+    return piece;
+  });
+}
+
+function prepareMallaProjectState(
+  data: MallaExport,
+  repository: Record<string, BlockExport>,
+): { block: BlockState; malla: MallaExport } {
+  const sourceMasters = data.masters ?? {};
+  const { masters: normalizedMasters, mapping } = synchronizeMastersWithRepository(
+    sourceMasters,
+    repository,
+  );
+  const remappedPieces = remapPiecesWithMapping(data.pieces ?? [], mapping);
+  const floatingPieces = (data.floatingPieces ?? []).slice();
+  const values = { ...(data.values ?? {}) };
+
+  let desiredActiveId = data.activeMasterId ?? '';
+  if (desiredActiveId) {
+    const mapped = mapping.get(desiredActiveId);
+    if (mapped) {
+      desiredActiveId = mapped;
+    }
+  }
+
+  const repoIds = Object.keys(repository);
+  const normalizedIds = Object.keys(normalizedMasters);
+  const mappedRepoIds = new Set<string>(mapping.values());
+
+  let activeId = desiredActiveId;
+  if (activeId && !normalizedMasters[activeId]) {
+    const mapped = mapping.get(activeId);
+    if (mapped && normalizedMasters[mapped]) {
+      activeId = mapped;
+    }
+  }
+
+  if (!activeId || !normalizedMasters[activeId] || !repository[activeId]) {
+    const candidate = repoIds.find((id) => mappedRepoIds.has(id) && normalizedMasters[id]);
+    if (candidate) {
+      activeId = candidate;
+    }
+  }
+
+  if ((!activeId || !normalizedMasters[activeId]) && repoIds.length > 0) {
+    const candidate = repoIds.find((id) => normalizedMasters[id]);
+    activeId = candidate ?? repoIds[0];
+  }
+
+  if (!activeId || !normalizedMasters[activeId]) {
+    activeId = normalizedIds[0] ?? '';
+  }
+
+  if (!activeId) {
+    activeId = 'master';
+  }
+
+  if (!normalizedMasters[activeId]) {
+    if (repository[activeId]) {
+      normalizedMasters[activeId] = cloneBlockContent(
+        toBlockContent(repository[activeId]),
+      ) as MasterBlockData;
+    } else {
+      normalizedMasters[activeId] = createEmptyMaster();
+    }
+    mapping.set(activeId, activeId);
+  }
+
+  const activeMaster = normalizedMasters[activeId];
+  const draft = cloneBlockContent(toBlockContent(activeMaster));
+  const repoEntry = repository[activeId];
+  const published = repoEntry ? cloneBlockContent(toBlockContent(repoEntry)) : null;
+
+  const block: BlockState = {
+    draft,
+    repoId: repoEntry ? activeId : null,
+    published,
+  };
+
+  const mallaState: MallaExport = {
+    ...data,
+    version: MALLA_SCHEMA_VERSION,
+    masters: normalizedMasters,
+    pieces: remappedPieces,
+    values,
+    floatingPieces,
+    activeMasterId: activeId,
+    repository,
+  };
+
+  return { block, malla: mallaState };
+}
+
 export default function App(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,6 +231,34 @@ export default function App(): JSX.Element {
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<Record<string, BlockExport>>(() =>
     blocksToRepository(listBlocks()),
+  );
+
+  // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
+  const isDraftNonEmpty = useCallback((draft: BlockContent): boolean => {
+    const hasActiveCell = draft.template.some((row) =>
+      row.some((cell) => Boolean(cell?.active)),
+    );
+    const merges = (draft.visual as unknown as { merges?: Record<string, unknown> | null })?.merges;
+    const hasMerges =
+      !!merges &&
+      typeof merges === 'object' &&
+      Object.keys(merges as Record<string, unknown>).length > 0;
+    const metaName = (draft as unknown as { meta?: { name?: string | null } }).meta?.name;
+    const hasName = typeof metaName === 'string' && metaName.trim().length > 0;
+    return hasActiveCell || hasMerges || hasName;
+  }, []);
+
+  const computeDirty = useCallback(
+    (b: BlockState | null = block): boolean => {
+      if (!b) return false;
+      if (!b.published) {
+        // Bloque nunca publicado => dirty si draft no vacío.
+        return isDraftNonEmpty(b.draft);
+      }
+      // Bloque publicado => dirty si draft deep-distinto a published.
+      return !blockContentEquals(b.draft, b.published);
+    },
+    [block, isDraftNonEmpty],
   );
 
   useEffect(() => {
@@ -147,13 +348,13 @@ export default function App(): JSX.Element {
     navigate('/block/design');
   };
 
-  const handleLoadBlock = (data: BlockExport) => {
+  const handleLoadBlock = (data: BlockExport, inferredName?: string) => {
     const normalized = applyRepositoryChange({}, {
       reason: 'importar el bloque seleccionado',
       targetDescription: 'el bloque importado',
     });
     if (!normalized) return;
-    const name = prompt('Nombre del proyecto') || 'Importado';
+    const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
@@ -166,32 +367,19 @@ export default function App(): JSX.Element {
     navigate('/block/design');
   };
 
-  const handleLoadMalla = (data: MallaExport) => {
+  const handleLoadMalla = (data: MallaExport, inferredName?: string) => {
     const normalizedRepo = applyRepositoryChange(data.repository ?? {}, {
       reason: 'importar el proyecto',
       targetDescription: 'el proyecto importado',
     });
     if (!normalizedRepo) return;
-    const name = prompt('Nombre del proyecto') || 'Importado';
+    const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
+    const prepared = prepareMallaProjectState(data, normalizedRepo);
     setProjectId(id);
     setProjectName(name);
-    const firstId = Object.keys(data.masters)[0];
-    const activeId = data.activeMasterId ?? firstId;
-    const active = data.masters[activeId];
-    const repoId = normalizedRepo[activeId] ? activeId : null;
-    const draft = cloneBlockContent(toBlockContent(active));
-    const published = repoId
-      ? normalizedRepo[repoId]
-        ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
-        : null
-      : null;
-    setBlock({
-      draft,
-      repoId,
-      published,
-    });
-    setMalla({ ...data, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
+    setBlock(prepared.block);
+    setMalla(prepared.malla);
     navigate('/malla/design');
   };
 
@@ -203,24 +391,11 @@ export default function App(): JSX.Element {
         targetDescription: 'el proyecto seleccionado',
       });
       if (!normalizedRepo) return;
+      const prepared = prepareMallaProjectState(m, normalizedRepo);
       setProjectId(id);
       setProjectName(name);
-      const firstId = Object.keys(m.masters)[0];
-      const activeId = m.activeMasterId ?? firstId;
-      const active = m.masters[activeId];
-      const repoId = normalizedRepo[activeId] ? activeId : null;
-      const draft = cloneBlockContent(toBlockContent(active));
-      const published = repoId
-        ? normalizedRepo[repoId]
-          ? cloneBlockContent(toBlockContent(normalizedRepo[repoId]))
-          : null
-        : null;
-      setBlock({
-        draft,
-        repoId,
-        published,
-      });
-      setMalla({ ...m, version: MALLA_SCHEMA_VERSION, repository: normalizedRepo });
+      setBlock(prepared.block);
+      setMalla(prepared.malla);
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
@@ -262,18 +437,21 @@ export default function App(): JSX.Element {
       const nextRepoId =
         repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
       const draft = cloneBlockContent(content);
-      const nextPublished = nextRepoId
-        ? published
-          ? cloneBlockContent(published)
-          : prev?.published ?? null
-        : null;
+      const nextPublished = !nextRepoId
+        ? null
+        : published === undefined
+          ? prev?.published
+            ? cloneBlockContent(prev.published)
+            : null
+          : published === null
+            ? null
+            : cloneBlockContent(published);
       return {
         draft,
         repoId: nextRepoId,
         published: nextPublished,
       };
     });
-    navigate(destination);
   };
 
   const handleRepoIdChange = (repoId: string | null) => {
@@ -284,7 +462,10 @@ export default function App(): JSX.Element {
       return {
         ...prev,
         repoId: nextRepoId,
-        published: nextRepoId ? prev.published : null,
+        published:
+          nextRepoId && prev.published
+            ? cloneBlockContent(prev.published)
+            : null,
       };
     });
   };
@@ -302,11 +483,92 @@ export default function App(): JSX.Element {
       visual: payload.visual,
       aspect: payload.aspect,
     };
-    setBlock({
-      draft: cloneBlockContent(content),
-      repoId: payload.repoId,
-      published: cloneBlockContent(content),
+    setBlock((prev) => {
+      const nextDraft = cloneBlockContent(content);
+      if (!prev) {
+        return {
+          draft: nextDraft,
+          repoId: payload.repoId,
+          published: cloneBlockContent(nextDraft),
+        };
+      }
+      return {
+        ...prev,
+        draft: nextDraft,
+        repoId: payload.repoId ?? prev.repoId,
+        published: cloneBlockContent(nextDraft),
+      };
     });
+  };
+
+  const loadRepositoryBlock = (stored: StoredBlock) => {
+    const content = toBlockContent(stored.data);
+    const draft = cloneBlockContent(content);
+    const published = cloneBlockContent(content);
+    setBlock({
+      draft,
+      repoId: stored.id,
+      published,
+    });
+    if (malla && !projectId) {
+      try {
+        window.localStorage.removeItem('malla-editor-state');
+      } catch {
+        /* ignore */
+      }
+      setMalla(null);
+    }
+    navigate('/block/design');
+  };
+
+  const handleBlockDraftChange = useCallback((draft: BlockContent) => {
+    const nextDraft = cloneBlockContent(draft);
+    setBlock((prev) => {
+      if (!prev) {
+        return {
+          draft: nextDraft,
+          repoId: null,
+          published: null,
+        };
+      }
+      if (blockContentEquals(prev.draft, nextDraft)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        draft: nextDraft,
+      };
+    });
+  }, []);
+
+  const handleOpenRepositoryBlock = (stored: StoredBlock) => {
+    const hasUnsavedChanges = computeDirty();
+    if (hasUnsavedChanges) {
+      const message =
+        'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
+      if (!window.confirm(message)) {
+        return;
+      }
+    }
+    loadRepositoryBlock(stored);
+  };
+
+  const handleBlockImported = (stored: StoredBlock) => {
+    let shouldLoadImmediately = false;
+    setBlock((prev) => {
+      if (prev) return prev;
+      shouldLoadImmediately = true;
+      const content = toBlockContent(stored.data);
+      return {
+        draft: cloneBlockContent(content),
+        repoId: stored.id,
+        published: cloneBlockContent(content),
+      };
+    });
+    if (!shouldLoadImmediately) {
+      return;
+    }
+    loadRepositoryBlock(stored);
   };
 
   const blockInUse = useMemo(() => {
@@ -340,12 +602,15 @@ export default function App(): JSX.Element {
   > = (update) => {
     setBlock((prev) => {
       const prevState = prev
-        ? {
-            template: prev.draft.template,
-            visual: prev.draft.visual,
-            aspect: prev.draft.aspect,
-            repoId: prev.repoId,
-          }
+        ? (() => {
+            const prevContent = cloneBlockContent(prev.draft);
+            return {
+              template: prevContent.template,
+              visual: prevContent.visual,
+              aspect: prevContent.aspect,
+              repoId: prev.repoId,
+            };
+          })()
         : null;
       const nextState =
         typeof update === 'function' ? update(prevState) : update;
@@ -356,7 +621,9 @@ export default function App(): JSX.Element {
         nextRepoId && repositorySnapshot[nextRepoId]
           ? cloneBlockContent(toBlockContent(repositorySnapshot[nextRepoId]))
           : nextRepoId
-            ? prev?.published ?? null
+            ? prev?.published
+              ? cloneBlockContent(prev.published)
+              : null
             : null;
       return {
         draft,
@@ -381,8 +648,20 @@ export default function App(): JSX.Element {
     }
   }, [location.pathname]);
 
+  const hasActiveBlock = useMemo(() => {
+    if (!block) return false;
+    return isDraftNonEmpty(block.draft);
+  }, [block, isDraftNonEmpty]);
+
+  const hasDirtyBlock = computeDirty();
+  const hasPublishedBlock = Boolean(block?.published);
+
   return (
-    <ProceedToMallaProvider>
+    <ProceedToMallaProvider
+      hasActiveBlock={hasActiveBlock}
+      hasDirtyBlock={hasDirtyBlock}
+      hasPublishedBlock={hasPublishedBlock}
+    >
       <div className={styles.appContainer}>
         <AppHeader />
         <NavTabs />
@@ -412,6 +691,7 @@ export default function App(): JSX.Element {
             element={
               <BlockEditorScreen
                 onProceedToMalla={handleProceedToMalla}
+                onDraftChange={handleBlockDraftChange}
                 initialData={
                   block
                     ? {
@@ -437,6 +717,7 @@ export default function App(): JSX.Element {
             element={
               block ? (
                 <BlockEditorScreen
+                  onDraftChange={handleBlockDraftChange}
                   initialData={{
                     version: BLOCK_SCHEMA_VERSION,
                     template: block.draft.template,
@@ -456,7 +737,14 @@ export default function App(): JSX.Element {
               )
             }
           />
-          <Route path="/blocks" element={<BlockRepositoryScreen />} />
+          <Route
+            path="/blocks"
+            element={
+              <BlockRepositoryScreen
+                onBlockImported={handleBlockImported}
+                onOpenBlock={handleOpenRepositoryBlock}
+              />
+            }          />
           <Route
             path="/malla/design"
             element={

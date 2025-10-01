@@ -6,8 +6,17 @@ import { Button } from '../components/Button';
 import { useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import './BlockRepositoryScreen.css';
+import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 
-export const BlockRepositoryScreen: React.FC = () => {
+interface BlockRepositoryScreenProps {
+  onBlockImported?: (block: StoredBlock) => void;
+  onOpenBlock?: (block: StoredBlock) => void;
+}
+
+export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
+  onBlockImported,
+  onOpenBlock,
+}) => {
   const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
     useBlocksRepo();
   const [blocks, setBlocks] = useState<StoredBlock[]>([]);
@@ -28,12 +37,16 @@ export const BlockRepositoryScreen: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const inferredName = getFileNameWithoutExtension(file.name);
     file.text().then((text) => {
       try {
         const data = importBlock(text);
-        const name = prompt('Nombre del bloque') || 'sin-nombre';
-        saveBlock({ id: name, data });
+        const name = inferredName || 'sin-nombre';
+        const block: StoredBlock = { id: name, data };
+        saveBlock(block);
         refresh();
+        onBlockImported?.(block);
+        setSelected(name);
       } catch (err) {
         alert((err as Error).message);
       }
@@ -58,6 +71,13 @@ export const BlockRepositoryScreen: React.FC = () => {
     removeBlock(selected);
     refresh();
     setSelected('');
+  };
+
+  const handleOpen = () => {
+    if (!selected) return;
+    const block = blocks.find((b) => b.id === selected);
+    if (!block) return;
+    onOpenBlock?.(block);
   };
 
   const gallery = (
@@ -87,6 +107,9 @@ export const BlockRepositoryScreen: React.FC = () => {
       </Button>
       <Button onClick={handleDelete} disabled={!selected}>
         Eliminar
+      </Button>
+      <Button onClick={handleOpen} disabled={!selected}>
+        Abrir en editor
       </Button>
       <input
         type="file"
