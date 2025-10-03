@@ -56,9 +56,8 @@ Persistencia en JSON
 
 Clonar el repositorio:
 
-git clone https://github.com/jejimenezc/mallas-app.git
-cd mallas-app
-
+git clone https://github.com/jejimenezc/MallaVisual.git
+cd MallaVisual
 
 Instalar dependencias:
 
@@ -73,6 +72,37 @@ npm run dev
 Compilar para producción:
 
 npm run build
+
+## Estructura de carpetas (alto nivel)
+
+```
+src/
+  components/        # UI reutilizable (StatusBar, etc.)
+  screens/           # Páginas (HomeScreen, BlockEditor, Repo, MeshEditor)
+  hooks/             # Hooks compartidos (useUnsavedGuard, etc.)
+  state/             # Estado/selector(es) si aplica
+  lib/               # Utilidades puras
+public/
+```
+
+## Rutas y navegación (visión)
+- Escritorio (HomeScreen)
+- Diseño de bloque (BlockEditor)
+- Repositorio de bloques (RepositoryScreen)
+- Diseño de malla (MeshEditor)
+
+> Botón **“→ Malla”** y **NavTabs** deben compartir el *mismo guard* de navegación.
+
+## Estados y persistencia
+- **Proyecto actual** (único) vs **proyectos recientes** (lista en LocalStorage).
+- **Bloque maestro** vs **Pieza referenciada** vs **Snapshot**.
+- **Edición efímera**: editar en memoria y **Actualizar repositorio** para propagar.
+
+## Convenciones de commits
+Usa Conventional Commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
+
+## Glosario de términos
+Consulta **GLOSSARY.md** (fuente oficial de terminología).
 
 📘 Terminología oficial
 
