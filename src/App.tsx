@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import type {
@@ -27,6 +27,52 @@ import {
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
+
+const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
+const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
+
+function getSafeLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredActiveProject(): { id: string | null; name: string } {
+  const ls = getSafeLocalStorage();
+  if (!ls) return { id: null, name: '' };
+  try {
+    const id = ls.getItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
+    const name = ls.getItem(ACTIVE_PROJECT_NAME_STORAGE_KEY) ?? '';
+    return { id, name };
+  } catch {
+    return { id: null, name: '' };
+  }
+}
+
+function persistActiveProject(id: string, name: string): void {
+  const ls = getSafeLocalStorage();
+  if (!ls) return;
+  try {
+    ls.setItem(ACTIVE_PROJECT_ID_STORAGE_KEY, id);
+    ls.setItem(ACTIVE_PROJECT_NAME_STORAGE_KEY, name);
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearStoredActiveProject(): void {
+  const ls = getSafeLocalStorage();
+  if (!ls) return;
+  try {
+    ls.removeItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
+    ls.removeItem(ACTIVE_PROJECT_NAME_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 function normalizeRepository(repo: Record<string, BlockExport>): Record<string, BlockExport> {
   return Object.fromEntries(
@@ -223,16 +269,28 @@ function prepareMallaProjectState(
 export default function App(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
+  const storedActiveProjectRef = useRef(readStoredActiveProject());
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [projectName, setProjectName] = useState('');
-  const { exportProject } = useProject();
+  const [projectId, setProjectId] = useState<string | null>(
+    storedActiveProjectRef.current.id,
+  );
+  const [projectName, setProjectName] = useState(
+    storedActiveProjectRef.current.name,
+  );
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [shouldPersistProject, setShouldPersistProject] = useState(false);
+  const { exportProject, loadProject } = useProject();
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<Record<string, BlockExport>>(() =>
     blocksToRepository(listBlocks()),
   );
 
+  const clearPersistedProjectMetadata = useCallback(() => {
+    clearStoredActiveProject();
+    setShouldPersistProject(false);
+  }, []);
+  
   // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
   const isDraftNonEmpty = useCallback((draft: BlockContent): boolean => {
     const hasActiveCell = draft.template.some((row) =>
@@ -269,32 +327,96 @@ export default function App(): JSX.Element {
     return () => window.removeEventListener('block-repo-updated', sync);
   }, [listBlocks]);
 
-  const applyRepositoryChange = (
-    repo: Record<string, BlockExport>,
-    options: { reason: string; targetDescription: string },
-  ): Record<string, BlockExport> | null => {
-    const normalized = normalizeRepository(repo);
-    const sameAsCurrent =
-      JSON.stringify(repositorySnapshot) === JSON.stringify(normalized);
-    if (!sameAsCurrent) {
-      const hasCurrentData = Object.keys(repositorySnapshot).length > 0;
-      if (hasCurrentData) {
-        const message =
-          Object.keys(normalized).length === 0
-            ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
-            : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
-        if (!window.confirm(message)) {
-          return null;
+  const applyRepositoryChange = useCallback(
+    (
+      repo: Record<string, BlockExport>,
+      options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
+    ): Record<string, BlockExport> | null => {
+      const normalized = normalizeRepository(repo);
+      const sameAsCurrent =
+        JSON.stringify(repositorySnapshot) === JSON.stringify(normalized);
+      if (!sameAsCurrent) {
+        const hasCurrentData = Object.keys(repositorySnapshot).length > 0;
+        if (hasCurrentData && !options.skipConfirmation) {
+          const message =
+            Object.keys(normalized).length === 0
+              ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
+              : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
+          if (!window.confirm(message)) {
+            return null;
+          }
+        }
+        if (Object.keys(normalized).length === 0) {
+          clearRepository();
+        } else {
+          replaceRepository(normalized);
         }
       }
-      if (Object.keys(normalized).length === 0) {
-        clearRepository();
-      } else {
-        replaceRepository(normalized);
-      }
+      setRepositorySnapshot(normalized);
+      return normalized;
+    },
+    [clearRepository, replaceRepository, repositorySnapshot],
+  );
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (shouldPersistProject && projectId) {
+      persistActiveProject(projectId, projectName);
+    } else {
+      clearStoredActiveProject();
     }
-    return normalized;
-  };
+  }, [isHydrated, shouldPersistProject, projectId, projectName]);
+
+  useEffect(() => {
+    if (isHydrated) return;
+    if (typeof window === 'undefined') {
+      setIsHydrated(true);
+      return;
+    }
+    const stored = readStoredActiveProject();
+    if (!stored.id) {
+      setIsHydrated(true);
+      return;
+    }
+    const record = loadProject(stored.id);
+    if (!record) {
+      clearStoredActiveProject();
+      setProjectId(null);
+      setProjectName('');
+      setBlock(null);
+      setMalla(null);
+      setShouldPersistProject(false);
+      setIsHydrated(true);
+      return;
+    }
+    if ('masters' in record.data) {
+      const normalizedRepo =
+        applyRepositoryChange(record.data.repository ?? {}, {
+          reason: 'abrir el proyecto almacenado',
+          targetDescription: 'el proyecto almacenado',
+          skipConfirmation: true,
+        }) ?? {};
+      const prepared = prepareMallaProjectState(record.data, normalizedRepo);
+      setBlock(prepared.block);
+      setMalla(prepared.malla);
+    } else {
+      applyRepositoryChange({}, {
+        reason: 'abrir el proyecto almacenado',
+        targetDescription: 'el proyecto almacenado',
+        skipConfirmation: true,
+      });
+      setBlock({
+        draft: cloneBlockContent(toBlockContent(record.data)),
+        repoId: null,
+        published: null,
+      });
+      setMalla(null);
+    }
+    setProjectId(stored.id);
+    setProjectName(record.meta.name ?? stored.name ?? '');
+    setShouldPersistProject(true);
+    setIsHydrated(true);
+  }, [applyRepositoryChange, isHydrated, loadProject]);
 
   const currentProject: MallaExport | null = useMemo(() => {
     if (malla) {
@@ -345,6 +467,7 @@ export default function App(): JSX.Element {
     setProjectName(name);
     setBlock(null);
     setMalla(null);
+    clearPersistedProjectMetadata();
     navigate('/block/design');
   };
 
@@ -364,6 +487,7 @@ export default function App(): JSX.Element {
       published: null,
     });
     setMalla(null);
+    clearPersistedProjectMetadata();
     navigate('/block/design');
   };
 
@@ -380,6 +504,7 @@ export default function App(): JSX.Element {
     setProjectName(name);
     setBlock(prepared.block);
     setMalla(prepared.malla);
+    clearPersistedProjectMetadata();
     navigate('/malla/design');
   };
 
@@ -396,6 +521,7 @@ export default function App(): JSX.Element {
       setProjectName(name);
       setBlock(prepared.block);
       setMalla(prepared.malla);
+      setShouldPersistProject(true);
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
@@ -412,6 +538,7 @@ export default function App(): JSX.Element {
         published: null,
       });
       setMalla(null);
+      setShouldPersistProject(true);
       navigate('/block/design');
     }
   };
@@ -510,6 +637,7 @@ export default function App(): JSX.Element {
       repoId: stored.id,
       published,
     });
+    clearPersistedProjectMetadata();
     if (malla && !projectId) {
       try {
         window.localStorage.removeItem('malla-editor-state');
@@ -552,6 +680,16 @@ export default function App(): JSX.Element {
     }
     loadRepositoryBlock(stored);
   };
+
+  const handleProjectRemoved = useCallback(
+    (id: string) => {
+      if (!projectId || projectId !== id) return;
+      clearPersistedProjectMetadata();
+      setProjectId(null);
+      setProjectName('');
+    },
+    [clearPersistedProjectMetadata, projectId],
+  );
 
   const handleBlockImported = (stored: StoredBlock) => {
     let shouldLoadImmediately = false;
@@ -656,6 +794,10 @@ export default function App(): JSX.Element {
   const hasDirtyBlock = computeDirty();
   const hasPublishedBlock = Boolean(block?.published);
 
+  if (!isHydrated) {
+    return null;
+  }
+
   return (
     <ProceedToMallaProvider
       hasActiveBlock={hasActiveBlock}
@@ -683,6 +825,7 @@ export default function App(): JSX.Element {
                 onLoadMalla={handleLoadMalla}
                 onOpenProject={handleOpenProject}
                 currentProjectId={projectId ?? undefined}
+                onProjectDeleted={handleProjectRemoved}
               />
             }
           />
