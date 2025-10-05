@@ -266,7 +266,7 @@ function prepareMallaProjectState(
   return { block, malla: mallaState };
 }
 
-export default function App(): JSX.Element {
+export default function App(): JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
   const storedActiveProjectRef = useRef(readStoredActiveProject());
