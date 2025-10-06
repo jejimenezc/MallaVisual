@@ -2,11 +2,16 @@
 import type { BlockTemplate } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
 
+export interface BlockMetadata {
+  name?: string | null;
+}
+
 export interface BlockExport {
   version: number;
   template: BlockTemplate;
   visual: VisualTemplate;
   aspect: BlockAspect;
+  meta?: BlockMetadata;
 }
 
 export const BLOCK_SCHEMA_VERSION = 1;
@@ -15,12 +20,14 @@ export function exportBlock(
   template: BlockTemplate,
   visual: VisualTemplate,
   aspect: BlockAspect,
+  meta?: BlockMetadata,
 ): string {
   const data: BlockExport = {
     version: BLOCK_SCHEMA_VERSION,
     template,
     visual,
     aspect,
+    ...(meta ? { meta } : {}),
   };
   return JSON.stringify(data, null, 2);
 }

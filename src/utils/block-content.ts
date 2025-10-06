@@ -1,22 +1,31 @@
 // src/utils/block-content.ts
 import type { BlockTemplate, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
-import type { BlockExport } from './block-io.ts';
+import type { BlockExport, BlockMetadata } from './block-io.ts';
 
 export interface BlockContent {
   template: BlockTemplate;
   visual: VisualTemplate;
   aspect: BlockAspect;
+  meta?: BlockMetadata;
 }
 
-type BlockSource = BlockExport | BlockContent | MasterBlockData;
+type BlockSource = (BlockExport | BlockContent | MasterBlockData) & {
+  meta?: BlockMetadata;
+};
 
 export function toBlockContent(source: BlockSource): BlockContent {
-  return {
+  const base: BlockContent = {
     template: source.template,
     visual: source.visual,
     aspect: source.aspect,
   };
+  if (source.meta) {
+    base.meta = typeof structuredClone === 'function'
+      ? structuredClone(source.meta)
+      : (JSON.parse(JSON.stringify(source.meta)) as BlockMetadata);
+  }
+  return base;
 }
 
 export function cloneBlockContent(content: BlockContent): BlockContent {
@@ -27,6 +36,9 @@ export function cloneBlockContent(content: BlockContent): BlockContent {
     template: JSON.parse(JSON.stringify(content.template)) as BlockTemplate,
     visual: JSON.parse(JSON.stringify(content.visual)) as VisualTemplate,
     aspect: content.aspect,
+    meta: content.meta
+      ? (JSON.parse(JSON.stringify(content.meta)) as BlockMetadata)
+      : undefined,
   };
 }
 
@@ -39,6 +51,7 @@ export function blockContentEquals(
   if (a.aspect !== b.aspect) return false;
   return (
     JSON.stringify(a.template) === JSON.stringify(b.template) &&
-    JSON.stringify(a.visual) === JSON.stringify(b.visual)
+    JSON.stringify(a.visual) === JSON.stringify(b.visual) &&
+    JSON.stringify(a.meta ?? null) === JSON.stringify(b.meta ?? null)
   );
 }

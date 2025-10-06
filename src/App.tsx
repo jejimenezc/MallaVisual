@@ -281,7 +281,7 @@ export default function App(): JSX.Element | null {
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const { exportProject, loadProject } = useProject();
-  const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
+  const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo(projectId);
   const [repositorySnapshot, setRepositorySnapshot] = useState<Record<string, BlockExport>>(() =>
     blocksToRepository(listBlocks()),
   );
@@ -603,12 +603,14 @@ export default function App(): JSX.Element | null {
       template: BlockTemplate;
       visual: VisualTemplate;
       aspect: BlockAspect;
+      name?: string | null;
     },
   ) => {
     const content: BlockContent = {
       template: payload.template,
       visual: payload.visual,
       aspect: payload.aspect,
+      ...(payload.name ? { meta: { name: payload.name } } : {}),
     };
     setBlock((prev) => {
       const nextDraft = cloneBlockContent(content);
@@ -886,8 +888,11 @@ export default function App(): JSX.Element | null {
               <BlockRepositoryScreen
                 onBlockImported={handleBlockImported}
                 onOpenBlock={handleOpenRepositoryBlock}
+                projectId={projectId ?? null}
+                projectName={projectName}
               />
-            }          />
+            }
+          />
           <Route
             path="/malla/design"
             element={

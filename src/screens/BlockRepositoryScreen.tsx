@@ -4,21 +4,33 @@ import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { BlockSnapshot } from '../components/BlockSnapshot';
 import { Button } from '../components/Button';
 import { useBlocksRepo } from '../core/persistence/hooks.ts';
-import type { StoredBlock } from '../utils/block-repo.ts';
+import { LEGACY_PROJECT_ID, type StoredBlock } from '../utils/block-repo.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
+
+const generateRepoId = (): string => {
+  const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return cryptoObj.randomUUID();
+  }
+  return `block-${Math.random().toString(36).slice(2, 10)}`;
+};
 
 interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
   onOpenBlock?: (block: StoredBlock) => void;
+  projectId?: string | null;
+  projectName?: string;
 }
 
 export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   onBlockImported,
   onOpenBlock,
+  projectId,
+  projectName,
 }) => {
   const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
-    useBlocksRepo();
+    useBlocksRepo(projectId);
   const [blocks, setBlocks] = useState<StoredBlock[]>([]);
   const [selected, setSelected] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,16 +49,28 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const inferredName = getFileNameWithoutExtension(file.name);
+    const inferredName = getFileNameWithoutExtension(file.name)?.trim();
     file.text().then((text) => {
       try {
         const data = importBlock(text);
-        const name = inferredName || 'sin-nombre';
-        const block: StoredBlock = { id: name, data };
-        saveBlock(block);
-        refresh();
-        onBlockImported?.(block);
-        setSelected(name);
+        const existingName = data.meta?.name?.trim();
+        const friendlyName = existingName || inferredName || projectName || 'sin-nombre';
+        const repoId = generateRepoId();
+        const blockData = {
+          ...data,
+          meta: { ...(data.meta ?? {}), name: friendlyName },
+        };
+        saveBlock({ id: repoId, data: blockData });
+        const updatedBlocks = listBlocks();
+        setBlocks(updatedBlocks);
+        const stored =
+          updatedBlocks.find((b) => b.id === repoId) ?? ({
+            id: repoId,
+            projectId: projectId ?? LEGACY_PROJECT_ID,
+            data: blockData,
+          } as StoredBlock);
+        onBlockImported?.(stored);
+        setSelected(repoId);
       } catch (err) {
         alert((err as Error).message);
       }
@@ -61,7 +85,8 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${rec.id}.json`;
+    const downloadName = rec.data.meta?.name ?? rec.id;
+    a.download = `${downloadName}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -82,20 +107,24 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
 
   const gallery = (
     <div className="block-gallery">
-      {blocks.map(({ id, data }) => (
-        <div
-          key={id}
-          className={`gallery-item ${selected === id ? 'selected' : ''}`}
-          onClick={() => setSelected(id)}
-        >
-          <BlockSnapshot
-            template={data.template}
-            visualTemplate={data.visual}
-            aspect={data.aspect}
-          />
-          <div className="block-name">{id}</div>
-        </div>
-      ))}
+      {blocks.map(({ id, data }) => {
+        const displayName = data.meta?.name ?? id;
+        return (
+          <div
+            key={id}
+            className={`gallery-item ${selected === id ? 'selected' : ''}`}
+            onClick={() => setSelected(id)}
+            title={displayName !== id ? `${displayName} (${id})` : id}
+          >
+            <BlockSnapshot
+              template={data.template}
+              visualTemplate={data.visual}
+              aspect={data.aspect}
+            />
+            <div className="block-name">{displayName}</div>
+          </div>
+        );
+      })}
     </div>
   );
 

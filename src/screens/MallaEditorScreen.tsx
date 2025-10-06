@@ -121,7 +121,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     projectId,
     projectName,
   });
-  const { listBlocks } = useBlocksRepo();
+  const { listBlocks } = useBlocksRepo(projectId);
   
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);

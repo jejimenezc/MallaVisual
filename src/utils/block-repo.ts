@@ -19,42 +19,132 @@ const g = globalThis as unknown as {
   window?: (Window & { localStorage?: LS }) | undefined;
 };
 
+export const LEGACY_PROJECT_ID = 'legacy';
+
+type ProjectBlockMap = Record<string, BlockExport>;
+type RepositoryStorage = Record<string, ProjectBlockMap>;
+
+interface StorageSnapshot {
+  data: RepositoryStorage;
+  shouldRewrite: boolean;
+  legacyDetected: boolean;
+}
+
+const legacyNoticeShownFor = new Set<string>();
+
 function getLocalStorage(): LS | undefined {
   return g.localStorage ?? g.window?.localStorage;
 }
 
-function readAll(): Record<string, BlockExport> {
-  const ls = getLocalStorage();
-  if (!ls) return {};
-  try {
-    const raw = ls.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, BlockExport>;
-  } catch {
-    return {};
-  }
+function getWindow(): (Window & { alert?: (message?: string) => void }) | undefined {
+  return g.window ?? (typeof window !== 'undefined' ? window : undefined);
 }
 
 function emitUpdate(): void {
-  const target =
-    (g.window as Window | undefined) ?? (typeof window !== 'undefined' ? window : undefined);
+  const target = getWindow();
   if (!target || typeof target.dispatchEvent !== 'function' || typeof Event !== 'function') {
     return;
   }
   target.dispatchEvent(new Event(UPDATED_EVENT));
 }
 
-function writeAll(data: Record<string, BlockExport>): void {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isBlockExportCandidate(value: unknown): value is BlockExport {
+  if (!isPlainObject(value)) return false;
+  return 'template' in value && 'visual' in value && 'aspect' in value;
+}
+
+function normalizeStorage(raw: unknown): StorageSnapshot {
+  const snapshot: StorageSnapshot = {
+    data: {},
+    shouldRewrite: false,
+    legacyDetected: false,
+  };
+  if (!isPlainObject(raw)) {
+    return snapshot;
+  }
+
+  const entries = Object.entries(raw);
+  if (entries.length === 0) {
+    return snapshot;
+  }
+
+  const looksFlat = entries.every(([, value]) => isBlockExportCandidate(value));
+  if (looksFlat) {
+    const legacyBlocks: ProjectBlockMap = {};
+    for (const [blockId, blockValue] of entries) {
+      if (isBlockExportCandidate(blockValue)) {
+        legacyBlocks[blockId] = blockValue;
+      } else {
+        snapshot.shouldRewrite = true;
+      }
+    }
+    snapshot.data[LEGACY_PROJECT_ID] = legacyBlocks;
+    snapshot.shouldRewrite = true;
+    snapshot.legacyDetected = true;
+    return snapshot;
+  }
+
+  for (const [projectId, value] of entries) {
+    if (!isPlainObject(value)) {
+      snapshot.shouldRewrite = true;
+      continue;
+    }
+    const projectBlocks: ProjectBlockMap = {};
+    for (const [blockId, blockValue] of Object.entries(value)) {
+      if (isBlockExportCandidate(blockValue)) {
+        projectBlocks[blockId] = blockValue;
+      } else {
+        snapshot.shouldRewrite = true;
+      }
+    }
+    snapshot.data[projectId] = projectBlocks;
+  }
+
+  return snapshot;
+}
+
+function readAll(): StorageSnapshot {
   const ls = getLocalStorage();
+  if (!ls) return { data: {}, shouldRewrite: false, legacyDetected: false };
+  try {
+    const raw = ls.getItem(STORAGE_KEY);
+    if (!raw) return { data: {}, shouldRewrite: false, legacyDetected: false };
+    const parsed = JSON.parse(raw) as unknown;
+    return normalizeStorage(parsed);
+  } catch {
+    return { data: {}, shouldRewrite: false, legacyDetected: false };
+  }
+}
+
+function pruneEmptyProjects(data: RepositoryStorage): RepositoryStorage {
+  const result: RepositoryStorage = {};
+  for (const [projectId, blocks] of Object.entries(data)) {
+    if (!isPlainObject(blocks)) {
+      continue;
+    }
+    if (Object.keys(blocks).length > 0) {
+      result[projectId] = blocks;
+    }
+  }
+  return result;
+}
+
+function writeAll(data: RepositoryStorage): void {
+  const ls = getLocalStorage();
+  const pruned = pruneEmptyProjects(data);
   if (!ls) {
     emitUpdate();
     return;
   }
   try {
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(pruned).length === 0) {
       ls.removeItem(STORAGE_KEY);
     } else {
-      ls.setItem(STORAGE_KEY, JSON.stringify(data));
+      ls.setItem(STORAGE_KEY, JSON.stringify(pruned));
     }
   } catch {
     /* ignore */
@@ -62,39 +152,128 @@ function writeAll(data: Record<string, BlockExport>): void {
   emitUpdate();
 }
 
-export interface StoredBlock {
+function normalizeProjectId(projectId?: string | null): string {
+  if (projectId && projectId.trim().length > 0) {
+    return projectId;
+  }
+  return LEGACY_PROJECT_ID;
+}
+
+function notifyLegacyMigration(projectId: string, count: number): void {
+  if (legacyNoticeShownFor.has(projectId)) return;
+  const target = getWindow();
+  if (!target || typeof target.alert !== 'function') return;
+  const label = projectId === LEGACY_PROJECT_ID ? 'general' : 'actual';
+  const blocksLabel = count === 1 ? 'bloque' : 'bloques';
+  target.alert(
+    `Se migraron ${count} ${blocksLabel} del repositorio legado al proyecto ${label}.`,
+  );
+  legacyNoticeShownFor.add(projectId);
+}
+
+export interface SaveableBlock {
   id: string;
   data: BlockExport;
 }
 
-export function listBlocks(): StoredBlock[] {
-  const all = readAll();
-  return Object.entries(all).map(([id, data]) => ({ id, data }));
+export interface StoredBlock extends SaveableBlock {
+  projectId: string;
 }
 
-export function saveBlock(block: StoredBlock): void {
-  const all = readAll();
-  all[block.id] = block.data;
-  writeAll(all);
-}
+export function listBlocks(projectId?: string | null): StoredBlock[] {
+  const snapshot = readAll();
+  let data = snapshot.data;
+  let shouldPersist = snapshot.shouldRewrite;
+  const targetProjectId = normalizeProjectId(projectId);
+  let migratedCount = 0;
 
-export function removeBlock(id: string): void {
-  const all = readAll();
-  if (id in all) {
-    delete all[id];
-    writeAll(all);
+  if (targetProjectId !== LEGACY_PROJECT_ID) {
+    const legacyBlocks = data[LEGACY_PROJECT_ID];
+    if (legacyBlocks && Object.keys(legacyBlocks).length > 0) {
+      const nextData: RepositoryStorage = { ...data };
+      const targetBlocks: ProjectBlockMap = {
+        ...(nextData[targetProjectId] ?? {}),
+      };
+      for (const [blockId, blockValue] of Object.entries(legacyBlocks)) {
+        targetBlocks[blockId] = blockValue;
+        migratedCount += 1;
+      }
+      nextData[targetProjectId] = targetBlocks;
+      delete nextData[LEGACY_PROJECT_ID];
+      data = nextData;
+      shouldPersist = true;
+    }
   }
+
+  if (shouldPersist) {
+    writeAll(data);
+  }
+
+  if (migratedCount > 0) {
+    notifyLegacyMigration(targetProjectId, migratedCount);
+  }
+
+  const projectBlocks = data[targetProjectId] ?? {};
+  return Object.entries(projectBlocks).map(([id, block]) => ({
+    id,
+    projectId: targetProjectId,
+    data: block,
+  }));
+}
+
+export function saveBlock(projectId: string | null | undefined, block: SaveableBlock): void {
+  const targetProjectId = normalizeProjectId(projectId);
+  const snapshot = readAll();
+  const data: RepositoryStorage = { ...snapshot.data };
+  const projectBlocks: ProjectBlockMap = {
+    ...(data[targetProjectId] ?? {}),
+  };
+  projectBlocks[block.id] = block.data;
+  data[targetProjectId] = projectBlocks;
+  writeAll(data);
+}
+
+export function removeBlock(projectId: string | null | undefined, id: string): void {
+  const targetProjectId = normalizeProjectId(projectId);
+  const snapshot = readAll();
+  const projectBlocks = snapshot.data[targetProjectId];
+  if (!projectBlocks || !(id in projectBlocks)) {
+    return;
+  }
+  const nextBlocks: ProjectBlockMap = { ...projectBlocks };
+  delete nextBlocks[id];
+  const data: RepositoryStorage = { ...snapshot.data, [targetProjectId]: nextBlocks };
+  writeAll(data);
 }
 
 export const importBlock = ioImportBlock;
+
 export function exportBlock(block: BlockExport): string {
-  return ioExportBlock(block.template, block.visual, block.aspect);
+  return ioExportBlock(block.template, block.visual, block.aspect, block.meta);
 }
 
-export function replaceBlocks(blocks: Record<string, BlockExport>): void {
-  writeAll(blocks);
+export function replaceBlocks(
+  projectId: string | null | undefined,
+  blocks: Record<string, BlockExport>,
+): void {
+  const targetProjectId = normalizeProjectId(projectId);
+  const snapshot = readAll();
+  const data: RepositoryStorage = { ...snapshot.data };
+  data[targetProjectId] = { ...blocks };
+  writeAll(data);
 }
 
-export function clearBlocks(): void {
-  writeAll({});
+export function clearBlocks(projectId?: string | null): void {
+  if (typeof projectId === 'undefined') {
+    writeAll({});
+    return;
+  }
+  const targetProjectId = normalizeProjectId(projectId);
+  const snapshot = readAll();
+  if (!(targetProjectId in snapshot.data)) {
+    return;
+  }
+  const data: RepositoryStorage = { ...snapshot.data };
+  delete data[targetProjectId];
+  writeAll(data);
 }

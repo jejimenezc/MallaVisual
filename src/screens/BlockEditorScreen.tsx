@@ -9,7 +9,7 @@ import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { VisualTemplate, BlockAspect } from '../types/visual.ts';
-import type { BlockExport } from '../utils/block-io.ts';
+import type { BlockExport, BlockMetadata } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
@@ -24,6 +24,15 @@ import {
   toBlockContent,
   type BlockContent,
 } from '../utils/block-content.ts';
+
+
+const generateRepoId = (): string => {
+  const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return cryptoObj.randomUUID();
+  }
+  return `block-${Math.random().toString(36).slice(2, 10)}`;
+};
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -52,6 +61,7 @@ interface BlockEditorScreenProps {
     template: BlockTemplate;
     visual: VisualTemplate;
     aspect: BlockAspect;
+    name?: string | null;
   }) => void;
   isBlockInUse?: boolean;
 }
@@ -84,8 +94,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [aspect, setAspect] = useState<BlockAspect>(
     initialData?.aspect ?? '1/1'
   );
+  const [blockMeta, setBlockMeta] = useState<BlockMetadata | undefined>(
+    initialData?.meta ? { ...initialData.meta } : undefined,
+  );
+  const [repoName, setRepoName] = useState<string>(
+    initialData?.meta?.name ?? projectName ?? '',
+  );
   const { autoSave, flushAutoSave } = useProject({ projectId, projectName });
-  const { saveBlock: repoSaveBlock, listBlocks } = useBlocksRepo();
+  const { saveBlock: repoSaveBlock, listBlocks } = useBlocksRepo(projectId);
   const savedRef = useRef<string | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
 
@@ -103,7 +119,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setTemplate(content.template);
     setVisual(content.visual);
     setAspect(content.aspect);
-  }, [initialData]);
+    if (content.meta) {
+      setBlockMeta({ ...content.meta });
+      setRepoName(content.meta.name ?? projectName ?? '');
+    } else {
+      setBlockMeta(undefined);
+      setRepoName(projectName ?? '');
+    }
+  }, [initialData, projectName]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -139,8 +162,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [initialRepoId]);
 
   const draftContent = useMemo<BlockContent>(
-    () => ({ template, visual, aspect }),
-    [template, visual, aspect],
+    () => ({
+      template,
+      visual,
+      aspect,
+      ...(blockMeta ? { meta: blockMeta } : {}),
+    }),
+    [template, visual, aspect, blockMeta],
   );
 
   useEffect(() => {
@@ -155,6 +183,22 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => (repoRecord ? toBlockContent(repoRecord.data) : null),
     [repoRecord],
   );
+  useEffect(() => {
+    if (!repoRecord?.data.meta) return;
+    const metaFromRepo = repoRecord.data.meta;
+    setRepoName((prev) => {
+      const incoming = metaFromRepo.name ?? '';
+      return prev === incoming ? prev : incoming;
+    });
+    setBlockMeta((prev) => {
+      const prevSerialized = JSON.stringify(prev ?? null);
+      const nextSerialized = JSON.stringify(metaFromRepo ?? null);
+      if (prevSerialized === nextSerialized) {
+        return prev;
+      }
+      return { ...metaFromRepo };
+    });
+  }, [repoRecord]);
   const isDraftDirty = useMemo(
     () => (!repoId || !repoContent || !blockContentEquals(repoContent, draftContent)),
     [repoId, repoContent, draftContent],
@@ -168,9 +212,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (!confirmed) return null;
     }
     const wasNew = !repoId;
-    let id = repoId;
-    if (!id) {
-      const defaultName = projectName ?? '';
+    let nextRepoId = repoId ?? null;
+    let nextMeta = blockMeta;
+    let friendlyName = repoName;
+
+    if (!nextRepoId) {
+      const defaultName = friendlyName || projectName || '';
       const input = prompt('Nombre del bloque', defaultName);
       if (input === null) return null;
       const trimmed = input.trim();
@@ -178,31 +225,70 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         alert('Debes ingresar un nombre para el bloque.');
         return null;
       }
-      id = trimmed;
-      setRepoId(id);
-      onRepoIdChange?.(id);
+      friendlyName = trimmed;
+      nextRepoId = generateRepoId();
+      nextMeta = { ...(blockMeta ?? {}), name: trimmed };
+      setRepoId(nextRepoId);
+      setRepoName(trimmed);
+      setBlockMeta(nextMeta);
+      onRepoIdChange?.(nextRepoId);
+    } else if (!blockMeta?.name) {
+      const defaultName = friendlyName || projectName || '';
+      const input = prompt('Nombre del bloque', defaultName);
+      if (input === null) return null;
+      const trimmed = input.trim();
+      if (!trimmed) {
+        alert('Debes ingresar un nombre para el bloque.');
+        return null;
+      }
+      friendlyName = trimmed;
+      nextMeta = { ...(blockMeta ?? {}), name: trimmed };
+      setRepoName(trimmed);
+      setBlockMeta(nextMeta);
+    } else {
+      friendlyName = blockMeta.name;
+      setRepoName(blockMeta.name);
     }
+
+    if (!nextRepoId) {
+      return null;
+    }
+
+    const metaForSave = nextMeta && Object.keys(nextMeta).length > 0 ? nextMeta : undefined;
+    const blockData: BlockExport = {
+      version: BLOCK_SCHEMA_VERSION,
+      template: draftContent.template,
+      visual: draftContent.visual,
+      aspect: draftContent.aspect,
+      ...(metaForSave ? { meta: metaForSave } : {}),
+    };
+
     repoSaveBlock({
-      id,
-      data: {
-        version: BLOCK_SCHEMA_VERSION,
-        template: draftContent.template,
-        visual: draftContent.visual,
-        aspect: draftContent.aspect,
-      },
+      id: nextRepoId,
+      data: blockData,
     });
-    const savedContent = cloneBlockContent(draftContent);
+
+    const contentToPersist: BlockContent = {
+      template: blockData.template,
+      visual: blockData.visual,
+      aspect: blockData.aspect,
+      ...(metaForSave ? { meta: metaForSave } : {}),
+    };
+    const savedContent = cloneBlockContent(contentToPersist);
     onPublishBlock?.({
-      repoId: id,
+      repoId: nextRepoId,
       template: savedContent.template,
       visual: savedContent.visual,
       aspect: savedContent.aspect,
+      name: friendlyName ?? null,
     });
     alert(wasNew ? 'Bloque guardado' : 'Bloque actualizado');
-    return id;
+    return nextRepoId;
   }, [
     repoId,
+    repoName,
     projectName,
+    blockMeta,
     repoSaveBlock,
     draftContent,
     onRepoIdChange,
