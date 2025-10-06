@@ -19,6 +19,7 @@ import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
+import { persistenceService } from './core/persistence/PersistenceService.ts';
 import { ProceedToMallaProvider } from './state/proceed-to-malla';
 import type { StoredBlock } from './utils/block-repo.ts';
 import {
@@ -330,13 +331,24 @@ export default function App(): JSX.Element | null {
   const applyRepositoryChange = useCallback(
     (
       repo: Record<string, BlockExport>,
-      options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
+      options: {
+        reason: string;
+        targetDescription: string;
+        skipConfirmation?: boolean;
+        targetProjectId?: string | null;
+        updateSnapshot?: boolean;
+      },
     ): Record<string, BlockExport> | null => {
       const normalized = normalizeRepository(repo);
+      const targetProjectId = options.targetProjectId ?? projectId ?? null;
+      const isActiveProject = targetProjectId === (projectId ?? null);
+      const currentRepository = isActiveProject
+        ? repositorySnapshot
+        : blocksToRepository(persistenceService.listBlocks(targetProjectId));
       const sameAsCurrent =
-        JSON.stringify(repositorySnapshot) === JSON.stringify(normalized);
+        JSON.stringify(currentRepository) === JSON.stringify(normalized);
       if (!sameAsCurrent) {
-        const hasCurrentData = Object.keys(repositorySnapshot).length > 0;
+        const hasCurrentData = Object.keys(currentRepository).length > 0;
         if (hasCurrentData && !options.skipConfirmation) {
           const message =
             Object.keys(normalized).length === 0
@@ -347,15 +359,28 @@ export default function App(): JSX.Element | null {
           }
         }
         if (Object.keys(normalized).length === 0) {
-          clearRepository();
-        } else {
+          if (isActiveProject) {
+            clearRepository();
+          } else {
+            persistenceService.clearRepository(targetProjectId);
+          }
+        } else if (isActiveProject) {
           replaceRepository(normalized);
+        } else {
+          persistenceService.replaceRepository(targetProjectId, normalized);
         }
       }
-      setRepositorySnapshot(normalized);
+      if (options.updateSnapshot ?? isActiveProject) {
+        setRepositorySnapshot(normalized);
+      }
       return normalized;
     },
-    [clearRepository, replaceRepository, repositorySnapshot],
+    [
+      projectId,
+      repositorySnapshot,
+      clearRepository,
+      replaceRepository,
+    ],
   );
 
   useEffect(() => {
@@ -395,6 +420,8 @@ export default function App(): JSX.Element | null {
           reason: 'abrir el proyecto almacenado',
           targetDescription: 'el proyecto almacenado',
           skipConfirmation: true,
+          targetProjectId: stored.id,
+          updateSnapshot: true,
         }) ?? {};
       const prepared = prepareMallaProjectState(record.data, normalizedRepo);
       setBlock(prepared.block);
@@ -404,6 +431,8 @@ export default function App(): JSX.Element | null {
         reason: 'abrir el proyecto almacenado',
         targetDescription: 'el proyecto almacenado',
         skipConfirmation: true,
+        targetProjectId: stored.id,
+        updateSnapshot: true,
       });
       setBlock({
         draft: cloneBlockContent(toBlockContent(record.data)),
@@ -456,13 +485,15 @@ export default function App(): JSX.Element | null {
   };
 
   const handleNewProject = () => {
+    const name = prompt('Nombre del proyecto') || 'Sin nombre';
+    const id = crypto.randomUUID();
     const normalized = applyRepositoryChange({}, {
       reason: 'crear un proyecto nuevo',
       targetDescription: 'el nuevo proyecto',
+      targetProjectId: id,
+      updateSnapshot: true,
     });
     if (!normalized) return;
-    const name = prompt('Nombre del proyecto') || 'Sin nombre';
-    const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
     setBlock(null);
@@ -472,13 +503,15 @@ export default function App(): JSX.Element | null {
   };
 
   const handleLoadBlock = (data: BlockExport, inferredName?: string) => {
+    const id = crypto.randomUUID();
     const normalized = applyRepositoryChange({}, {
       reason: 'importar el bloque seleccionado',
       targetDescription: 'el bloque importado',
+      targetProjectId: id,
+      updateSnapshot: true,
     });
     if (!normalized) return;
     const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
     setBlock({
@@ -492,13 +525,15 @@ export default function App(): JSX.Element | null {
   };
 
   const handleLoadMalla = (data: MallaExport, inferredName?: string) => {
+    const id = crypto.randomUUID();
     const normalizedRepo = applyRepositoryChange(data.repository ?? {}, {
       reason: 'importar el proyecto',
       targetDescription: 'el proyecto importado',
+      targetProjectId: id,
+      updateSnapshot: true,
     });
     if (!normalizedRepo) return;
     const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
     const prepared = prepareMallaProjectState(data, normalizedRepo);
     setProjectId(id);
     setProjectName(name);
@@ -514,6 +549,8 @@ export default function App(): JSX.Element | null {
       const normalizedRepo = applyRepositoryChange(m.repository ?? {}, {
         reason: 'abrir el proyecto seleccionado',
         targetDescription: 'el proyecto seleccionado',
+        targetProjectId: id,
+        updateSnapshot: true,
       });
       if (!normalizedRepo) return;
       const prepared = prepareMallaProjectState(m, normalizedRepo);
@@ -528,6 +565,8 @@ export default function App(): JSX.Element | null {
       const normalizedRepo = applyRepositoryChange({}, {
         reason: 'abrir el proyecto seleccionado',
         targetDescription: 'el proyecto seleccionado',
+        targetProjectId: id,
+        updateSnapshot: true,
       });
       if (!normalizedRepo) return;
       setProjectId(id);
