@@ -7,11 +7,14 @@ import {
   exportBlock as repoExportBlock,
   replaceBlocks as repoReplaceBlocks,
   clearBlocks as repoClearBlocks,
+  renameBlock as repoRenameBlock,
+  updateBlockMetadata as repoUpdateBlockMetadata,
   type StoredBlock,
 } from '../../utils/block-repo.ts';
 import { createLocalStorageProjectRepository } from '../../utils/master-repo.ts';
 import type { ProjectRepository, ProjectRecord } from '../../utils/master-repo.ts';
 import type { BlockExport } from '../../utils/block-io.ts';
+import type { BlockId, BlockMetadata } from '../../types/block.ts';
 
 export type AutosaveStatus = 'idle' | 'saving' | 'error';
 
@@ -133,10 +136,17 @@ export class PersistenceService {
   listBlocks = (): StoredBlock[] => repoListBlocks();
 
   saveBlock = (block: StoredBlock): void => {
-    repoSaveBlock(block);
+    const updated: StoredBlock = {
+      ...block,
+      metadata: {
+        ...block.metadata,
+        updatedAt: block.metadata.updatedAt ?? new Date().toISOString(),
+      },
+    };
+    repoSaveBlock(updated);
   };
 
-  removeBlock = (id: string): void => {
+  removeBlock = (id: BlockId): void => {
     repoRemoveBlock(id);
   };
 
@@ -144,12 +154,20 @@ export class PersistenceService {
 
   exportBlock = (block: BlockExport): string => repoExportBlock(block);
 
-  replaceRepository = (blocks: Record<string, BlockExport>): void => {
+  replaceRepository = (blocks: StoredBlock[] | Record<BlockId, StoredBlock>): void => {
     repoReplaceBlocks(blocks);
   };
 
   clearRepository = (): void => {
     repoClearBlocks();
+  };
+
+  renameBlock = (id: BlockId, name: string): void => {
+    repoRenameBlock(id, name);
+  };
+
+  updateBlockMetadata = (id: BlockId, metadata: Partial<BlockMetadata>): void => {
+    repoUpdateBlockMetadata(id, metadata);
   };
 
   // Project repository helpers

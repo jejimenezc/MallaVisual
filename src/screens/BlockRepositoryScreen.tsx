@@ -5,6 +5,7 @@ import { BlockSnapshot } from '../components/BlockSnapshot';
 import { Button } from '../components/Button';
 import { useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
+import { createBlockId } from '../types/block.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 
@@ -42,11 +43,19 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
       try {
         const data = importBlock(text);
         const name = inferredName || 'sin-nombre';
-        const block: StoredBlock = { id: name, data };
+        const block: StoredBlock = {
+          id: createBlockId('repository'),
+          metadata: {
+            projectId: 'repository',
+            name,
+            updatedAt: new Date().toISOString(),
+          },
+          data,
+        };
         saveBlock(block);
         refresh();
         onBlockImported?.(block);
-        setSelected(name);
+        setSelected(block.id);
       } catch (err) {
         alert((err as Error).message);
       }
@@ -61,7 +70,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${rec.id}.json`;
+    a.download = `${rec.metadata.name || rec.id}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -82,7 +91,10 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
 
   const gallery = (
     <div className="block-gallery">
-      {blocks.map(({ id, data }) => (
+      {blocks
+        .slice()
+        .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
+        .map(({ id, data, metadata }) => (
         <div
           key={id}
           className={`gallery-item ${selected === id ? 'selected' : ''}`}
@@ -93,9 +105,9 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
             visualTemplate={data.visual}
             aspect={data.aspect}
           />
-          <div className="block-name">{id}</div>
+          <div className="block-name">{metadata.name}</div>
         </div>
-      ))}
+        ))}
     </div>
   );
 

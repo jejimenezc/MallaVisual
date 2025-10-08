@@ -21,6 +21,7 @@ import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider } from './state/proceed-to-malla';
 import type { StoredBlock } from './utils/block-repo.ts';
+import { createBlockId } from './types/block.ts';
 import {
   blockContentEquals,
   cloneBlockContent,
@@ -89,6 +90,14 @@ function blocksToRepository(blocks: StoredBlock[]): Record<string, BlockExport> 
       return acc;
     }, {}),
   );
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isLikelyBlockId(value: string): boolean {
+  const parts = value.split(':');
+  if (parts.length !== 2) return false;
+  return UUID_PATTERN.test(parts[1] ?? '');
 }
 
 interface BlockState {
@@ -332,30 +341,87 @@ export default function App(): JSX.Element | null {
       repo: Record<string, BlockExport>,
       options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
     ): Record<string, BlockExport> | null => {
-      const normalized = normalizeRepository(repo);
-      const sameAsCurrent =
-        JSON.stringify(repositorySnapshot) === JSON.stringify(normalized);
+      const normalizedInput = normalizeRepository(repo);
+      const convertRepository = () => {
+        const now = new Date().toISOString();
+        const existing = listBlocks();
+        const existingById = new Map(existing.map((block) => [block.id, block]));
+        const existingByName = new Map(existing.map((block) => [block.metadata.name, block]));
+        const fallbackProjectId = projectId ?? 'repository';
+        const map = new Map<string, StoredBlock>();
+        for (const [key, data] of Object.entries(normalizedInput)) {
+          const byId = existingById.get(key);
+          if (byId) {
+            map.set(byId.id, {
+              id: byId.id,
+              metadata: { ...byId.metadata, updatedAt: now },
+              data,
+            });
+            continue;
+          }
+          if (!isLikelyBlockId(key)) {
+            const byName = existingByName.get(key);
+            if (byName) {
+              map.set(byName.id, {
+                id: byName.id,
+                metadata: { ...byName.metadata, updatedAt: now },
+                data,
+              });
+              continue;
+            }
+            const newId = createBlockId(fallbackProjectId);
+            map.set(newId, {
+              id: newId,
+              metadata: { projectId: fallbackProjectId, name: key, updatedAt: now },
+              data,
+            });
+            continue;
+          }
+          const metadata = existingById.get(key)?.metadata ?? {
+            projectId: fallbackProjectId,
+            name: key,
+            updatedAt: now,
+          };
+          map.set(key, {
+            id: key,
+            metadata: { ...metadata, updatedAt: now },
+            data,
+          });
+        }
+        const storedBlocks = Array.from(map.values());
+        const snapshot = blocksToRepository(storedBlocks);
+        return { storedBlocks, snapshot };
+      };
+
+      const { storedBlocks, snapshot } = convertRepository();
+      const sameAsCurrent = JSON.stringify(repositorySnapshot) === JSON.stringify(snapshot);
       if (!sameAsCurrent) {
         const hasCurrentData = Object.keys(repositorySnapshot).length > 0;
         if (hasCurrentData && !options.skipConfirmation) {
           const message =
-            Object.keys(normalized).length === 0
+            Object.keys(snapshot).length === 0
               ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
               : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
           if (!window.confirm(message)) {
             return null;
           }
         }
-        if (Object.keys(normalized).length === 0) {
+        if (storedBlocks.length === 0) {
           clearRepository();
         } else {
-          replaceRepository(normalized);
+          replaceRepository(storedBlocks);
         }
       }
-      setRepositorySnapshot(normalized);
-      return normalized;
+      setRepositorySnapshot(snapshot);
+      return snapshot;
     },
-    [clearRepository, replaceRepository, repositorySnapshot],
+    [
+      clearRepository,
+      replaceRepository,
+      repositorySnapshot,
+      listBlocks,
+      projectId,
+    ],
   );
 
   useEffect(() => {

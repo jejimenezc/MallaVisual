@@ -162,7 +162,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       Object.fromEntries(
         availableMasters
           .slice()
-          .sort((a, b) => a.id.localeCompare(b.id))
+          .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
           .map(({ id, data }) => [id, data]),
       ),
     [availableMasters],

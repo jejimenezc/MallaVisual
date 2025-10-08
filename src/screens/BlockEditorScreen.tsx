@@ -15,6 +15,7 @@ import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
+import { createBlockId } from '../types/block.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
 import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
@@ -110,7 +111,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     const repository = Object.fromEntries(
       repoBlocks
         .slice()
-        .sort((a, b) => a.id.localeCompare(b.id))
+        .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
         .map(({ id, data }) => [id, data]),
     );
 
@@ -169,6 +170,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     }
     const wasNew = !repoId;
     let id = repoId;
+    let metadata: StoredBlock['metadata'] | null = null;
     if (!id) {
       const defaultName = projectName ?? '';
       const input = prompt('Nombre del bloque', defaultName);
@@ -178,12 +180,29 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         alert('Debes ingresar un nombre para el bloque.');
         return null;
       }
-      id = trimmed;
+      const projectScope = projectId ?? 'repository';
+      const generatedId = createBlockId(projectScope);
+      id = generatedId;
+      metadata = {
+        projectId: projectScope,
+        name: trimmed,
+        updatedAt: new Date().toISOString(),
+      };
       setRepoId(id);
       onRepoIdChange?.(id);
     }
+    if (!metadata) {
+      const existing = repoBlocks.find((block) => block.id === id);
+      const projectScope = projectId ?? existing?.metadata.projectId ?? 'repository';
+      metadata = {
+        projectId: projectScope,
+        name: existing?.metadata.name ?? projectName ?? id,
+        updatedAt: new Date().toISOString(),
+      };
+    }
     repoSaveBlock({
       id,
+      metadata,
       data: {
         version: BLOCK_SCHEMA_VERSION,
         template: draftContent.template,
@@ -203,11 +222,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [
     repoId,
     projectName,
+    projectId,
     repoSaveBlock,
     draftContent,
     onRepoIdChange,
     onPublishBlock,
     isBlockInUse,
+    repoBlocks,
   ]);
 
   const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(

@@ -47,5 +47,7 @@ export function useBlocksRepo() {
     exportBlock: persistenceService.exportBlock,
     replaceRepository: persistenceService.replaceRepository,
     clearRepository: persistenceService.clearRepository,
-  };
+    renameBlock: persistenceService.renameBlock,
+    updateBlockMetadata: persistenceService.updateBlockMetadata,
+    };
 }
