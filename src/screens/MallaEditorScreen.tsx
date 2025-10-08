@@ -328,6 +328,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces: nextFloating,
       activeMasterId: nextActiveId,
       repository: initialMalla.repository ?? {},
+      repositoryMetadata: initialMalla.repositoryMetadata ?? {},
     };
 
     const serialized = JSON.stringify(incomingProject);
