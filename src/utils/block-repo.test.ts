@@ -46,7 +46,7 @@ describe('block-repo storage', () => {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         dispatchEvent: dispatchEventMock,
-      } as unknown as Window,
+      } as unknown,
     );
     if (typeof Event === 'undefined') {
       class MockEvent {
@@ -80,6 +80,7 @@ describe('block-repo storage', () => {
     const block = blocks[0];
     expect(block.metadata.name).toBe('Legacy');
     expect(block.metadata.projectId).toBe('legacy');
+    expect(block.metadata.uuid).toBe('uuid-1');
     expect(block.metadata.updatedAt).toBe('2023-01-01T00:00:00.000Z');
     expect(block.id).toBe('legacy:uuid-1');
     expect(block.data).toEqual(sampleExport);
@@ -97,6 +98,7 @@ describe('block-repo storage', () => {
       id: 'project:uuid-base',
       metadata: {
         projectId: 'project',
+        uuid: 'uuid-base',
         name: 'Initial',
         updatedAt: new Date().toISOString(),
       },
@@ -106,18 +108,23 @@ describe('block-repo storage', () => {
     saveBlock(baseBlock);
     let stored = listBlocks();
     expect(stored).toHaveLength(1);
-    expect(stored[0].metadata).toEqual(baseBlock.metadata);
+    expect(stored[0].metadata).toEqual({
+      ...baseBlock.metadata,
+      updatedAt: baseBlock.metadata.updatedAt,
+    });
 
     vi.setSystemTime(new Date('2023-02-02T00:00:00.000Z'));
     renameBlock(baseBlock.id, 'Renamed');
     stored = listBlocks();
     expect(stored[0].metadata.name).toBe('Renamed');
     expect(stored[0].metadata.updatedAt).toBe('2023-02-02T00:00:00.000Z');
+    expect(stored[0].metadata.uuid).toBe('uuid-base');
 
     vi.setSystemTime(new Date('2023-02-03T00:00:00.000Z'));
     updateBlockMetadata(baseBlock.id, { projectId: 'other-project' });
     stored = listBlocks();
     expect(stored[0].metadata.projectId).toBe('other-project');
     expect(stored[0].metadata.updatedAt).toBe('2023-02-02T00:00:00.000Z');
+    expect(stored[0].metadata.uuid).toBe('uuid-base');
   });
 });

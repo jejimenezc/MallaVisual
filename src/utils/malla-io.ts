@@ -1,11 +1,13 @@
 // src/utils/malla-io.ts
 import type { CurricularPiece, MasterBlockData } from '../types/curricular';
+import type { BlockMetadata } from '../types/block.ts';
 import type { BlockExport } from './block-io.ts';
 
 export interface MallaExport {
   version: number;
   masters: Record<string, MasterBlockData>;
   repository: Record<string, BlockExport>;
+  repositoryMetadata?: Record<string, BlockMetadata>;
   grid?: { cols: number; rows: number };
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
@@ -22,6 +24,7 @@ export function exportMalla(
   const payload: MallaExport = {
     ...data,
     repository: data.repository ?? {},
+    repositoryMetadata: data.repositoryMetadata,
     version: MALLA_SCHEMA_VERSION,
   };
   return JSON.stringify(payload, null, 2);
@@ -48,6 +51,7 @@ export function importMalla(json: string): MallaExport {
     version: MALLA_SCHEMA_VERSION,
     masters: data.masters as Record<string, MasterBlockData>,
     repository: (data.repository as Record<string, BlockExport> | undefined) ?? {},
+    repositoryMetadata: (data.repositoryMetadata as Record<string, BlockMetadata> | undefined) ?? undefined,
     grid: data.grid ?? { cols: 5, rows: 5 },
     pieces: data.pieces ?? [],
     values: data.values ?? {},

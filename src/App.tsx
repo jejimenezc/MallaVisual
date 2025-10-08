@@ -21,7 +21,13 @@ import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider } from './state/proceed-to-malla';
 import type { StoredBlock } from './utils/block-repo.ts';
-import { createBlockId } from './types/block.ts';
+import {
+  buildBlockId,
+  createBlockId,
+  parseBlockId,
+  type BlockId,
+  type BlockMetadata,
+} from './types/block.ts';
 import {
   blockContentEquals,
   cloneBlockContent,
@@ -83,13 +89,28 @@ function normalizeRepository(repo: Record<string, BlockExport>): Record<string, 
   );
 }
 
-function blocksToRepository(blocks: StoredBlock[]): Record<string, BlockExport> {
-  return normalizeRepository(
-    blocks.reduce<Record<string, BlockExport>>((acc, { id, data }) => {
-      acc[id] = data;
-      return acc;
-    }, {}),
-  );
+interface RepositorySnapshot {
+  repository: Record<string, BlockExport>;
+  metadata: Record<string, BlockMetadata>;
+}
+
+function blocksToRepository(blocks: StoredBlock[]): RepositorySnapshot {
+  const repositoryEntries: Record<string, BlockExport> = {};
+  const metadataEntries: Record<string, BlockMetadata> = {};
+  for (const block of blocks) {
+    const key = block.metadata.uuid;
+    repositoryEntries[key] = block.data;
+    metadataEntries[key] = { ...block.metadata };
+  }
+  const repository = normalizeRepository(repositoryEntries);
+  const metadata: Record<string, BlockMetadata> = {};
+  for (const key of Object.keys(repository)) {
+    const meta = metadataEntries[key];
+    if (meta) {
+      metadata[key] = { ...meta };
+    }
+  }
+  return { repository, metadata };
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -103,6 +124,8 @@ function isLikelyBlockId(value: string): boolean {
 interface BlockState {
   draft: BlockContent;
   repoId: string | null;
+  repoName: string | null;
+  repoMetadata: BlockMetadata | null;
   published: BlockContent | null;
 }
 
@@ -188,8 +211,10 @@ function remapPiecesWithMapping(
 
 function prepareMallaProjectState(
   data: MallaExport,
-  repository: Record<string, BlockExport>,
+  repositorySnapshot: RepositorySnapshot,
 ): { block: BlockState; malla: MallaExport } {
+  const repository = repositorySnapshot.repository;
+  const repositoryMetadata = repositorySnapshot.metadata;
   const sourceMasters = data.masters ?? {};
   const { masters: normalizedMasters, mapping } = synchronizeMastersWithRepository(
     sourceMasters,
@@ -253,11 +278,14 @@ function prepareMallaProjectState(
   const activeMaster = normalizedMasters[activeId];
   const draft = cloneBlockContent(toBlockContent(activeMaster));
   const repoEntry = repository[activeId];
+  const repoMeta = repositoryMetadata[activeId] ?? null;
   const published = repoEntry ? cloneBlockContent(toBlockContent(repoEntry)) : null;
 
   const block: BlockState = {
     draft,
     repoId: repoEntry ? activeId : null,
+    repoName: repoMeta ? repoMeta.name : repoEntry ? activeId : null,
+    repoMetadata: repoMeta,
     published,
   };
 
@@ -270,6 +298,7 @@ function prepareMallaProjectState(
     floatingPieces,
     activeMasterId: activeId,
     repository,
+    repositoryMetadata,
   };
 
   return { block, malla: mallaState };
@@ -291,7 +320,7 @@ export default function App(): JSX.Element | null {
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const { exportProject, loadProject } = useProject();
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
-  const [repositorySnapshot, setRepositorySnapshot] = useState<Record<string, BlockExport>>(() =>
+  const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
   );
 
@@ -340,51 +369,113 @@ export default function App(): JSX.Element | null {
     (
       repo: Record<string, BlockExport>,
       options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
-    ): Record<string, BlockExport> | null => {
+      metadata: Record<string, BlockMetadata> = {},
+    ): RepositorySnapshot | null => {
       const normalizedInput = normalizeRepository(repo);
       const convertRepository = () => {
         const now = new Date().toISOString();
         const existing = listBlocks();
         const existingById = new Map(existing.map((block) => [block.id, block]));
+        const existingByUuid = new Map(existing.map((block) => [block.metadata.uuid, block]));
         const existingByName = new Map(existing.map((block) => [block.metadata.name, block]));
         const fallbackProjectId = projectId ?? 'repository';
+        const metadataIndex = new Map<string, BlockMetadata>();
+        for (const [metaKey, metaValue] of Object.entries(metadata)) {
+          metadataIndex.set(metaKey, metaValue);
+          metadataIndex.set(metaValue.uuid, metaValue);
+        }
         const map = new Map<string, StoredBlock>();
         for (const [key, data] of Object.entries(normalizedInput)) {
-          const byId = existingById.get(key);
-          if (byId) {
-            map.set(byId.id, {
-              id: byId.id,
-              metadata: { ...byId.metadata, updatedAt: now },
+          const trimmedKey = key.trim();
+          const providedMeta = metadataIndex.get(trimmedKey) ?? metadataIndex.get(key);
+          const normalizedMeta = providedMeta ? { ...providedMeta } : undefined;
+          const parsedFromKey = isLikelyBlockId(trimmedKey)
+            ? parseBlockId(trimmedKey as BlockId)
+            : null;
+          let uuid = normalizedMeta?.uuid?.trim() ?? '';
+          if (!uuid && parsedFromKey) {
+            uuid = parsedFromKey.uuid;
+          }
+          if (!uuid && UUID_PATTERN.test(trimmedKey)) {
+            uuid = trimmedKey;
+          }
+          const projectFromMeta = normalizedMeta?.projectId?.trim();
+          const candidateProjectId = projectFromMeta || parsedFromKey?.projectId || fallbackProjectId;
+
+          let target: StoredBlock | undefined;
+          if (uuid) {
+            target = existingByUuid.get(uuid);
+          }
+          if (!target && parsedFromKey) {
+            const candidateId = buildBlockId(parsedFromKey.projectId, parsedFromKey.uuid);
+            target = existingById.get(candidateId);
+          }
+          if (!target && !uuid) {
+            target = existingByName.get(trimmedKey);
+          }
+
+          if (target) {
+            const updatedMetadata: BlockMetadata = {
+              ...target.metadata,
+              name:
+                normalizedMeta?.name && normalizedMeta.name.trim().length > 0
+                  ? normalizedMeta.name.trim()
+                  : target.metadata.name,
+              projectId: candidateProjectId || target.metadata.projectId,
+              uuid: target.metadata.uuid,
+              updatedAt: now,
+            };
+            const id = buildBlockId(updatedMetadata.projectId, updatedMetadata.uuid);
+            map.set(updatedMetadata.uuid, {
+              id,
+              metadata: updatedMetadata,
               data,
             });
             continue;
           }
-          if (!isLikelyBlockId(key)) {
-            const byName = existingByName.get(key);
-            if (byName) {
-              map.set(byName.id, {
-                id: byName.id,
-                metadata: { ...byName.metadata, updatedAt: now },
-                data,
-              });
-              continue;
-            }
-            const newId = createBlockId(fallbackProjectId);
-            map.set(newId, {
-              id: newId,
-              metadata: { projectId: fallbackProjectId, name: key, updatedAt: now },
+
+          const baseProject = candidateProjectId && candidateProjectId.trim().length > 0
+            ? candidateProjectId.trim()
+            : fallbackProjectId;
+          if (uuid && existingByUuid.has(uuid)) {
+            const fallbackBlock = existingByUuid.get(uuid)!;
+            const id = buildBlockId(baseProject, uuid);
+            map.set(uuid, {
+              id,
+              metadata: {
+                projectId: baseProject,
+                uuid,
+                name:
+                  normalizedMeta?.name && normalizedMeta.name.trim().length > 0
+                    ? normalizedMeta.name.trim()
+                    : fallbackBlock.metadata.name,
+                updatedAt: now,
+              },
               data,
             });
             continue;
           }
-          const metadata = existingById.get(key)?.metadata ?? {
-            projectId: fallbackProjectId,
-            name: key,
-            updatedAt: now,
-          };
-          map.set(key, {
-            id: key,
-            metadata: { ...metadata, updatedAt: now },
+
+          if (!uuid) {
+            const generatedId = createBlockId(baseProject);
+            const parsed = parseBlockId(generatedId);
+            uuid = parsed.uuid;
+          }
+          const id = buildBlockId(baseProject, uuid);
+          const fallbackName =
+            normalizedMeta?.name && normalizedMeta.name.trim().length > 0
+              ? normalizedMeta.name.trim()
+              : !UUID_PATTERN.test(trimmedKey) && trimmedKey
+                ? trimmedKey
+                : uuid;
+          map.set(uuid, {
+            id,
+            metadata: {
+              projectId: baseProject,
+              uuid,
+              name: fallbackName,
+              updatedAt: now,
+            },
             data,
           });
         }
@@ -396,10 +487,10 @@ export default function App(): JSX.Element | null {
       const { storedBlocks, snapshot } = convertRepository();
       const sameAsCurrent = JSON.stringify(repositorySnapshot) === JSON.stringify(snapshot);
       if (!sameAsCurrent) {
-        const hasCurrentData = Object.keys(repositorySnapshot).length > 0;
+        const hasCurrentData = Object.keys(repositorySnapshot.repository).length > 0;
         if (hasCurrentData && !options.skipConfirmation) {
           const message =
-            Object.keys(snapshot).length === 0
+            Object.keys(snapshot.repository).length === 0
               ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
               : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
           if (!window.confirm(message)) {
@@ -456,24 +547,37 @@ export default function App(): JSX.Element | null {
       return;
     }
     if ('masters' in record.data) {
-      const normalizedRepo =
-        applyRepositoryChange(record.data.repository ?? {}, {
+      const normalizedRepo = applyRepositoryChange(
+        record.data.repository ?? {},
+        {
           reason: 'abrir el proyecto almacenado',
           targetDescription: 'el proyecto almacenado',
           skipConfirmation: true,
-        }) ?? {};
+        },
+        record.data.repositoryMetadata ?? {},
+      );
+      if (!normalizedRepo) {
+        setIsHydrated(true);
+        return;
+      }
       const prepared = prepareMallaProjectState(record.data, normalizedRepo);
       setBlock(prepared.block);
       setMalla(prepared.malla);
     } else {
-      applyRepositoryChange({}, {
-        reason: 'abrir el proyecto almacenado',
-        targetDescription: 'el proyecto almacenado',
-        skipConfirmation: true,
-      });
+      applyRepositoryChange(
+        {},
+        {
+          reason: 'abrir el proyecto almacenado',
+          targetDescription: 'el proyecto almacenado',
+          skipConfirmation: true,
+        },
+        {},
+      );
       setBlock({
         draft: cloneBlockContent(toBlockContent(record.data)),
         repoId: null,
+        repoName: null,
+        repoMetadata: null,
         published: null,
       });
       setMalla(null);
@@ -486,7 +590,12 @@ export default function App(): JSX.Element | null {
 
   const currentProject: MallaExport | null = useMemo(() => {
     if (malla) {
-      return { ...malla, version: MALLA_SCHEMA_VERSION, repository: repositorySnapshot };
+      return {
+        ...malla,
+        version: MALLA_SCHEMA_VERSION,
+        repository: repositorySnapshot.repository,
+        repositoryMetadata: repositorySnapshot.metadata,
+      };
     }
     if (block) {
       return {
@@ -498,7 +607,8 @@ export default function App(): JSX.Element | null {
             aspect: block.draft.aspect,
           },
         },
-        repository: repositorySnapshot,
+        repository: repositorySnapshot.repository,
+        repositoryMetadata: repositorySnapshot.metadata,
         grid: { cols: 5, rows: 5 },
         pieces: [],
         values: {},
@@ -522,10 +632,14 @@ export default function App(): JSX.Element | null {
   };
 
   const handleNewProject = () => {
-    const normalized = applyRepositoryChange({}, {
-      reason: 'crear un proyecto nuevo',
-      targetDescription: 'el nuevo proyecto',
-    });
+    const normalized = applyRepositoryChange(
+      {},
+      {
+        reason: 'crear un proyecto nuevo',
+        targetDescription: 'el nuevo proyecto',
+      },
+      {},
+    );
     if (!normalized) return;
     const name = prompt('Nombre del proyecto') || 'Sin nombre';
     const id = crypto.randomUUID();
@@ -538,10 +652,14 @@ export default function App(): JSX.Element | null {
   };
 
   const handleLoadBlock = (data: BlockExport, inferredName?: string) => {
-    const normalized = applyRepositoryChange({}, {
-      reason: 'importar el bloque seleccionado',
-      targetDescription: 'el bloque importado',
-    });
+    const normalized = applyRepositoryChange(
+      {},
+      {
+        reason: 'importar el bloque seleccionado',
+        targetDescription: 'el bloque importado',
+      },
+      {},
+    );
     if (!normalized) return;
     const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
@@ -550,6 +668,8 @@ export default function App(): JSX.Element | null {
     setBlock({
       draft: cloneBlockContent(toBlockContent(data)),
       repoId: null,
+      repoName: null,
+      repoMetadata: null,
       published: null,
     });
     setMalla(null);
@@ -558,10 +678,14 @@ export default function App(): JSX.Element | null {
   };
 
   const handleLoadMalla = (data: MallaExport, inferredName?: string) => {
-    const normalizedRepo = applyRepositoryChange(data.repository ?? {}, {
-      reason: 'importar el proyecto',
-      targetDescription: 'el proyecto importado',
-    });
+    const normalizedRepo = applyRepositoryChange(
+      data.repository ?? {},
+      {
+        reason: 'importar el proyecto',
+        targetDescription: 'el proyecto importado',
+      },
+      data.repositoryMetadata ?? {},
+    );
     if (!normalizedRepo) return;
     const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
@@ -577,10 +701,14 @@ export default function App(): JSX.Element | null {
   const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
     if ('masters' in data) {
       const m = data as MallaExport;
-      const normalizedRepo = applyRepositoryChange(m.repository ?? {}, {
-        reason: 'abrir el proyecto seleccionado',
-        targetDescription: 'el proyecto seleccionado',
-      });
+      const normalizedRepo = applyRepositoryChange(
+        m.repository ?? {},
+        {
+          reason: 'abrir el proyecto seleccionado',
+          targetDescription: 'el proyecto seleccionado',
+        },
+        m.repositoryMetadata ?? {},
+      );
       if (!normalizedRepo) return;
       const prepared = prepareMallaProjectState(m, normalizedRepo);
       setProjectId(id);
@@ -591,16 +719,22 @@ export default function App(): JSX.Element | null {
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
-      const normalizedRepo = applyRepositoryChange({}, {
-        reason: 'abrir el proyecto seleccionado',
-        targetDescription: 'el proyecto seleccionado',
-      });
+      const normalizedRepo = applyRepositoryChange(
+        {},
+        {
+          reason: 'abrir el proyecto seleccionado',
+          targetDescription: 'el proyecto seleccionado',
+        },
+        {},
+      );
       if (!normalizedRepo) return;
       setProjectId(id);
       setProjectName(name);
       setBlock({
         draft: cloneBlockContent(toBlockContent(b)),
         repoId: null,
+        repoName: null,
+        repoMetadata: null,
         published: null,
       });
       setMalla(null);
@@ -630,6 +764,12 @@ export default function App(): JSX.Element | null {
       const nextRepoId =
         repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
       const draft = cloneBlockContent(content);
+      const nextMetadata =
+        nextRepoId && repositorySnapshot.metadata[nextRepoId]
+          ? repositorySnapshot.metadata[nextRepoId]
+          : nextRepoId
+            ? prev?.repoMetadata ?? null
+            : null;
       const nextPublished = !nextRepoId
         ? null
         : published === undefined
@@ -642,6 +782,8 @@ export default function App(): JSX.Element | null {
       return {
         draft,
         repoId: nextRepoId,
+        repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
+        repoMetadata: nextMetadata,
         published: nextPublished,
       };
     });
@@ -652,9 +794,12 @@ export default function App(): JSX.Element | null {
       if (!prev) return prev;
       const nextRepoId = repoId ?? null;
       if (prev.repoId === nextRepoId) return prev;
+      const nextMetadata = nextRepoId ? repositorySnapshot.metadata[nextRepoId] ?? null : null;
       return {
         ...prev,
         repoId: nextRepoId,
+        repoName: nextMetadata?.name ?? null,
+        repoMetadata: nextMetadata,
         published:
           nextRepoId && prev.published
             ? cloneBlockContent(prev.published)
@@ -663,9 +808,22 @@ export default function App(): JSX.Element | null {
     });
   };
 
+  const handleRepoMetadataChange = (metadata: BlockMetadata | null) => {
+    setBlock((prev) => {
+      if (!prev) return prev;
+      const nextMetadata = metadata ? { ...metadata } : null;
+      return {
+        ...prev,
+        repoMetadata: nextMetadata,
+        repoName: nextMetadata?.name ?? prev.repoName ?? null,
+      };
+    });
+  };
+
   const handleBlockPublish = (
     payload: {
       repoId: string;
+      metadata: BlockMetadata;
       template: BlockTemplate;
       visual: VisualTemplate;
       aspect: BlockAspect;
@@ -676,12 +834,15 @@ export default function App(): JSX.Element | null {
       visual: payload.visual,
       aspect: payload.aspect,
     };
+    const metadata = { ...payload.metadata };
     setBlock((prev) => {
       const nextDraft = cloneBlockContent(content);
       if (!prev) {
         return {
           draft: nextDraft,
           repoId: payload.repoId,
+          repoName: metadata.name,
+          repoMetadata: metadata,
           published: cloneBlockContent(nextDraft),
         };
       }
@@ -689,6 +850,8 @@ export default function App(): JSX.Element | null {
         ...prev,
         draft: nextDraft,
         repoId: payload.repoId ?? prev.repoId,
+        repoName: metadata.name,
+        repoMetadata: metadata,
         published: cloneBlockContent(nextDraft),
       };
     });
@@ -700,7 +863,9 @@ export default function App(): JSX.Element | null {
     const published = cloneBlockContent(content);
     setBlock({
       draft,
-      repoId: stored.id,
+      repoId: stored.metadata.uuid,
+      repoName: stored.metadata.name,
+      repoMetadata: { ...stored.metadata },
       published,
     });
     clearPersistedProjectMetadata();
@@ -722,6 +887,8 @@ export default function App(): JSX.Element | null {
         return {
           draft: nextDraft,
           repoId: null,
+          repoName: null,
+          repoMetadata: null,
           published: null,
         };
       }
@@ -765,7 +932,9 @@ export default function App(): JSX.Element | null {
       const content = toBlockContent(stored.data);
       return {
         draft: cloneBlockContent(content),
-        repoId: stored.id,
+        repoId: stored.metadata.uuid,
+        repoName: stored.metadata.name,
+        repoMetadata: { ...stored.metadata },
         published: cloneBlockContent(content),
       };
     });
@@ -786,12 +955,14 @@ export default function App(): JSX.Element | null {
   useEffect(() => {
     setBlock((prev) => {
       if (!prev?.repoId) return prev;
-      const repoData = repositorySnapshot[prev.repoId];
+      const repoData = repositorySnapshot.repository[prev.repoId];
       const content = repoData ? toBlockContent(repoData) : null;
       if (blockContentEquals(prev.published, content)) return prev;
       return {
         ...prev,
         published: content ? cloneBlockContent(content) : null,
+        repoMetadata: repositorySnapshot.metadata[prev.repoId] ?? prev.repoMetadata,
+        repoName: repositorySnapshot.metadata[prev.repoId]?.name ?? prev.repoName
       };
     });
   }, [repositorySnapshot]);
@@ -822,8 +993,8 @@ export default function App(): JSX.Element | null {
       const nextRepoId = nextState.repoId ?? prev?.repoId ?? null;
       const draft = cloneBlockContent(toBlockContent(nextState));
       const repoData =
-        nextRepoId && repositorySnapshot[nextRepoId]
-          ? cloneBlockContent(toBlockContent(repositorySnapshot[nextRepoId]))
+        nextRepoId && repositorySnapshot.repository[nextRepoId]
+          ? cloneBlockContent(toBlockContent(repositorySnapshot.repository[nextRepoId]))
           : nextRepoId
             ? prev?.published
               ? cloneBlockContent(prev.published)
@@ -832,6 +1003,12 @@ export default function App(): JSX.Element | null {
       return {
         draft,
         repoId: nextRepoId,
+        repoName: nextRepoId
+          ? repositorySnapshot.metadata[nextRepoId]?.name ?? prev?.repoName ?? null
+          : null,
+        repoMetadata: nextRepoId
+          ? repositorySnapshot.metadata[nextRepoId] ?? prev?.repoMetadata ?? null
+          : null,
         published: repoData,
       };
     });
@@ -915,7 +1092,10 @@ export default function App(): JSX.Element | null {
                 projectName={projectName}
                 initialMode="edit"
                 initialRepoId={block?.repoId ?? null}
+                initialRepoName={block?.repoName ?? null}
+                initialRepoMetadata={block?.repoMetadata ?? null}
                 onRepoIdChange={handleRepoIdChange}
+                onRepoMetadataChange={handleRepoMetadataChange}
                 onPublishBlock={handleBlockPublish}
                 isBlockInUse={blockInUse}
               />
@@ -937,7 +1117,10 @@ export default function App(): JSX.Element | null {
                   projectName={projectName}
                   initialMode="view"
                   initialRepoId={block.repoId ?? null}
+                  initialRepoName={block.repoName ?? null}
+                  initialRepoMetadata={block.repoMetadata ?? null}
                   onRepoIdChange={handleRepoIdChange}
+                  onRepoMetadataChange={handleRepoMetadataChange}
                   onPublishBlock={handleBlockPublish}
                   isBlockInUse={blockInUse}
                 />
@@ -952,6 +1135,7 @@ export default function App(): JSX.Element | null {
               <BlockRepositoryScreen
                 onBlockImported={handleBlockImported}
                 onOpenBlock={handleOpenRepositoryBlock}
+                activeProjectId={projectId ?? undefined}
               />
             }          />
           <Route

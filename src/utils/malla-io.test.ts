@@ -2,6 +2,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { exportMalla, importMalla, MALLA_SCHEMA_VERSION } from './malla-io.ts';
+import type { BlockMetadata } from '../types/block.ts';
 import type { BlockTemplate, CurricularPieceRef, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
 import { BLOCK_SCHEMA_VERSION } from './block-io.ts';
@@ -35,9 +36,19 @@ test('exportMalla followed by importMalla yields same data including booleans', 
     },
   };
 
+  const metadata: Record<string, BlockMetadata> = {
+    repo: {
+      projectId: 'project',
+      uuid: 'repo',
+      name: 'Repo',
+      updatedAt: '2023-01-01T00:00:00.000Z',
+    },
+  };
+
   const json = exportMalla({
     masters,
     repository,
+    repositoryMetadata: metadata,
     grid: { cols: 1, rows: 1 },
     pieces: [piece],
     values: { p1: { done: true } },
@@ -49,6 +60,7 @@ test('exportMalla followed by importMalla yields same data including booleans', 
 
   assert.deepEqual(result.masters, masters);
   assert.deepEqual(result.repository, repository);
+  assert.deepEqual(result.repositoryMetadata, metadata);
   assert.deepEqual(result.grid, { cols: 1, rows: 1 });
   assert.deepEqual(result.pieces, [piece]);
   assert.deepEqual(result.values, { p1: { done: true } });

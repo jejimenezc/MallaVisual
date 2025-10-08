@@ -5,23 +5,31 @@ import { BlockSnapshot } from '../components/BlockSnapshot';
 import { Button } from '../components/Button';
 import { useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
-import { createBlockId } from '../types/block.ts';
+import { createBlockId, parseBlockId } from '../types/block.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 
 interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
   onOpenBlock?: (block: StoredBlock) => void;
+  activeProjectId?: string;
 }
 
 export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   onBlockImported,
   onOpenBlock,
+  activeProjectId,
 }) => {
-  const { listBlocks, saveBlock, removeBlock, importBlock, exportBlock } =
-    useBlocksRepo();
+  const {
+    listBlocks,
+    saveBlock,
+    removeBlock,
+    importBlock,
+    exportBlock,
+    updateBlockMetadata,
+  } = useBlocksRepo();
   const [blocks, setBlocks] = useState<StoredBlock[]>([]);
-  const [selected, setSelected] = useState<string>('');
+  const [selectedUuid, setSelectedUuid] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = () => setBlocks(listBlocks());
@@ -43,10 +51,14 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
       try {
         const data = importBlock(text);
         const name = inferredName || 'sin-nombre';
+        const projectScope = activeProjectId ?? 'repository';
+        const generatedId = createBlockId(projectScope);
+        const parsed = parseBlockId(generatedId);
         const block: StoredBlock = {
-          id: createBlockId('repository'),
+          id: generatedId,
           metadata: {
-            projectId: 'repository',
+            projectId: parsed.projectId,
+            uuid: parsed.uuid,
             name,
             updatedAt: new Date().toISOString(),
           },
@@ -55,7 +67,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
         saveBlock(block);
         refresh();
         onBlockImported?.(block);
-        setSelected(block.id);
+        setSelectedUuid(block.metadata.uuid);
       } catch (err) {
         alert((err as Error).message);
       }
@@ -64,29 +76,49 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   };
 
   const handleExport = () => {
-    const rec = blocks.find((b) => b.id === selected);
+    const rec = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!rec) return;
     const json = exportBlock(rec.data);
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${rec.metadata.name || rec.id}.json`;
+    a.download = `${rec.metadata.name || rec.metadata.uuid}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
   const handleDelete = () => {
-    if (!selected) return;
-    removeBlock(selected);
+    if (!selectedUuid) return;
+    const rec = blocks.find((b) => b.metadata.uuid === selectedUuid);
+    if (!rec) return;
+    removeBlock(rec.id);
     refresh();
-    setSelected('');
+    setSelectedUuid('');
   };
 
   const handleOpen = () => {
-    if (!selected) return;
-    const block = blocks.find((b) => b.id === selected);
+    if (!selectedUuid) return;
+    const block = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!block) return;
     onOpenBlock?.(block);
+  };
+
+  const handleRename = () => {
+    if (!selectedUuid) return;
+    const block = blocks.find((b) => b.metadata.uuid === selectedUuid);
+    if (!block) return;
+    const input = prompt('Nuevo nombre del bloque', block.metadata.name);
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (!trimmed) {
+      alert('Debes ingresar un nombre para el bloque.');
+      return;
+    }
+    updateBlockMetadata(block.id, {
+      name: trimmed,
+      updatedAt: new Date().toISOString(),
+    });
+    refresh();
   };
 
   const gallery = (
@@ -94,19 +126,20 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
       {blocks
         .slice()
         .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
-        .map(({ id, data, metadata }) => (
-        <div
-          key={id}
-          className={`gallery-item ${selected === id ? 'selected' : ''}`}
-          onClick={() => setSelected(id)}
-        >
-          <BlockSnapshot
-            template={data.template}
-            visualTemplate={data.visual}
-            aspect={data.aspect}
-          />
-          <div className="block-name">{metadata.name}</div>
-        </div>
+        .map(({ data, metadata }) => (
+          <div
+            key={metadata.uuid}
+            className={`gallery-item ${selectedUuid === metadata.uuid ? 'selected' : ''}`}
+            onClick={() => setSelectedUuid(metadata.uuid)}
+          >
+            <BlockSnapshot
+              template={data.template}
+              visualTemplate={data.visual}
+              aspect={data.aspect}
+            />
+            <div className="block-name">{metadata.name}</div>
+            <div className="block-id">UUID: {metadata.uuid}</div>
+          </div>
         ))}
     </div>
   );
@@ -114,14 +147,17 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   const actions = (
     <div className="repo-actions">
       <Button onClick={handleImport}>Importar</Button>
-      <Button onClick={handleExport} disabled={!selected}>
+      <Button onClick={handleExport} disabled={!selectedUuid}>
         Exportar
       </Button>
-      <Button onClick={handleDelete} disabled={!selected}>
+      <Button onClick={handleDelete} disabled={!selectedUuid}>
         Eliminar
       </Button>
-      <Button onClick={handleOpen} disabled={!selected}>
+      <Button onClick={handleOpen} disabled={!selectedUuid}>
         Abrir en editor
+      </Button>
+      <Button onClick={handleRename} disabled={!selectedUuid}>
+        Renombrar
       </Button>
       <input
         type="file"

@@ -86,7 +86,7 @@ interface Props {
   >;
   initialMalla?: MallaExport;
   onMallaChange?: React.Dispatch<React.SetStateAction<MallaExport | null>>;
-projectId?: string;
+  projectId?: string;
   projectName?: string;
 }
 
@@ -163,7 +163,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
         availableMasters
           .slice()
           .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
-          .map(({ id, data }) => [id, data]),
+          .map(({ metadata, data }) => [metadata.uuid, data]),
+      ),
+    [availableMasters],
+  );
+
+  const repositoryMetadata = useMemo(
+    () =>
+      Object.fromEntries(
+        availableMasters
+          .slice()
+          .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
+          .map(({ metadata }) => [metadata.uuid, metadata]),
       ),
     [availableMasters],
   );
@@ -174,18 +185,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setMastersById((prev) => {
       let updated = false;
       let next = prev;
-      for (const { id, data } of availableMasters) {
+      for (const { metadata, data } of availableMasters) {
+        const key = metadata.uuid;
         const incoming: MasterBlockData = {
           template: data.template,
           visual: data.visual,
           aspect: data.aspect,
         };
-        if (!blockContentEquals(prev[id], incoming)) {
+        if (!blockContentEquals(prev[key], incoming)) {
           if (!updated) {
             next = { ...prev };
             updated = true;
           }
-          next[id] = incoming;
+          next[key] = incoming;
         }
       }
       return updated ? next : prev;
@@ -277,7 +289,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       return;
     }
 
-    const rec = listBlocks().find((b) => b.id === id);
+    const rec = listBlocks().find((b) => b.metadata.uuid === id);
     if (rec) {
       const data = rec.data;
       setMastersById((prev) => ({ ...prev, [id]: data }));
@@ -341,6 +353,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       activeMasterId: selectedMasterId,
       repository,
+      repositoryMetadata,
     };
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
@@ -356,6 +369,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     floatingPieces,
     selectedMasterId,
     repository,
+    repositoryMetadata,
     autoSave,
     onMallaChange,
   ]);
