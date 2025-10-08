@@ -977,45 +977,48 @@ export default function App(): JSX.Element | null {
       aspect: BlockAspect;
       repoId?: string | null;
     } | null>
-  > = (update) => {
-    setBlock((prev) => {
-      const prevState = prev
-        ? (() => {
-            const prevContent = cloneBlockContent(prev.draft);
-            return {
-              template: prevContent.template,
-              visual: prevContent.visual,
-              aspect: prevContent.aspect,
-              repoId: prev.repoId,
-            };
-          })()
-        : null;
-      const nextState =
-        typeof update === 'function' ? update(prevState) : update;
-      if (!nextState) return null;
-      const nextRepoId = nextState.repoId ?? prev?.repoId ?? null;
-      const draft = cloneBlockContent(toBlockContent(nextState));
-      const repoData =
-        nextRepoId && repositorySnapshot.repository[nextRepoId]
-          ? cloneBlockContent(toBlockContent(repositorySnapshot.repository[nextRepoId]))
-          : nextRepoId
-            ? prev?.published
-              ? cloneBlockContent(prev.published)
-              : null
-            : null;
-      return {
-        draft,
-        repoId: nextRepoId,
-        repoName: nextRepoId
-          ? repositorySnapshot.metadata[nextRepoId]?.name ?? prev?.repoName ?? null
-          : null,
-        repoMetadata: nextRepoId
-          ? repositorySnapshot.metadata[nextRepoId] ?? prev?.repoMetadata ?? null
-          : null,
-        published: repoData,
-      };
-    });
-  };
+  > = useCallback(
+    (update) => {
+      setBlock((prev) => {
+        const prevState = prev
+          ? (() => {
+              const prevContent = cloneBlockContent(prev.draft);
+              return {
+                template: prevContent.template,
+                visual: prevContent.visual,
+                aspect: prevContent.aspect,
+                repoId: prev.repoId,
+              };
+            })()
+          : null;
+        const nextState =
+          typeof update === 'function' ? update(prevState) : update;
+        if (!nextState) return null;
+        const nextRepoId = nextState.repoId ?? prev?.repoId ?? null;
+        const draft = cloneBlockContent(toBlockContent(nextState));
+        const repoData =
+          nextRepoId && repositorySnapshot.repository[nextRepoId]
+            ? cloneBlockContent(toBlockContent(repositorySnapshot.repository[nextRepoId]))
+            : nextRepoId
+              ? prev?.published
+                ? cloneBlockContent(prev.published)
+                : null
+              : null;
+        return {
+          draft,
+          repoId: nextRepoId,
+          repoName: nextRepoId
+            ? repositorySnapshot.metadata[nextRepoId]?.name ?? prev?.repoName ?? null
+            : null,
+          repoMetadata: nextRepoId
+            ? repositorySnapshot.metadata[nextRepoId] ?? prev?.repoMetadata ?? null
+            : null,
+          published: repoData,
+        };
+      });
+    },
+    [repositorySnapshot],
+  );
 
   const screenTitle = useMemo(() => {
     switch (location.pathname) {
