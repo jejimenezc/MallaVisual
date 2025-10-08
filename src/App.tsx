@@ -808,17 +808,20 @@ export default function App(): JSX.Element | null {
     });
   };
 
-  const handleRepoMetadataChange = (metadata: BlockMetadata | null) => {
-    setBlock((prev) => {
-      if (!prev) return prev;
-      const nextMetadata = metadata ? { ...metadata } : null;
-      return {
-        ...prev,
-        repoMetadata: nextMetadata,
-        repoName: nextMetadata?.name ?? prev.repoName ?? null,
-      };
-    });
-  };
+  const handleRepoMetadataChange = useCallback(
+    (metadata: BlockMetadata | null) => {
+      setBlock((prev) => {
+        if (!prev) return prev;
+        const nextMetadata = metadata ? { ...metadata } : null;
+        return {
+          ...prev,
+          repoMetadata: nextMetadata,
+          repoName: nextMetadata?.name ?? prev.repoName ?? null,
+        };
+      });
+    },
+    [setBlock],
+  );
 
   const handleBlockPublish = (
     payload: {
