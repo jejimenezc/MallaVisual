@@ -158,7 +158,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
               aspect={data.aspect}
             />
             <div className="block-name">{metadata.name}</div>
-            <div className="block-id">UUID: {metadata.uuid}</div>
+            {/*   <div className="block-id">UUID: {metadata.uuid}</div>*/}
           </div>
         ))}
     </div>
