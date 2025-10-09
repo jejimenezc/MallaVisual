@@ -30,6 +30,25 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 
 const STORAGE_KEY = 'malla-editor-state';
+
+function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
+  const friendlyName = metadata.name?.trim();
+  if (friendlyName) {
+    return friendlyName;
+  }
+
+  if (fallbackId.length <= 10) {
+    return fallbackId;
+  }
+
+  const prefix = fallbackId.slice(0, 4);
+  const suffix = fallbackId.slice(-3);
+  const maskedWithSpace = `${prefix}... ${suffix}`;
+  if (maskedWithSpace.length <= 10) {
+    return maskedWithSpace;
+  }
+  return `${prefix}...${suffix}`;
+}
 /** Cálculo unificado de métricas de una pieza (recorte) */
 function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
   const { cellW, cellH } = getCellSizeByAspect(aspect);
@@ -728,11 +747,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 No hay bloques publicados
               </option>
             ) : (
-              availableMasters.map(({ id }) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))
+              availableMasters.map(({ id, metadata }) => {
+                const displayName = formatMasterDisplayName(metadata, id);
+                return (
+                  <option key={id} value={id}>
+                    {displayName}
+                  </option>
+                );
+              })
             )}
           </select>
         </div>
