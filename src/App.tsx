@@ -2,11 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import type {
-  BlockTemplate,
-  CurricularPiece,
-  MasterBlockData,
-} from './types/curricular.ts';
+import type { BlockTemplate, MasterBlockData } from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
@@ -15,25 +11,25 @@ import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
-import { type MallaExport, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
+import { type MallaExport, type MallaRepositoryEntry, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider } from './state/proceed-to-malla';
 import type { StoredBlock } from './utils/block-repo.ts';
-import {
-  buildBlockId,
-  createBlockId,
-  parseBlockId,
-  type BlockId,
-  type BlockMetadata,
-} from './types/block.ts';
+import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
   blockContentEquals,
   cloneBlockContent,
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
+import { blocksToRepository, type RepositorySnapshot } from './utils/repository-snapshot.ts';
+import {
+  remapPiecesWithMapping,
+  synchronizeMastersWithRepository,
+  remapIds,
+} from './utils/malla-sync.ts';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -81,46 +77,6 @@ function clearStoredActiveProject(): void {
   }
 }
 
-function normalizeRepository(repo: Record<string, BlockExport>): Record<string, BlockExport> {
-  return Object.fromEntries(
-    Object.entries(repo)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([id, data]) => [id, data]),
-  );
-}
-
-interface RepositorySnapshot {
-  repository: Record<string, BlockExport>;
-  metadata: Record<string, BlockMetadata>;
-}
-
-function blocksToRepository(blocks: StoredBlock[]): RepositorySnapshot {
-  const repositoryEntries: Record<string, BlockExport> = {};
-  const metadataEntries: Record<string, BlockMetadata> = {};
-  for (const block of blocks) {
-    const key = block.metadata.uuid;
-    repositoryEntries[key] = block.data;
-    metadataEntries[key] = { ...block.metadata };
-  }
-  const repository = normalizeRepository(repositoryEntries);
-  const metadata: Record<string, BlockMetadata> = {};
-  for (const key of Object.keys(repository)) {
-    const meta = metadataEntries[key];
-    if (meta) {
-      metadata[key] = { ...meta };
-    }
-  }
-  return { repository, metadata };
-}
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isLikelyBlockId(value: string): boolean {
-  const parts = value.split(':');
-  if (parts.length !== 2) return false;
-  return UUID_PATTERN.test(parts[1] ?? '');
-}
-
 interface BlockState {
   draft: BlockContent;
   repoId: string | null;
@@ -139,81 +95,12 @@ function createEmptyMaster(): MasterBlockData {
   };
 }
 
-function synchronizeMastersWithRepository(
-  masters: Record<string, MasterBlockData>,
-  repository: Record<string, BlockExport>,
-): { masters: Record<string, MasterBlockData>; mapping: Map<string, string> } {
-  const repoContents = Object.entries(repository).map(([id, data]) => [
-    id,
-    toBlockContent(data),
-  ]) as Array<[string, BlockContent]>;
-  const assignedRepoIds = new Set<string>();
-  const mapping = new Map<string, string>();
-  const normalizedMasters: Record<string, MasterBlockData> = {};
-
-  for (const [masterId, masterData] of Object.entries(masters)) {
-    const content = toBlockContent(masterData);
-    let targetId = masterId;
-    if (repository[masterId]) {
-      assignedRepoIds.add(masterId);
-    } else {
-      const match = repoContents.find(([repoId, repoContent]) => {
-        if (assignedRepoIds.has(repoId)) return false;
-        return blockContentEquals(content, repoContent);
-      });
-      if (match) {
-        targetId = match[0];
-        assignedRepoIds.add(targetId);
-      }
-    }
-    mapping.set(masterId, targetId);
-    normalizedMasters[targetId] = cloneBlockContent(content) as MasterBlockData;
-  }
-
-  for (const [repoId, repoContent] of repoContents) {
-    if (!normalizedMasters[repoId]) {
-      normalizedMasters[repoId] = cloneBlockContent(repoContent) as MasterBlockData;
-      mapping.set(repoId, repoId);
-    }
-  }
-
-  return { masters: normalizedMasters, mapping };
-}
-
-function remapPiecesWithMapping(
-  pieces: CurricularPiece[] | undefined,
-  mapping: Map<string, string>,
-): CurricularPiece[] {
-  if (!pieces || pieces.length === 0) return [];
-  return pieces.map((piece) => {
-    if (piece.kind === 'ref') {
-      const mapped = mapping.get(piece.ref.sourceId);
-      if (mapped && mapped !== piece.ref.sourceId) {
-        return {
-          ...piece,
-          ref: { ...piece.ref, sourceId: mapped },
-        };
-      }
-      return piece;
-    }
-    if (piece.kind === 'snapshot' && piece.origin) {
-      const mapped = mapping.get(piece.origin.sourceId);
-      if (mapped && mapped !== piece.origin.sourceId) {
-        return {
-          ...piece,
-          origin: { ...piece.origin, sourceId: mapped },
-        };
-      }
-    }
-    return piece;
-  });
-}
-
 function prepareMallaProjectState(
   data: MallaExport,
   repositorySnapshot: RepositorySnapshot,
 ): { block: BlockState; malla: MallaExport } {
   const repository = repositorySnapshot.repository;
+  const repositoryEntries = repositorySnapshot.entries;
   const repositoryMetadata = repositorySnapshot.metadata;
   const sourceMasters = data.masters ?? {};
   const { masters: normalizedMasters, mapping } = synchronizeMastersWithRepository(
@@ -221,7 +108,7 @@ function prepareMallaProjectState(
     repository,
   );
   const remappedPieces = remapPiecesWithMapping(data.pieces ?? [], mapping);
-  const floatingPieces = (data.floatingPieces ?? []).slice();
+  const floatingPieces = remapIds(data.floatingPieces ?? [], mapping);
   const values = { ...(data.values ?? {}) };
 
   let desiredActiveId = data.activeMasterId ?? '';
@@ -297,8 +184,7 @@ function prepareMallaProjectState(
     values,
     floatingPieces,
     activeMasterId: activeId,
-    repository,
-    repositoryMetadata,
+    repository: repositoryEntries,
   };
 
   return { block, malla: mallaState };
@@ -367,119 +253,35 @@ export default function App(): JSX.Element | null {
 
   const applyRepositoryChange = useCallback(
     (
-      repo: Record<string, BlockExport>,
+      repoEntries: Record<string, MallaRepositoryEntry>,
       options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
-      metadata: Record<string, BlockMetadata> = {},
     ): RepositorySnapshot | null => {
-      const normalizedInput = normalizeRepository(repo);
       const convertRepository = () => {
         const now = new Date().toISOString();
-        const existing = listBlocks();
-        const existingById = new Map(existing.map((block) => [block.id, block]));
-        const existingByUuid = new Map(existing.map((block) => [block.metadata.uuid, block]));
-        const existingByName = new Map(existing.map((block) => [block.metadata.name, block]));
         const fallbackProjectId = projectId ?? 'repository';
-        const metadataIndex = new Map<string, BlockMetadata>();
-        for (const [metaKey, metaValue] of Object.entries(metadata)) {
-          metadataIndex.set(metaKey, metaValue);
-          metadataIndex.set(metaValue.uuid, metaValue);
-        }
-        const map = new Map<string, StoredBlock>();
-        for (const [key, data] of Object.entries(normalizedInput)) {
-          const trimmedKey = key.trim();
-          const providedMeta = metadataIndex.get(trimmedKey) ?? metadataIndex.get(key);
-          const normalizedMeta = providedMeta ? { ...providedMeta } : undefined;
-          const parsedFromKey = isLikelyBlockId(trimmedKey)
-            ? parseBlockId(trimmedKey as BlockId)
-            : null;
-          let uuid = normalizedMeta?.uuid?.trim() ?? '';
-          if (!uuid && parsedFromKey) {
-            uuid = parsedFromKey.uuid;
-          }
-          if (!uuid && UUID_PATTERN.test(trimmedKey)) {
-            uuid = trimmedKey;
-          }
-          const projectFromMeta = normalizedMeta?.projectId?.trim();
-          const candidateProjectId = projectFromMeta || parsedFromKey?.projectId || fallbackProjectId;
-
-          let target: StoredBlock | undefined;
-          if (uuid) {
-            target = existingByUuid.get(uuid);
-          }
-          if (!target && parsedFromKey) {
-            const candidateId = buildBlockId(parsedFromKey.projectId, parsedFromKey.uuid);
-            target = existingById.get(candidateId);
-          }
-          if (!target && !uuid) {
-            target = existingByName.get(trimmedKey);
-          }
-
-          if (target) {
-            const updatedMetadata: BlockMetadata = {
-              ...target.metadata,
-              name:
-                normalizedMeta?.name && normalizedMeta.name.trim().length > 0
-                  ? normalizedMeta.name.trim()
-                  : target.metadata.name,
-              projectId: candidateProjectId || target.metadata.projectId,
-              uuid: target.metadata.uuid,
-              updatedAt: now,
-            };
-            const id = buildBlockId(updatedMetadata.projectId, updatedMetadata.uuid);
-            map.set(updatedMetadata.uuid, {
-              id,
-              metadata: updatedMetadata,
-              data,
-            });
-            continue;
-          }
-
-          const baseProject = candidateProjectId && candidateProjectId.trim().length > 0
-            ? candidateProjectId.trim()
-            : fallbackProjectId;
-          if (uuid && existingByUuid.has(uuid)) {
-            const fallbackBlock = existingByUuid.get(uuid)!;
-            const id = buildBlockId(baseProject, uuid);
-            map.set(uuid, {
-              id,
-              metadata: {
-                projectId: baseProject,
-                uuid,
-                name:
-                  normalizedMeta?.name && normalizedMeta.name.trim().length > 0
-                    ? normalizedMeta.name.trim()
-                    : fallbackBlock.metadata.name,
-                updatedAt: now,
-              },
-              data,
-            });
-            continue;
-          }
-
-          if (!uuid) {
-            const generatedId = createBlockId(baseProject);
-            const parsed = parseBlockId(generatedId);
-            uuid = parsed.uuid;
-          }
-          const id = buildBlockId(baseProject, uuid);
-          const fallbackName =
-            normalizedMeta?.name && normalizedMeta.name.trim().length > 0
-              ? normalizedMeta.name.trim()
-              : !UUID_PATTERN.test(trimmedKey) && trimmedKey
-                ? trimmedKey
-                : uuid;
-          map.set(uuid, {
-            id,
-            metadata: {
-              projectId: baseProject,
-              uuid,
-              name: fallbackName,
-              updatedAt: now,
-            },
-            data,
-          });
-        }
-        const storedBlocks = Array.from(map.values());
+        const storedBlocks: StoredBlock[] = Object.values(repoEntries ?? {}).map((entry) => {
+          const projectIdValue =
+            entry.metadata.projectId && entry.metadata.projectId.trim().length > 0
+              ? entry.metadata.projectId.trim()
+              : fallbackProjectId;
+          const metadata: BlockMetadata = {
+            projectId: projectIdValue,
+            uuid: entry.metadata.uuid,
+            name:
+              entry.metadata.name && entry.metadata.name.trim().length > 0
+                ? entry.metadata.name.trim()
+                : entry.metadata.uuid,
+            updatedAt: entry.metadata.updatedAt ?? now,
+          };
+          const id = entry.id && entry.id.trim().length > 0
+            ? entry.id
+            : buildBlockId(metadata.projectId, metadata.uuid);
+          const data: BlockExport = {
+            ...entry.data,
+            metadata,
+          };
+          return { id, metadata, data };
+        });
         const snapshot = blocksToRepository(storedBlocks);
         return { storedBlocks, snapshot };
       };
@@ -506,13 +308,7 @@ export default function App(): JSX.Element | null {
       setRepositorySnapshot(snapshot);
       return snapshot;
     },
-    [
-      clearRepository,
-      replaceRepository,
-      repositorySnapshot,
-      listBlocks,
-      projectId,
-    ],
+    [clearRepository, replaceRepository, repositorySnapshot, projectId],
   );
 
   useEffect(() => {
@@ -554,7 +350,6 @@ export default function App(): JSX.Element | null {
           targetDescription: 'el proyecto almacenado',
           skipConfirmation: true,
         },
-        record.data.repositoryMetadata ?? {},
       );
       if (!normalizedRepo) {
         setIsHydrated(true);
@@ -571,7 +366,6 @@ export default function App(): JSX.Element | null {
           targetDescription: 'el proyecto almacenado',
           skipConfirmation: true,
         },
-        {},
       );
       setBlock({
         draft: cloneBlockContent(toBlockContent(record.data)),
@@ -593,8 +387,7 @@ export default function App(): JSX.Element | null {
       return {
         ...malla,
         version: MALLA_SCHEMA_VERSION,
-        repository: repositorySnapshot.repository,
-        repositoryMetadata: repositorySnapshot.metadata,
+        repository: repositorySnapshot.entries,
       };
     }
     if (block) {
@@ -607,8 +400,7 @@ export default function App(): JSX.Element | null {
             aspect: block.draft.aspect,
           },
         },
-        repository: repositorySnapshot.repository,
-        repositoryMetadata: repositorySnapshot.metadata,
+        repository: repositorySnapshot.entries,
         grid: { cols: 5, rows: 5 },
         pieces: [],
         values: {},
@@ -638,7 +430,6 @@ export default function App(): JSX.Element | null {
         reason: 'crear un proyecto nuevo',
         targetDescription: 'el nuevo proyecto',
       },
-      {},
     );
     if (!normalized) return;
     const name = prompt('Nombre del proyecto') || 'Sin nombre';
@@ -658,7 +449,6 @@ export default function App(): JSX.Element | null {
         reason: 'importar el bloque seleccionado',
         targetDescription: 'el bloque importado',
       },
-      {},
     );
     if (!normalized) return;
     const name = inferredName?.trim() || 'Importado';
@@ -684,7 +474,6 @@ export default function App(): JSX.Element | null {
         reason: 'importar el proyecto',
         targetDescription: 'el proyecto importado',
       },
-      data.repositoryMetadata ?? {},
     );
     if (!normalizedRepo) return;
     const name = inferredName?.trim() || 'Importado';
@@ -707,7 +496,6 @@ export default function App(): JSX.Element | null {
           reason: 'abrir el proyecto seleccionado',
           targetDescription: 'el proyecto seleccionado',
         },
-        m.repositoryMetadata ?? {},
       );
       if (!normalizedRepo) return;
       const prepared = prepareMallaProjectState(m, normalizedRepo);
@@ -725,7 +513,6 @@ export default function App(): JSX.Element | null {
           reason: 'abrir el proyecto seleccionado',
           targetDescription: 'el proyecto seleccionado',
         },
-        {},
       );
       if (!normalizedRepo) return;
       setProjectId(id);

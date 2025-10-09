@@ -30,6 +30,7 @@ import {
   toBlockContent,
   type BlockContent,
 } from '../utils/block-content.ts';
+import { blocksToRepository } from '../utils/repository-snapshot.ts';
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -124,15 +125,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   useEffect(() => {
     if (!projectId) return;
-    const sortedBlocks = repoBlocks
-      .slice()
-      .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-    const repository = Object.fromEntries(
-      sortedBlocks.map(({ metadata, data }) => [metadata.uuid, data]),
-    );
-    const repositoryMetadata = Object.fromEntries(
-      sortedBlocks.map(({ metadata }) => [metadata.uuid, metadata]),
-    );
+    const snapshot = blocksToRepository(repoBlocks);
 
     const data: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
@@ -142,8 +135,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       values: {},
       floatingPieces: [],
       activeMasterId: 'master',
-      repository,
-      repositoryMetadata,
+      repository: snapshot.entries,
     };
     const serialized = JSON.stringify(data);
     if (savedRef.current === serialized) return;
@@ -269,6 +261,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         template: draftContent.template,
         visual: draftContent.visual,
         aspect: draftContent.aspect,
+        metadata,
       },
     });
 

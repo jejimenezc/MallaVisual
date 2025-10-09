@@ -218,7 +218,7 @@ export function removeBlock(id: BlockId): void {
 
 export const importBlock = ioImportBlock;
 export function exportBlock(block: BlockExport): string {
-  return ioExportBlock(block.template, block.visual, block.aspect);
+  return ioExportBlock(block.template, block.visual, block.aspect, block.metadata);
 }
 
 function normalizeReplacement(

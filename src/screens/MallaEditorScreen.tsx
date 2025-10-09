@@ -23,6 +23,7 @@ import { blockContentEquals } from '../utils/block-content.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
+import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
@@ -157,27 +158,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     return () => window.removeEventListener('block-repo-updated', handler);
   }, [listBlocks]);
 
-  const repository = useMemo(
-    () =>
-      Object.fromEntries(
-        availableMasters
-          .slice()
-          .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
-          .map(({ metadata, data }) => [metadata.uuid, data]),
-      ),
+  const repositorySnapshot = useMemo(
+    () => blocksToRepository(availableMasters),
     [availableMasters],
   );
-
-  const repositoryMetadata = useMemo(
-    () =>
-      Object.fromEntries(
-        availableMasters
-          .slice()
-          .sort((a, b) => a.metadata.name.localeCompare(b.metadata.name))
-          .map(({ metadata }) => [metadata.uuid, metadata]),
-      ),
-    [availableMasters],
-  );
+  const repositoryEntries = repositorySnapshot.entries;
 
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
@@ -328,7 +313,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces: nextFloating,
       activeMasterId: nextActiveId,
       repository: initialMalla.repository ?? {},
-      repositoryMetadata: initialMalla.repositoryMetadata ?? {},
     };
 
     const serialized = JSON.stringify(incomingProject);
@@ -353,8 +337,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values: pieceValues,
       floatingPieces,
       activeMasterId: selectedMasterId,
-      repository,
-      repositoryMetadata,
+      repository: repositoryEntries,
     };
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
@@ -369,8 +352,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     pieceValues,
     floatingPieces,
     selectedMasterId,
-    repository,
-    repositoryMetadata,
+    repositoryEntries,
     autoSave,
     onMallaChange,
   ]);

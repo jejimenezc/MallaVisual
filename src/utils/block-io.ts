@@ -1,12 +1,14 @@
 // src/utils/block-io.ts
 import type { BlockTemplate } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
+import type { BlockMetadata } from '../types/block.ts';
 
 export interface BlockExport {
   version: number;
   template: BlockTemplate;
   visual: VisualTemplate;
   aspect: BlockAspect;
+  metadata?: BlockMetadata;
 }
 
 export const BLOCK_SCHEMA_VERSION = 1;
@@ -15,12 +17,14 @@ export function exportBlock(
   template: BlockTemplate,
   visual: VisualTemplate,
   aspect: BlockAspect,
+  metadata?: BlockMetadata,
 ): string {
   const data: BlockExport = {
     version: BLOCK_SCHEMA_VERSION,
     template,
     visual,
     aspect,
+    metadata,
   };
   return JSON.stringify(data, null, 2);
 }

@@ -5,7 +5,7 @@ import { BlockSnapshot } from '../components/BlockSnapshot';
 import { Button } from '../components/Button';
 import { useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
-import { createBlockId, parseBlockId } from '../types/block.ts';
+import { buildBlockId, createBlockId, parseBlockId } from '../types/block.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
 
@@ -50,19 +50,39 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     file.text().then((text) => {
       try {
         const data = importBlock(text);
-        const name = inferredName || 'sin-nombre';
-        const projectScope = activeProjectId ?? 'repository';
-        const generatedId = createBlockId(projectScope);
-        const parsed = parseBlockId(generatedId);
+        const metadataFromFile = data.metadata;
+        const existingUuids = new Set(blocks.map((b) => b.metadata.uuid));
+        const fallbackName = inferredName || metadataFromFile?.name?.trim() || 'sin-nombre';
+        const baseProject =
+          (metadataFromFile?.projectId && metadataFromFile.projectId.trim().length > 0
+            ? metadataFromFile.projectId.trim()
+            : activeProjectId) ?? 'repository';
+        const candidateUuid = metadataFromFile?.uuid?.trim();
+        let targetId: string;
+        let targetUuid: string;
+        if (candidateUuid && !existingUuids.has(candidateUuid)) {
+          targetUuid = candidateUuid;
+          targetId = buildBlockId(baseProject, candidateUuid);
+        } else {
+          const generatedId = createBlockId(baseProject);
+          const parsed = parseBlockId(generatedId);
+          targetId = generatedId;
+          targetUuid = parsed.uuid;
+        }
+        const now = new Date().toISOString();
+        const metadata = {
+          projectId: baseProject,
+          uuid: targetUuid,
+          name: fallbackName,
+          updatedAt: metadataFromFile?.updatedAt ?? now,
+        };
         const block: StoredBlock = {
-          id: generatedId,
-          metadata: {
-            projectId: parsed.projectId,
-            uuid: parsed.uuid,
-            name,
-            updatedAt: new Date().toISOString(),
+          id: targetId,
+          metadata,
+          data: {
+            ...data,
+            metadata,
           },
-          data,
         };
         saveBlock(block);
         refresh();
@@ -78,7 +98,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   const handleExport = () => {
     const rec = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!rec) return;
-    const json = exportBlock(rec.data);
+    const json = exportBlock({ ...rec.data, metadata: rec.metadata });
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
