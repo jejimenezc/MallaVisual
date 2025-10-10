@@ -748,9 +748,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
               </option>
             ) : (
               availableMasters.map(({ id, metadata }) => {
-                const displayName = formatMasterDisplayName(metadata, id);
+                const value = metadata.uuid || id;
+                const displayName = formatMasterDisplayName(metadata, value);
                 return (
-                  <option key={id} value={id}>
+                  <option key={value} value={value}>
                     {displayName}
                   </option>
                 );
