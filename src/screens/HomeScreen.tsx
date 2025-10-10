@@ -88,45 +88,50 @@ export const HomeScreen: React.FC<Props> = ({
   };
 
   const left = (
-    <table className="project-list">
-      <tbody>
-        {projects.map((p) => (
-          <tr key={p.id}>
-            <td>
-              {p.id === currentProjectId ? (
-                <span>
-                  {p.name} (actual) - {new Date(p.date).toLocaleString()}
-                </span>
-              ) : (
-                <>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleOpenProject(p.id);
-                    }}
-                  >
-                    {p.name}
-                  </a>{' '}
-                  - {new Date(p.date).toLocaleString()}
-                </>
-              )}
-            </td>
-            <td className="trash-cell">
-              {p.id === currentProjectId ? null : (
-                <button
-                  className="trash-button"
-                  title="Eliminar"
-                  onClick={() => handleDeleteProject(p.id)}
-                >
-                  🗑️
-                </button>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="project-list-section">
+      <h3 className="project-list-heading">Proyectos recientes</h3>
+      <div className="project-list-container">
+        <table className="project-list">
+          <tbody>
+            {projects.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  {p.id === currentProjectId ? (
+                    <span>
+                      {p.name} (actual) - {new Date(p.date).toLocaleString()}
+                    </span>
+                  ) : (
+                    <>
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleOpenProject(p.id);
+                        }}
+                      >
+                        {p.name}
+                      </a>{' '}
+                      - {new Date(p.date).toLocaleString()}
+                    </>
+                  )}
+                </td>
+                <td className="trash-cell">
+                  {p.id === currentProjectId ? null : (
+                    <button
+                      className="trash-button"
+                      title="Eliminar"
+                      onClick={() => handleDeleteProject(p.id)}
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 
   const right = (

@@ -1,3 +1,18 @@
+.project-list-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-list-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.project-list-container {
+  flex: 1 1 auto;
+}
+
 .project-list {
   width: 100%;
   border-collapse: collapse;

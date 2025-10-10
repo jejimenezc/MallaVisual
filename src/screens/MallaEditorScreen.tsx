@@ -776,7 +776,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       )}
       <div className={styles.repository}>
         <div className={styles.repositoryHeader}>
-          <h3>Repositorio</h3>
+          <h3>Bloque activo</h3>
         </div>
 
         <div className={styles.masterRepo}>
