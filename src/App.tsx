@@ -11,11 +11,13 @@ import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
+import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { type MallaExport, type MallaRepositoryEntry, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
-import { ProceedToMallaProvider } from './state/proceed-to-malla';
+import { ProceedToMallaProvider, useProceedToMalla } from './state/proceed-to-malla';
+import { useUILayout } from './state/ui-layout.tsx';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -188,6 +190,90 @@ function prepareMallaProjectState(
   };
 
   return { block, malla: mallaState };
+}
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+  projectName: string;
+  hasProject: boolean;
+  onExportProject: () => void;
+  locationPath: string;
+  navigate: ReturnType<typeof useNavigate>;
+}
+
+function AppLayout({
+  children,
+  projectName,
+  hasProject,
+  onExportProject,
+  locationPath,
+  navigate,
+}: AppLayoutProps): JSX.Element {
+  const { handler } = useProceedToMalla();
+  const { showChrome, toggleChrome } = useUILayout();
+
+  const schemaVersion = locationPath.startsWith('/malla/design')
+    ? MALLA_SCHEMA_VERSION
+    : BLOCK_SCHEMA_VERSION;
+
+  const quickNav = useMemo(() => {
+    if (locationPath === '/') {
+      return {
+        label: 'Editor',
+        action: () => navigate('/block/design'),
+      };
+    }
+    if (locationPath.startsWith('/block/')) {
+      return {
+        label: 'Repositorio',
+        action: () => {
+          const shouldPreventDefault = handler('/blocks');
+          if (shouldPreventDefault === false) {
+            navigate('/blocks');
+          }
+        },
+      };
+    }
+    if (locationPath.startsWith('/blocks')) {
+      return {
+        label: 'Malla',
+        action: () => {
+          const shouldPreventDefault = handler('/malla/design');
+          if (shouldPreventDefault === false) {
+            navigate('/malla/design');
+          }
+        },
+      };
+    }
+    if (locationPath.startsWith('/malla/design')) {
+      return {
+        label: 'Escritorio',
+        action: () => navigate('/'),
+      };
+    }
+    return { label: null, action: null };
+  }, [handler, locationPath, navigate]);
+
+  return (
+    <div className={styles.appContainer}>
+      {showChrome ? (
+        <div className={styles.chromeWrapper}>
+          <GlobalMenuBar onExportProject={onExportProject} hasProject={hasProject} />
+          <AppHeader />
+          <NavTabs />
+        </div>
+      ) : null}
+      <StatusBar
+        projectName={projectName}
+        schemaVersion={schemaVersion}
+        quickNavLabel={quickNav.label}
+        onQuickNav={quickNav.action}
+        isChromeVisible={showChrome}
+        onToggleChrome={toggleChrome}
+      />
+      <main className={styles.appMain}>{children}</main>
+    </div>
+  );
 }
 
 export default function App(): JSX.Element | null {
@@ -807,21 +893,6 @@ export default function App(): JSX.Element | null {
     [repositorySnapshot],
   );
 
-  const screenTitle = useMemo(() => {
-    switch (location.pathname) {
-      case '/block/design':
-        return 'Diseño de bloque';
-      case '/block/style':
-        return 'Estilo de bloque';
-      case '/blocks':
-        return 'Repositorio de bloques';
-      case '/malla/design':
-        return 'Diseño de malla';
-      default:
-        return 'Escritorio';
-    }
-  }, [location.pathname]);
-
   const hasActiveBlock = useMemo(() => {
     if (!block) return false;
     return isDraftNonEmpty(block.draft);
@@ -840,17 +911,13 @@ export default function App(): JSX.Element | null {
       hasDirtyBlock={hasDirtyBlock}
       hasPublishedBlock={hasPublishedBlock}
     >
-      <div className={styles.appContainer}>
-        <AppHeader />
-        <NavTabs />
-        <StatusBar
-          projectName={projectName}
-          screenTitle={screenTitle}
-          schemaVersion={BLOCK_SCHEMA_VERSION}
-          onExportProject={handleExportProject}
-          hasProject={!!currentProject}
-        />
-        <main className={styles.appMain}>
+      <AppLayout
+        projectName={projectName}
+        hasProject={!!currentProject}
+        onExportProject={handleExportProject}
+        locationPath={location.pathname}
+        navigate={navigate}
+      >
         <Routes>
           <Route
             path="/"
@@ -930,7 +997,8 @@ export default function App(): JSX.Element | null {
                 onOpenBlock={handleOpenRepositoryBlock}
                 activeProjectId={projectId ?? undefined}
               />
-            }          />
+            }
+          />
           <Route
             path="/malla/design"
             element={
@@ -954,8 +1022,7 @@ export default function App(): JSX.Element | null {
           />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
-      </main>
-    </div>
-  </ProceedToMallaProvider>
+      </AppLayout>
+    </ProceedToMallaProvider>
   );
 }

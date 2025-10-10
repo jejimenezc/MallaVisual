@@ -6,18 +6,20 @@ import { useAutosaveInfo } from '../../core/persistence/hooks.ts';
 
 interface StatusBarProps {
   projectName: string;
-  screenTitle: string;
   schemaVersion: number;
-  onExportProject: () => void;
-  hasProject: boolean;
+  quickNavLabel?: string | null;
+  onQuickNav?: (() => void) | null;
+  isChromeVisible: boolean;
+  onToggleChrome: () => void;
 }
 
 export function StatusBar({
   projectName,
-  screenTitle,
   schemaVersion,
-  onExportProject,
-  hasProject,
+  quickNavLabel,
+  onQuickNav,
+  isChromeVisible,
+  onToggleChrome,
 }: StatusBarProps): JSX.Element {
   const { status, lastSaved } = useAutosaveInfo();
   const timeStr = lastSaved ? new Date(lastSaved).toLocaleTimeString() : '—';
@@ -29,26 +31,34 @@ export function StatusBar({
     statusText = 'Guardando…';
   } else if (status === 'error') {
     statusClass = styles.error;
-    statusText = 'Cambios pendientes';
+    statusText = 'Error al guardar';
   }
 
   return (
     <div className={styles.statusBar}>
-      <div className={styles.project}>{`Proyecto activo: ${projectName || 'Sin nombre'} · Auto guardado: ${timeStr}`}</div>
-      <div className={styles.screen}>{screenTitle}</div>
-      <div className={styles.indicators}>
-        <span className={`${styles.status} ${statusClass}`}>
-          <span className={styles.dot}>●</span>
+      <div className={styles.leftSection}>
+        <span className={styles.projectLabel}>Proyecto activo:</span>
+        <span className={styles.projectName}>{projectName || 'Sin nombre'}</span>
+        <span className={styles.autosaveTime}>{`Auto guardado: ${timeStr}`}</span>
+      </div>
+      <div className={styles.centerSection}>
+        <span className={`${styles.statusIndicator} ${statusClass}`}>
+          <span className={styles.dot} aria-hidden="true">
+            ●
+          </span>
           {statusText}
         </span>
-        <button
-          className={styles.exportButton}
-          onClick={onExportProject}
-          disabled={!hasProject}
-        >
-          Exportar proyecto…
+        <span className={styles.schemaLabel}>{`schema v${schemaVersion}`}</span>
+      </div>
+      <div className={styles.rightSection}>
+        {quickNavLabel && onQuickNav ? (
+          <button type="button" className={styles.quickNavButton} onClick={onQuickNav}>
+            {quickNavLabel}
+          </button>
+        ) : null}
+        <button type="button" className={styles.chromeToggle} onClick={onToggleChrome}>
+          {isChromeVisible ? 'Ocultar interfaz' : 'Mostrar interfaz'}
         </button>
-        <span>{`schema v${schemaVersion}`}</span>
       </div>
     </div>
   );

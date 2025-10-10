@@ -2,60 +2,112 @@
 .statusBar {
   display: flex;
   align-items: center;
-  padding: 0.25rem 0.5rem;
-  background-color: #fafafa;
-  border-bottom: 1px solid #ddd;
-  font-size: 0.875rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 1.5rem;
+  background-color: #fdfdfd;
+  border-top: 1px solid #e1e1e1;
+  font-size: 0.85rem;
 }
 
-.project {
+.leftSection,
+.centerSection,
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.leftSection {
   flex: 1;
-  text-align: left;
+  min-width: 0;
+  color: #4a4a4a;
 }
 
-.screen {
+.projectLabel {
+  font-weight: 600;
+}
+
+.projectName {
+  font-weight: 500;
+  color: #1f1f1f;
+}
+
+.autosaveTime {
+  color: #6d6d6d;
+}
+
+.centerSection {
+  justify-content: center;
   flex: 1;
-  text-align: center;
+  color: #444;
 }
 
-.indicators {
-  flex: 1;
-  text-align: right;
-}
-
-.status {
+.statusIndicator {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  margin-right: 0.5rem;
+  gap: 0.4rem;
+  font-weight: 600;
 }
 
 .dot {
-  font-size: 1rem;
+  font-size: 0.75rem;
+}
+
+.schemaLabel {
+  color: #6d6d6d;
 }
 
 .idle {
-  color: green;
+  color: #2a8a2a;
 }
 
 .saving {
-  color: orange;
+  color: #c57a00;
   animation: blink 1s infinite;
 }
 
 .error {
-  color: red;
+  color: #cc2a2a;
 }
 
 @keyframes blink {
-  0%, 100% {
-    opacity: 0.3;
+  0%,
+  100% {
+    opacity: 0.4;
   }
   50% {
     opacity: 1;
   }
 }
 
-.exportButton {
-  margin-left: 0.5rem;
+.rightSection {
+  justify-content: flex-end;
+  flex: 1;
+}
+
+.quickNavButton,
+.chromeToggle {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #c5c5c5;
+  border-radius: 999px;
+  background-color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1f1f1f;
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.quickNavButton:not(:last-child) {
+  margin-right: 0.5rem;
+}
+
+.quickNavButton:hover,
+.quickNavButton:focus-visible,
+.chromeToggle:hover,
+.chromeToggle:focus-visible {
+  background-color: #f0f0f0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  outline: none;
 }
