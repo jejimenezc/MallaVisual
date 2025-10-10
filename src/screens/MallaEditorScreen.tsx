@@ -146,15 +146,26 @@ export const MallaEditorScreen: React.FC<Props> = ({
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
   const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
+    let masters: Record<string, MasterBlockData> = {};
     if (initialMalla?.masters) {
-      return initialMalla.masters;
+      masters = { ...initialMalla.masters };
+    } else if (repoId) {
+      masters = { [repoId]: { template, visual, aspect } };
     }
-    if (repoId) {
-      return { [repoId]: { template, visual, aspect } };
+
+    if (repoId && !masters[repoId]) {
+      masters = {
+        ...masters,
+        [repoId]: { template, visual, aspect },
+      };
     }
-    return {};
+
+    return masters;
   }, [initialMalla, repoId, template, visual, aspect]);
   const initialMasterId = useMemo(() => {
+    if (repoId) {
+      return repoId;
+    }
     if (initialMalla?.activeMasterId) {
       return initialMalla.activeMasterId;
     }
@@ -162,13 +173,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (keys.length > 0) {
       return keys[0];
     }
-    if (repoId) {
-      return repoId;
-    }
     return '';
   }, [initialMalla, initialMasters, repoId]);
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
+
+  useEffect(() => {
+    if (!repoId) return;
+    setSelectedMasterId((prevId) => (prevId === repoId ? prevId : repoId));
+  }, [repoId]);
 
   useEffect(() => {
     setAvailableMasters(listBlocks());
@@ -316,12 +329,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
       cols: initialMalla.grid?.cols ?? 5,
       rows: initialMalla.grid?.rows ?? 5,
     };
-    const nextMasters = { ...initialMalla.masters };
+    let nextMasters = { ...initialMalla.masters };
+    if (repoId && !nextMasters[repoId]) {
+      nextMasters = {
+        ...nextMasters,
+        [repoId]: { template, visual, aspect },
+      };
+    }
     const nextPieces = (initialMalla.pieces ?? []).slice();
     const nextValues = { ...(initialMalla.values ?? {}) };
     const nextFloating = (initialMalla.floatingPieces ?? []).slice();
-    const nextActiveId =
-      initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
+    const fallbackActiveId = initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
+    const nextActiveId = repoId ?? fallbackActiveId;
 
     const incomingProject: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
@@ -345,7 +364,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(nextValues);
     setFloatingPieces(nextFloating);
     setSelectedMasterId(nextActiveId);
-  }, [initialMalla]);
+  }, [initialMalla, repoId, template, visual, aspect]);
 
   useEffect(() => {
     const project: MallaExport = {
