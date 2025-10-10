@@ -826,40 +826,49 @@ export const MallaEditorScreen: React.FC<Props> = ({
       </div>
 
       <div className={styles.mallaWrapper}>
-        <Header title="Editor de Malla">
-          <label>
-            Filas
-            <input
-              type="number"
-              min={1}
-              value={rows}
-              onChange={(e) => handleRowsChange(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Columnas
-            <input
-              type="number"
-              min={1}
-              value={cols}
-              onChange={(e) => handleColsChange(Number(e.target.value))}
-            />
-          </label>
-          <Button
-            type="button"
-            onClick={handleFillGrid}
-            title="Completar todas las posiciones vacías"
-          >
-            Generar malla completa
-          </Button>
-          <Button
-            type="button"
-            onClick={handleClearGrid}
-            title="Eliminar todas las piezas de la malla"
-          >
-            Borrar malla completa
-          </Button>
-        </Header>
+        <Header
+          title="Editor de Malla"
+          left={
+            <>
+              <label>
+                Filas
+                <input
+                  type="number"
+                  min={1}
+                  value={rows}
+                  onChange={(e) => handleRowsChange(Number(e.target.value))}
+                />
+              </label>
+              <label>
+                Columnas
+                <input
+                  type="number"
+                  min={1}
+                  value={cols}
+                  onChange={(e) => handleColsChange(Number(e.target.value))}
+                />
+              </label>
+          </>
+          }
+          center={
+            <>
+              <Button
+                type="button"
+                onClick={handleFillGrid}
+                title="Completar todas las posiciones vacías"
+              >
+                Generar malla completa
+              </Button>
+              <Button
+                type="button"
+                onClick={handleClearGrid}
+                title="Eliminar todas las piezas de la malla"
+              >
+                Borrar malla completa
+              </Button>
+          </>
+          }
+        />
 
         <div
           className={styles.mallaArea}

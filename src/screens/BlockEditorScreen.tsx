@@ -399,24 +399,37 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setSelectedCoord(undefined);
   }, [mode]);
 
+  const handleUndo = useCallback(() => {
+    console.warn('Acción de deshacer no implementada todavía');
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    console.warn('Acción de rehacer no implementada todavía');
+  }, []);
+
   const header = (
-    <Header title="Editor de Bloques">
-      <Button
-        className={mode === 'edit' ? 'active' : ''}
-        onClick={() => setMode('edit')}
-      >
-        ✏️ Editar
-      </Button>
-      <Button
-        className={mode === 'view' ? 'active' : ''}
-        onClick={() => setMode('view')}
-      >
-        👁️ Vista
-      </Button>
-      <Button onClick={() => ensurePublishedAndProceed()}>
-        ➡️ Malla
-      </Button>
-    </Header>
+    <Header
+      title="Editor de Bloques"
+      center={
+        <>
+          <Button onClick={handleUndo}>↩️ Deshacer</Button>
+          <Button onClick={handleRedo}>↪️ Rehacer</Button>
+
+          <Button
+            className={mode === 'edit' ? 'active' : ''}
+            onClick={() => setMode('edit')}
+          >
+            ✏️ Editar
+          </Button>
+          <Button
+            className={mode === 'view' ? 'active' : ''}
+            onClick={() => setMode('view')}
+          >
+            👁️ Vista
+          </Button>
+        </>
+      }
+    />
   );
 
   useEffect(() => {
