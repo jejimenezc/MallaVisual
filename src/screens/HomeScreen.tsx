@@ -21,6 +21,7 @@ interface Props {
     name: string,
   ) => void;
   currentProjectId?: string;
+  onProjectDeleted?: (id: string) => void;
 }
 
 export const HomeScreen: React.FC<Props> = ({
@@ -29,6 +30,7 @@ export const HomeScreen: React.FC<Props> = ({
   onLoadMalla,
   onOpenProject,
   currentProjectId,
+  onProjectDeleted,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { listProjects, loadProject, removeProject } = useProject();
@@ -74,6 +76,9 @@ export const HomeScreen: React.FC<Props> = ({
   const handleDeleteProject = (id: string) => {
     removeProject(id);
     setProjects(listProjects());
+    if (id === currentProjectId) {
+      onProjectDeleted?.(id);
+    }
   };
 
   const handleOpenProject = (id: string) => {

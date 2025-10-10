@@ -23,12 +23,32 @@ import { blockContentEquals } from '../utils/block-content.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
+import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 
 const STORAGE_KEY = 'malla-editor-state';
+
+function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
+  const friendlyName = metadata.name?.trim();
+  if (friendlyName) {
+    return friendlyName;
+  }
+
+  if (fallbackId.length <= 10) {
+    return fallbackId;
+  }
+
+  const prefix = fallbackId.slice(0, 4);
+  const suffix = fallbackId.slice(-3);
+  const maskedWithSpace = `${prefix}... ${suffix}`;
+  if (maskedWithSpace.length <= 10) {
+    return maskedWithSpace;
+  }
+  return `${prefix}...${suffix}`;
+}
 /** Cálculo unificado de métricas de una pieza (recorte) */
 function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
   const { cellW, cellH } = getCellSizeByAspect(aspect);
@@ -86,7 +106,7 @@ interface Props {
   >;
   initialMalla?: MallaExport;
   onMallaChange?: React.Dispatch<React.SetStateAction<MallaExport | null>>;
-projectId?: string;
+  projectId?: string;
   projectName?: string;
 }
 
@@ -126,15 +146,26 @@ export const MallaEditorScreen: React.FC<Props> = ({
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
   const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
+    let masters: Record<string, MasterBlockData> = {};
     if (initialMalla?.masters) {
-      return initialMalla.masters;
+      masters = { ...initialMalla.masters };
+    } else if (repoId) {
+      masters = { [repoId]: { template, visual, aspect } };
     }
-    if (repoId) {
-      return { [repoId]: { template, visual, aspect } };
+
+    if (repoId && !masters[repoId]) {
+      masters = {
+        ...masters,
+        [repoId]: { template, visual, aspect },
+      };
     }
-    return {};
+
+    return masters;
   }, [initialMalla, repoId, template, visual, aspect]);
   const initialMasterId = useMemo(() => {
+    if (repoId) {
+      return repoId;
+    }
     if (initialMalla?.activeMasterId) {
       return initialMalla.activeMasterId;
     }
@@ -142,13 +173,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (keys.length > 0) {
       return keys[0];
     }
-    if (repoId) {
-      return repoId;
-    }
     return '';
   }, [initialMalla, initialMasters, repoId]);
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
+
+  useEffect(() => {
+    if (!repoId) return;
+    setSelectedMasterId((prevId) => (prevId === repoId ? prevId : repoId));
+  }, [repoId]);
 
   useEffect(() => {
     setAvailableMasters(listBlocks());
@@ -157,16 +190,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     return () => window.removeEventListener('block-repo-updated', handler);
   }, [listBlocks]);
 
-  const repository = useMemo(
-    () =>
-      Object.fromEntries(
-        availableMasters
-          .slice()
-          .sort((a, b) => a.id.localeCompare(b.id))
-          .map(({ id, data }) => [id, data]),
-      ),
+  const repositorySnapshot = useMemo(
+    () => blocksToRepository(availableMasters),
     [availableMasters],
   );
+  const repositoryEntries = repositorySnapshot.entries;
 
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
@@ -174,18 +202,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setMastersById((prev) => {
       let updated = false;
       let next = prev;
-      for (const { id, data } of availableMasters) {
+      for (const { metadata, data } of availableMasters) {
+        const key = metadata.uuid;
         const incoming: MasterBlockData = {
           template: data.template,
           visual: data.visual,
           aspect: data.aspect,
         };
-        if (!blockContentEquals(prev[id], incoming)) {
+        if (!blockContentEquals(prev[key], incoming)) {
           if (!updated) {
             next = { ...prev };
             updated = true;
           }
-          next[id] = incoming;
+          next[key] = incoming;
         }
       }
       return updated ? next : prev;
@@ -277,7 +306,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       return;
     }
 
-    const rec = listBlocks().find((b) => b.id === id);
+    const rec = listBlocks().find((b) => b.metadata.uuid === id);
     if (rec) {
       const data = rec.data;
       setMastersById((prev) => ({ ...prev, [id]: data }));
@@ -290,24 +319,29 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   };
 
-  useEffect(() => {
+  const normalizedInitial = useMemo(() => {
     if (!initialMalla) {
-      savedRef.current = null;
-      return;
+      return null;
     }
 
     const nextGrid = {
       cols: initialMalla.grid?.cols ?? 5,
       rows: initialMalla.grid?.rows ?? 5,
     };
-    const nextMasters = { ...initialMalla.masters };
+    let nextMasters = { ...initialMalla.masters };
+    if (repoId && !nextMasters[repoId]) {
+      nextMasters = {
+        ...nextMasters,
+        [repoId]: { template, visual, aspect },
+      };
+    }
     const nextPieces = (initialMalla.pieces ?? []).slice();
     const nextValues = { ...(initialMalla.values ?? {}) };
     const nextFloating = (initialMalla.floatingPieces ?? []).slice();
-    const nextActiveId =
-      initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
+    const fallbackActiveId = initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
+    const nextActiveId = repoId ?? fallbackActiveId;
 
-    const incomingProject: MallaExport = {
+    const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
       masters: nextMasters,
       grid: nextGrid,
@@ -318,18 +352,45 @@ export const MallaEditorScreen: React.FC<Props> = ({
       repository: initialMalla.repository ?? {},
     };
 
-    const serialized = JSON.stringify(incomingProject);
+    return {
+      project,
+      masters: nextMasters,
+      grid: nextGrid,
+      pieces: nextPieces,
+      values: nextValues,
+      floatingPieces: nextFloating,
+      activeMasterId: nextActiveId,
+    };
+  }, [initialMalla, repoId, template, visual, aspect]);
+
+  useEffect(() => {
+    if (!normalizedInitial) {
+      savedRef.current = null;
+      return;
+    }
+
+    const {
+      project,
+      masters,
+      grid,
+      pieces: nextPieces,
+      values,
+      floatingPieces: nextFloating,
+      activeMasterId,
+    } = normalizedInitial;
+
+    const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
 
     savedRef.current = serialized;
-    setMastersById(nextMasters);
-    setCols(nextGrid.cols);
-    setRows(nextGrid.rows);
+    setMastersById(masters);
+    setCols(grid.cols);
+    setRows(grid.rows);
     setPieces(nextPieces);
-    setPieceValues(nextValues);
+    setPieceValues(values);
     setFloatingPieces(nextFloating);
-    setSelectedMasterId(nextActiveId);
-  }, [initialMalla]);
+    setSelectedMasterId(activeMasterId);
+  }, [normalizedInitial]);
 
   useEffect(() => {
     const project: MallaExport = {
@@ -340,7 +401,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values: pieceValues,
       floatingPieces,
       activeMasterId: selectedMasterId,
-      repository,
+      repository: repositoryEntries,
     };
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
@@ -355,7 +416,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     pieceValues,
     floatingPieces,
     selectedMasterId,
-    repository,
+    repositoryEntries,
     autoSave,
     onMallaChange,
   ]);
@@ -731,11 +792,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 No hay bloques publicados
               </option>
             ) : (
-              availableMasters.map(({ id }) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))
+              availableMasters.map(({ id, metadata }) => {
+                const value = metadata.uuid || id;
+                const displayName = formatMasterDisplayName(metadata, value);
+                return (
+                  <option key={value} value={value}>
+                    {displayName}
+                  </option>
+                );
+              })
             )}
           </select>
         </div>

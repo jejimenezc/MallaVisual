@@ -15,6 +15,12 @@ import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
+import {
+  buildBlockId,
+  createBlockId,
+  parseBlockId,
+  type BlockMetadata,
+} from '../types/block.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
 import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
@@ -24,6 +30,7 @@ import {
   toBlockContent,
   type BlockContent,
 } from '../utils/block-content.ts';
+import { blocksToRepository } from '../utils/repository-snapshot.ts';
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -46,9 +53,13 @@ interface BlockEditorScreenProps {
   projectName?: string;
   initialMode?: 'edit' | 'view';
   initialRepoId?: string | null;
+  initialRepoName?: string | null;
+  initialRepoMetadata?: BlockMetadata | null;
   onRepoIdChange?: (repoId: string | null) => void;
+  onRepoMetadataChange?: (metadata: BlockMetadata | null) => void;
   onPublishBlock?: (payload: {
     repoId: string;
+    metadata: BlockMetadata;
     template: BlockTemplate;
     visual: VisualTemplate;
     aspect: BlockAspect;
@@ -64,7 +75,10 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   projectName,
   initialMode = 'edit',
   initialRepoId,
+  initialRepoName,
+  initialRepoMetadata,
   onRepoIdChange,
+  onRepoMetadataChange,
   onPublishBlock,
   isBlockInUse = false,
 }) => {
@@ -85,7 +99,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     initialData?.aspect ?? '1/1'
   );
   const { autoSave, flushAutoSave } = useProject({ projectId, projectName });
-  const { saveBlock: repoSaveBlock, listBlocks } = useBlocksRepo();
+  const {
+    saveBlock: repoSaveBlock,
+    listBlocks,
+    updateBlockMetadata: repoUpdateBlockMetadata,
+  } = useBlocksRepo();
   const savedRef = useRef<string | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
 
@@ -107,12 +125,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   useEffect(() => {
     if (!projectId) return;
-    const repository = Object.fromEntries(
-      repoBlocks
-        .slice()
-        .sort((a, b) => a.id.localeCompare(b.id))
-        .map(({ id, data }) => [id, data]),
-    );
+    const snapshot = blocksToRepository(repoBlocks);
 
     const data: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
@@ -122,7 +135,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       values: {},
       floatingPieces: [],
       activeMasterId: 'master',
-      repository,
+      repository: snapshot.entries,
     };
     const serialized = JSON.stringify(data);
     if (savedRef.current === serialized) return;
@@ -133,10 +146,32 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
 
   const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
+  const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
+    initialRepoMetadata ?? null,
+  );
+  const [repoName, setRepoName] = useState<string>(
+    initialRepoMetadata?.name ?? initialRepoName ?? '',
+  );
 
   useEffect(() => {
     setRepoId(initialRepoId ?? null);
   }, [initialRepoId]);
+
+  useEffect(() => {
+    if (initialRepoMetadata) {
+      setRepoMetadata(initialRepoMetadata);
+      setRepoName(initialRepoMetadata.name);
+      return;
+    }
+    if (!initialRepoId) {
+      setRepoMetadata(null);
+      if (initialRepoName) {
+        setRepoName(initialRepoName);
+      } else if (!repoRecord) {
+        setRepoName('');
+      }
+    }
+  }, [initialRepoMetadata, initialRepoId, initialRepoName]);
 
   const draftContent = useMemo<BlockContent>(
     () => ({ template, visual, aspect }),
@@ -148,9 +183,16 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     onDraftChange(cloneBlockContent(draftContent));
   }, [draftContent, onDraftChange]);
   const repoRecord = useMemo(
-    () => (repoId ? repoBlocks.find((b) => b.id === repoId) ?? null : null),
+    () => (repoId ? repoBlocks.find((b) => b.metadata.uuid === repoId) ?? null : null),
     [repoBlocks, repoId],
   );
+
+  useEffect(() => {
+    if (!repoRecord) return;
+    setRepoMetadata(repoRecord.metadata);
+    setRepoName(repoRecord.metadata.name);
+    onRepoMetadataChange?.(repoRecord.metadata);
+  }, [repoRecord, onRepoMetadataChange]);
   const repoContent = useMemo(
     () => (repoRecord ? toBlockContent(repoRecord.data) : null),
     [repoRecord],
@@ -161,53 +203,134 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   );
 
   const handleSaveToRepo = useCallback((): string | null => {
+    const currentName = repoName.trim();
+    const wasNew = !repoId;
+    const blockLabel = currentName || 'el bloque';
     if (repoId && isBlockInUse) {
       const confirmed = window.confirm(
-        'Se publicará la actualización de un bloque en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?'
+        `Se publicará la actualización de "${blockLabel}" que está en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?`,
       );
       if (!confirmed) return null;
     }
-    const wasNew = !repoId;
-    let id = repoId;
-    if (!id) {
-      const defaultName = projectName ?? '';
+    let name = currentName;
+    if (!name) {
+      const defaultName = projectName ?? repoMetadata?.name ?? '';
       const input = prompt('Nombre del bloque', defaultName);
       if (input === null) return null;
-      const trimmed = input.trim();
-      if (!trimmed) {
+      name = input.trim();
+      if (!name) {
         alert('Debes ingresar un nombre para el bloque.');
         return null;
       }
-      id = trimmed;
-      setRepoId(id);
-      onRepoIdChange?.(id);
+      setRepoName(name);
     }
+    const now = new Date().toISOString();
+    const existingMetadata = repoMetadata ?? repoRecord?.metadata ?? null;
+    let metadata: BlockMetadata;
+    let storedId: string;
+    if (!repoId) {
+      const baseProject = existingMetadata?.projectId ?? projectId ?? 'repository';
+      const generatedId = createBlockId(baseProject);
+      const parsed = parseBlockId(generatedId);
+      metadata = {
+        projectId: parsed.projectId,
+        uuid: parsed.uuid,
+        name,
+        updatedAt: now,
+      };
+      storedId = generatedId;
+      setRepoId(parsed.uuid);
+      onRepoIdChange?.(parsed.uuid);
+    } else {
+      const baseProject = existingMetadata?.projectId ?? projectId ?? 'repository';
+      const uuid = existingMetadata?.uuid ?? repoId;
+      metadata = {
+        projectId: baseProject,
+        uuid,
+        name,
+        updatedAt: now,
+      };
+      storedId = buildBlockId(baseProject, uuid);
+    }
+
     repoSaveBlock({
-      id,
+      id: storedId,
+      metadata,
       data: {
         version: BLOCK_SCHEMA_VERSION,
         template: draftContent.template,
         visual: draftContent.visual,
         aspect: draftContent.aspect,
+        metadata,
       },
     });
+
+    setRepoMetadata(metadata);
+    setRepoName(metadata.name);
+    onRepoMetadataChange?.(metadata);
+
     const savedContent = cloneBlockContent(draftContent);
     onPublishBlock?.({
-      repoId: id,
+      repoId: metadata.uuid,
+      metadata,
       template: savedContent.template,
       visual: savedContent.visual,
       aspect: savedContent.aspect,
     });
-    alert(wasNew ? 'Bloque guardado' : 'Bloque actualizado');
-    return id;
+    alert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
+    return metadata.uuid;
   }, [
     repoId,
+    repoName,
+    repoMetadata,
+    repoRecord,
     projectName,
+    projectId,
     repoSaveBlock,
     draftContent,
     onRepoIdChange,
+    onRepoMetadataChange,
     onPublishBlock,
     isBlockInUse,
+  ]);
+
+  const handleRename = useCallback(() => {
+    const current = repoName.trim();
+    const defaultName = current || (projectName ?? '');
+    const input = prompt('Nuevo nombre del bloque', defaultName);
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (!trimmed) {
+      alert('Debes ingresar un nombre para el bloque.');
+      return;
+    }
+    setRepoName(trimmed);
+    if (!repoId) {
+      return;
+    }
+    const currentMeta = repoMetadata ?? repoRecord?.metadata;
+    const baseProject = currentMeta?.projectId ?? projectId ?? 'repository';
+    const uuid = currentMeta?.uuid ?? repoId;
+    const storedId = buildBlockId(baseProject, uuid);
+    const updatedAt = new Date().toISOString();
+    repoUpdateBlockMetadata(storedId, { name: trimmed, updatedAt });
+    const updatedMetadata: BlockMetadata = {
+      projectId: baseProject,
+      uuid,
+      name: trimmed,
+      updatedAt,
+    };
+    setRepoMetadata(updatedMetadata);
+    onRepoMetadataChange?.(updatedMetadata);
+  }, [
+    repoName,
+    projectName,
+    repoId,
+    repoMetadata,
+    repoRecord,
+    projectId,
+    repoUpdateBlockMetadata,
+    onRepoMetadataChange,
   ]);
 
   const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
@@ -217,9 +340,10 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         return defaultProceedToMalla(destination);
       }
       if (destination === '/malla/design' && isDraftDirty) {
+        const blockLabel = repoName.trim() || 'el bloque';
         const message = repoId
-          ? 'Para pasar al diseño de malla, actualiza la publicación del bloque en el repositorio. ¿Deseas hacerlo ahora?'
-          : 'Para pasar al diseño de malla, publica el borrador en el repositorio. ¿Deseas hacerlo ahora?';
+          ? `Para pasar al diseño de malla, actualiza la publicación de "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`
+          : `Para pasar al diseño de malla, publica "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`;
         const confirmed = window.confirm(message);
         if (!confirmed) return true;
         const savedId = handleSaveToRepo();
@@ -258,6 +382,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       defaultProceedToMalla,
       isDraftDirty,
       repoId,
+      repoName,
       handleSaveToRepo,
       draftContent,
       repoContent,
@@ -268,9 +393,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [editorSidebar, setEditorSidebar] = useState<EditorSidebarState | null>(null);
 
   // Selección en modo vista
-    const [selectedCoord, setSelectedCoord] =
-      useState<{ row: number; col: number } | undefined>(undefined);
-    useEffect(() => { setSelectedCoord(undefined); }, [mode]);
+  const [selectedCoord, setSelectedCoord] =
+    useState<{ row: number; col: number } | undefined>(undefined);
+  useEffect(() => {
+    setSelectedCoord(undefined);
+  }, [mode]);
 
   const header = (
     <Header title="Editor de Bloques">
@@ -329,6 +456,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               combineDisabledReason={editorSidebar?.combineDisabledReason}
               template={template}
             />
+            <div style={{ marginTop: '1rem' }}>
+              <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
+              <Button onClick={handleRename}>
+                {repoId ? 'Renombrar bloque' : 'Definir nombre'}
+              </Button>
+            </div>
             <Button onClick={() => handleSaveToRepo()}>
               {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
             </Button>
@@ -361,6 +494,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             blockAspect={aspect}
             onUpdateAspect={setAspect}
           />
+          <div style={{ marginTop: '1rem' }}>
+            <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
+            <Button onClick={handleRename}>
+              {repoId ? 'Renombrar bloque' : 'Definir nombre'}
+            </Button>
+          </div>
           <Button onClick={() => handleSaveToRepo()}>
             {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
           </Button>
