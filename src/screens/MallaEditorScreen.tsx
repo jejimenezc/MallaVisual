@@ -807,8 +807,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
         </div>
 
         {onBack && (
-          <Button onClick={onBack} title="Volver a inicio">
-            ⬅️ Volver
+          <Button onClick={onBack} title="Ir a editor de bloque">
+            ⬅️ Editar bloque activo
           </Button>
         )}
 
