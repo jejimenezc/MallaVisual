@@ -19,6 +19,7 @@ export interface MallaExport {
   version: number;
   masters: Record<string, MasterBlockData>;
   repository: Record<string, MallaRepositoryEntry>;
+  repositoryMetadata?: Record<string, BlockMetadata>;
   grid?: { cols: number; rows: number };
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
@@ -257,12 +258,16 @@ export function importMalla(json: string): MallaExport {
   let pieces: CurricularPiece[];
   let floatingPieces: string[];
   let activeMasterId: string | undefined = data.activeMasterId;
+  let repositoryMetadata: Record<string, BlockMetadata>;
 
   if (version >= 4) {
     repository = normalizeRepositoryEntries(data.repository as Record<string, unknown> | undefined);
     masters = data.masters as Record<string, MasterBlockData>;
     pieces = data.pieces ?? [];
     floatingPieces = data.floatingPieces ?? [];
+    repositoryMetadata = Object.fromEntries(
+      Object.entries(repository).map(([key, entry]) => [key, { ...entry.metadata }]),
+    );
   } else {
     const migrated = migrateLegacyMalla(
       data as Omit<Partial<MallaExport>, 'repository'> & {
@@ -275,12 +280,16 @@ export function importMalla(json: string): MallaExport {
     pieces = migrated.pieces;
     floatingPieces = migrated.floatingPieces;
     activeMasterId = migrated.activeMasterId;
+    repositoryMetadata = Object.fromEntries(
+      Object.entries(repository).map(([key, entry]) => [key, { ...entry.metadata }]),
+    );
   }
 
   return {
     version: MALLA_SCHEMA_VERSION,
     masters,
     repository,
+    repositoryMetadata,
     grid: data.grid ?? { cols: 5, rows: 5 },
     pieces,
     values: data.values ?? {},

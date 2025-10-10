@@ -319,10 +319,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   };
 
-  useEffect(() => {
+  const normalizedInitial = useMemo(() => {
     if (!initialMalla) {
-      savedRef.current = null;
-      return;
+      return null;
     }
 
     const nextGrid = {
@@ -342,7 +341,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const fallbackActiveId = initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
     const nextActiveId = repoId ?? fallbackActiveId;
 
-    const incomingProject: MallaExport = {
+    const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
       masters: nextMasters,
       grid: nextGrid,
@@ -353,18 +352,45 @@ export const MallaEditorScreen: React.FC<Props> = ({
       repository: initialMalla.repository ?? {},
     };
 
-    const serialized = JSON.stringify(incomingProject);
+    return {
+      project,
+      masters: nextMasters,
+      grid: nextGrid,
+      pieces: nextPieces,
+      values: nextValues,
+      floatingPieces: nextFloating,
+      activeMasterId: nextActiveId,
+    };
+  }, [initialMalla, repoId, template, visual, aspect]);
+
+  useEffect(() => {
+    if (!normalizedInitial) {
+      savedRef.current = null;
+      return;
+    }
+
+    const {
+      project,
+      masters,
+      grid,
+      pieces: nextPieces,
+      values,
+      floatingPieces: nextFloating,
+      activeMasterId,
+    } = normalizedInitial;
+
+    const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
 
     savedRef.current = serialized;
-    setMastersById(nextMasters);
-    setCols(nextGrid.cols);
-    setRows(nextGrid.rows);
+    setMastersById(masters);
+    setCols(grid.cols);
+    setRows(grid.rows);
     setPieces(nextPieces);
-    setPieceValues(nextValues);
+    setPieceValues(values);
     setFloatingPieces(nextFloating);
-    setSelectedMasterId(nextActiveId);
-  }, [initialMalla, repoId, template, visual, aspect]);
+    setSelectedMasterId(activeMasterId);
+  }, [normalizedInitial]);
 
   useEffect(() => {
     const project: MallaExport = {

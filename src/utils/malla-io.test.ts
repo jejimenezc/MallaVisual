@@ -66,7 +66,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
 
   assert.equal(result.version, MALLA_SCHEMA_VERSION);
   assert.deepEqual(result.masters, masters);
-  assert.deepEqual(result.repositoryMetadata, metadata);
+  assert.deepEqual(result.repositoryMetadata, { [metadata.uuid]: metadata });
   assert.deepEqual(result.grid, { cols: 1, rows: 1 });
   assert.deepEqual(result.pieces, [piece]);
   assert.deepEqual(result.values, { p1: { done: true } });
@@ -176,7 +176,7 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
     masterEntry.metadata.uuid,
     generatedEntry.metadata.uuid,
   ].sort();
-  const actualFloating = [...result.floatingPieces].sort();
+  const actualFloating = [...(result.floatingPieces ?? [])].sort();
   assert.deepEqual(actualFloating, expectedFloating);
   const remappedPiece = result.pieces[0];
   assert(remappedPiece?.kind === 'ref');
