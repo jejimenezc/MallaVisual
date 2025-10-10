@@ -2,7 +2,19 @@
 .mallaScreen {
   display: flex;
   height: 100%;
+  position: relative;
 }
+
+.repositoryCollapsed {
+  /* modifier applied to mallaScreen when the repository is hidden */
+}
+
+.repositoryCollapsed .repository {
+  display: none;
+}
+
+.repositoryCollapsed .mallaWrapper {
+  flex: 1 1 100%;}
 
 .repository {
   width: 240px;
@@ -10,14 +22,23 @@
   padding: var(--space-sm);
   background: var(--color-surface);
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto; /* título, selector, snapshot, botones agregar */
+  grid-template-rows: auto auto auto auto 1fr auto; /* header, selector, snapshot, back, botones */
   gap: var(--space-sm);
+  transition: width 0.2s ease;
+}
+
+.repositoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+    gap: var(--space-sm);
 }
 
 .mallaWrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
+  transition: flex-basis 0.2s ease;
 }
 
 .mallaArea {
@@ -93,6 +114,28 @@
 .blockWrapper:hover .pieceToolbar {
   opacity: 1;
   pointer-events: auto;
+}
+
+.toolbarHidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.collapseToggle {
+  position: absolute;
+  top: var(--space-sm);
+  z-index: 1200;
+  padding: 4px 6px;
+  min-width: auto;
+}
+
+.collapseToggleHide {
+  left: 240px;
+  transform: translateX(-50%);
+}
+
+.collapseToggleRestore {
+  left: var(--space-sm);
 }
 
 .pieceToolbar .btn {

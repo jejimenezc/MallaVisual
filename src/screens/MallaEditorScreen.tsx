@@ -18,7 +18,6 @@ import {
   type ActiveBounds,
 } from '../utils/block-active.ts';
 import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
-import { duplicateActiveCrop } from '../utils/block-clone.ts';
 import { blockContentEquals } from '../utils/block-content.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -136,6 +135,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
+  const [showPieceMenus, setShowPieceMenus] = useState(true);
+  const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const { autoSave, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -541,31 +542,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setFloatingPieces((prev) => [...prev, id]);
   };
 
-  const handleAddSnapshot = () => {
-    const pos = findFreeCell();
-    if (!pos) {
-      window.alert(
-        'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
-      );
-      return;
-    }
-
-    const id = crypto.randomUUID();
-    const snap = duplicateActiveCrop({ template, visual, aspect });
-    const piece: CurricularPieceSnapshot = {
-      kind: 'snapshot',
-      id,
-      template: snap.template,
-      visual: snap.visual,
-      aspect: snap.aspect,
-      x: pos.x,
-      y: pos.y,
-      origin: { sourceId: selectedMasterId, bounds, aspect }, // para poder "descongelar"
-    };
-    setPieces((prev) => [...prev, piece]);
-    setFloatingPieces((prev) => [...prev, id]);
-  };
-
   // --- TOGGLE: congelar ↔ descongelar
   const togglePieceKind = (id: string) => {
     setPieces((prev) =>
@@ -773,14 +749,35 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className={styles.mallaScreen}>
+    <div
+      className={`${styles.mallaScreen} ${
+        isRepositoryCollapsed ? styles.repositoryCollapsed : ''
+      }`}
+    >
+      {!isRepositoryCollapsed && (
+        <Button
+          type="button"
+          className={`${styles.collapseToggle} ${styles.collapseToggleHide}`}
+          onClick={() => setIsRepositoryCollapsed(true)}
+          title="Ocultar panel de maestros"
+        >
+          ⬅️
+        </Button>
+      )}
+      {isRepositoryCollapsed && (
+        <Button
+          type="button"
+          className={`${styles.collapseToggle} ${styles.collapseToggleRestore}`}
+          onClick={() => setIsRepositoryCollapsed(false)}
+          title="Mostrar panel de maestros"
+        >
+          ➡️
+        </Button>
+      )}
       <div className={styles.repository}>
-        {onBack && (
-          <Button onClick={onBack} title="Volver a inicio">
-            ⬅️ Volver
-          </Button>
-        )}
-        <h3>Repositorio</h3>
+        <div className={styles.repositoryHeader}>
+          <h3>Repositorio</h3>
+        </div>
 
         <div className={styles.masterRepo}>
           <select
@@ -809,6 +806,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
           <BlockSnapshot template={template} visualTemplate={visual} aspect={aspect} />
         </div>
 
+        {onBack && (
+          <Button onClick={onBack} title="Volver a inicio">
+            ⬅️ Volver
+          </Button>
+        )}
+
         <div className={styles.repoActions}>
           <Button
             onClick={handleAddReferenced}
@@ -817,10 +820,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
             Agregar bloque (referenciado)
           </Button>
           <Button
-            onClick={handleAddSnapshot}
-            title="Agregar copia estática del bloque actual"
+            onClick={() => setShowPieceMenus((prev) => !prev)}
+            title="Alternar la visibilidad de los controles por pieza"
           >
-            Agregar bloque (snapshot)
+            {showPieceMenus ? 'Desactivar menú de bloques' : 'Activar menú de bloques'}
           </Button>
         </div>
       </div>
@@ -924,7 +927,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onMouseDown={(e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)}
                 >
                   {/* Toolbar por pieza */}
-                  <div className={styles.pieceToolbar}>
+                  <div
+                    className={`${styles.pieceToolbar} ${
+                      showPieceMenus ? '' : styles.toolbarHidden
+                    }`}
+                  >
                   {/* Toggle congelar/descongelar */}
                   <Button
                     type="button"
