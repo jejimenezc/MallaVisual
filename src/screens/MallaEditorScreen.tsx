@@ -28,6 +28,7 @@ import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
+import addRefIcon from '../assets/icons/icono-plus-50.png';
 
 const STORAGE_KEY = 'malla-editor-state';
 
@@ -777,7 +778,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       )}
       <div className={styles.repository}>
         <div className={styles.repositoryHeader}>
-          <h4>Bloque activo</h4>
+          <b>Bloque activo</b>
         </div>
 
         <div className={styles.masterRepo}>
@@ -816,7 +817,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
             onClick={handleAddReferenced}
             title="Agregar bloque sincronizado con el maestro"
           >
-            Agregar bloque (referenciado)
+          <img
+            src={addRefIcon}
+            alt=""
+            style={{
+              width: '2em',
+              height: '2em',
+              marginRight: '0.5em',
+              verticalAlign: 'middle',
+            }}
+          />
+            Agregar a la malla
           </ActionPillButton>
         </div>
       </div>
