@@ -756,16 +756,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
         isRepositoryCollapsed ? styles.repositoryCollapsed : ''
       }`}
     >
-      {!isRepositoryCollapsed && (
-        <Button
-          type="button"
-          className={`${styles.collapseToggle} ${styles.collapseToggleHide}`}
-          onClick={() => setIsRepositoryCollapsed(true)}
-          title="Ocultar panel de maestros"
-        >
-          ⬅️
-        </Button>
-      )}
       {isRepositoryCollapsed && (
         <Button
           type="button"
@@ -773,7 +763,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           onClick={() => setIsRepositoryCollapsed(false)}
           title="Mostrar panel de maestros"
         >
-          ➡️
+          ›
         </Button>
       )}
       <div className={styles.repository}>
@@ -829,6 +819,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
           />
             Agregar a la malla
           </ActionPillButton>
+          <div className={styles.collapseToggleRow}>
+            <Button
+              type="button"
+              className={`${styles.collapseToggle} ${styles.collapseToggleHide}`}
+              onClick={() => setIsRepositoryCollapsed(true)}
+              title="Ocultar panel de maestros"
+            >
+              ‹
+            </Button>
+          </div>
         </div>
       </div>
 
