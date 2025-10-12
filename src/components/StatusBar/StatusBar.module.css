@@ -85,29 +85,3 @@
   justify-content: flex-end;
   flex: 1;
 }
-
-.quickNavButton,
-.chromeToggle {
-  padding: 0.35rem 0.9rem;
-  border: 1px solid #c5c5c5;
-  border-radius: 999px;
-  background-color: #ffffff;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #1f1f1f;
-  cursor: pointer;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.quickNavButton:not(:last-child) {
-  margin-right: 0.5rem;
-}
-
-.quickNavButton:hover,
-.quickNavButton:focus-visible,
-.chromeToggle:hover,
-.chromeToggle:focus-visible {
-  background-color: #f0f0f0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  outline: none;
-}

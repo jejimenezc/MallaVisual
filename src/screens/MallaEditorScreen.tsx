@@ -27,6 +27,7 @@ import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
+import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 
 const STORAGE_KEY = 'malla-editor-state';
 
@@ -776,7 +777,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       )}
       <div className={styles.repository}>
         <div className={styles.repositoryHeader}>
-          <h3>Bloque activo</h3>
+          <h4>Bloque activo</h4>
         </div>
 
         <div className={styles.masterRepo}>
@@ -805,26 +806,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
         <div className={styles.repoSnapshot}>
           <BlockSnapshot template={template} visualTemplate={visual} aspect={aspect} />
         </div>
-
-        {onBack && (
-          <Button onClick={onBack} title="Ir a editor de bloque">
-            ⬅️ Editar bloque activo
-          </Button>
-        )}
-
         <div className={styles.repoActions}>
-          <Button
+        {onBack && (
+          <ActionPillButton onClick={onBack} title="Ir a editor de bloque">
+            ⬅️ Editar bloque activo
+          </ActionPillButton>
+        )}
+          <ActionPillButton
             onClick={handleAddReferenced}
             title="Agregar bloque sincronizado con el maestro"
           >
             Agregar bloque (referenciado)
-          </Button>
-          <Button
-            onClick={() => setShowPieceMenus((prev) => !prev)}
-            title="Alternar la visibilidad de los controles por pieza"
-          >
-            {showPieceMenus ? 'Desactivar menú de bloques' : 'Activar menú de bloques'}
-          </Button>
+          </ActionPillButton>
         </div>
       </div>
 
@@ -868,6 +861,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 title="Eliminar todas las piezas de la malla"
               >
                 Borrar malla completa
+              </Button>
+              <Button
+                onClick={() => setShowPieceMenus((prev) => !prev)}
+                title="Alternar la visibilidad de los controles por pieza"
+              >
+                {showPieceMenus ? 'Desactivar menú de bloques' : 'Activar menú de bloques'}
               </Button>
           </>
           }

@@ -3,6 +3,7 @@ import React from 'react';
 import type { JSX } from 'react';
 import styles from './StatusBar.module.css';
 import { useAutosaveInfo } from '../../core/persistence/hooks.ts';
+import { ActionPillButton } from '../ActionPillButton/ActionPillButton';
 
 interface StatusBarProps {
   projectName: string;
@@ -52,13 +53,13 @@ export function StatusBar({
       </div>
       <div className={styles.rightSection}>
         {quickNavLabel && onQuickNav ? (
-          <button type="button" className={styles.quickNavButton} onClick={onQuickNav}>
+          <ActionPillButton onClick={onQuickNav}>
             {quickNavLabel}
-          </button>
+          </ActionPillButton>
         ) : null}
-        <button type="button" className={styles.chromeToggle} onClick={onToggleChrome}>
+        <ActionPillButton onClick={onToggleChrome}>
           {isChromeVisible ? 'Ocultar interfaz' : 'Mostrar interfaz'}
-        </button>
+        </ActionPillButton>
       </div>
     </div>
   );
