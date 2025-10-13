@@ -865,14 +865,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
-              <div className={styles.historyButtons}>
-                <Button type="button" onClick={handleUndo}>
-                  ↩️ Deshacer
-                </Button>
-                <Button type="button" onClick={handleRedo}>
-                  ↪️ Rehacer
-                </Button>
-              </div>
             </div>
           }
           center={
@@ -891,6 +883,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
               >
                 Borrar malla completa
               </Button>
+          </>
+          }
+          right={
+            <>              
+              <div className={styles.historyButtons}>
+                <Button type="button" onClick={handleUndo}>
+                  ↩️ Deshacer
+                </Button>
+                <Button type="button" onClick={handleRedo}>
+                  ↪️ Rehacer
+                </Button>
+              </div>
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
@@ -909,13 +913,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
         />
 
-        <div
-          className={styles.mallaArea}
-          ref={gridRef}
-          style={gridAreaStyle}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-        >
+        <div className={styles.mallaViewport}>
+          <div
+            className={styles.mallaArea}
+            ref={gridRef}
+            style={gridAreaStyle}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+          >
           {pieces.map((p) => {
           // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
             let pieceTemplate: BlockTemplate;
@@ -1027,9 +1032,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   values={values}
                   onValueChange={onValueChange}
                 />
-              </div>
-            );
-          })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
