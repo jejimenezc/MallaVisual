@@ -225,11 +225,11 @@ function AppLayout({
     }
     if (locationPath.startsWith('/block/')) {
       return {
-        label: 'Repositorio',
+        label: 'Malla',
         action: () => {
-          const shouldPreventDefault = handler('/blocks');
+          const shouldPreventDefault = handler('/malla/design');
           if (shouldPreventDefault === false) {
-            navigate('/blocks');
+            navigate('/malla/design');
           }
         },
       };
@@ -247,8 +247,13 @@ function AppLayout({
     }
     if (locationPath.startsWith('/malla/design')) {
       return {
-        label: 'Escritorio',
-        action: () => navigate('/'),
+        label: 'Repositorio',
+        action: () => {
+          const shouldPreventDefault = handler('/blocks');
+          if (shouldPreventDefault === false) {
+            navigate('/blocks');
+          }
+        },
       };
     }
     return { label: null, action: null };
