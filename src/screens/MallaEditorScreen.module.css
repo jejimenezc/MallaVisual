@@ -26,6 +26,7 @@
   grid-template-rows: auto auto auto auto 1fr auto; /* header, selector, snapshot, back, botones */
   gap: var(--space-sm);
   transition: width 0.2s ease;
+  position: relative;
 }
 
 .repositoryHeader {
@@ -124,7 +125,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem 0.6rem;
+  padding: 0.25rem;
   font-size: 1.5rem;
   line-height: 1;
   border: 1px solid var(--color-border);
@@ -133,19 +134,24 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
   z-index: 1200;
   transition: background-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+  width: 1.125rem;
+  min-width: 1.125rem;
+  height: 2.25rem;
 }
 
 .collapseToggleRow {
-  width: 100%;
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  transform: translateY(-50%);
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--space-xs);
 }
 
 .collapseToggleHide {
   margin-left: auto;
   border-radius: var(--space-xs) 0 0 var(--space-xs);
-  min-width: 2.25rem;
+  border-right: none;
 }
 
 .collapseToggleRestore {
@@ -154,7 +160,8 @@
   left: 0;
   transform: translateY(-50%);
   border-radius: 0 var(--space-xs) var(--space-xs) 0;
-  min-width: 2.25rem;
+  width: 1.125rem;
+  min-width: 1.125rem;
   background-color: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(6px);
   border-left: none;
