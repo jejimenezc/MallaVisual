@@ -1,5 +1,5 @@
 // src/screens/MallaEditorScreen.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -198,6 +198,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [availableMasters],
   );
   const repositoryEntries = repositorySnapshot.entries;
+
+  const handleUndo = useCallback(() => {
+    console.warn('Acción de deshacer no implementada todavía');
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    console.warn('Acción de rehacer no implementada todavía');
+  }, []);
 
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
@@ -836,26 +844,36 @@ export const MallaEditorScreen: React.FC<Props> = ({
         <Header
           title="Editor de Malla"
           left={
-            <>
-              <label>
-                Filas
+            <div className={styles.gridSizeControls}>
+              <label className={styles.gridSizeControl}>
+                <span>Filas</span>
                 <input
+                  className={styles.gridSizeInput}
                   type="number"
                   min={1}
                   value={rows}
                   onChange={(e) => handleRowsChange(Number(e.target.value))}
                 />
               </label>
-              <label>
-                Columnas
+              <label className={styles.gridSizeControl}>
+                <span>Columnas</span>
                 <input
+                  className={styles.gridSizeInput}
                   type="number"
                   min={1}
                   value={cols}
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
-          </>
+              <div className={styles.historyButtons}>
+                <Button type="button" onClick={handleUndo}>
+                  ↩️ Deshacer
+                </Button>
+                <Button type="button" onClick={handleRedo}>
+                  ↪️ Rehacer
+                </Button>
+              </div>
+            </div>
           }
           center={
             <>
@@ -873,12 +891,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
               >
                 Borrar malla completa
               </Button>
-              <Button
-                onClick={() => setShowPieceMenus((prev) => !prev)}
-                title="Alternar la visibilidad de los controles por pieza"
-              >
-                {showPieceMenus ? 'Desactivar menú de bloques' : 'Activar menú de bloques'}
-              </Button>
+              <label className={styles.blockMenuToggle}>
+                <span>Menú de bloques:</span>
+                <span className={styles.blockMenuToggleControl}>
+                  <input
+                    type="checkbox"
+                    checked={showPieceMenus}
+                    onChange={() => setShowPieceMenus((prev) => !prev)}
+                    className={styles.blockMenuToggleInput}
+                  />
+                  <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                    <span className={styles.blockMenuToggleThumb} />
+                  </span>
+                </span>
+              </label>
           </>
           }
         />
