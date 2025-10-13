@@ -10,11 +10,18 @@
 }
 
 .repositoryCollapsed .repository {
-  display: none;
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition-delay: 0s, 0s, 0.1s;
 }
 
 .repositoryCollapsed .mallaWrapper {
-  flex: 1 1 100%;}
+  flex: 1 1 100%;
+}
 
 .repository {
   width: 260px;
@@ -25,7 +32,7 @@
   display: grid;
   grid-template-rows: auto auto auto auto 1fr auto; /* header, selector, snapshot, back, botones */
   gap: var(--space-sm);
-  transition: width 0.2s ease;
+  transition: width 0.5s ease, padding 0.5s ease, opacity 0.5s ease;
   position: relative;
 }
 
@@ -40,7 +47,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  transition: flex-basis 0.2s ease;
+  transition: flex-basis 0.5s ease;
 }
 
 .mallaArea {
