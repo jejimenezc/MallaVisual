@@ -263,8 +263,8 @@ function AppLayout({
     <div className={styles.appContainer}>
       {showChrome ? (
         <div className={styles.chromeWrapper}>
-          <GlobalMenuBar onExportProject={onExportProject} hasProject={hasProject} />
           <AppHeader />
+          <GlobalMenuBar onExportProject={onExportProject} hasProject={hasProject} />
           <NavTabs />
         </div>
       ) : null}

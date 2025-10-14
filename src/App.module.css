@@ -1,4 +1,6 @@
 /* src/App.module.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=Poppins:wght@400;700&display=swap');
+
 .appContainer {
   display: flex;
   flex-direction: column;
@@ -17,16 +19,58 @@
 .appHeader {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem;
   padding: 0.75rem 1.5rem;
   background-color: transparent;
 }
 
-.headerTitle {
-  flex: 1;
+.brandIdentity {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brandLogo {
+  display: block;
+  height: 3.25rem;
+  width: auto;
+}
+
+.brandContent {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.brandName {
+  display: inline-flex;
+  gap: 0.125rem;
+  font-family: 'Poppins', sans-serif;
+  font-size: 2.1rem;
+  line-height: 0.8;
+}
+
+.brandMalla {
+  color: #333333;
+  font-weight: 400;
+}
+
+.brandVisual {
+  color: #36b6b6;
+  font-weight: 700;
+}
+
+.brandTagline {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: #333333;
+}
+
+.brandTagline em {
+  font-style: italic;
 }
 
 .appMain {
