@@ -31,6 +31,9 @@ import { ActionPillButton } from '../components/ActionPillButton/ActionPillButto
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 
 const STORAGE_KEY = 'malla-editor-state';
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 0.1;
 
 function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
   const friendlyName = metadata.name?.trim();
@@ -139,6 +142,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     initialMalla?.floatingPieces ?? []);
   const [showPieceMenus, setShowPieceMenus] = useState(true);
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const { autoSave, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -297,6 +301,53 @@ export const MallaEditorScreen: React.FC<Props> = ({
         height: gridHeight,
       }) as React.CSSProperties,
     [cols, rows, gridWidth, gridHeight]
+  );
+
+  const clampZoom = useCallback(
+    (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value)),
+    [],
+  );
+
+  const handleZoomChange = useCallback(
+    (value: number) => {
+      const clamped = clampZoom(value);
+      setZoom(Number(clamped.toFixed(2)));
+    },
+    [clampZoom],
+  );
+
+  const handleZoomStep = useCallback(
+    (direction: 1 | -1) => {
+      handleZoomChange(zoom + direction * ZOOM_STEP);
+    },
+    [handleZoomChange, zoom],
+  );
+
+  const zoomScale = useMemo(() => Math.sqrt(zoom), [zoom]);
+  const zoomPercent = useMemo(() => Math.round(zoom * 100), [zoom]);
+  const canZoomOut = zoom > MIN_ZOOM + 0.001;
+  const canZoomIn = zoom < MAX_ZOOM - 0.001;
+  const sliderMin = Math.round(MIN_ZOOM * 100);
+  const sliderMax = Math.round(MAX_ZOOM * 100);
+  const sliderStep = Math.round(ZOOM_STEP * 100);
+
+  const viewportZoomStyle = useMemo(
+    () =>
+      ({
+        transform: `scale(${zoomScale})`,
+        transformOrigin: 'top left',
+      }) as React.CSSProperties,
+    [zoomScale],
+  );
+
+  const zoomedGridAreaStyle = useMemo(
+    () =>
+      ({
+        ...gridAreaStyle,
+        transform: `scale(${zoomScale})`,
+        transformOrigin: 'top left',
+      }) as React.CSSProperties,
+    [gridAreaStyle, zoomScale],
   );
 
 
@@ -865,6 +916,40 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
+              <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
+                <span>Zoom</span>
+                <div className={styles.zoomControlGroup}>
+                  <button
+                    type="button"
+                    className={styles.zoomButton}
+                    onClick={() => handleZoomStep(-1)}
+                    disabled={!canZoomOut}
+                    aria-label="Reducir zoom"
+                  >
+                    −
+                  </button>
+                  <input
+                    className={styles.zoomSlider}
+                    type="range"
+                    min={sliderMin}
+                    max={sliderMax}
+                    step={sliderStep}
+                    value={zoomPercent}
+                    onChange={(e) => handleZoomChange(Number(e.target.value) / 100)}
+                    aria-label="Nivel de zoom de la malla"
+                  />
+                  <button
+                    type="button"
+                    className={styles.zoomButton}
+                    onClick={() => handleZoomStep(1)}
+                    disabled={!canZoomIn}
+                    aria-label="Aumentar zoom"
+                  >
+                    +
+                  </button>
+                  <span className={styles.zoomValue}>{zoomPercent}%</span>
+                </div>
+              </label>
             </div>
           }
           center={
@@ -913,11 +998,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
         />
 
-        <div className={styles.mallaViewport}>
+        <div className={styles.mallaViewport} style={viewportZoomStyle}>
           <div
             className={styles.mallaArea}
             ref={gridRef}
-            style={gridAreaStyle}
+            style={zoomedGridAreaStyle}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
           >

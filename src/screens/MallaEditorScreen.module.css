@@ -67,6 +67,49 @@
   text-align: center;
 }
 
+.zoomControl {
+  min-width: 0;
+}
+
+.zoomControlGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.zoomSlider {
+  width: 7rem;
+  accent-color: var(--color-accent, var(--color-primary));
+}
+
+.zoomButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.zoomButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoomValue {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .historyButtons {
   display: inline-flex;
   align-items: center;
@@ -87,6 +130,7 @@
   overflow: auto;
   display: flex;
   align-items: flex-start;
+  transition: transform 0.2s ease;
 }
 
 .mallaArea {
@@ -95,6 +139,7 @@
   background-image: linear-gradient(to right, var(--color-border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--color-border) 1px, transparent 1px);
   background-size: calc(100% / var(--cols)) calc(100% / var(--rows));
+  transition: transform 0.2s ease;
 }
 
 .blockWrapper {
