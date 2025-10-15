@@ -31,6 +31,7 @@ import {
   type BlockContent,
 } from '../utils/block-content.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
+import './BlockEditorScreen.css';
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -441,33 +442,74 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   if (mode === 'edit') {
     return (
+      <div className="block-editor-screen">
+        <TwoPaneLayout
+          header={header}
+          left={
+            <BlockTemplateEditor
+              template={template}
+              setTemplate={setTemplate}
+              onSidebarStateChange={setEditorSidebar}
+            />
+          }
+          right={
+            <div>
+              <ContextSidebarPanel
+                selectedCount={editorSidebar?.selectedCount ?? 0}
+                canCombine={editorSidebar?.canCombine ?? false}
+                canSeparate={editorSidebar?.canSeparate ?? false}
+                onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
+                onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+                selectedCell={editorSidebar?.selectedCell ?? null}
+                selectedCoord={editorSidebar?.selectedCoord}
+                onUpdateCell={(updated, coord) => {
+                  const fallback = editorSidebar?.selectedCoord;
+                  const target = coord ?? fallback;
+                  if (!target || !editorSidebar?.handlers.onUpdateCell) return;
+                  editorSidebar.handlers.onUpdateCell(updated, target);
+                }}
+                combineDisabledReason={editorSidebar?.combineDisabledReason}
+                template={template}
+              />
+              <div style={{ marginTop: '1rem' }}>
+                <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
+                <Button onClick={handleRename}>
+                  {repoId ? 'Renombrar bloque' : 'Definir nombre'}
+                </Button>
+              </div>
+              <Button onClick={() => handleSaveToRepo()}>
+                {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
+  // MODO VISTA
+  return (
+    <div className="block-editor-screen">
       <TwoPaneLayout
         header={header}
         left={
-          <BlockTemplateEditor
+          <BlockTemplateViewer
             template={template}
-            setTemplate={setTemplate}
-            onSidebarStateChange={setEditorSidebar}
+            visualTemplate={visual}
+            selectedCoord={selectedCoord}
+            onSelectCoord={setSelectedCoord}
+            aspect={aspect}
           />
         }
         right={
           <div>
-            <ContextSidebarPanel
-              selectedCount={editorSidebar?.selectedCount ?? 0}
-              canCombine={editorSidebar?.canCombine ?? false}
-              canSeparate={editorSidebar?.canSeparate ?? false}
-              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
-              selectedCell={editorSidebar?.selectedCell ?? null}
-              selectedCoord={editorSidebar?.selectedCoord}
-              onUpdateCell={(updated, coord) => {
-                const fallback = editorSidebar?.selectedCoord;
-                const target = coord ?? fallback;
-                if (!target || !editorSidebar?.handlers.onUpdateCell) return;
-                editorSidebar.handlers.onUpdateCell(updated, target);
-              }}
-              combineDisabledReason={editorSidebar?.combineDisabledReason}
+            <FormatStylePanel
+              selectedCoord={selectedCoord}
+              visualTemplate={visual}
+              onUpdateVisual={setVisual}
               template={template}
+              blockAspect={aspect}
+              onUpdateAspect={setAspect}
             />
             <div style={{ marginTop: '1rem' }}>
               <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
@@ -481,43 +523,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           </div>
         }
       />
-    );
-  }
-
-  // MODO VISTA
-  return (
-    <TwoPaneLayout
-      header={header}
-      left={
-        <BlockTemplateViewer
-          template={template}
-          visualTemplate={visual}
-          selectedCoord={selectedCoord}
-          onSelectCoord={setSelectedCoord}
-          aspect={aspect}
-        />
-      }
-      right={
-        <div>
-          <FormatStylePanel
-            selectedCoord={selectedCoord}
-            visualTemplate={visual}
-            onUpdateVisual={setVisual}
-            template={template}
-            blockAspect={aspect}
-            onUpdateAspect={setAspect}
-          />
-          <div style={{ marginTop: '1rem' }}>
-            <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
-            <Button onClick={handleRename}>
-              {repoId ? 'Renombrar bloque' : 'Definir nombre'}
-            </Button>
-          </div>
-          <Button onClick={() => handleSaveToRepo()}>
-            {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
-          </Button>
-        </div>
-      }
-    />
+    </div>
   );
 };
