@@ -35,6 +35,23 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 
+interface MallaHistoryEntry {
+  cols: number;
+  rows: number;
+  pieces: CurricularPiece[];
+  pieceValues: Record<string, Record<string, string | number | boolean>>;
+  floatingPieces: string[];
+  mastersById: Record<string, MasterBlockData>;
+  selectedMasterId: string;
+}
+
+const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(entry);
+  }
+  return JSON.parse(JSON.stringify(entry)) as MallaHistoryEntry;
+};
+
 function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
   const friendlyName = metadata.name?.trim();
   if (friendlyName) {
@@ -126,6 +143,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
   projectId,
   projectName,
 }) => {
+  const initialMallaSignature = useMemo(() => {
+    if (!initialMalla) return null;
+    return JSON.stringify(initialMalla);
+  }, [initialMalla]);
+
   // --- maestro + recorte activo
   const bounds = useMemo(() => getActiveBounds(template), [template]);
   const subTemplate = useMemo(() => cropTemplate(template, bounds), [template, bounds]);
@@ -185,6 +207,68 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
 
+  const historyRef = useRef<MallaHistoryEntry[]>([]);
+  const historySerializedRef = useRef<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
+  const isRestoringRef = useRef(false);
+  const ignoreNextInitialMallaRef = useRef(false);
+
+  const historySnapshot = useMemo<MallaHistoryEntry>(
+    () => ({
+      cols,
+      rows,
+      pieces,
+      pieceValues,
+      floatingPieces,
+      mastersById,
+      selectedMasterId,
+    }),
+    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId],
+  );
+
+  const historySnapshotSerialized = useMemo(
+    () => JSON.stringify(historySnapshot),
+    [historySnapshot],
+  );
+
+  useEffect(() => {
+    if (!isHistoryInitialized) {
+      const entry = cloneMallaHistoryEntry(historySnapshot);
+      historyRef.current = [entry];
+      historySerializedRef.current = [historySnapshotSerialized];
+      setHistoryIndex(0);
+      setIsHistoryInitialized(true);
+      return;
+    }
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
+    const currentSerialized = historySerializedRef.current[historyIndex];
+    if (currentSerialized === historySnapshotSerialized) return;
+    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
+    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
+    truncatedHistory.push(cloneMallaHistoryEntry(historySnapshot));
+    truncatedSerialized.push(historySnapshotSerialized);
+    historyRef.current = truncatedHistory;
+    historySerializedRef.current = truncatedSerialized;
+    setHistoryIndex(truncatedHistory.length - 1);
+  }, [
+    historySnapshot,
+    historySnapshotSerialized,
+    historyIndex,
+    isHistoryInitialized,
+  ]);
+
+  useEffect(() => {
+    if (ignoreNextInitialMallaRef.current) {
+      ignoreNextInitialMallaRef.current = false;
+      return;
+    }
+    setIsHistoryInitialized(false);
+  }, [initialMallaSignature]);
+
   useEffect(() => {
     if (!repoId) return;
     setSelectedMasterId((prevId) => (prevId === repoId ? prevId : repoId));
@@ -203,13 +287,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
   const repositoryEntries = repositorySnapshot.entries;
 
-  const handleUndo = useCallback(() => {
-    console.warn('Acción de deshacer no implementada todavía');
-  }, []);
-
-  const handleRedo = useCallback(() => {
-    console.warn('Acción de rehacer no implementada todavía');
-  }, []);
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyRef.current.length - 1;
 
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
@@ -253,6 +332,73 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
   const savedRef = useRef<string | null>(null);
+
+  const applyHistorySnapshot = useCallback(
+    (entry: MallaHistoryEntry) => {
+      const clone = cloneMallaHistoryEntry(entry);
+      setCols(clone.cols);
+      setRows(clone.rows);
+      setPieces(clone.pieces);
+      setPieceValues(clone.pieceValues);
+      setFloatingPieces(clone.floatingPieces);
+      setMastersById(clone.mastersById);
+      setSelectedMasterId(clone.selectedMasterId);
+      setDraggingId(null);
+      setDragPos({ x: 0, y: 0 });
+    },
+    [
+      setCols,
+      setRows,
+      setPieces,
+      setPieceValues,
+      setFloatingPieces,
+      setMastersById,
+      setSelectedMasterId,
+      setDraggingId,
+      setDragPos,
+    ],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistorySnapshot(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistorySnapshot]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= historyRef.current.length - 1) return;
+    const newIndex = historyIndex + 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistorySnapshot(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistorySnapshot]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.target instanceof HTMLElement && isInteractive(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (key === 'y') {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
   const {
     colWidths,
     rowHeights,
@@ -452,6 +598,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(values);
     setFloatingPieces(nextFloating);
     setSelectedMasterId(activeMasterId);
+    setIsHistoryInitialized(false);
   }, [normalizedInitial]);
 
   useEffect(() => {
@@ -468,7 +615,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
-    onMallaChange?.(project);
+    if (onMallaChange) {
+      ignoreNextInitialMallaRef.current = true;
+      onMallaChange(project);
+    }
     autoSave(project);
   }, [
     mastersById,
@@ -504,6 +654,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setPieces(data.pieces);
       setPieceValues(data.values);
       setFloatingPieces(data.floatingPieces ?? []);
+      setIsHistoryInitialized(false);
     }
   }, [initialMalla, loadDraft, onUpdateMaster]);
 
@@ -973,10 +1124,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
           right={
             <>              
               <div className={styles.historyButtons}>
-                <Button type="button" onClick={handleUndo}>
+                <Button type="button" onClick={handleUndo} disabled={!canUndo}>
                   ↩️ Deshacer
                 </Button>
-                <Button type="button" onClick={handleRedo}>
+                <Button type="button" onClick={handleRedo} disabled={!canRedo}>
                   ↪️ Rehacer
                 </Button>
               </div>

@@ -33,6 +33,14 @@ import {
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
 
+const isInteractiveElement = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  if (['input', 'textarea', 'select', 'button'].includes(tag)) return true;
+  if (target.isContentEditable) return true;
+  return !!target.closest('input,textarea,select,button,[contenteditable="true"]');
+};
+
 
 const generateEmptyTemplate = (): BlockTemplate =>
   Array.from({ length: 10 }, () =>
@@ -116,13 +124,18 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     return () => window.removeEventListener('block-repo-updated', sync);
   }, [listBlocks]);
 
+  const initialDataSignature = useMemo(() => {
+    if (!initialData) return null;
+    return JSON.stringify(toBlockContent(initialData));
+  }, [initialData]);
+  
   useEffect(() => {
     if (!initialData) return;
     const content = cloneBlockContent(toBlockContent(initialData));
     setTemplate(content.template);
     setVisual(content.visual);
     setAspect(content.aspect);
-  }, [initialData]);
+  }, [initialData, initialDataSignature]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -178,9 +191,65 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => ({ template, visual, aspect }),
     [template, visual, aspect],
   );
+  const draftSerialized = useMemo(() => JSON.stringify(draftContent), [draftContent]);
+
+  const historyRef = useRef<BlockContent[]>([]);
+  const historySerializedRef = useRef<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
+  const isRestoringRef = useRef(false);
+  const ignoreNextInitialDataRef = useRef(false);
+
+  useEffect(() => {
+    if (ignoreNextInitialDataRef.current) {
+      ignoreNextInitialDataRef.current = false;
+      return;
+    }
+    setIsHistoryInitialized(false);
+  }, [initialDataSignature]);
+
+  useEffect(() => {
+    if (!isHistoryInitialized) {
+      const initialEntry = cloneBlockContent(draftContent);
+      historyRef.current = [initialEntry];
+      historySerializedRef.current = [draftSerialized];
+      setHistoryIndex(0);
+      setIsHistoryInitialized(true);
+      return;
+    }
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
+    const currentSerialized = historySerializedRef.current[historyIndex];
+    if (currentSerialized === draftSerialized) return;
+    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
+    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
+    truncatedHistory.push(cloneBlockContent(draftContent));
+    truncatedSerialized.push(draftSerialized);
+    historyRef.current = truncatedHistory;
+    historySerializedRef.current = truncatedSerialized;
+    setHistoryIndex(truncatedHistory.length - 1);
+  }, [
+    draftContent,
+    draftSerialized,
+    historyIndex,
+    isHistoryInitialized,
+  ]);
+
+  const applyHistoryEntry = useCallback(
+    (entry: BlockContent) => {
+      const clone = cloneBlockContent(entry);
+      setTemplate(clone.template);
+      setVisual(clone.visual);
+      setAspect(clone.aspect);
+    },
+    [setTemplate, setVisual, setAspect],
+  );
 
   useEffect(() => {
     if (!onDraftChange) return;
+    ignoreNextInitialDataRef.current = true;
     onDraftChange(cloneBlockContent(draftContent));
   }, [draftContent, onDraftChange]);
   const repoRecord = useMemo(
@@ -400,21 +469,61 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setSelectedCoord(undefined);
   }, [mode]);
 
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyRef.current.length - 1;
+  
   const handleUndo = useCallback(() => {
-    console.warn('Acción de deshacer no implementada todavía');
-  }, []);
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistoryEntry(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistoryEntry]);
 
   const handleRedo = useCallback(() => {
-    console.warn('Acción de rehacer no implementada todavía');
-  }, []);
+    if (historyIndex >= historyRef.current.length - 1) return;
+    const newIndex = historyIndex + 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistoryEntry(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistoryEntry]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (isInteractiveElement(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (key === 'y') {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
 
   const header = (
     <Header
       title="Editor de Bloques"
       center={
         <>
-          <Button onClick={handleUndo}>↩️ Deshacer</Button>
-          <Button onClick={handleRedo}>↪️ Rehacer</Button>
+          <Button onClick={handleUndo} disabled={!canUndo}>
+            ↩️ Deshacer
+          </Button>
+          <Button onClick={handleRedo} disabled={!canRedo}>
+            ↪️ Rehacer
+          </Button>
 
           <Button
             className={mode === 'edit' ? 'active' : ''}
