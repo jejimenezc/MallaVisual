@@ -212,6 +212,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
   const isRestoringRef = useRef(false);
+  const ignoreNextInitialMallaRef = useRef(false);
 
   const historySnapshot = useMemo<MallaHistoryEntry>(
     () => ({
@@ -261,6 +262,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
   ]);
 
   useEffect(() => {
+    if (ignoreNextInitialMallaRef.current) {
+      ignoreNextInitialMallaRef.current = false;
+      return;
+    }
     setIsHistoryInitialized(false);
   }, [initialMallaSignature]);
 
@@ -610,7 +615,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
-    onMallaChange?.(project);
+    if (onMallaChange) {
+      ignoreNextInitialMallaRef.current = true;
+      onMallaChange(project);
+    }
     autoSave(project);
   }, [
     mastersById,

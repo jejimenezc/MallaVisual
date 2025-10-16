@@ -198,8 +198,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
   const isRestoringRef = useRef(false);
+  const ignoreNextInitialDataRef = useRef(false);
 
   useEffect(() => {
+    if (ignoreNextInitialDataRef.current) {
+      ignoreNextInitialDataRef.current = false;
+      return;
+    }
     setIsHistoryInitialized(false);
   }, [initialDataSignature]);
 
@@ -244,6 +249,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   useEffect(() => {
     if (!onDraftChange) return;
+    ignoreNextInitialDataRef.current = true;
     onDraftChange(cloneBlockContent(draftContent));
   }, [draftContent, onDraftChange]);
   const repoRecord = useMemo(
