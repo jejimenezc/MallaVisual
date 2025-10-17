@@ -81,6 +81,7 @@ export interface ProjectRepository<T> {
   load(id: string): ProjectRecord<T> | null;
   save(id: string, name: string, data: T): void;
   remove(id: string): void;
+  rename(id: string, name: string): void;
 }
 
 const PROJECTS_KEY = 'projects-storage';
@@ -111,11 +112,13 @@ export function createLocalStorageProjectRepository<T>(): ProjectRepository<T> {
   return {
     list() {
       const all = readProjects<T>();
-      return Object.entries(all).map(([id, rec]) => ({
-        id,
-        name: rec.meta.name,
-        date: rec.meta.date,
-      }));
+      return Object.entries(all)
+        .map(([id, rec]) => ({
+          id,
+          name: rec.meta.name,
+          date: rec.meta.date,
+        }))
+        .sort((a, b) => (a.date > b.date ? -1 : a.date < b.date ? 1 : 0));
     },
     load(id) {
       const all = readProjects<T>();
@@ -132,6 +135,16 @@ export function createLocalStorageProjectRepository<T>(): ProjectRepository<T> {
         delete all[id];
         writeProjects(all);
       }
+    },
+    rename(id, name) {
+      const all = readProjects<T>();
+      const record = all[id];
+      if (!record) return;
+      all[id] = {
+        data: record.data,
+        meta: { name, date: new Date().toISOString() },
+      };
+      writeProjects(all);
     },
   };
 }

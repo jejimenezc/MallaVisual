@@ -7,6 +7,7 @@ import { ActionPillButton } from '../ActionPillButton/ActionPillButton';
 
 interface StatusBarProps {
   projectName: string;
+  hasProject: boolean;
   schemaVersion: number;
   quickNavLabel?: string | null;
   onQuickNav?: (() => void) | null;
@@ -16,6 +17,7 @@ interface StatusBarProps {
 
 export function StatusBar({
   projectName,
+  hasProject,
   schemaVersion,
   quickNavLabel,
   onQuickNav,
@@ -35,11 +37,17 @@ export function StatusBar({
     statusText = 'Error al guardar';
   }
 
-  return (
+  const projectDisplayName = hasProject
+    ? projectName?.trim().length > 0
+      ? projectName
+      : 'Sin nombre'
+    : 'No hay proyecto activo';
+
+    return (
     <div className={styles.statusBar}>
       <div className={styles.leftSection}>
         <span className={styles.projectLabel}>Proyecto activo:</span>
-        <span className={styles.projectName}>{projectName || 'Sin nombre'}</span>
+        <span className={styles.projectName}>{projectDisplayName}</span>
         <span className={styles.autosaveTime}>{`Auto guardado: ${timeStr}`}</span>
       </div>
       <div className={styles.centerSection}>
