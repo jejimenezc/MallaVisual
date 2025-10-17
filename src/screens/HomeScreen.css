@@ -22,13 +22,25 @@
   padding: 0.25rem 0.5rem;
 }
 
-.trash-cell {
-  width: 2rem;
+.actions-cell {
+  width: 3.5rem;
   text-align: right;
+  white-space: nowrap;
 }
 
-.trash-button {
+.icon-button {
   background: none;
   border: none;
   cursor: pointer;
+  padding: 0;
+  margin-left: 0.25rem;
+}
+
+.icon-button:first-child {
+  margin-left: 0;
+}
+
+.icon-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

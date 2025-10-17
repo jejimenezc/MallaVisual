@@ -197,6 +197,7 @@ interface AppLayoutProps {
   projectName: string;
   hasProject: boolean;
   onExportProject: () => void;
+  onCloseProject: () => void;
   locationPath: string;
   navigate: ReturnType<typeof useNavigate>;
 }
@@ -206,6 +207,7 @@ function AppLayout({
   projectName,
   hasProject,
   onExportProject,
+  onCloseProject,
   locationPath,
   navigate,
 }: AppLayoutProps): JSX.Element {
@@ -217,6 +219,9 @@ function AppLayout({
     : BLOCK_SCHEMA_VERSION;
 
   const quickNav = useMemo(() => {
+    if (!hasProject) {
+      return { label: null, action: null };
+    }
     if (locationPath === '/') {
       return {
         label: 'Editor',
@@ -257,19 +262,24 @@ function AppLayout({
       };
     }
     return { label: null, action: null };
-  }, [handler, locationPath, navigate]);
+  }, [handler, hasProject, locationPath, navigate]);
 
   return (
     <div className={styles.appContainer}>
       {showChrome ? (
         <div className={styles.chromeWrapper}>
           <AppHeader />
-          <GlobalMenuBar onExportProject={onExportProject} hasProject={hasProject} />
-          <NavTabs />
+          <GlobalMenuBar
+            onExportProject={onExportProject}
+            onCloseProject={onCloseProject}
+            hasProject={hasProject}
+          />
+          <NavTabs isProjectActive={hasProject} />
         </div>
       ) : null}
       <StatusBar
         projectName={projectName}
+        hasProject={hasProject}
         schemaVersion={schemaVersion}
         quickNavLabel={quickNav.label}
         onQuickNav={quickNav.action}
@@ -295,7 +305,7 @@ export default function App(): JSX.Element | null {
   );
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
-  const { exportProject, loadProject } = useProject();
+  const { exportProject, loadProject, flushAutoSave } = useProject();
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
@@ -513,6 +523,40 @@ export default function App(): JSX.Element | null {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleCloseProject = useCallback(() => {
+    const hasUnsavedBlock = computeDirty();
+    if (hasUnsavedBlock) {
+      const confirmed = window.confirm(
+        'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    flushAutoSave();
+    clearRepository();
+    setRepositorySnapshot(blocksToRepository([]));
+    setBlock(null);
+    setMalla(null);
+    setProjectId(null);
+    setProjectName('');
+    setShouldPersistProject(false);
+    clearPersistedProjectMetadata();
+    storedActiveProjectRef.current = { id: null, name: '' };
+    try {
+      window.localStorage.removeItem('malla-editor-state');
+    } catch {
+      /* ignore */
+    }
+    navigate('/');
+  }, [
+    clearPersistedProjectMetadata,
+    clearRepository,
+    computeDirty,
+    flushAutoSave,
+    navigate,
+  ]);
 
   const handleNewProject = () => {
     const normalized = applyRepositoryChange(
@@ -805,6 +849,15 @@ export default function App(): JSX.Element | null {
     [clearPersistedProjectMetadata, projectId],
   );
 
+  const handleProjectRenamed = useCallback(
+    (id: string, name: string) => {
+      if (!projectId || projectId !== id) return;
+      setProjectName(name);
+      storedActiveProjectRef.current = { id, name };
+    },
+    [projectId],
+  );
+
   const handleBlockImported = (stored: StoredBlock) => {
     let shouldLoadImmediately = false;
     setBlock((prev) => {
@@ -920,6 +973,7 @@ export default function App(): JSX.Element | null {
         projectName={projectName}
         hasProject={!!currentProject}
         onExportProject={handleExportProject}
+        onCloseProject={handleCloseProject}
         locationPath={location.pathname}
         navigate={navigate}
       >
@@ -934,6 +988,7 @@ export default function App(): JSX.Element | null {
                 onOpenProject={handleOpenProject}
                 currentProjectId={projectId ?? undefined}
                 onProjectDeleted={handleProjectRemoved}
+                onProjectRenamed={handleProjectRenamed}
               />
             }
           />

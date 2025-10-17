@@ -35,6 +35,7 @@ export function useProject(options: UseProjectOptions = {}) {
     listProjects: persistenceService.listProjects,
     loadProject: persistenceService.loadProject,
     removeProject: persistenceService.removeProject,
+    renameProject: persistenceService.renameProject,
   };
 }
 

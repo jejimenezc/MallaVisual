@@ -4,6 +4,14 @@
   padding: 0.5rem;
   background: #f0f0f0;
 }
+.nav-tabs--disabled {
+  opacity: 0.75;
+}
+.nav-tabs--disabled a:not(:first-child) {
+  pointer-events: none;
+  color: #8c8c8c;
+}
+
 .nav-tabs a {
   text-decoration: none;
   padding: 0.25rem 0.75rem;

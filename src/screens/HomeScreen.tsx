@@ -22,6 +22,7 @@ interface Props {
   ) => void;
   currentProjectId?: string;
   onProjectDeleted?: (id: string) => void;
+  onProjectRenamed?: (id: string, name: string) => void;
 }
 
 export const HomeScreen: React.FC<Props> = ({
@@ -31,9 +32,10 @@ export const HomeScreen: React.FC<Props> = ({
   onOpenProject,
   currentProjectId,
   onProjectDeleted,
+  onProjectRenamed,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { listProjects, loadProject, removeProject } = useProject();
+  const { listProjects, loadProject, removeProject, renameProject } = useProject();
   const [projects, setProjects] = useState(() => listProjects());
   const [showIntro, setShowIntro] = useState(false);
 
@@ -81,6 +83,16 @@ export const HomeScreen: React.FC<Props> = ({
     }
   };
 
+  const handleRenameProject = (id: string, currentName: string) => {
+    const proposed = window.prompt('Nuevo nombre del proyecto', currentName);
+    if (!proposed) return;
+    const trimmed = proposed.trim();
+    if (trimmed.length === 0 || trimmed === currentName) return;
+    renameProject(id, trimmed);
+    setProjects(listProjects());
+    onProjectRenamed?.(id, trimmed);
+  };
+
   const handleOpenProject = (id: string) => {
     const proj = loadProject(id);
     if (!proj) return;
@@ -115,11 +127,20 @@ export const HomeScreen: React.FC<Props> = ({
                     </>
                   )}
                 </td>
-                <td className="trash-cell">
+                <td className="actions-cell">
+                  <button
+                    className="icon-button"
+                    title="Renombrar"
+                    aria-label={`Renombrar ${p.name}`}
+                    onClick={() => handleRenameProject(p.id, p.name)}
+                  >
+                    ✏️
+                  </button>
                   {p.id === currentProjectId ? null : (
                     <button
-                      className="trash-button"
+                      className="icon-button"
                       title="Eliminar"
+                      aria-label={`Eliminar ${p.name}`}
                       onClick={() => handleDeleteProject(p.id)}
                     >
                       🗑️

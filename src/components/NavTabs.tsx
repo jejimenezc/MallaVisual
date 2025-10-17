@@ -4,7 +4,11 @@ import { NavLink } from 'react-router-dom';
 import './NavTabs.css';
 import { useProceedToMalla } from '../state/proceed-to-malla';
 
-export const NavTabs: React.FC = () => {
+interface NavTabsProps {
+  isProjectActive: boolean;
+}
+
+export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
   const { handler } = useProceedToMalla();
   const shouldBypassCustomNavigation = (
     event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
@@ -19,6 +23,10 @@ export const NavTabs: React.FC = () => {
   const handleMallaClick = (
     event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
   ) => {
+    if (!isProjectActive) {
+      event.preventDefault();
+      return;
+    }
     if (shouldBypassCustomNavigation(event)) return;
     const shouldPreventDefault = handler('/malla/design');
     if (shouldPreventDefault !== false) {
@@ -29,6 +37,10 @@ export const NavTabs: React.FC = () => {
   const handleRepoClick = (
     event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
   ) => {
+    if (!isProjectActive) {
+      event.preventDefault();
+      return;
+    }
     if (shouldBypassCustomNavigation(event)) return;
     const shouldPreventDefault = handler('/blocks');
     if (shouldPreventDefault !== false) {
@@ -36,12 +48,21 @@ export const NavTabs: React.FC = () => {
     }
   };
 
+  const handleBlockClick = (
+    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
+  ) => {
+    if (isProjectActive) return;
+    event.preventDefault();
+  };
+
   return (
-    <nav className="nav-tabs">
+    <nav className={`nav-tabs${isProjectActive ? '' : ' nav-tabs--disabled'}`}>
       <NavLink to="/" end>
         Escritorio
       </NavLink>
-      <NavLink to="/block/design">Diseño de bloque</NavLink>
+      <NavLink to="/block/design" onClick={handleBlockClick}>
+        Diseño de bloque
+      </NavLink>
       <NavLink to="/blocks" onClick={handleRepoClick}>
         Repositorio de bloques
       </NavLink>

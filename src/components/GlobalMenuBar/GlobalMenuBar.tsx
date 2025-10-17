@@ -6,12 +6,14 @@ import styles from './GlobalMenuBar.module.css';
 interface GlobalMenuBarProps {
   onExportProject: () => void;
   hasProject: boolean;
+  onCloseProject: () => void;
 }
 
 type MenuKey = 'archivo' | null;
 
 export function GlobalMenuBar({
   onExportProject,
+  onCloseProject,
   hasProject,
 }: GlobalMenuBarProps): JSX.Element {
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
@@ -48,6 +50,16 @@ export function GlobalMenuBar({
     [handleCloseMenu, hasProject, onExportProject],
   );
 
+  const handleCloseProjectClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      handleCloseMenu();
+      if (!hasProject) return;
+      onCloseProject();
+    },
+    [handleCloseMenu, hasProject, onCloseProject],
+  );
+
   return (
     <div className={styles.menuBar}>
       <div className={styles.menuSection}>
@@ -72,6 +84,16 @@ export function GlobalMenuBar({
               <li>
                 <button type="button" className={styles.dropdownItem} disabled>
                   Abrir proyecto…
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleCloseProjectClick}
+                  disabled={!hasProject}
+                >
+                  Cerrar proyecto
                 </button>
               </li>
               <li>
