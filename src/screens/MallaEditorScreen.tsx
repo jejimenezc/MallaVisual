@@ -165,6 +165,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [showPieceMenus, setShowPieceMenus] = useState(true);
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const { autoSave, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -331,6 +332,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
   const savedRef = useRef<string | null>(null);
 
   const applyHistorySnapshot = useCallback(
@@ -469,7 +479,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [handleZoomChange, zoom],
   );
 
-  const zoomScale = useMemo(() => Math.sqrt(zoom), [zoom]);
+  const zoomScale = useMemo(() => zoom, [zoom]);
   const zoomPercent = useMemo(() => Math.round(zoom * 100), [zoom]);
   const canZoomOut = zoom > MIN_ZOOM + 0.001;
   const canZoomIn = zoom < MAX_ZOOM - 0.001;
@@ -477,13 +487,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const sliderMax = Math.round(MAX_ZOOM * 100);
   const sliderStep = Math.round(ZOOM_STEP * 100);
 
-  const viewportZoomStyle = useMemo(
+  const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        transform: `scale(${zoomScale})`,
-        transformOrigin: 'top left',
+        width: gridWidth * zoomScale,
+        height: gridHeight * zoomScale,
       }) as React.CSSProperties,
-    [zoomScale],
+    [gridWidth, gridHeight, zoomScale],
   );
 
   const zoomedGridAreaStyle = useMemo(
@@ -496,7 +506,128 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [gridAreaStyle, zoomScale],
   );
 
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) {
+      return;
+    }
 
+    const updateSize = () => {
+      setViewportSize({ width: viewportEl.clientWidth, height: viewportEl.clientHeight });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver(() => updateSize());
+      resizeObserver.observe(viewportEl);
+      return () => resizeObserver.disconnect();
+    }
+
+    const onWindowResize = () => updateSize();
+    window.addEventListener('resize', onWindowResize);
+    return () => window.removeEventListener('resize', onWindowResize);
+  }, []);
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) {
+      return;
+    }
+    setViewportSize({ width: viewportEl.clientWidth, height: viewportEl.clientHeight });
+  }, [zoomScale]);
+
+  const scaledGridWidth = useMemo(() => gridWidth * zoomScale, [gridWidth, zoomScale]);
+  const scaledGridHeight = useMemo(() => gridHeight * zoomScale, [gridHeight, zoomScale]);
+
+  const needsHorizontalScroll = scaledGridWidth > viewportSize.width + 1;
+  const needsVerticalScroll = scaledGridHeight > viewportSize.height + 1;
+
+  const viewportScrollStyle = useMemo(
+    () =>
+      ({
+        overflowX: needsHorizontalScroll ? 'auto' : 'hidden',
+        overflowY: needsVerticalScroll ? 'auto' : 'hidden',
+      }) as React.CSSProperties,
+    [needsHorizontalScroll, needsVerticalScroll],
+  );
+
+  const viewportStyle = useMemo(
+    () =>
+      ({
+        ...viewportScrollStyle,
+        userSelect: isPanning ? 'none' : undefined,
+      }) as React.CSSProperties,
+    [viewportScrollStyle, isPanning],
+  );
+
+  const handleViewportMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (pointerMode !== 'pan') return;
+      if (event.button !== 0) return;
+      const viewportEl = viewportRef.current;
+      if (!viewportEl) return;
+      panStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: viewportEl.scrollLeft,
+        scrollTop: viewportEl.scrollTop,
+      };
+      setIsPanning(true);
+      window.getSelection()?.removeAllRanges();
+      event.preventDefault();
+    },
+    [pointerMode],
+  );
+
+  useEffect(() => {
+    if (pointerMode === 'pan') {
+      setDraggingId(null);
+      return;
+    }
+    setIsPanning(false);
+  }, [pointerMode]);
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) return;
+
+    const handleMouseMovePan = (event: MouseEvent) => {
+      const deltaX = event.clientX - panStartRef.current.x;
+      const deltaY = event.clientY - panStartRef.current.y;
+      viewportEl.scrollLeft = panStartRef.current.scrollLeft - deltaX;
+      viewportEl.scrollTop = panStartRef.current.scrollTop - deltaY;
+    };
+
+    const handleMouseUpPan = () => {
+      setIsPanning(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMovePan);
+    window.addEventListener('mouseup', handleMouseUpPan);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMovePan);
+      window.removeEventListener('mouseup', handleMouseUpPan);
+    };
+  }, [isPanning]);
+
+  const viewportClassName = [
+    styles.mallaViewport,
+    pointerMode === 'pan' ? styles.panMode : '',
+    pointerMode === 'pan' && isPanning ? styles.panModeActive : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const mallaAreaClassName = [
+    styles.mallaArea,
+    pointerMode === 'pan' ? styles.mallaAreaPan : '',
+    pointerMode === 'pan' && isPanning ? styles.mallaAreaPanning : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  
   const handleSelectMaster = (id: string) => {
     setSelectedMasterId(id);
     if (!id) {
@@ -891,6 +1022,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (pointerMode !== 'select') return;
     if (!draggingId || !gridRef.current) return;
     const rect = gridRef.current.getBoundingClientRect();
     let x = e.clientX - rect.left - dragOffset.current.x;
@@ -1067,6 +1199,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
+            <>
+              <Button
+                type="button"
+                onClick={handleFillGrid}
+                title="Completar todas las posiciones vacías"
+              >
+                Generar malla completa
+              </Button>
+              <Button
+                type="button"
+                onClick={handleClearGrid}
+                title="Eliminar todas las piezas de la malla"
+              >
+                Borrar malla completa
+              </Button>
+          </>
+            </div>
+          }
+          center={
               <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
                 <span>Zoom</span>
                 <div className={styles.zoomControlGroup}>
@@ -1099,28 +1250,32 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     +
                   </button>
                   <span className={styles.zoomValue}>{zoomPercent}%</span>
+                  <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+                    <button
+                      type="button"
+                      className={`${styles.pointerToggleButton} ${
+                        pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
+                      }`}
+                      onClick={() => setPointerMode('select')}
+                      aria-pressed={pointerMode === 'select'}
+                      title="Seleccionar y mover piezas"
+                    >
+                      🖱 Seleccionar
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.pointerToggleButton} ${
+                        pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
+                      }`}
+                      onClick={() => setPointerMode('pan')}
+                      aria-pressed={pointerMode === 'pan'}
+                      title="Desplazar la malla"
+                    >
+                      ✋ Desplazar
+                    </button>
+                  </div>
                 </div>
-              </label>
-            </div>
-          }
-          center={
-            <>
-              <Button
-                type="button"
-                onClick={handleFillGrid}
-                title="Completar todas las posiciones vacías"
-              >
-                Generar malla completa
-              </Button>
-              <Button
-                type="button"
-                onClick={handleClearGrid}
-                title="Eliminar todas las piezas de la malla"
-              >
-                Borrar malla completa
-              </Button>
-          </>
-          }
+              </label>          }
           right={
             <>              
               <div className={styles.historyButtons}>
@@ -1149,14 +1304,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
         />
 
-        <div className={styles.mallaViewport} style={viewportZoomStyle}>
-          <div
-            className={styles.mallaArea}
-            ref={gridRef}
-            style={zoomedGridAreaStyle}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          >
+        <div
+          className={viewportClassName}
+          ref={viewportRef}
+          style={viewportStyle}
+          onMouseDown={handleViewportMouseDown}
+        >
+          <div className={styles.mallaAreaWrapper} style={zoomedGridContainerStyle}>
+            <div
+              className={mallaAreaClassName}
+              ref={gridRef}
+              style={zoomedGridAreaStyle}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            >
           {pieces.map((p) => {
           // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
             let pieceTemplate: BlockTemplate;
@@ -1196,13 +1357,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
             const toggleLabel = p.kind === 'ref' ? '🧊 Congelar' : '🔗 Descongelar';
 
             const floating = floatingPieces.includes(p.id);
+            const blockWrapperClassName = [
+              styles.blockWrapper,
+              floating ? styles.floating : '',
+              pointerMode === 'pan' ? styles.blockWrapperPan : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
             return (
                 <div
                   key={p.id}
-                  className={`${styles.blockWrapper} ${floating ? styles.floating : ''}`}
+                  className={blockWrapperClassName}
                   style={{ left, top, width: m.outerW, height: m.outerH, position: 'absolute' }}
-                  onMouseDown={(e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)}
-                >
+                  onMouseDown={
+                    pointerMode === 'select'
+                      ? (e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)
+                      : undefined
+                  }                >
                   {/* Toolbar por pieza */}
                   <div
                     className={`${styles.pieceToolbar} ${
@@ -1269,8 +1440,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onValueChange={onValueChange}
                 />
                 </div>
-              );
+            );
             })}
+            </div>
           </div>
         </div>
       </div>
