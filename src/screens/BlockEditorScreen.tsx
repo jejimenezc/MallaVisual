@@ -23,6 +23,7 @@ import {
 } from '../types/block.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
+import { useAppCommand } from '../state/app-commands';
 import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
 import {
   blockContentEquals,
@@ -491,6 +492,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     applyHistoryEntry(entry);
     setHistoryIndex(newIndex);
   }, [historyIndex, applyHistoryEntry]);
+
+  useAppCommand('undo', handleUndo, canUndo);
+  useAppCommand('redo', handleRedo, canRedo);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
