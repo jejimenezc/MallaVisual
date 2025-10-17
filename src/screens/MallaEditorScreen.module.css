@@ -133,6 +133,10 @@
   transition: transform 0.2s ease;
 }
 
+.mallaAreaWrapper {
+  flex: 0 0 auto;
+  position: relative;
+}
 .mallaArea {
   flex: 0 0 auto;
   position: relative;

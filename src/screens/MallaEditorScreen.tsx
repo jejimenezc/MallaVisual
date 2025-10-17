@@ -165,6 +165,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [showPieceMenus, setShowPieceMenus] = useState(true);
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const { autoSave, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -331,6 +332,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const savedRef = useRef<string | null>(null);
 
   const applyHistorySnapshot = useCallback(
@@ -469,7 +471,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [handleZoomChange, zoom],
   );
 
-  const zoomScale = useMemo(() => Math.sqrt(zoom), [zoom]);
+  const zoomScale = useMemo(() => zoom, [zoom]);
   const zoomPercent = useMemo(() => Math.round(zoom * 100), [zoom]);
   const canZoomOut = zoom > MIN_ZOOM + 0.001;
   const canZoomIn = zoom < MAX_ZOOM - 0.001;
@@ -477,13 +479,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const sliderMax = Math.round(MAX_ZOOM * 100);
   const sliderStep = Math.round(ZOOM_STEP * 100);
 
-  const viewportZoomStyle = useMemo(
+  const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        transform: `scale(${zoomScale})`,
-        transformOrigin: 'top left',
+        width: gridWidth * zoomScale,
+        height: gridHeight * zoomScale,
       }) as React.CSSProperties,
-    [zoomScale],
+    [gridWidth, gridHeight, zoomScale],
   );
 
   const zoomedGridAreaStyle = useMemo(
@@ -494,6 +496,52 @@ export const MallaEditorScreen: React.FC<Props> = ({
         transformOrigin: 'top left',
       }) as React.CSSProperties,
     [gridAreaStyle, zoomScale],
+  );
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) {
+      return;
+    }
+
+    const updateSize = () => {
+      setViewportSize({ width: viewportEl.clientWidth, height: viewportEl.clientHeight });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver(() => updateSize());
+      resizeObserver.observe(viewportEl);
+      return () => resizeObserver.disconnect();
+    }
+
+    const onWindowResize = () => updateSize();
+    window.addEventListener('resize', onWindowResize);
+    return () => window.removeEventListener('resize', onWindowResize);
+  }, []);
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) {
+      return;
+    }
+    setViewportSize({ width: viewportEl.clientWidth, height: viewportEl.clientHeight });
+  }, [zoomScale]);
+
+  const scaledGridWidth = useMemo(() => gridWidth * zoomScale, [gridWidth, zoomScale]);
+  const scaledGridHeight = useMemo(() => gridHeight * zoomScale, [gridHeight, zoomScale]);
+
+  const needsHorizontalScroll = scaledGridWidth > viewportSize.width + 1;
+  const needsVerticalScroll = scaledGridHeight > viewportSize.height + 1;
+
+  const viewportScrollStyle = useMemo(
+    () =>
+      ({
+        overflowX: needsHorizontalScroll ? 'auto' : 'hidden',
+        overflowY: needsVerticalScroll ? 'auto' : 'hidden',
+      }) as React.CSSProperties,
+    [needsHorizontalScroll, needsVerticalScroll],
   );
 
 
@@ -1149,14 +1197,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
         />
 
-        <div className={styles.mallaViewport} style={viewportZoomStyle}>
-          <div
-            className={styles.mallaArea}
-            ref={gridRef}
-            style={zoomedGridAreaStyle}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          >
+        <div
+          className={styles.mallaViewport}
+          ref={viewportRef}
+          style={viewportScrollStyle}
+        >
+          <div className={styles.mallaAreaWrapper} style={zoomedGridContainerStyle}>
+            <div
+              className={styles.mallaArea}
+              ref={gridRef}
+              style={zoomedGridAreaStyle}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            >
           {pieces.map((p) => {
           // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
             let pieceTemplate: BlockTemplate;
@@ -1269,8 +1322,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onValueChange={onValueChange}
                 />
                 </div>
-              );
+            );
             })}
+            </div>
           </div>
         </div>
       </div>
