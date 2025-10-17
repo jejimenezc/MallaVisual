@@ -333,6 +333,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
   const savedRef = useRef<string | null>(null);
 
   const applyHistorySnapshot = useCallback(
@@ -544,7 +552,82 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [needsHorizontalScroll, needsVerticalScroll],
   );
 
+  const viewportStyle = useMemo(
+    () =>
+      ({
+        ...viewportScrollStyle,
+        userSelect: isPanning ? 'none' : undefined,
+      }) as React.CSSProperties,
+    [viewportScrollStyle, isPanning],
+  );
 
+  const handleViewportMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (pointerMode !== 'pan') return;
+      if (event.button !== 0) return;
+      const viewportEl = viewportRef.current;
+      if (!viewportEl) return;
+      panStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: viewportEl.scrollLeft,
+        scrollTop: viewportEl.scrollTop,
+      };
+      setIsPanning(true);
+      window.getSelection()?.removeAllRanges();
+      event.preventDefault();
+    },
+    [pointerMode],
+  );
+
+  useEffect(() => {
+    if (pointerMode === 'pan') {
+      setDraggingId(null);
+      return;
+    }
+    setIsPanning(false);
+  }, [pointerMode]);
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) return;
+
+    const handleMouseMovePan = (event: MouseEvent) => {
+      const deltaX = event.clientX - panStartRef.current.x;
+      const deltaY = event.clientY - panStartRef.current.y;
+      viewportEl.scrollLeft = panStartRef.current.scrollLeft - deltaX;
+      viewportEl.scrollTop = panStartRef.current.scrollTop - deltaY;
+    };
+
+    const handleMouseUpPan = () => {
+      setIsPanning(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMovePan);
+    window.addEventListener('mouseup', handleMouseUpPan);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMovePan);
+      window.removeEventListener('mouseup', handleMouseUpPan);
+    };
+  }, [isPanning]);
+
+  const viewportClassName = [
+    styles.mallaViewport,
+    pointerMode === 'pan' ? styles.panMode : '',
+    pointerMode === 'pan' && isPanning ? styles.panModeActive : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const mallaAreaClassName = [
+    styles.mallaArea,
+    pointerMode === 'pan' ? styles.mallaAreaPan : '',
+    pointerMode === 'pan' && isPanning ? styles.mallaAreaPanning : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  
   const handleSelectMaster = (id: string) => {
     setSelectedMasterId(id);
     if (!id) {
@@ -939,6 +1022,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (pointerMode !== 'select') return;
     if (!draggingId || !gridRef.current) return;
     const rect = gridRef.current.getBoundingClientRect();
     let x = e.clientX - rect.left - dragOffset.current.x;
@@ -1115,6 +1199,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
+            <>
+              <Button
+                type="button"
+                onClick={handleFillGrid}
+                title="Completar todas las posiciones vacías"
+              >
+                Generar malla completa
+              </Button>
+              <Button
+                type="button"
+                onClick={handleClearGrid}
+                title="Eliminar todas las piezas de la malla"
+              >
+                Borrar malla completa
+              </Button>
+          </>
+            </div>
+          }
+          center={
               <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
                 <span>Zoom</span>
                 <div className={styles.zoomControlGroup}>
@@ -1147,28 +1250,32 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     +
                   </button>
                   <span className={styles.zoomValue}>{zoomPercent}%</span>
+                  <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+                    <button
+                      type="button"
+                      className={`${styles.pointerToggleButton} ${
+                        pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
+                      }`}
+                      onClick={() => setPointerMode('select')}
+                      aria-pressed={pointerMode === 'select'}
+                      title="Seleccionar y mover piezas"
+                    >
+                      🖱 Seleccionar
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.pointerToggleButton} ${
+                        pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
+                      }`}
+                      onClick={() => setPointerMode('pan')}
+                      aria-pressed={pointerMode === 'pan'}
+                      title="Desplazar la malla"
+                    >
+                      ✋ Desplazar
+                    </button>
+                  </div>
                 </div>
-              </label>
-            </div>
-          }
-          center={
-            <>
-              <Button
-                type="button"
-                onClick={handleFillGrid}
-                title="Completar todas las posiciones vacías"
-              >
-                Generar malla completa
-              </Button>
-              <Button
-                type="button"
-                onClick={handleClearGrid}
-                title="Eliminar todas las piezas de la malla"
-              >
-                Borrar malla completa
-              </Button>
-          </>
-          }
+              </label>          }
           right={
             <>              
               <div className={styles.historyButtons}>
@@ -1198,13 +1305,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
         />
 
         <div
-          className={styles.mallaViewport}
+          className={viewportClassName}
           ref={viewportRef}
-          style={viewportScrollStyle}
+          style={viewportStyle}
+          onMouseDown={handleViewportMouseDown}
         >
           <div className={styles.mallaAreaWrapper} style={zoomedGridContainerStyle}>
             <div
-              className={styles.mallaArea}
+              className={mallaAreaClassName}
               ref={gridRef}
               style={zoomedGridAreaStyle}
               onMouseMove={handleMouseMove}
@@ -1249,13 +1357,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
             const toggleLabel = p.kind === 'ref' ? '🧊 Congelar' : '🔗 Descongelar';
 
             const floating = floatingPieces.includes(p.id);
+            const blockWrapperClassName = [
+              styles.blockWrapper,
+              floating ? styles.floating : '',
+              pointerMode === 'pan' ? styles.blockWrapperPan : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
             return (
                 <div
                   key={p.id}
-                  className={`${styles.blockWrapper} ${floating ? styles.floating : ''}`}
+                  className={blockWrapperClassName}
                   style={{ left, top, width: m.outerW, height: m.outerH, position: 'absolute' }}
-                  onMouseDown={(e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)}
-                >
+                  onMouseDown={
+                    pointerMode === 'select'
+                      ? (e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)
+                      : undefined
+                  }                >
                   {/* Toolbar por pieza */}
                   <div
                     className={`${styles.pieceToolbar} ${
