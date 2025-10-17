@@ -43,20 +43,26 @@ export function StatusBar({
       : 'Sin nombre'
     : 'No hay proyecto activo';
 
-    return (
+  return (
     <div className={styles.statusBar}>
       <div className={styles.leftSection}>
-        <span className={styles.projectLabel}>Proyecto activo:</span>
+        {hasProject ? (
+          <span className={styles.projectLabel}>Proyecto activo:</span>
+        ) : null}
         <span className={styles.projectName}>{projectDisplayName}</span>
-        <span className={styles.autosaveTime}>{`Auto guardado: ${timeStr}`}</span>
+        {hasProject ? (
+          <span className={styles.autosaveTime}>{`Auto guardado: ${timeStr}`}</span>
+        ) : null}
       </div>
       <div className={styles.centerSection}>
-        <span className={`${styles.statusIndicator} ${statusClass}`}>
-          <span className={styles.dot} aria-hidden="true">
-            ●
+        {hasProject ? (
+          <span className={`${styles.statusIndicator} ${statusClass}`}>
+            <span className={styles.dot} aria-hidden="true">
+              ●
+            </span>
+            {statusText}
           </span>
-          {statusText}
-        </span>
+        ) : null}
         <span className={styles.schemaLabel}>{`schema v${schemaVersion}`}</span>
       </div>
       <div className={styles.rightSection}>
