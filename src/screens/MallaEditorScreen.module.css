@@ -2,30 +2,195 @@
 .mallaScreen {
   display: flex;
   height: 100%;
+  position: relative;
+}
+
+.repositoryCollapsed {
+  /* modifier applied to mallaScreen when the repository is hidden */
+}
+
+.repositoryCollapsed .repository {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition-delay: 0s, 0s, 0.1s;
+}
+
+.repositoryCollapsed .mallaWrapper {
+  flex: 1 1 100%;
 }
 
 .repository {
-  width: 240px;
+  width: 260px;
+  min-width: 260px;
   border-right: 1px solid var(--color-border);
   padding: var(--space-sm);
   background: var(--color-surface);
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto; /* título, selector, snapshot, botones agregar */
+  grid-template-rows: auto auto auto auto 1fr auto; /* header, selector, snapshot, back, botones */
   gap: var(--space-sm);
+  transition: width 0.5s ease, padding 0.5s ease, opacity 0.5s ease;
+  position: relative;
+}
+
+.repositoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+    gap: var(--space-sm);
+}
+
+.gridSizeControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.gridSizeControl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.875rem;
+}
+
+.gridSizeControl span {
+  white-space: nowrap;
+}
+
+.gridSizeInput {
+  width: 2.25rem;
+  padding: 0.25rem 0.25rem;
+  text-align: center;
+}
+
+.zoomControl {
+  min-width: 0;
+}
+
+.zoomControlGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.zoomSlider {
+  width: 7rem;
+  accent-color: var(--color-accent, var(--color-primary));
+}
+
+.zoomButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.zoomButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoomValue {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pointerToggle {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.pointerToggleButton {
+  border: none;
+  background: none;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pointerToggleButton + .pointerToggleButton {
+  border-left: 1px solid var(--color-border);
+}
+
+.pointerToggleButtonActive {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.historyButtons {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
 }
 
 .mallaWrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
+  transition: flex-basis 0.5s ease;
+  min-width: 0;
 }
 
-.mallaArea {
+.mallaViewport {
   flex: 1;
+  width: 100%;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  transition: transform 0.2s ease;
+}
+
+.panMode {
+  cursor: grab;
+}
+
+.panModeActive {
+  cursor: grabbing;
+}
+
+.mallaAreaWrapper {
+  flex: 0 0 auto;
+  position: relative;
+}
+.mallaArea {
+  flex: 0 0 auto;
   position: relative;
   background-image: linear-gradient(to right, var(--color-border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--color-border) 1px, transparent 1px);
   background-size: calc(100% / var(--cols)) calc(100% / var(--rows));
+  transition: transform 0.2s ease;
+}
+
+.mallaAreaPan {
+  cursor: grab;
+}
+
+.mallaAreaPanning {
+  cursor: grabbing;
 }
 
 .blockWrapper {
@@ -33,6 +198,11 @@
   cursor: move;
   border: 1px solid var(--color-border);
   box-sizing: border-box;
+}
+
+.blockWrapperPan {
+  cursor: grab;
+  pointer-events: none;
 }
 
 /* Pieza recién agregada/duplicada: desplazada y con sombra */
@@ -56,10 +226,8 @@
 .repoActions {
   display: grid;
   gap: var(--space-sm);
-}
-
-.repoActions .btn {
-  width: 100%;
+  align-content: center;
+  justify-items: center;
 }
 
   .masterRepo {
@@ -95,6 +263,65 @@
   pointer-events: auto;
 }
 
+.toolbarHidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.collapseToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: inherit;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  z-index: 1200;
+  transition: background-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+  width: 1.125rem;
+  min-width: 1.125rem;
+  height: 2.25rem;
+}
+
+.collapseToggleRow {
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.collapseToggleHide {
+  margin-left: auto;
+  border-radius: var(--space-xs) 0 0 var(--space-xs);
+  border-right: none;
+}
+
+.collapseToggleRestore {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  border-radius: 0 var(--space-xs) var(--space-xs) 0;
+  width: 1.125rem;
+  min-width: 1.125rem;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  border-left: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  opacity: 0.5;
+}
+
+.collapseToggleRestore:hover,
+.collapseToggleRestore:focus-visible {
+  opacity: 1;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
 .pieceToolbar .btn {
   font-size: 12px;
   padding: 2px 6px;
@@ -103,4 +330,66 @@
   background: var(--color-surface);
   border-radius: 6px;
   cursor: pointer;
+}
+
+.blockMenuToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.blockMenuToggleControl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 22px;
+}
+
+.blockMenuToggleInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.blockMenuToggleTrack {
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-border);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.blockMenuToggleThumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease;
+  transform: translateX(0);
+}
+
+.blockMenuToggleInput:checked + .blockMenuToggleTrack {
+  background: var(--color-primary);
+}
+
+.blockMenuToggleInput:checked + .blockMenuToggleTrack .blockMenuToggleThumb {
+  transform: translateX(18px);
+}
+
+.blockMenuToggleInput:focus-visible + .blockMenuToggleTrack {
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
 }

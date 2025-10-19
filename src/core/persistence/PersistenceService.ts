@@ -179,6 +179,10 @@ export class PersistenceService {
   removeProject = (id: string): void => {
     this.projectRepo.remove(id);
   };
+
+  renameProject = (id: string, name: string): void => {
+    this.projectRepo.rename(id, name);
+  };
 }
 
 export const persistenceService = new PersistenceService();

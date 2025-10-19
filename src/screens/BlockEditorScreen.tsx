@@ -23,6 +23,7 @@ import {
 } from '../types/block.ts';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { useProceedToMalla } from '../state/proceed-to-malla';
+import { useAppCommand } from '../state/app-commands';
 import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
 import {
   blockContentEquals,
@@ -31,6 +32,15 @@ import {
   type BlockContent,
 } from '../utils/block-content.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
+import './BlockEditorScreen.css';
+
+const isInteractiveElement = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  if (['input', 'textarea', 'select', 'button'].includes(tag)) return true;
+  if (target.isContentEditable) return true;
+  return !!target.closest('input,textarea,select,button,[contenteditable="true"]');
+};
 
 
 const generateEmptyTemplate = (): BlockTemplate =>
@@ -115,13 +125,18 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     return () => window.removeEventListener('block-repo-updated', sync);
   }, [listBlocks]);
 
+  const initialDataSignature = useMemo(() => {
+    if (!initialData) return null;
+    return JSON.stringify(toBlockContent(initialData));
+  }, [initialData]);
+  
   useEffect(() => {
     if (!initialData) return;
     const content = cloneBlockContent(toBlockContent(initialData));
     setTemplate(content.template);
     setVisual(content.visual);
     setAspect(content.aspect);
-  }, [initialData]);
+  }, [initialData, initialDataSignature]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -177,9 +192,65 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => ({ template, visual, aspect }),
     [template, visual, aspect],
   );
+  const draftSerialized = useMemo(() => JSON.stringify(draftContent), [draftContent]);
+
+  const historyRef = useRef<BlockContent[]>([]);
+  const historySerializedRef = useRef<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
+  const isRestoringRef = useRef(false);
+  const ignoreNextInitialDataRef = useRef(false);
+
+  useEffect(() => {
+    if (ignoreNextInitialDataRef.current) {
+      ignoreNextInitialDataRef.current = false;
+      return;
+    }
+    setIsHistoryInitialized(false);
+  }, [initialDataSignature]);
+
+  useEffect(() => {
+    if (!isHistoryInitialized) {
+      const initialEntry = cloneBlockContent(draftContent);
+      historyRef.current = [initialEntry];
+      historySerializedRef.current = [draftSerialized];
+      setHistoryIndex(0);
+      setIsHistoryInitialized(true);
+      return;
+    }
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
+    const currentSerialized = historySerializedRef.current[historyIndex];
+    if (currentSerialized === draftSerialized) return;
+    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
+    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
+    truncatedHistory.push(cloneBlockContent(draftContent));
+    truncatedSerialized.push(draftSerialized);
+    historyRef.current = truncatedHistory;
+    historySerializedRef.current = truncatedSerialized;
+    setHistoryIndex(truncatedHistory.length - 1);
+  }, [
+    draftContent,
+    draftSerialized,
+    historyIndex,
+    isHistoryInitialized,
+  ]);
+
+  const applyHistoryEntry = useCallback(
+    (entry: BlockContent) => {
+      const clone = cloneBlockContent(entry);
+      setTemplate(clone.template);
+      setVisual(clone.visual);
+      setAspect(clone.aspect);
+    },
+    [setTemplate, setVisual, setAspect],
+  );
 
   useEffect(() => {
     if (!onDraftChange) return;
+    ignoreNextInitialDataRef.current = true;
     onDraftChange(cloneBlockContent(draftContent));
   }, [draftContent, onDraftChange]);
   const repoRecord = useMemo(
@@ -399,24 +470,80 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setSelectedCoord(undefined);
   }, [mode]);
 
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyRef.current.length - 1;
+  
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistoryEntry(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistoryEntry]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= historyRef.current.length - 1) return;
+    const newIndex = historyIndex + 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistoryEntry(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistoryEntry]);
+
+  useAppCommand('undo', handleUndo, canUndo);
+  useAppCommand('redo', handleRedo, canRedo);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (isInteractiveElement(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (key === 'y') {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
+
   const header = (
-    <Header title="Editor de Bloques">
-      <Button
-        className={mode === 'edit' ? 'active' : ''}
-        onClick={() => setMode('edit')}
-      >
-        ✏️ Editar
-      </Button>
-      <Button
-        className={mode === 'view' ? 'active' : ''}
-        onClick={() => setMode('view')}
-      >
-        👁️ Vista
-      </Button>
-      <Button onClick={() => ensurePublishedAndProceed()}>
-        ➡️ Malla
-      </Button>
-    </Header>
+    <Header
+      title="Editor de Bloques"
+      center={
+        <>
+          <Button onClick={handleUndo} disabled={!canUndo}>
+            ↩️ Deshacer
+          </Button>
+          <Button onClick={handleRedo} disabled={!canRedo}>
+            ↪️ Rehacer
+          </Button>
+
+          <Button
+            className={mode === 'edit' ? 'active' : ''}
+            onClick={() => setMode('edit')}
+          >
+            ✏️ Editar
+          </Button>
+          <Button
+            className={mode === 'view' ? 'active' : ''}
+            onClick={() => setMode('view')}
+          >
+            👁️ Vista
+          </Button>
+        </>
+      }
+    />
   );
 
   useEffect(() => {
@@ -428,33 +555,74 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   if (mode === 'edit') {
     return (
+      <div className="block-editor-screen">
+        <TwoPaneLayout
+          header={header}
+          left={
+            <BlockTemplateEditor
+              template={template}
+              setTemplate={setTemplate}
+              onSidebarStateChange={setEditorSidebar}
+            />
+          }
+          right={
+            <div>
+              <ContextSidebarPanel
+                selectedCount={editorSidebar?.selectedCount ?? 0}
+                canCombine={editorSidebar?.canCombine ?? false}
+                canSeparate={editorSidebar?.canSeparate ?? false}
+                onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
+                onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+                selectedCell={editorSidebar?.selectedCell ?? null}
+                selectedCoord={editorSidebar?.selectedCoord}
+                onUpdateCell={(updated, coord) => {
+                  const fallback = editorSidebar?.selectedCoord;
+                  const target = coord ?? fallback;
+                  if (!target || !editorSidebar?.handlers.onUpdateCell) return;
+                  editorSidebar.handlers.onUpdateCell(updated, target);
+                }}
+                combineDisabledReason={editorSidebar?.combineDisabledReason}
+                template={template}
+              />
+              <div style={{ marginTop: '1rem' }}>
+                <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
+                <Button onClick={handleRename}>
+                  {repoId ? 'Renombrar bloque' : 'Definir nombre'}
+                </Button>
+              </div>
+              <Button onClick={() => handleSaveToRepo()}>
+                {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
+  // MODO VISTA
+  return (
+    <div className="block-editor-screen">
       <TwoPaneLayout
         header={header}
         left={
-          <BlockTemplateEditor
+          <BlockTemplateViewer
             template={template}
-            setTemplate={setTemplate}
-            onSidebarStateChange={setEditorSidebar}
+            visualTemplate={visual}
+            selectedCoord={selectedCoord}
+            onSelectCoord={setSelectedCoord}
+            aspect={aspect}
           />
         }
         right={
           <div>
-            <ContextSidebarPanel
-              selectedCount={editorSidebar?.selectedCount ?? 0}
-              canCombine={editorSidebar?.canCombine ?? false}
-              canSeparate={editorSidebar?.canSeparate ?? false}
-              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
-              selectedCell={editorSidebar?.selectedCell ?? null}
-              selectedCoord={editorSidebar?.selectedCoord}
-              onUpdateCell={(updated, coord) => {
-                const fallback = editorSidebar?.selectedCoord;
-                const target = coord ?? fallback;
-                if (!target || !editorSidebar?.handlers.onUpdateCell) return;
-                editorSidebar.handlers.onUpdateCell(updated, target);
-              }}
-              combineDisabledReason={editorSidebar?.combineDisabledReason}
+            <FormatStylePanel
+              selectedCoord={selectedCoord}
+              visualTemplate={visual}
+              onUpdateVisual={setVisual}
               template={template}
+              blockAspect={aspect}
+              onUpdateAspect={setAspect}
             />
             <div style={{ marginTop: '1rem' }}>
               <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
@@ -468,43 +636,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           </div>
         }
       />
-    );
-  }
-
-  // MODO VISTA
-  return (
-    <TwoPaneLayout
-      header={header}
-      left={
-        <BlockTemplateViewer
-          template={template}
-          visualTemplate={visual}
-          selectedCoord={selectedCoord}
-          onSelectCoord={setSelectedCoord}
-          aspect={aspect}
-        />
-      }
-      right={
-        <div>
-          <FormatStylePanel
-            selectedCoord={selectedCoord}
-            visualTemplate={visual}
-            onUpdateVisual={setVisual}
-            template={template}
-            blockAspect={aspect}
-            onUpdateAspect={setAspect}
-          />
-          <div style={{ marginTop: '1rem' }}>
-            <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
-            <Button onClick={handleRename}>
-              {repoId ? 'Renombrar bloque' : 'Definir nombre'}
-            </Button>
-          </div>
-          <Button onClick={() => handleSaveToRepo()}>
-            {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
-          </Button>
-        </div>
-      }
-    />
+    </div>
   );
 };

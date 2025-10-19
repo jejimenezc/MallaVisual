@@ -5,18 +5,20 @@ import type { JSX } from 'react';
 interface UILayoutContextValue {
   showHeader: boolean;
   toggleHeader: () => void;
+  showChrome: boolean;
+  toggleChrome: () => void;
 }
 
 const UILayoutContext = createContext<UILayoutContextValue | undefined>(undefined);
 
 export function UILayoutProvider({ children }: { children: React.ReactNode }): JSX.Element {
-  const [showHeader, setShowHeader] = useState(true);
+  const [showChrome, setShowChrome] = useState(true);
 
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem('ui.showHeader');
       if (stored !== null) {
-        setShowHeader(stored === 'true');
+        setShowChrome(stored === 'true');
       }
     } catch {
       /* ignore */
@@ -25,18 +27,26 @@ export function UILayoutProvider({ children }: { children: React.ReactNode }): J
 
   useEffect(() => {
     try {
-      window.localStorage.setItem('ui.showHeader', String(showHeader));
+      window.localStorage.setItem('ui.showHeader', String(showChrome));
     } catch {
       /* ignore */
     }
-  }, [showHeader]);
+  }, [showChrome]);
 
   const toggleHeader = () => {
-    setShowHeader((prev) => !prev);
+    setShowChrome((prev) => !prev);
   };
 
+  const toggleChrome = () => {
+    setShowChrome((prev) => !prev);
+  };
+
+  const showHeader = showChrome;
+
   return (
-    <UILayoutContext.Provider value={{ showHeader, toggleHeader }}>
+    <UILayoutContext.Provider
+      value={{ showHeader, toggleHeader, showChrome, toggleChrome }}
+    >
       {children}
     </UILayoutContext.Provider>
   );

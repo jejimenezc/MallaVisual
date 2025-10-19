@@ -1,3 +1,24 @@
+.block-editor-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.block-editor-screen .screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.block-editor-screen .two-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .block-editor-screen .grid-container {
   flex: 1;
   display: flex;

@@ -3,21 +3,26 @@ import React from 'react';
 import type { JSX } from 'react';
 import styles from './StatusBar.module.css';
 import { useAutosaveInfo } from '../../core/persistence/hooks.ts';
+import { ActionPillButton } from '../ActionPillButton/ActionPillButton';
 
 interface StatusBarProps {
   projectName: string;
-  screenTitle: string;
-  schemaVersion: number;
-  onExportProject: () => void;
   hasProject: boolean;
+  schemaVersion: number;
+  quickNavLabel?: string | null;
+  onQuickNav?: (() => void) | null;
+  isChromeVisible: boolean;
+  onToggleChrome: () => void;
 }
 
 export function StatusBar({
   projectName,
-  screenTitle,
-  schemaVersion,
-  onExportProject,
   hasProject,
+  schemaVersion,
+  quickNavLabel,
+  onQuickNav,
+  isChromeVisible,
+  onToggleChrome,
 }: StatusBarProps): JSX.Element {
   const { status, lastSaved } = useAutosaveInfo();
   const timeStr = lastSaved ? new Date(lastSaved).toLocaleTimeString() : '—';
@@ -29,26 +34,46 @@ export function StatusBar({
     statusText = 'Guardando…';
   } else if (status === 'error') {
     statusClass = styles.error;
-    statusText = 'Cambios pendientes';
+    statusText = 'Error al guardar';
   }
+
+  const projectDisplayName = hasProject
+    ? projectName?.trim().length > 0
+      ? projectName
+      : 'Sin nombre'
+    : 'No hay proyecto activo';
 
   return (
     <div className={styles.statusBar}>
-      <div className={styles.project}>{`Proyecto activo: ${projectName || 'Sin nombre'} · Auto guardado: ${timeStr}`}</div>
-      <div className={styles.screen}>{screenTitle}</div>
-      <div className={styles.indicators}>
-        <span className={`${styles.status} ${statusClass}`}>
-          <span className={styles.dot}>●</span>
-          {statusText}
-        </span>
-        <button
-          className={styles.exportButton}
-          onClick={onExportProject}
-          disabled={!hasProject}
-        >
-          Exportar proyecto…
-        </button>
-        <span>{`schema v${schemaVersion}`}</span>
+      <div className={styles.leftSection}>
+        {hasProject ? (
+          <span className={styles.projectLabel}>Proyecto activo:</span>
+        ) : null}
+        <span className={styles.projectName}>{projectDisplayName}</span>
+        {hasProject ? (
+          <span className={styles.autosaveTime}>{`Auto guardado: ${timeStr}`}</span>
+        ) : null}
+      </div>
+      <div className={styles.centerSection}>
+        {hasProject ? (
+          <span className={`${styles.statusIndicator} ${statusClass}`}>
+            <span className={styles.dot} aria-hidden="true">
+              ●
+            </span>
+            {statusText}
+          </span>
+        ) : null}
+        <span className={styles.schemaLabel}>{`schema v${schemaVersion}`}</span>
+      </div>
+      <div className={styles.rightSection}>
+        {quickNavLabel && onQuickNav ? (
+          <ActionPillButton onClick={onQuickNav}>
+            {quickNavLabel}
+          </ActionPillButton>
+        ) : null}
+        <ActionPillButton onClick={onToggleChrome}>
+          {isChromeVisible ? 'Ocultar interfaz' : 'Mostrar interfaz'}
+        </ActionPillButton>
       </div>
     </div>
   );

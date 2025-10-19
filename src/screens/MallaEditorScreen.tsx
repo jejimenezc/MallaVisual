@@ -1,5 +1,5 @@
 // src/screens/MallaEditorScreen.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -18,7 +18,6 @@ import {
   type ActiveBounds,
 } from '../utils/block-active.ts';
 import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
-import { duplicateActiveCrop } from '../utils/block-clone.ts';
 import { blockContentEquals } from '../utils/block-content.ts';
 import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -28,8 +27,31 @@ import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
+import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
+import addRefIcon from '../assets/icons/icono-plus-50.png';
+import { useAppCommand } from '../state/app-commands';
 
 const STORAGE_KEY = 'malla-editor-state';
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 0.1;
+
+interface MallaHistoryEntry {
+  cols: number;
+  rows: number;
+  pieces: CurricularPiece[];
+  pieceValues: Record<string, Record<string, string | number | boolean>>;
+  floatingPieces: string[];
+  mastersById: Record<string, MasterBlockData>;
+  selectedMasterId: string;
+}
+
+const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(entry);
+  }
+  return JSON.parse(JSON.stringify(entry)) as MallaHistoryEntry;
+};
 
 function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
   const friendlyName = metadata.name?.trim();
@@ -122,6 +144,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
   projectId,
   projectName,
 }) => {
+  const initialMallaSignature = useMemo(() => {
+    if (!initialMalla) return null;
+    return JSON.stringify(initialMalla);
+  }, [initialMalla]);
+
   // --- maestro + recorte activo
   const bounds = useMemo(() => getActiveBounds(template), [template]);
   const subTemplate = useMemo(() => cropTemplate(template, bounds), [template, bounds]);
@@ -136,6 +163,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
+  const [showPieceMenus, setShowPieceMenus] = useState(true);
+  const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const { autoSave, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -178,6 +209,68 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
 
+  const historyRef = useRef<MallaHistoryEntry[]>([]);
+  const historySerializedRef = useRef<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
+  const isRestoringRef = useRef(false);
+  const ignoreNextInitialMallaRef = useRef(false);
+
+  const historySnapshot = useMemo<MallaHistoryEntry>(
+    () => ({
+      cols,
+      rows,
+      pieces,
+      pieceValues,
+      floatingPieces,
+      mastersById,
+      selectedMasterId,
+    }),
+    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId],
+  );
+
+  const historySnapshotSerialized = useMemo(
+    () => JSON.stringify(historySnapshot),
+    [historySnapshot],
+  );
+
+  useEffect(() => {
+    if (!isHistoryInitialized) {
+      const entry = cloneMallaHistoryEntry(historySnapshot);
+      historyRef.current = [entry];
+      historySerializedRef.current = [historySnapshotSerialized];
+      setHistoryIndex(0);
+      setIsHistoryInitialized(true);
+      return;
+    }
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      return;
+    }
+    const currentSerialized = historySerializedRef.current[historyIndex];
+    if (currentSerialized === historySnapshotSerialized) return;
+    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
+    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
+    truncatedHistory.push(cloneMallaHistoryEntry(historySnapshot));
+    truncatedSerialized.push(historySnapshotSerialized);
+    historyRef.current = truncatedHistory;
+    historySerializedRef.current = truncatedSerialized;
+    setHistoryIndex(truncatedHistory.length - 1);
+  }, [
+    historySnapshot,
+    historySnapshotSerialized,
+    historyIndex,
+    isHistoryInitialized,
+  ]);
+
+  useEffect(() => {
+    if (ignoreNextInitialMallaRef.current) {
+      ignoreNextInitialMallaRef.current = false;
+      return;
+    }
+    setIsHistoryInitialized(false);
+  }, [initialMallaSignature]);
+
   useEffect(() => {
     if (!repoId) return;
     setSelectedMasterId((prevId) => (prevId === repoId ? prevId : repoId));
@@ -195,6 +288,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [availableMasters],
   );
   const repositoryEntries = repositorySnapshot.entries;
+
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < historyRef.current.length - 1;
 
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
@@ -237,7 +333,86 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
   const savedRef = useRef<string | null>(null);
+
+  const applyHistorySnapshot = useCallback(
+    (entry: MallaHistoryEntry) => {
+      const clone = cloneMallaHistoryEntry(entry);
+      setCols(clone.cols);
+      setRows(clone.rows);
+      setPieces(clone.pieces);
+      setPieceValues(clone.pieceValues);
+      setFloatingPieces(clone.floatingPieces);
+      setMastersById(clone.mastersById);
+      setSelectedMasterId(clone.selectedMasterId);
+      setDraggingId(null);
+      setDragPos({ x: 0, y: 0 });
+    },
+    [
+      setCols,
+      setRows,
+      setPieces,
+      setPieceValues,
+      setFloatingPieces,
+      setMastersById,
+      setSelectedMasterId,
+      setDraggingId,
+      setDragPos,
+    ],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const newIndex = historyIndex - 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistorySnapshot(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistorySnapshot]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= historyRef.current.length - 1) return;
+    const newIndex = historyIndex + 1;
+    const entry = historyRef.current[newIndex];
+    if (!entry) return;
+    isRestoringRef.current = true;
+    applyHistorySnapshot(entry);
+    setHistoryIndex(newIndex);
+  }, [historyIndex, applyHistorySnapshot]);
+
+  useAppCommand('undo', handleUndo, canUndo);
+  useAppCommand('redo', handleRedo, canRedo);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.target instanceof HTMLElement && isInteractive(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (key === 'y') {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
   const {
     colWidths,
     rowHeights,
@@ -288,7 +463,175 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [cols, rows, gridWidth, gridHeight]
   );
 
+  const clampZoom = useCallback(
+    (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value)),
+    [],
+  );
 
+  const handleZoomChange = useCallback(
+    (value: number) => {
+      const clamped = clampZoom(value);
+      setZoom(Number(clamped.toFixed(2)));
+    },
+    [clampZoom],
+  );
+
+  const handleZoomStep = useCallback(
+    (direction: 1 | -1) => {
+      handleZoomChange(zoom + direction * ZOOM_STEP);
+    },
+    [handleZoomChange, zoom],
+  );
+
+  const zoomScale = useMemo(() => zoom, [zoom]);
+  const zoomPercent = useMemo(() => Math.round(zoom * 100), [zoom]);
+  const canZoomOut = zoom > MIN_ZOOM + 0.001;
+  const canZoomIn = zoom < MAX_ZOOM - 0.001;
+  const sliderMin = Math.round(MIN_ZOOM * 100);
+  const sliderMax = Math.round(MAX_ZOOM * 100);
+  const sliderStep = Math.round(ZOOM_STEP * 100);
+
+  const zoomedGridContainerStyle = useMemo(
+    () =>
+      ({
+        width: gridWidth * zoomScale,
+        height: gridHeight * zoomScale,
+      }) as React.CSSProperties,
+    [gridWidth, gridHeight, zoomScale],
+  );
+
+  const zoomedGridAreaStyle = useMemo(
+    () =>
+      ({
+        ...gridAreaStyle,
+        transform: `scale(${zoomScale})`,
+        transformOrigin: 'top left',
+      }) as React.CSSProperties,
+    [gridAreaStyle, zoomScale],
+  );
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) {
+      return;
+    }
+
+    const updateSize = () => {
+      setViewportSize({ width: viewportEl.clientWidth, height: viewportEl.clientHeight });
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver(() => updateSize());
+      resizeObserver.observe(viewportEl);
+      return () => resizeObserver.disconnect();
+    }
+
+    const onWindowResize = () => updateSize();
+    window.addEventListener('resize', onWindowResize);
+    return () => window.removeEventListener('resize', onWindowResize);
+  }, []);
+
+  useEffect(() => {
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) {
+      return;
+    }
+    setViewportSize({ width: viewportEl.clientWidth, height: viewportEl.clientHeight });
+  }, [zoomScale]);
+
+  const scaledGridWidth = useMemo(() => gridWidth * zoomScale, [gridWidth, zoomScale]);
+  const scaledGridHeight = useMemo(() => gridHeight * zoomScale, [gridHeight, zoomScale]);
+
+  const needsHorizontalScroll = scaledGridWidth > viewportSize.width + 1;
+  const needsVerticalScroll = scaledGridHeight > viewportSize.height + 1;
+
+  const viewportScrollStyle = useMemo(
+    () =>
+      ({
+        overflowX: needsHorizontalScroll ? 'auto' : 'hidden',
+        overflowY: needsVerticalScroll ? 'auto' : 'hidden',
+      }) as React.CSSProperties,
+    [needsHorizontalScroll, needsVerticalScroll],
+  );
+
+  const viewportStyle = useMemo(
+    () =>
+      ({
+        ...viewportScrollStyle,
+        userSelect: isPanning ? 'none' : undefined,
+      }) as React.CSSProperties,
+    [viewportScrollStyle, isPanning],
+  );
+
+  const handleViewportMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (pointerMode !== 'pan') return;
+      if (event.button !== 0) return;
+      const viewportEl = viewportRef.current;
+      if (!viewportEl) return;
+      panStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: viewportEl.scrollLeft,
+        scrollTop: viewportEl.scrollTop,
+      };
+      setIsPanning(true);
+      window.getSelection()?.removeAllRanges();
+      event.preventDefault();
+    },
+    [pointerMode],
+  );
+
+  useEffect(() => {
+    if (pointerMode === 'pan') {
+      setDraggingId(null);
+      return;
+    }
+    setIsPanning(false);
+  }, [pointerMode]);
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const viewportEl = viewportRef.current;
+    if (!viewportEl) return;
+
+    const handleMouseMovePan = (event: MouseEvent) => {
+      const deltaX = event.clientX - panStartRef.current.x;
+      const deltaY = event.clientY - panStartRef.current.y;
+      viewportEl.scrollLeft = panStartRef.current.scrollLeft - deltaX;
+      viewportEl.scrollTop = panStartRef.current.scrollTop - deltaY;
+    };
+
+    const handleMouseUpPan = () => {
+      setIsPanning(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMovePan);
+    window.addEventListener('mouseup', handleMouseUpPan);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMovePan);
+      window.removeEventListener('mouseup', handleMouseUpPan);
+    };
+  }, [isPanning]);
+
+  const viewportClassName = [
+    styles.mallaViewport,
+    pointerMode === 'pan' ? styles.panMode : '',
+    pointerMode === 'pan' && isPanning ? styles.panModeActive : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const mallaAreaClassName = [
+    styles.mallaArea,
+    pointerMode === 'pan' ? styles.mallaAreaPan : '',
+    pointerMode === 'pan' && isPanning ? styles.mallaAreaPanning : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  
   const handleSelectMaster = (id: string) => {
     setSelectedMasterId(id);
     if (!id) {
@@ -390,6 +733,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(values);
     setFloatingPieces(nextFloating);
     setSelectedMasterId(activeMasterId);
+    setIsHistoryInitialized(false);
   }, [normalizedInitial]);
 
   useEffect(() => {
@@ -406,7 +750,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
-    onMallaChange?.(project);
+    if (onMallaChange) {
+      ignoreNextInitialMallaRef.current = true;
+      onMallaChange(project);
+    }
     autoSave(project);
   }, [
     mastersById,
@@ -442,6 +789,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setPieces(data.pieces);
       setPieceValues(data.values);
       setFloatingPieces(data.floatingPieces ?? []);
+      setIsHistoryInitialized(false);
     }
   }, [initialMalla, loadDraft, onUpdateMaster]);
 
@@ -536,31 +884,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
       ref: { sourceId: selectedMasterId, bounds, aspect }, // guarda bounds completos
       x: pos.x,
       y: pos.y,
-    };
-    setPieces((prev) => [...prev, piece]);
-    setFloatingPieces((prev) => [...prev, id]);
-  };
-
-  const handleAddSnapshot = () => {
-    const pos = findFreeCell();
-    if (!pos) {
-      window.alert(
-        'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
-      );
-      return;
-    }
-
-    const id = crypto.randomUUID();
-    const snap = duplicateActiveCrop({ template, visual, aspect });
-    const piece: CurricularPieceSnapshot = {
-      kind: 'snapshot',
-      id,
-      template: snap.template,
-      visual: snap.visual,
-      aspect: snap.aspect,
-      x: pos.x,
-      y: pos.y,
-      origin: { sourceId: selectedMasterId, bounds, aspect }, // para poder "descongelar"
     };
     setPieces((prev) => [...prev, piece]);
     setFloatingPieces((prev) => [...prev, id]);
@@ -703,6 +1026,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (pointerMode !== 'select') return;
     if (!draggingId || !gridRef.current) return;
     const rect = gridRef.current.getBoundingClientRect();
     let x = e.clientX - rect.left - dragOffset.current.x;
@@ -773,14 +1097,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className={styles.mallaScreen}>
+    <div
+      className={`${styles.mallaScreen} ${
+        isRepositoryCollapsed ? styles.repositoryCollapsed : ''
+      }`}
+    >
+      {isRepositoryCollapsed && (
+        <Button
+          type="button"
+          className={`${styles.collapseToggle} ${styles.collapseToggleRestore}`}
+          onClick={() => setIsRepositoryCollapsed(false)}
+          title="Mostrar panel de maestros"
+        >
+          ›
+        </Button>
+      )}
       <div className={styles.repository}>
-        {onBack && (
-          <Button onClick={onBack} title="Volver a inicio">
-            ⬅️ Volver
-          </Button>
-        )}
-        <h3>Repositorio</h3>
+        <div className={styles.repositoryHeader}>
+          <b>Bloque activo</b>
+        </div>
 
         <div className={styles.masterRepo}>
           <select
@@ -808,66 +1143,185 @@ export const MallaEditorScreen: React.FC<Props> = ({
         <div className={styles.repoSnapshot}>
           <BlockSnapshot template={template} visualTemplate={visual} aspect={aspect} />
         </div>
-
         <div className={styles.repoActions}>
-          <Button
+        {onBack && (
+          <ActionPillButton onClick={onBack} title="Ir a editor de bloque">
+            ⬅️ Editar bloque activo
+          </ActionPillButton>
+        )}
+          <ActionPillButton
             onClick={handleAddReferenced}
             title="Agregar bloque sincronizado con el maestro"
           >
-            Agregar bloque (referenciado)
-          </Button>
-          <Button
-            onClick={handleAddSnapshot}
-            title="Agregar copia estática del bloque actual"
-          >
-            Agregar bloque (snapshot)
-          </Button>
+          <img
+            src={addRefIcon}
+            alt=""
+            style={{
+              width: '2em',
+              height: '2em',
+              marginRight: '0.5em',
+              verticalAlign: 'middle',
+            }}
+          />
+            Agregar a la malla
+          </ActionPillButton>
+          <div className={styles.collapseToggleRow}>
+            <Button
+              type="button"
+              className={`${styles.collapseToggle} ${styles.collapseToggleHide}`}
+              onClick={() => setIsRepositoryCollapsed(true)}
+              title="Ocultar panel de maestros"
+            >
+              ‹
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className={styles.mallaWrapper}>
-        <Header title="Editor de Malla">
-          <label>
-            Filas
-            <input
-              type="number"
-              min={1}
-              value={rows}
-              onChange={(e) => handleRowsChange(Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Columnas
-            <input
-              type="number"
-              min={1}
-              value={cols}
-              onChange={(e) => handleColsChange(Number(e.target.value))}
-            />
-          </label>
-          <Button
-            type="button"
-            onClick={handleFillGrid}
-            title="Completar todas las posiciones vacías"
-          >
-            Generar malla completa
-          </Button>
-          <Button
-            type="button"
-            onClick={handleClearGrid}
-            title="Eliminar todas las piezas de la malla"
-          >
-            Borrar malla completa
-          </Button>
-        </Header>
+        <Header
+          title="Editor de Malla"
+          left={
+            <div className={styles.gridSizeControls}>
+              <label className={styles.gridSizeControl}>
+                <span>Filas</span>
+                <input
+                  className={styles.gridSizeInput}
+                  type="number"
+                  min={1}
+                  value={rows}
+                  onChange={(e) => handleRowsChange(Number(e.target.value))}
+                />
+              </label>
+              <label className={styles.gridSizeControl}>
+                <span>Columnas</span>
+                <input
+                  className={styles.gridSizeInput}
+                  type="number"
+                  min={1}
+                  value={cols}
+                  onChange={(e) => handleColsChange(Number(e.target.value))}
+                />
+              </label>
+            <>
+              <Button
+                type="button"
+                onClick={handleFillGrid}
+                title="Completar todas las posiciones vacías"
+              >
+                Generar malla completa
+              </Button>
+              <Button
+                type="button"
+                onClick={handleClearGrid}
+                title="Eliminar todas las piezas de la malla"
+              >
+                Borrar malla completa
+              </Button>
+          </>
+            </div>
+          }
+          center={
+              <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
+                <span>Zoom</span>
+                <div className={styles.zoomControlGroup}>
+                  <button
+                    type="button"
+                    className={styles.zoomButton}
+                    onClick={() => handleZoomStep(-1)}
+                    disabled={!canZoomOut}
+                    aria-label="Reducir zoom"
+                  >
+                    −
+                  </button>
+                  <input
+                    className={styles.zoomSlider}
+                    type="range"
+                    min={sliderMin}
+                    max={sliderMax}
+                    step={sliderStep}
+                    value={zoomPercent}
+                    onChange={(e) => handleZoomChange(Number(e.target.value) / 100)}
+                    aria-label="Nivel de zoom de la malla"
+                  />
+                  <button
+                    type="button"
+                    className={styles.zoomButton}
+                    onClick={() => handleZoomStep(1)}
+                    disabled={!canZoomIn}
+                    aria-label="Aumentar zoom"
+                  >
+                    +
+                  </button>
+                  <span className={styles.zoomValue}>{zoomPercent}%</span>
+                  <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+                    <button
+                      type="button"
+                      className={`${styles.pointerToggleButton} ${
+                        pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
+                      }`}
+                      onClick={() => setPointerMode('select')}
+                      aria-pressed={pointerMode === 'select'}
+                      title="Seleccionar y mover piezas"
+                    >
+                      🖱 Seleccionar
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.pointerToggleButton} ${
+                        pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
+                      }`}
+                      onClick={() => setPointerMode('pan')}
+                      aria-pressed={pointerMode === 'pan'}
+                      title="Desplazar la malla"
+                    >
+                      ✋ Desplazar
+                    </button>
+                  </div>
+                </div>
+              </label>          }
+          right={
+            <>              
+              <div className={styles.historyButtons}>
+                <Button type="button" onClick={handleUndo} disabled={!canUndo}>
+                  ↩️ Deshacer
+                </Button>
+                <Button type="button" onClick={handleRedo} disabled={!canRedo}>
+                  ↪️ Rehacer
+                </Button>
+              </div>
+              <label className={styles.blockMenuToggle}>
+                <span>Menú de bloques:</span>
+                <span className={styles.blockMenuToggleControl}>
+                  <input
+                    type="checkbox"
+                    checked={showPieceMenus}
+                    onChange={() => setShowPieceMenus((prev) => !prev)}
+                    className={styles.blockMenuToggleInput}
+                  />
+                  <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                    <span className={styles.blockMenuToggleThumb} />
+                  </span>
+                </span>
+              </label>
+          </>
+          }
+        />
 
         <div
-          className={styles.mallaArea}
-          ref={gridRef}
-          style={gridAreaStyle}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          className={viewportClassName}
+          ref={viewportRef}
+          style={viewportStyle}
+          onMouseDown={handleViewportMouseDown}
         >
+          <div className={styles.mallaAreaWrapper} style={zoomedGridContainerStyle}>
+            <div
+              className={mallaAreaClassName}
+              ref={gridRef}
+              style={zoomedGridAreaStyle}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+            >
           {pieces.map((p) => {
           // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
             let pieceTemplate: BlockTemplate;
@@ -907,15 +1361,29 @@ export const MallaEditorScreen: React.FC<Props> = ({
             const toggleLabel = p.kind === 'ref' ? '🧊 Congelar' : '🔗 Descongelar';
 
             const floating = floatingPieces.includes(p.id);
+            const blockWrapperClassName = [
+              styles.blockWrapper,
+              floating ? styles.floating : '',
+              pointerMode === 'pan' ? styles.blockWrapperPan : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
             return (
                 <div
                   key={p.id}
-                  className={`${styles.blockWrapper} ${floating ? styles.floating : ''}`}
+                  className={blockWrapperClassName}
                   style={{ left, top, width: m.outerW, height: m.outerH, position: 'absolute' }}
-                  onMouseDown={(e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)}
-                >
+                  onMouseDown={
+                    pointerMode === 'select'
+                      ? (e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)
+                      : undefined
+                  }                >
                   {/* Toolbar por pieza */}
-                  <div className={styles.pieceToolbar}>
+                  <div
+                    className={`${styles.pieceToolbar} ${
+                      showPieceMenus ? '' : styles.toolbarHidden
+                    }`}
+                  >
                   {/* Toggle congelar/descongelar */}
                   <Button
                     type="button"
@@ -975,9 +1443,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   values={values}
                   onValueChange={onValueChange}
                 />
-              </div>
+                </div>
             );
-          })}
+            })}
+            </div>
+          </div>
         </div>
       </div>
     </div>

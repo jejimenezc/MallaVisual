@@ -11,11 +11,14 @@ import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
+import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { type MallaExport, type MallaRepositoryEntry, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
-import { ProceedToMallaProvider } from './state/proceed-to-malla';
+import { ProceedToMallaProvider, useProceedToMalla } from './state/proceed-to-malla';
+import { useUILayout } from './state/ui-layout.tsx';
+import { AppCommandsProvider } from './state/app-commands';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -30,6 +33,8 @@ import {
   synchronizeMastersWithRepository,
   remapIds,
 } from './utils/malla-sync.ts';
+import { IntroOverlay } from './components/IntroOverlay';
+import { handleProjectFile } from './utils/project-file.ts';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -190,6 +195,120 @@ function prepareMallaProjectState(
   return { block, malla: mallaState };
 }
 
+interface AppLayoutProps {
+  children: React.ReactNode;
+  projectName: string;
+  hasProject: boolean;
+  onNewProject: () => void;
+  onImportProjectFile: (file: File) => Promise<void> | void;
+  onExportProject: () => void;
+  onCloseProject: () => void;
+  getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
+  onOpenRecentProject: (id: string) => void;
+  onShowIntro: () => void;
+  locationPath: string;
+  navigate: ReturnType<typeof useNavigate>;
+}
+
+function AppLayout({
+  children,
+  projectName,
+  hasProject,
+  onNewProject,
+  onImportProjectFile,
+  onExportProject,
+  onCloseProject,
+  getRecentProjects,
+  onOpenRecentProject,
+  onShowIntro,
+  locationPath,
+  navigate,
+}: AppLayoutProps): JSX.Element {
+  const { handler } = useProceedToMalla();
+  const { showChrome, toggleChrome } = useUILayout();
+
+  const schemaVersion = locationPath.startsWith('/malla/design')
+    ? MALLA_SCHEMA_VERSION
+    : BLOCK_SCHEMA_VERSION;
+
+  const quickNav = useMemo(() => {
+    if (!hasProject) {
+      return { label: null, action: null };
+    }
+    if (locationPath === '/') {
+      return {
+        label: 'Editor',
+        action: () => navigate('/block/design'),
+      };
+    }
+    if (locationPath.startsWith('/block/')) {
+      return {
+        label: 'Malla',
+        action: () => {
+          const shouldPreventDefault = handler('/malla/design');
+          if (shouldPreventDefault === false) {
+            navigate('/malla/design');
+          }
+        },
+      };
+    }
+    if (locationPath.startsWith('/blocks')) {
+      return {
+        label: 'Malla',
+        action: () => {
+          const shouldPreventDefault = handler('/malla/design');
+          if (shouldPreventDefault === false) {
+            navigate('/malla/design');
+          }
+        },
+      };
+    }
+    if (locationPath.startsWith('/malla/design')) {
+      return {
+        label: 'Repositorio',
+        action: () => {
+          const shouldPreventDefault = handler('/blocks');
+          if (shouldPreventDefault === false) {
+            navigate('/blocks');
+          }
+        },
+      };
+    }
+    return { label: null, action: null };
+  }, [handler, hasProject, locationPath, navigate]);
+
+  return (
+    <div className={styles.appContainer}>
+      {showChrome ? (
+        <div className={styles.chromeWrapper}>
+          <AppHeader />
+          <GlobalMenuBar
+            hasProject={hasProject}
+            onNewProject={onNewProject}
+            onImportProjectFile={onImportProjectFile}
+            onExportProject={onExportProject}
+            onCloseProject={onCloseProject}
+            getRecentProjects={getRecentProjects}
+            onOpenRecentProject={onOpenRecentProject}
+            onShowIntro={onShowIntro}
+          />
+          <NavTabs isProjectActive={hasProject} />
+        </div>
+      ) : null}
+      <StatusBar
+        projectName={projectName}
+        hasProject={hasProject}
+        schemaVersion={schemaVersion}
+        quickNavLabel={quickNav.label}
+        onQuickNav={quickNav.action}
+        isChromeVisible={showChrome}
+        onToggleChrome={toggleChrome}
+      />
+      <main className={styles.appMain}>{children}</main>
+    </div>
+  );
+}
+
 export default function App(): JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
@@ -204,7 +323,8 @@ export default function App(): JSX.Element | null {
   );
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
-  const { exportProject, loadProject } = useProject();
+  const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
+  const { exportProject, loadProject, flushAutoSave, listProjects } = useProject();
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
@@ -213,6 +333,14 @@ export default function App(): JSX.Element | null {
   const clearPersistedProjectMetadata = useCallback(() => {
     clearStoredActiveProject();
     setShouldPersistProject(false);
+  }, []);
+  
+  const handleShowIntroOverlay = useCallback(() => {
+    setIntroOverlayVisible(true);
+  }, []);
+
+  const handleHideIntroOverlay = useCallback(() => {
+    setIntroOverlayVisible(false);
   }, []);
   
   // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
@@ -423,6 +551,40 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   };
 
+  const handleCloseProject = useCallback(() => {
+    const hasUnsavedBlock = computeDirty();
+    if (hasUnsavedBlock) {
+      const confirmed = window.confirm(
+        'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    flushAutoSave();
+    clearRepository();
+    setRepositorySnapshot(blocksToRepository([]));
+    setBlock(null);
+    setMalla(null);
+    setProjectId(null);
+    setProjectName('');
+    setShouldPersistProject(false);
+    clearPersistedProjectMetadata();
+    storedActiveProjectRef.current = { id: null, name: '' };
+    try {
+      window.localStorage.removeItem('malla-editor-state');
+    } catch {
+      /* ignore */
+    }
+    navigate('/');
+  }, [
+    clearPersistedProjectMetadata,
+    clearRepository,
+    computeDirty,
+    flushAutoSave,
+    navigate,
+  ]);
+
   const handleNewProject = () => {
     const normalized = applyRepositoryChange(
       {},
@@ -487,6 +649,20 @@ export default function App(): JSX.Element | null {
     navigate('/malla/design');
   };
 
+  const handleImportProjectFile = useCallback(
+    async (file: File) => {
+      try {
+        await handleProjectFile(file, {
+          onBlock: handleLoadBlock,
+          onMalla: handleLoadMalla,
+        });
+      } catch {
+        window.alert('Archivo inválido');
+      }
+    },
+    [handleLoadBlock, handleLoadMalla],
+  );
+
   const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
     if ('masters' in data) {
       const m = data as MallaExport;
@@ -529,6 +705,20 @@ export default function App(): JSX.Element | null {
       navigate('/block/design');
     }
   };
+
+  const getRecentProjects = useCallback(
+    () => listProjects().slice(0, 10),
+    [listProjects],
+  );
+
+  const handleOpenRecentProject = useCallback(
+    (id: string) => {
+      const record = loadProject(id);
+      if (!record) return;
+      handleOpenProject(id, record.data, record.meta.name);
+    },
+    [loadProject, handleOpenProject],
+  );
 
   const handleProceedToMalla = (
     template: BlockTemplate,
@@ -714,6 +904,15 @@ export default function App(): JSX.Element | null {
     [clearPersistedProjectMetadata, projectId],
   );
 
+  const handleProjectRenamed = useCallback(
+    (id: string, name: string) => {
+      if (!projectId || projectId !== id) return;
+      setProjectName(name);
+      storedActiveProjectRef.current = { id, name };
+    },
+    [projectId],
+  );
+
   const handleBlockImported = (stored: StoredBlock) => {
     let shouldLoadImmediately = false;
     setBlock((prev) => {
@@ -807,21 +1006,6 @@ export default function App(): JSX.Element | null {
     [repositorySnapshot],
   );
 
-  const screenTitle = useMemo(() => {
-    switch (location.pathname) {
-      case '/block/design':
-        return 'Diseño de bloque';
-      case '/block/style':
-        return 'Estilo de bloque';
-      case '/blocks':
-        return 'Repositorio de bloques';
-      case '/malla/design':
-        return 'Diseño de malla';
-      default:
-        return 'Escritorio';
-    }
-  }, [location.pathname]);
-
   const hasActiveBlock = useMemo(() => {
     if (!block) return false;
     return isDraftNonEmpty(block.draft);
@@ -835,22 +1019,25 @@ export default function App(): JSX.Element | null {
   }
 
   return (
-    <ProceedToMallaProvider
+    <AppCommandsProvider>
+      <ProceedToMallaProvider
       hasActiveBlock={hasActiveBlock}
       hasDirtyBlock={hasDirtyBlock}
       hasPublishedBlock={hasPublishedBlock}
     >
-      <div className={styles.appContainer}>
-        <AppHeader />
-        <NavTabs />
-        <StatusBar
-          projectName={projectName}
-          screenTitle={screenTitle}
-          schemaVersion={BLOCK_SCHEMA_VERSION}
-          onExportProject={handleExportProject}
-          hasProject={!!currentProject}
-        />
-        <main className={styles.appMain}>
+      <AppLayout
+        projectName={projectName}
+        hasProject={!!currentProject}
+        onNewProject={handleNewProject}
+        onImportProjectFile={handleImportProjectFile}
+        onExportProject={handleExportProject}
+        onCloseProject={handleCloseProject}
+        getRecentProjects={getRecentProjects}
+        onOpenRecentProject={handleOpenRecentProject}
+        onShowIntro={handleShowIntroOverlay}
+        locationPath={location.pathname}
+        navigate={navigate}
+      >
         <Routes>
           <Route
             path="/"
@@ -862,6 +1049,8 @@ export default function App(): JSX.Element | null {
                 onOpenProject={handleOpenProject}
                 currentProjectId={projectId ?? undefined}
                 onProjectDeleted={handleProjectRemoved}
+                onProjectRenamed={handleProjectRenamed}
+                onShowIntro={handleShowIntroOverlay}
               />
             }
           />
@@ -918,7 +1107,7 @@ export default function App(): JSX.Element | null {
                   isBlockInUse={blockInUse}
                 />
               ) : (
-                <Navigate to="/block/design" />
+                <Navigate to="/" replace />
               )
             }
           />
@@ -930,7 +1119,8 @@ export default function App(): JSX.Element | null {
                 onOpenBlock={handleOpenRepositoryBlock}
                 activeProjectId={projectId ?? undefined}
               />
-            }          />
+            }
+          />
           <Route
             path="/malla/design"
             element={
@@ -948,14 +1138,17 @@ export default function App(): JSX.Element | null {
                   projectName={projectName}
                 />
               ) : (
-                <Navigate to="/block/design" />
+                <Navigate to="/" replace />
               )
             }
           />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
-      </main>
-    </div>
-  </ProceedToMallaProvider>
+      </AppLayout>
+    </ProceedToMallaProvider>
+    {isIntroOverlayVisible ? (
+      <IntroOverlay onClose={handleHideIntroOverlay} />
+    ) : null}
+  </AppCommandsProvider>
   );
 }
