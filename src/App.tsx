@@ -1107,7 +1107,7 @@ export default function App(): JSX.Element | null {
                   isBlockInUse={blockInUse}
                 />
               ) : (
-                <Navigate to="/block/design" />
+                <Navigate to="/" replace />
               )
             }
           />
@@ -1138,7 +1138,7 @@ export default function App(): JSX.Element | null {
                   projectName={projectName}
                 />
               ) : (
-                <Navigate to="/block/design" />
+                <Navigate to="/" replace />
               )
             }
           />
