@@ -1,24 +1,40 @@
 .nav-tabs {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  background: #f0f0f0;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  background: #e8f4fb;
+  border-bottom: 1px solid #c2d8e5;
 }
+
 .nav-tabs--disabled {
-  opacity: 0.75;
+  opacity: 0.85;
 }
+
 .nav-tabs--disabled a:not(:first-child) {
   pointer-events: none;
-  color: #8c8c8c;
+  color: #9aa6b2;
 }
 
 .nav-tabs a {
   text-decoration: none;
-  padding: 0.25rem 0.75rem;
-  color: inherit;
+  padding: 0.35rem 0.85rem;
+  color: #2d3a43;
   border-bottom: 2px solid transparent;
+  font-weight: 500;
+  border-radius: 0.5rem 0.5rem 0 0;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
+
+.nav-tabs a:hover,
+.nav-tabs a:focus-visible {
+  background-color: rgba(73, 182, 255, 0.18);
+  color: #036a9c;
+}
+
 .nav-tabs a.active {
-  border-color: #007acc;
-  font-weight: bold;
+  background-color: #ffffff;
+  border-color: #36b6b6;
+  color: #036a9c;
+  box-shadow: 0 -2px 12px rgba(15, 134, 198, 0.12);
+  font-weight: 600;
 }
