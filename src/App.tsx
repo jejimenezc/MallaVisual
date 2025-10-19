@@ -18,6 +18,7 @@ import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider, useProceedToMalla } from './state/proceed-to-malla';
 import { useUILayout } from './state/ui-layout.tsx';
+import { AppCommandsProvider } from './state/app-commands';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -32,6 +33,8 @@ import {
   synchronizeMastersWithRepository,
   remapIds,
 } from './utils/malla-sync.ts';
+import { IntroOverlay } from './components/IntroOverlay';
+import { handleProjectFile } from './utils/project-file.ts';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -196,8 +199,13 @@ interface AppLayoutProps {
   children: React.ReactNode;
   projectName: string;
   hasProject: boolean;
+  onNewProject: () => void;
+  onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onCloseProject: () => void;
+  getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
+  onOpenRecentProject: (id: string) => void;
+  onShowIntro: () => void;
   locationPath: string;
   navigate: ReturnType<typeof useNavigate>;
 }
@@ -206,8 +214,13 @@ function AppLayout({
   children,
   projectName,
   hasProject,
+  onNewProject,
+  onImportProjectFile,
   onExportProject,
   onCloseProject,
+  getRecentProjects,
+  onOpenRecentProject,
+  onShowIntro,
   locationPath,
   navigate,
 }: AppLayoutProps): JSX.Element {
@@ -270,9 +283,14 @@ function AppLayout({
         <div className={styles.chromeWrapper}>
           <AppHeader />
           <GlobalMenuBar
+            hasProject={hasProject}
+            onNewProject={onNewProject}
+            onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
             onCloseProject={onCloseProject}
-            hasProject={hasProject}
+            getRecentProjects={getRecentProjects}
+            onOpenRecentProject={onOpenRecentProject}
+            onShowIntro={onShowIntro}
           />
           <NavTabs isProjectActive={hasProject} />
         </div>
@@ -305,7 +323,8 @@ export default function App(): JSX.Element | null {
   );
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
-  const { exportProject, loadProject, flushAutoSave } = useProject();
+  const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
+  const { exportProject, loadProject, flushAutoSave, listProjects } = useProject();
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
@@ -314,6 +333,14 @@ export default function App(): JSX.Element | null {
   const clearPersistedProjectMetadata = useCallback(() => {
     clearStoredActiveProject();
     setShouldPersistProject(false);
+  }, []);
+  
+  const handleShowIntroOverlay = useCallback(() => {
+    setIntroOverlayVisible(true);
+  }, []);
+
+  const handleHideIntroOverlay = useCallback(() => {
+    setIntroOverlayVisible(false);
   }, []);
   
   // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
@@ -622,6 +649,20 @@ export default function App(): JSX.Element | null {
     navigate('/malla/design');
   };
 
+  const handleImportProjectFile = useCallback(
+    async (file: File) => {
+      try {
+        await handleProjectFile(file, {
+          onBlock: handleLoadBlock,
+          onMalla: handleLoadMalla,
+        });
+      } catch {
+        window.alert('Archivo inválido');
+      }
+    },
+    [handleLoadBlock, handleLoadMalla],
+  );
+
   const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
     if ('masters' in data) {
       const m = data as MallaExport;
@@ -664,6 +705,20 @@ export default function App(): JSX.Element | null {
       navigate('/block/design');
     }
   };
+
+  const getRecentProjects = useCallback(
+    () => listProjects().slice(0, 10),
+    [listProjects],
+  );
+
+  const handleOpenRecentProject = useCallback(
+    (id: string) => {
+      const record = loadProject(id);
+      if (!record) return;
+      handleOpenProject(id, record.data, record.meta.name);
+    },
+    [loadProject, handleOpenProject],
+  );
 
   const handleProceedToMalla = (
     template: BlockTemplate,
@@ -964,7 +1019,8 @@ export default function App(): JSX.Element | null {
   }
 
   return (
-    <ProceedToMallaProvider
+    <AppCommandsProvider>
+      <ProceedToMallaProvider
       hasActiveBlock={hasActiveBlock}
       hasDirtyBlock={hasDirtyBlock}
       hasPublishedBlock={hasPublishedBlock}
@@ -972,8 +1028,13 @@ export default function App(): JSX.Element | null {
       <AppLayout
         projectName={projectName}
         hasProject={!!currentProject}
+        onNewProject={handleNewProject}
+        onImportProjectFile={handleImportProjectFile}
         onExportProject={handleExportProject}
         onCloseProject={handleCloseProject}
+        getRecentProjects={getRecentProjects}
+        onOpenRecentProject={handleOpenRecentProject}
+        onShowIntro={handleShowIntroOverlay}
         locationPath={location.pathname}
         navigate={navigate}
       >
@@ -989,6 +1050,7 @@ export default function App(): JSX.Element | null {
                 currentProjectId={projectId ?? undefined}
                 onProjectDeleted={handleProjectRemoved}
                 onProjectRenamed={handleProjectRenamed}
+                onShowIntro={handleShowIntroOverlay}
               />
             }
           />
@@ -1045,7 +1107,7 @@ export default function App(): JSX.Element | null {
                   isBlockInUse={blockInUse}
                 />
               ) : (
-                <Navigate to="/block/design" />
+                <Navigate to="/" replace />
               )
             }
           />
@@ -1076,7 +1138,7 @@ export default function App(): JSX.Element | null {
                   projectName={projectName}
                 />
               ) : (
-                <Navigate to="/block/design" />
+                <Navigate to="/" replace />
               )
             }
           />
@@ -1084,5 +1146,9 @@ export default function App(): JSX.Element | null {
         </Routes>
       </AppLayout>
     </ProceedToMallaProvider>
+    {isIntroOverlayVisible ? (
+      <IntroOverlay onClose={handleHideIntroOverlay} />
+    ) : null}
+  </AppCommandsProvider>
   );
 }

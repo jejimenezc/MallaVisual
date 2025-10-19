@@ -1,14 +1,11 @@
 // src/screens/HomeScreen.tsx
 import React, { useRef, useState, useEffect } from 'react';
-import { IntroOverlay } from '../components/IntroOverlay';
 import type { BlockExport } from '../utils/block-io.ts';
-import { importBlock } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
-import { importMalla } from '../utils/malla-io.ts';
 import { useProject } from '../core/persistence/hooks.ts';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
-import { getFileNameWithoutExtension } from '../utils/file-name.ts';
+import { handleProjectFile } from '../utils/project-file.ts';
 import './HomeScreen.css';
 
 interface Props {
@@ -23,6 +20,7 @@ interface Props {
   currentProjectId?: string;
   onProjectDeleted?: (id: string) => void;
   onProjectRenamed?: (id: string, name: string) => void;
+  onShowIntro?: () => void;
 }
 
 export const HomeScreen: React.FC<Props> = ({
@@ -33,11 +31,11 @@ export const HomeScreen: React.FC<Props> = ({
   currentProjectId,
   onProjectDeleted,
   onProjectRenamed,
+  onShowIntro,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { listProjects, loadProject, removeProject, renameProject } = useProject();
   const [projects, setProjects] = useState(() => listProjects());
-  const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
     setProjects(listProjects());
@@ -46,10 +44,10 @@ export const HomeScreen: React.FC<Props> = ({
   useEffect(() => {
     const key = 'introOverlaySeen';
     if (typeof window !== 'undefined' && !window.localStorage.getItem(key)) {
-      setShowIntro(true);
+      onShowIntro?.();
       window.localStorage.setItem(key, 'true');
     }
-  }, []);
+  }, [onShowIntro]);
 
   const handleLoadClick = () => {
     fileInputRef.current?.click();
@@ -58,21 +56,16 @@ export const HomeScreen: React.FC<Props> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const inferredName = getFileNameWithoutExtension(file.name);
-    file.text().then((text) => {
-      try {
-        const malla = importMalla(text);
-        onLoadMalla(malla, inferredName);
-      } catch {
-        try {
-          const block = importBlock(text);
-          onLoadBlock(block, inferredName);
-        } catch {
-          alert('Archivo inválido');
-        }
-      }
-    });
-    e.target.value = '';
+    handleProjectFile(file, {
+      onBlock: onLoadBlock,
+      onMalla: onLoadMalla,
+    })
+      .catch(() => {
+        window.alert('Archivo inválido');
+      })
+      .finally(() => {
+        e.target.value = '';
+      });
   };
 
   const handleDeleteProject = (id: string) => {
@@ -169,10 +162,5 @@ export const HomeScreen: React.FC<Props> = ({
     </div>
   );
 
-  return (
-    <>
-      <TwoPaneLayout left={left} right={right} />
-      {showIntro && <IntroOverlay onClose={() => setShowIntro(false)} />}
-    </>
-  );
+  return <TwoPaneLayout left={left} right={right} />;
 };

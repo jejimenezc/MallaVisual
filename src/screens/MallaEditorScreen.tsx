@@ -29,6 +29,7 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
+import { useAppCommand } from '../state/app-commands';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
@@ -388,6 +389,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     applyHistorySnapshot(entry);
     setHistoryIndex(newIndex);
   }, [historyIndex, applyHistorySnapshot]);
+
+  useAppCommand('undo', handleUndo, canUndo);
+  useAppCommand('redo', handleRedo, canRedo);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
