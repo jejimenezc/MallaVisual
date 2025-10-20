@@ -1180,6 +1180,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
       <div className={styles.mallaWrapper}>
         <Header
+          className={styles.mallaHeader}
           title="Editor de Malla"
           left={
             <div className={styles.gridSizeControls}>
@@ -1209,14 +1210,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 onClick={handleFillGrid}
                 title="Completar todas las posiciones vacías"
               >
-                Generar malla completa
+                Autocompletar
               </Button>
               <Button
                 type="button"
                 onClick={handleClearGrid}
                 title="Eliminar todas las piezas de la malla"
               >
-                Borrar malla completa
+                Reiniciar malla
               </Button>
           </>
             </div>
