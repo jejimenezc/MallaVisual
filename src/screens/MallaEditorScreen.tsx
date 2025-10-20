@@ -1003,6 +1003,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   const handleClearGrid = () => {
+    const isEmpty =
+      pieces.length === 0 &&
+      floatingPieces.length === 0 &&
+      Object.keys(pieceValues).length === 0;
+
+    const shouldClear =
+      isEmpty ||
+      (typeof window === 'undefined'
+        ? true
+        : window.confirm(
+            'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
+          ));
+
+    if (!shouldClear) {
+      return;
+    }
+
     setPieces([]);
     setPieceValues({});
     setFloatingPieces([]);
