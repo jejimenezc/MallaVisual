@@ -68,6 +68,11 @@
   z-index: 10;
 }
 
+.dropdownAlignEnd {
+  left: auto;
+  right: 0;
+}
+
 .dropdownItemWrapper {
   position: relative;
   display: flex;

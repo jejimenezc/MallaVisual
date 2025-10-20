@@ -486,7 +486,7 @@ export function GlobalMenuBar({
           </button>
           {openMenu === 'usuarios' ? (
             <ul
-              className={styles.dropdown}
+              className={`${styles.dropdown} ${styles.dropdownAlignEnd}`}
               onClick={(event) => event.stopPropagation()}
             >
               <li className={styles.dropdownItemWrapper}>
@@ -513,7 +513,7 @@ export function GlobalMenuBar({
           </button>
           {openMenu === 'ayuda' ? (
             <ul
-              className={styles.dropdown}
+              className={`${styles.dropdown} ${styles.dropdownAlignEnd}`}
               onClick={(event) => event.stopPropagation()}
             >
               <li className={styles.dropdownItemWrapper}>
