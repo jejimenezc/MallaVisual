@@ -1223,7 +1223,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
           center={
               <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
-                <span>Zoom</span>
                 <div className={styles.zoomControlGroup}>
                   <button
                     type="button"
@@ -1254,6 +1253,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     +
                   </button>
                   <span className={styles.zoomValue}>{zoomPercent}%</span>
+                </div>
                   <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
                     <button
                       type="button"
@@ -1264,7 +1264,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       aria-pressed={pointerMode === 'select'}
                       title="Seleccionar y mover piezas"
                     >
-                      🖱 Seleccionar
+                      👆🏻
                     </button>
                     <button
                       type="button"
@@ -1275,21 +1275,22 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       aria-pressed={pointerMode === 'pan'}
                       title="Desplazar la malla"
                     >
-                      ✋ Desplazar
+                      🤚🏻
                     </button>
                   </div>
-                </div>
-              </label>          }
+                  <div className={styles.historyButtons}>
+                    <Button type="button" onClick={handleUndo} disabled={!canUndo} title="Deshacer">
+                      ↻ 
+                    </Button>
+                    <Button type="button" onClick={handleRedo} disabled={!canRedo} title="Rehacer">
+                      ↺ 
+                    </Button>
+                  </div>
+              </label>
+              }
           right={
             <>              
-              <div className={styles.historyButtons}>
-                <Button type="button" onClick={handleUndo} disabled={!canUndo}>
-                  ↩️ Deshacer
-                </Button>
-                <Button type="button" onClick={handleRedo} disabled={!canRedo}>
-                  ↪️ Rehacer
-                </Button>
-              </div>
+
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
