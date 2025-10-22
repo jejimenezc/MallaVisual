@@ -23,7 +23,7 @@
   flex: 1 1 100%;
 }
 
-.repository {
+.repository { 
   width: 260px;
   min-width: 260px;
   border-right: 1px solid var(--color-border);
@@ -48,6 +48,24 @@
   align-items: center;
   gap: var(--space-sm);
   flex-wrap: wrap;
+}
+
+.mallaHeader {
+  --header-gap: var(--space-xs);
+  --header-left-grow: 1.35;
+  --header-center-grow: 2.6;
+  --header-right-grow: 1;
+}
+
+.mallaHeader :global(.header-section) {
+  gap: var(--space-xs);
+}
+
+@media (max-width: 960px) {
+  .mallaHeader {
+    --header-left-grow: 1.1;
+    --header-center-grow: 2.2;
+  }
 }
 
 .gridSizeControl {

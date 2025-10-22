@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  font-family: sans-serif;
+  font-family: 'Inter', sans-serif;
   overflow: hidden;
 }
 
@@ -13,8 +13,8 @@
   display: flex;
   flex-direction: column;
   background-color: #ffffff;
-  border-bottom: 1px solid #d9d9d9;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid #e0e3e6;
+  box-shadow: 0 4px 18px rgba(73, 182, 255, 0.08);
 }
 
 .appHeader {
@@ -23,6 +23,7 @@
   gap: 1.25rem;
   padding: 0.75rem 1.5rem;
   background-color: transparent;
+  color: #2d3a43;
 }
 
 .brandIdentity {
@@ -65,9 +66,9 @@
 .brandTagline {
   margin: 0;
   font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 300;
-  color: #333333;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: #5d6b76;
 }
 
 .brandTagline em {
@@ -78,7 +79,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #f4f4f6;
+  background-color: #f9fafb;
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;

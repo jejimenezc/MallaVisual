@@ -324,7 +324,10 @@ export default function App(): JSX.Element | null {
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
-  const { exportProject, loadProject, flushAutoSave, listProjects } = useProject();
+  const { autoSave, exportProject, loadProject, flushAutoSave, listProjects } = useProject({
+    projectId: projectId ?? undefined,
+    projectName,
+  });
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
@@ -561,6 +564,9 @@ export default function App(): JSX.Element | null {
         return;
       }
     }
+    if (currentProject) {
+      autoSave(currentProject);
+    }
     flushAutoSave();
     clearRepository();
     setRepositorySnapshot(blocksToRepository([]));
@@ -578,9 +584,11 @@ export default function App(): JSX.Element | null {
     }
     navigate('/');
   }, [
+    autoSave,
     clearPersistedProjectMetadata,
     clearRepository,
     computeDirty,
+    currentProject,
     flushAutoSave,
     navigate,
   ]);

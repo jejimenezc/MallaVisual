@@ -1003,6 +1003,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   const handleClearGrid = () => {
+    const isEmpty =
+      pieces.length === 0 &&
+      floatingPieces.length === 0 &&
+      Object.keys(pieceValues).length === 0;
+
+    const shouldClear =
+      isEmpty ||
+      (typeof window === 'undefined'
+        ? true
+        : window.confirm(
+            'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
+          ));
+
+    if (!shouldClear) {
+      return;
+    }
+
     setPieces([]);
     setPieceValues({});
     setFloatingPieces([]);
@@ -1180,6 +1197,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
       <div className={styles.mallaWrapper}>
         <Header
+          className={styles.mallaHeader}
           title="Editor de Malla"
           left={
             <div className={styles.gridSizeControls}>
@@ -1209,21 +1227,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 onClick={handleFillGrid}
                 title="Completar todas las posiciones vacías"
               >
-                Generar malla completa
+                Autocompletar
               </Button>
               <Button
                 type="button"
                 onClick={handleClearGrid}
                 title="Eliminar todas las piezas de la malla"
               >
-                Borrar malla completa
+                Reiniciar malla
               </Button>
           </>
             </div>
           }
           center={
               <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
-                <span>Zoom</span>
                 <div className={styles.zoomControlGroup}>
                   <button
                     type="button"
@@ -1254,6 +1271,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     +
                   </button>
                   <span className={styles.zoomValue}>{zoomPercent}%</span>
+                </div>
                   <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
                     <button
                       type="button"
@@ -1264,7 +1282,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       aria-pressed={pointerMode === 'select'}
                       title="Seleccionar y mover piezas"
                     >
-                      🖱 Seleccionar
+                      👆🏻
                     </button>
                     <button
                       type="button"
@@ -1275,21 +1293,22 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       aria-pressed={pointerMode === 'pan'}
                       title="Desplazar la malla"
                     >
-                      ✋ Desplazar
+                      🤚🏻
                     </button>
                   </div>
-                </div>
-              </label>          }
+                  <div className={styles.historyButtons}>
+                    <Button type="button" onClick={handleUndo} disabled={!canUndo} title="Deshacer">
+                      ↻ 
+                    </Button>
+                    <Button type="button" onClick={handleRedo} disabled={!canRedo} title="Rehacer">
+                      ↺ 
+                    </Button>
+                  </div>
+              </label>
+              }
           right={
             <>              
-              <div className={styles.historyButtons}>
-                <Button type="button" onClick={handleUndo} disabled={!canUndo}>
-                  ↩️ Deshacer
-                </Button>
-                <Button type="button" onClick={handleRedo} disabled={!canRedo}>
-                  ↪️ Rehacer
-                </Button>
-              </div>
+
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
