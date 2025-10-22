@@ -42,3 +42,65 @@ export function blockContentEquals(
     JSON.stringify(a.visual) === JSON.stringify(b.visual)
   );
 }
+
+export function hasBlockDesign(content: BlockContent): boolean {
+  const hasConfiguredCell = content.template.some((row) =>
+    row.some((cell) => {
+      if (!cell) return false;
+      if (cell.active) return true;
+      if (cell.type) return true;
+      if (typeof cell.label === 'string' && cell.label.trim().length > 0) {
+        return true;
+      }
+      if (cell.dropdownOptions && cell.dropdownOptions.length > 0) {
+        return true;
+      }
+      if (typeof cell.placeholder === 'string' && cell.placeholder.trim().length > 0) {
+        return true;
+      }
+      if (cell.decimalDigits !== undefined) {
+        return true;
+      }
+      if (typeof cell.expression === 'string' && cell.expression.trim().length > 0) {
+        return true;
+      }
+      if (cell.mergedWith) return true;
+      if (cell.style && Object.keys(cell.style).length > 0) {
+        return true;
+      }
+      if (cell.visualStyle && Object.keys(cell.visualStyle).length > 0) {
+        return true;
+      }
+      return false;
+    }),
+  );
+
+  if (hasConfiguredCell) {
+    return true;
+  }
+
+  const merges = (content.visual as unknown as { merges?: Record<string, unknown> | null })?.merges;
+  if (merges && typeof merges === 'object' && Object.keys(merges).length > 0) {
+    return true;
+  }
+
+  const visualEntries = Object.values(content.visual ?? {});
+  const hasVisualConfiguration = visualEntries.some((value) => {
+    if (!value) return false;
+    return Object.keys(value).length > 0;
+  });
+  if (hasVisualConfiguration) {
+    return true;
+  }
+
+  const metaName = (content as unknown as { meta?: { name?: string | null } }).meta?.name;
+  if (typeof metaName === 'string' && metaName.trim().length > 0) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isBlockDesignEmpty(content: BlockContent): boolean {
+  return !hasBlockDesign(content);
+}

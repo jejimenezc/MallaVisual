@@ -24,6 +24,7 @@ import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
   blockContentEquals,
   cloneBlockContent,
+  hasBlockDesign,
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
@@ -346,32 +347,17 @@ export default function App(): JSX.Element | null {
     setIntroOverlayVisible(false);
   }, []);
   
-  // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
-  const isDraftNonEmpty = useCallback((draft: BlockContent): boolean => {
-    const hasActiveCell = draft.template.some((row) =>
-      row.some((cell) => Boolean(cell?.active)),
-    );
-    const merges = (draft.visual as unknown as { merges?: Record<string, unknown> | null })?.merges;
-    const hasMerges =
-      !!merges &&
-      typeof merges === 'object' &&
-      Object.keys(merges as Record<string, unknown>).length > 0;
-    const metaName = (draft as unknown as { meta?: { name?: string | null } }).meta?.name;
-    const hasName = typeof metaName === 'string' && metaName.trim().length > 0;
-    return hasActiveCell || hasMerges || hasName;
-  }, []);
-
   const computeDirty = useCallback(
     (b: BlockState | null = block): boolean => {
       if (!b) return false;
       if (!b.published) {
         // Bloque nunca publicado => dirty si draft no vacío.
-        return isDraftNonEmpty(b.draft);
+        return hasBlockDesign(b.draft);
       }
       // Bloque publicado => dirty si draft deep-distinto a published.
       return !blockContentEquals(b.draft, b.published);
     },
-    [block, isDraftNonEmpty],
+    [block],
   );
 
   useEffect(() => {
@@ -1020,8 +1006,8 @@ export default function App(): JSX.Element | null {
 
   const hasActiveBlock = useMemo(() => {
     if (!block) return false;
-    return isDraftNonEmpty(block.draft);
-  }, [block, isDraftNonEmpty]);
+    return hasBlockDesign(block.draft);
+  }, [block]);
 
   const hasDirtyBlock = computeDirty();
   const hasPublishedBlock = Boolean(block?.published);

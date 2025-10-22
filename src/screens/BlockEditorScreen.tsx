@@ -28,6 +28,7 @@ import type { ProceedToMallaHandler } from '../state/proceed-to-malla';
 import {
   blockContentEquals,
   cloneBlockContent,
+  hasBlockDesign,
   toBlockContent,
   type BlockContent,
 } from '../utils/block-content.ts';
@@ -43,7 +44,11 @@ const isInteractiveElement = (target: EventTarget | null): boolean => {
 };
 
 
-const generateEmptyTemplate = (): BlockTemplate =>
+const EMPTY_BLOCK_ALERT_MESSAGE =
+  'Para pasar a la malla, diseña un bloque y publícalo en el repositorio.';
+
+
+  const generateEmptyTemplate = (): BlockTemplate =>
   Array.from({ length: 10 }, () =>
     Array.from({ length: 10 }, () => ({ active: false, label: '', type: undefined }))
   );
@@ -193,6 +198,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     [template, visual, aspect],
   );
   const draftSerialized = useMemo(() => JSON.stringify(draftContent), [draftContent]);
+  const hasDraftDesign = useMemo(() => hasBlockDesign(draftContent), [draftContent]);
 
   const historyRef = useRef<BlockContent[]>([]);
   const historySerializedRef = useRef<string[]>([]);
@@ -411,6 +417,10 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         return defaultProceedToMalla(destination);
       }
       if (destination === '/malla/design' && isDraftDirty) {
+        if (!hasDraftDesign) {
+          window.alert(EMPTY_BLOCK_ALERT_MESSAGE);
+          return true;
+        }
         const blockLabel = repoName.trim() || 'el bloque';
         const message = repoId
           ? `Para pasar al diseño de malla, actualiza la publicación de "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`
@@ -452,6 +462,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       onProceedToMalla,
       defaultProceedToMalla,
       isDraftDirty,
+      hasDraftDesign,
       repoId,
       repoName,
       handleSaveToRepo,
