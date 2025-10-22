@@ -594,6 +594,10 @@ export default function App(): JSX.Element | null {
   ]);
 
   const handleNewProject = () => {
+    const rawName = window.prompt('Nombre del proyecto');
+    if (rawName === null) {
+      return;
+    }
     const normalized = applyRepositoryChange(
       {},
       {
@@ -602,7 +606,7 @@ export default function App(): JSX.Element | null {
       },
     );
     if (!normalized) return;
-    const name = prompt('Nombre del proyecto') || 'Sin nombre';
+    const name = rawName.trim() || 'Sin nombre';
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
