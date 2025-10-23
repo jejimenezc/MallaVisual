@@ -835,7 +835,11 @@ export default function App(): JSX.Element | null {
     });
   };
 
-  const loadRepositoryBlock = (stored: StoredBlock) => {
+  const loadRepositoryBlock = (
+    stored: StoredBlock,
+    options?: { navigate?: boolean },
+  ) => {
+    const shouldNavigate = options?.navigate ?? true;
     const content = toBlockContent(stored.data);
     const draft = cloneBlockContent(content);
     const published = cloneBlockContent(content);
@@ -855,7 +859,9 @@ export default function App(): JSX.Element | null {
       }
       setMalla(null);
     }
-    navigate('/block/design');
+    if (shouldNavigate) {
+      navigate('/block/design');
+    }
   };
 
   const handleBlockDraftChange = useCallback((draft: BlockContent) => {
@@ -912,23 +918,15 @@ export default function App(): JSX.Element | null {
   );
 
   const handleBlockImported = (stored: StoredBlock) => {
-    let shouldLoadImmediately = false;
-    setBlock((prev) => {
-      if (prev) return prev;
-      shouldLoadImmediately = true;
-      const content = toBlockContent(stored.data);
-      return {
-        draft: cloneBlockContent(content),
-        repoId: stored.metadata.uuid,
-        repoName: stored.metadata.name,
-        repoMetadata: { ...stored.metadata },
-        published: cloneBlockContent(content),
-      };
-    });
-    if (!shouldLoadImmediately) {
+    const hasExistingBlock = !!block;
+    const shouldReplaceCurrent =
+      !block || (!block.repoId && !hasBlockDesign(block.draft));
+
+    if (!shouldReplaceCurrent) {
       return;
     }
-    loadRepositoryBlock(stored);
+
+    loadRepositoryBlock(stored, { navigate: !hasExistingBlock });
   };
 
   const blockInUse = useMemo(() => {
