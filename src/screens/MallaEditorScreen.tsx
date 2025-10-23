@@ -671,7 +671,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
       cols: initialMalla.grid?.cols ?? 5,
       rows: initialMalla.grid?.rows ?? 5,
     };
-    let nextMasters = { ...initialMalla.masters };
+    const sourceMasters = initialMalla.masters ?? {};
+    let nextMasters = { ...sourceMasters };
     if (repoId && !nextMasters[repoId]) {
       nextMasters = {
         ...nextMasters,
@@ -771,27 +772,60 @@ export const MallaEditorScreen: React.FC<Props> = ({
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
   
   useEffect(() => {
-    if (!initialMalla) {
-      const data = loadDraft();
-      if (!data) return;
-      const firstId = Object.keys(data.masters)[0];
-      const activeId = data.activeMasterId ?? firstId;
-      const active = data.masters[activeId];
+    if (initialMalla) {
+      return;
+    }
+
+    const data = loadDraft();
+    if (!data && !repoId) {
+      return;
+    }
+
+    const draftMasters = data?.masters ?? {};
+    let nextMasters = { ...draftMasters };
+
+    if (repoId && !nextMasters[repoId]) {
+      nextMasters = {
+        ...nextMasters,
+        [repoId]: { template, visual, aspect },
+      };
+    }
+
+    const masterIds = Object.keys(nextMasters);
+    const activeFromDraft = data?.activeMasterId;
+    const usableDraftId =
+      activeFromDraft && nextMasters[activeFromDraft] ? activeFromDraft : undefined;
+    const fallbackId =
+      (repoId && nextMasters[repoId] ? repoId : undefined) ?? masterIds[0] ?? '';
+    const nextActiveId = usableDraftId ?? fallbackId;
+    const active = nextMasters[nextActiveId];
+
+    if (active) {
       onUpdateMaster?.({
         template: active.template,
         visual: active.visual,
         aspect: active.aspect,
+        repoId: nextActiveId,
       });
-      setSelectedMasterId(activeId);
-      setMastersById(data.masters);
-      setCols(data.grid?.cols ?? 5);
-      setRows(data.grid?.rows ?? 5);
-      setPieces(data.pieces);
-      setPieceValues(data.values);
-      setFloatingPieces(data.floatingPieces ?? []);
-      setIsHistoryInitialized(false);
     }
-  }, [initialMalla, loadDraft, onUpdateMaster]);
+
+    setSelectedMasterId(nextActiveId);
+    setMastersById(nextMasters);
+    setCols(data?.grid?.cols ?? 5);
+    setRows(data?.grid?.rows ?? 5);
+    setPieces(data?.pieces ?? []);
+    setPieceValues(data?.values ?? {});
+    setFloatingPieces(data?.floatingPieces ?? []);
+    setIsHistoryInitialized(false);
+  }, [
+    aspect,
+    initialMalla,
+    loadDraft,
+    onUpdateMaster,
+    repoId,
+    template,
+    visual,
+  ]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
