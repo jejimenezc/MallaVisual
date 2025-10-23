@@ -1004,13 +1004,9 @@ export default function App(): JSX.Element | null {
     [repositorySnapshot],
   );
 
-  const hasActiveBlock = useMemo(() => {
-    if (!block) return false;
-    return hasBlockDesign(block.draft);
-  }, [block]);
-
   const hasDirtyBlock = computeDirty();
   const hasPublishedBlock = Boolean(block?.published);
+  const hasPublishedRepositoryBlock = Object.keys(repositorySnapshot.repository).length > 0;
 
   if (!isHydrated) {
     return null;
@@ -1019,9 +1015,9 @@ export default function App(): JSX.Element | null {
   return (
     <AppCommandsProvider>
       <ProceedToMallaProvider
-      hasActiveBlock={hasActiveBlock}
       hasDirtyBlock={hasDirtyBlock}
       hasPublishedBlock={hasPublishedBlock}
+      hasPublishedRepositoryBlock={hasPublishedRepositoryBlock}
     >
       <AppLayout
         projectName={projectName}
