@@ -91,6 +91,26 @@ interface BlockState {
   published: BlockContent | null;
 }
 
+function createBlockStateFromContent(content: BlockContent): BlockState {
+  return {
+    draft: cloneBlockContent(content),
+    repoId: null,
+    repoName: null,
+    repoMetadata: null,
+    published: null,
+  };
+}
+
+function createEmptyBlockState(): BlockState {
+  const emptyMaster = createEmptyMaster();
+  const emptyContent: BlockContent = {
+    template: emptyMaster.template,
+    visual: emptyMaster.visual,
+    aspect: emptyMaster.aspect,
+  };
+  return createBlockStateFromContent(emptyContent);
+}
+
 function createEmptyMaster(): MasterBlockData {
   return {
     template: Array.from({ length: 10 }, () =>
@@ -484,13 +504,7 @@ export default function App(): JSX.Element | null {
           skipConfirmation: true,
         },
       );
-      setBlock({
-        draft: cloneBlockContent(toBlockContent(record.data)),
-        repoId: null,
-        repoName: null,
-        repoMetadata: null,
-        published: null,
-      });
+      setBlock(createBlockStateFromContent(toBlockContent(record.data)));
       setMalla(null);
     }
     setProjectId(stored.id);
@@ -596,9 +610,10 @@ export default function App(): JSX.Element | null {
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    setBlock(null);
+    setBlock(createEmptyBlockState());
     setMalla(null);
     clearPersistedProjectMetadata();
+    storedActiveProjectRef.current = { id, name };
     navigate('/block/design');
   };
 
@@ -615,13 +630,7 @@ export default function App(): JSX.Element | null {
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    setBlock({
-      draft: cloneBlockContent(toBlockContent(data)),
-      repoId: null,
-      repoName: null,
-      repoMetadata: null,
-      published: null,
-    });
+    setBlock(createBlockStateFromContent(toBlockContent(data)));
     setMalla(null);
     clearPersistedProjectMetadata();
     navigate('/block/design');
@@ -691,13 +700,7 @@ export default function App(): JSX.Element | null {
       if (!normalizedRepo) return;
       setProjectId(id);
       setProjectName(name);
-      setBlock({
-        draft: cloneBlockContent(toBlockContent(b)),
-        repoId: null,
-        repoName: null,
-        repoMetadata: null,
-        published: null,
-      });
+      setBlock(createBlockStateFromContent(toBlockContent(b)));
       setMalla(null);
       setShouldPersistProject(true);
       navigate('/block/design');
