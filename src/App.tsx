@@ -610,6 +610,11 @@ export default function App(): JSX.Element | null {
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
+    try {
+      window.localStorage.removeItem('malla-editor-state');
+    } catch {
+      /* ignore */
+    }
     setBlock(createEmptyBlockState());
     setMalla(null);
     clearPersistedProjectMetadata();
