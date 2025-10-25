@@ -344,6 +344,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   });
   const savedRef = useRef<string | null>(null);
   const skipNextSyncRef = useRef(false);
+  const initialPersistenceSignatureRef = useRef<string | null>(null);
 
   const applyHistorySnapshot = useCallback(
     (entry: MallaHistoryEntry) => {
@@ -711,6 +712,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   useEffect(() => {
     if (!normalizedInitial) {
       savedRef.current = null;
+      initialPersistenceSignatureRef.current = null;
       return;
     }
 
@@ -728,6 +730,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (savedRef.current === serialized) return;
 
     skipNextSyncRef.current = true;
+    initialPersistenceSignatureRef.current = serialized;
     savedRef.current = serialized;
     setMastersById(masters);
     setCols(grid.cols);
@@ -750,19 +753,30 @@ export const MallaEditorScreen: React.FC<Props> = ({
       activeMasterId: selectedMasterId,
       repository: repositoryEntries,
     };
+    const serialized = JSON.stringify(project);
+    const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
+    const shouldSkipMallaChange = skipNextSyncRef.current;
     if (skipNextSyncRef.current) {
       skipNextSyncRef.current = false;
+    }
+
+    if (savedRef.current === serialized) {
+      if (shouldRunInitialPersist) {
+        autoSave(project);
+        initialPersistenceSignatureRef.current = null;
+      }
       return;
     }
 
-    const serialized = JSON.stringify(project);
-    if (savedRef.current === serialized) return;
     savedRef.current = serialized;
-    if (onMallaChange) {
+    if (!shouldSkipMallaChange && onMallaChange) {
       ignoreNextInitialMallaRef.current = true;
       onMallaChange(project);
     }
     autoSave(project);
+    if (shouldRunInitialPersist) {
+      initialPersistenceSignatureRef.current = null;
+    }
   }, [
     mastersById,
     cols,
