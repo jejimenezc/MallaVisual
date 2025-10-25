@@ -24,6 +24,7 @@ import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
   blockContentEquals,
   cloneBlockContent,
+  hasBlockDesign,
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
@@ -88,6 +89,26 @@ interface BlockState {
   repoName: string | null;
   repoMetadata: BlockMetadata | null;
   published: BlockContent | null;
+}
+
+function createBlockStateFromContent(content: BlockContent): BlockState {
+  return {
+    draft: cloneBlockContent(content),
+    repoId: null,
+    repoName: null,
+    repoMetadata: null,
+    published: null,
+  };
+}
+
+function createEmptyBlockState(): BlockState {
+  const emptyMaster = createEmptyMaster();
+  const emptyContent: BlockContent = {
+    template: emptyMaster.template,
+    visual: emptyMaster.visual,
+    aspect: emptyMaster.aspect,
+  };
+  return createBlockStateFromContent(emptyContent);
 }
 
 function createEmptyMaster(): MasterBlockData {
@@ -346,32 +367,17 @@ export default function App(): JSX.Element | null {
     setIntroOverlayVisible(false);
   }, []);
   
-  // TODO: reemplazar por helper central de “draft vacío” cuando esté disponible.
-  const isDraftNonEmpty = useCallback((draft: BlockContent): boolean => {
-    const hasActiveCell = draft.template.some((row) =>
-      row.some((cell) => Boolean(cell?.active)),
-    );
-    const merges = (draft.visual as unknown as { merges?: Record<string, unknown> | null })?.merges;
-    const hasMerges =
-      !!merges &&
-      typeof merges === 'object' &&
-      Object.keys(merges as Record<string, unknown>).length > 0;
-    const metaName = (draft as unknown as { meta?: { name?: string | null } }).meta?.name;
-    const hasName = typeof metaName === 'string' && metaName.trim().length > 0;
-    return hasActiveCell || hasMerges || hasName;
-  }, []);
-
   const computeDirty = useCallback(
     (b: BlockState | null = block): boolean => {
       if (!b) return false;
       if (!b.published) {
         // Bloque nunca publicado => dirty si draft no vacío.
-        return isDraftNonEmpty(b.draft);
+        return hasBlockDesign(b.draft);
       }
       // Bloque publicado => dirty si draft deep-distinto a published.
       return !blockContentEquals(b.draft, b.published);
     },
-    [block, isDraftNonEmpty],
+    [block],
   );
 
   useEffect(() => {
@@ -498,13 +504,7 @@ export default function App(): JSX.Element | null {
           skipConfirmation: true,
         },
       );
-      setBlock({
-        draft: cloneBlockContent(toBlockContent(record.data)),
-        repoId: null,
-        repoName: null,
-        repoMetadata: null,
-        published: null,
-      });
+      setBlock(createBlockStateFromContent(toBlockContent(record.data)));
       setMalla(null);
     }
     setProjectId(stored.id);
@@ -594,6 +594,10 @@ export default function App(): JSX.Element | null {
   ]);
 
   const handleNewProject = () => {
+    const rawName = window.prompt('Nombre del proyecto');
+    if (rawName === null) {
+      return;
+    }
     const normalized = applyRepositoryChange(
       {},
       {
@@ -602,13 +606,19 @@ export default function App(): JSX.Element | null {
       },
     );
     if (!normalized) return;
-    const name = prompt('Nombre del proyecto') || 'Sin nombre';
+    const name = rawName.trim() || 'Sin nombre';
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    setBlock(null);
+    try {
+      window.localStorage.removeItem('malla-editor-state');
+    } catch {
+      /* ignore */
+    }
+    setBlock(createEmptyBlockState());
     setMalla(null);
     clearPersistedProjectMetadata();
+    storedActiveProjectRef.current = { id, name };
     navigate('/block/design');
   };
 
@@ -625,13 +635,7 @@ export default function App(): JSX.Element | null {
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    setBlock({
-      draft: cloneBlockContent(toBlockContent(data)),
-      repoId: null,
-      repoName: null,
-      repoMetadata: null,
-      published: null,
-    });
+    setBlock(createBlockStateFromContent(toBlockContent(data)));
     setMalla(null);
     clearPersistedProjectMetadata();
     navigate('/block/design');
@@ -701,13 +705,7 @@ export default function App(): JSX.Element | null {
       if (!normalizedRepo) return;
       setProjectId(id);
       setProjectName(name);
-      setBlock({
-        draft: cloneBlockContent(toBlockContent(b)),
-        repoId: null,
-        repoName: null,
-        repoMetadata: null,
-        published: null,
-      });
+      setBlock(createBlockStateFromContent(toBlockContent(b)));
       setMalla(null);
       setShouldPersistProject(true);
       navigate('/block/design');
@@ -845,7 +843,11 @@ export default function App(): JSX.Element | null {
     });
   };
 
-  const loadRepositoryBlock = (stored: StoredBlock) => {
+  const loadRepositoryBlock = (
+    stored: StoredBlock,
+    options?: { navigate?: boolean },
+  ) => {
+    const shouldNavigate = options?.navigate ?? true;
     const content = toBlockContent(stored.data);
     const draft = cloneBlockContent(content);
     const published = cloneBlockContent(content);
@@ -865,7 +867,9 @@ export default function App(): JSX.Element | null {
       }
       setMalla(null);
     }
-    navigate('/block/design');
+    if (shouldNavigate) {
+      navigate('/block/design');
+    }
   };
 
   const handleBlockDraftChange = useCallback((draft: BlockContent) => {
@@ -922,23 +926,15 @@ export default function App(): JSX.Element | null {
   );
 
   const handleBlockImported = (stored: StoredBlock) => {
-    let shouldLoadImmediately = false;
-    setBlock((prev) => {
-      if (prev) return prev;
-      shouldLoadImmediately = true;
-      const content = toBlockContent(stored.data);
-      return {
-        draft: cloneBlockContent(content),
-        repoId: stored.metadata.uuid,
-        repoName: stored.metadata.name,
-        repoMetadata: { ...stored.metadata },
-        published: cloneBlockContent(content),
-      };
-    });
-    if (!shouldLoadImmediately) {
+    const hasExistingBlock = !!block;
+    const shouldReplaceCurrent =
+      !block || (!block.repoId && !hasBlockDesign(block.draft));
+
+    if (!shouldReplaceCurrent) {
       return;
     }
-    loadRepositoryBlock(stored);
+
+    loadRepositoryBlock(stored, { navigate: !hasExistingBlock });
   };
 
   const blockInUse = useMemo(() => {
@@ -1014,13 +1010,9 @@ export default function App(): JSX.Element | null {
     [repositorySnapshot],
   );
 
-  const hasActiveBlock = useMemo(() => {
-    if (!block) return false;
-    return isDraftNonEmpty(block.draft);
-  }, [block, isDraftNonEmpty]);
-
   const hasDirtyBlock = computeDirty();
   const hasPublishedBlock = Boolean(block?.published);
+  const hasPublishedRepositoryBlock = Object.keys(repositorySnapshot.repository).length > 0;
 
   if (!isHydrated) {
     return null;
@@ -1029,9 +1021,9 @@ export default function App(): JSX.Element | null {
   return (
     <AppCommandsProvider>
       <ProceedToMallaProvider
-      hasActiveBlock={hasActiveBlock}
       hasDirtyBlock={hasDirtyBlock}
       hasPublishedBlock={hasPublishedBlock}
+      hasPublishedRepositoryBlock={hasPublishedRepositoryBlock}
     >
       <AppLayout
         projectName={projectName}

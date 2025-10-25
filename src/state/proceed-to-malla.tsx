@@ -25,8 +25,8 @@ interface ProceedToMallaContextValue {
 
 const ProceedToMallaContext = createContext<ProceedToMallaContextValue | undefined>(undefined);
 
-const NO_ACTIVE_BLOCK_ALERT_MESSAGE =
-  'Para pasar al diseño de malla, activa un bloque en el editor o impórtalo desde el repositorio.';
+const NO_PUBLISHED_BLOCK_ALERT_MESSAGE =
+  'Para pasar al diseño de malla, publica al menos un bloque en el repositorio (desde el editor o importándolo).';
 const PUBLISH_BLOCK_CONFIRM_MESSAGE =
   'Para pasar al diseño de malla, publica el bloque en el repositorio. ¿Deseas hacerlo ahora?';
 const UPDATE_BLOCK_CONFIRM_MESSAGE =
@@ -34,16 +34,16 @@ const UPDATE_BLOCK_CONFIRM_MESSAGE =
 
 interface ProceedToMallaProviderProps {
   children: React.ReactNode;
-  hasActiveBlock: boolean;
   hasDirtyBlock: boolean;
   hasPublishedBlock: boolean;
+  hasPublishedRepositoryBlock: boolean;
 }
 
 export function ProceedToMallaProvider({
   children,
-  hasActiveBlock,
   hasDirtyBlock,
   hasPublishedBlock,
+  hasPublishedRepositoryBlock,
 }: ProceedToMallaProviderProps): JSX.Element {
   const navigate = useNavigate();
   const skipNextDirtyBlockCheckRef = React.useRef(false);
@@ -51,8 +51,8 @@ export function ProceedToMallaProvider({
     (targetPath) => {
       const destination = targetPath ?? '/malla/design';
       if (destination === '/malla/design') {
-        if (!hasActiveBlock) {
-          window.alert(NO_ACTIVE_BLOCK_ALERT_MESSAGE);
+        if (!hasPublishedRepositoryBlock) {
+          window.alert(NO_PUBLISHED_BLOCK_ALERT_MESSAGE);
           return true;
         }
         const shouldSkipDirtyCheck = skipNextDirtyBlockCheckRef.current;
@@ -76,7 +76,7 @@ export function ProceedToMallaProvider({
       navigate(destination);
       return true;
     },
-    [hasActiveBlock, hasDirtyBlock, hasPublishedBlock, navigate],
+    [hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, navigate],
   );
 
   const [overrideHandler, setOverrideHandler] =
