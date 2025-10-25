@@ -343,6 +343,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     scrollTop: 0,
   });
   const savedRef = useRef<string | null>(null);
+  const skipNextSyncRef = useRef(false);
 
   const applyHistorySnapshot = useCallback(
     (entry: MallaHistoryEntry) => {
@@ -726,6 +727,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
 
+    skipNextSyncRef.current = true;
     savedRef.current = serialized;
     setMastersById(masters);
     setCols(grid.cols);
@@ -748,6 +750,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
       activeMasterId: selectedMasterId,
       repository: repositoryEntries,
     };
+    if (skipNextSyncRef.current) {
+      skipNextSyncRef.current = false;
+      return;
+    }
+
     const serialized = JSON.stringify(project);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
