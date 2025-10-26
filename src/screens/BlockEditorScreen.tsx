@@ -564,6 +564,54 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     };
   }, [setHandler, resetHandler, ensurePublishedAndProceed]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const body = document.body;
+    if (!body) return;
+
+    const appMain = document.querySelector('[data-app-main]');
+
+    if (mode !== 'view') {
+      return;
+    }
+
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyPaddingRight = body.style.paddingRight;
+
+    let previousMainOverflow: string | null = null;
+    let previousMainPaddingRight: string | null = null;
+
+    if (appMain instanceof HTMLElement) {
+      previousMainOverflow = appMain.style.overflow;
+      previousMainPaddingRight = appMain.style.paddingRight;
+    }
+
+    const scrollbarCompensation = window.innerWidth - document.documentElement.clientWidth;
+
+    body.style.overflow = 'hidden';
+    if (scrollbarCompensation > 0) {
+      body.style.paddingRight = `${scrollbarCompensation}px`;
+    }
+
+    if (appMain instanceof HTMLElement) {
+      appMain.style.overflow = 'hidden';
+      if (scrollbarCompensation > 0) {
+        appMain.style.paddingRight = `${scrollbarCompensation}px`;
+      }
+    }
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      body.style.paddingRight = previousBodyPaddingRight;
+
+      if (appMain instanceof HTMLElement) {
+        appMain.style.overflow = previousMainOverflow ?? '';
+        appMain.style.paddingRight = previousMainPaddingRight ?? '';
+      }
+    };
+  }, [mode]);
+
   if (mode === 'edit') {
     return (
       <div className="block-editor-screen">

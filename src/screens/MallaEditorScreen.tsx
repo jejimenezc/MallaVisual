@@ -1289,7 +1289,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 onClick={handleClearGrid}
                 title="Eliminar todas las piezas de la malla"
               >
-                Reiniciar malla
+                Borrar todo
               </Button>
           </>
             </div>
