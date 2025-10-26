@@ -531,8 +531,24 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const header = (
     <Header
       title="Editor de Bloques"
+      left={
+        <div className="block-editor-header-toolbar">
+          <div className="block-editor-header-name">
+            <span className="block-editor-header-name-label">Bloque:</span>
+            <span
+              className="block-editor-block-name"
+              title={repoName || 'Sin nombre'}
+            >
+              {repoName || 'Sin nombre'}
+            </span>
+            <Button onClick={handleRename}>
+              {repoId ? '✏️ Renombrar' : '✏️ Definir nombre'}
+            </Button>
+          </div>
+        </div>
+      }
       center={
-        <>
+        <div className="block-editor-header-toolbar">
           <Button onClick={handleUndo} disabled={!canUndo} title="Deshacer">
             ↻
           </Button>
@@ -552,7 +568,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           >
             👁️ Configurar vista
           </Button>
-        </>
+        </div>
+      }
+      right={
+        <div className="block-editor-header-toolbar">
+          <Button onClick={() => handleSaveToRepo()}>
+            {repoId ? 'Actualizar en repositorio' : 'Guardar en repositorio'}
+          </Button>
+        </div>
       }
     />
   );
@@ -625,34 +648,23 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             />
           }
           right={
-            <div>
-              <ContextSidebarPanel
-                selectedCount={editorSidebar?.selectedCount ?? 0}
-                canCombine={editorSidebar?.canCombine ?? false}
-                canSeparate={editorSidebar?.canSeparate ?? false}
-                onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-                onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
-                selectedCell={editorSidebar?.selectedCell ?? null}
-                selectedCoord={editorSidebar?.selectedCoord}
-                onUpdateCell={(updated, coord) => {
-                  const fallback = editorSidebar?.selectedCoord;
-                  const target = coord ?? fallback;
-                  if (!target || !editorSidebar?.handlers.onUpdateCell) return;
-                  editorSidebar.handlers.onUpdateCell(updated, target);
-                }}
-                combineDisabledReason={editorSidebar?.combineDisabledReason}
-                template={template}
-              />
-              <div style={{ marginTop: '1rem' }}>
-                <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
-                <Button onClick={handleRename}>
-                  {repoId ? 'Renombrar bloque' : 'Definir nombre'}
-                </Button>
-              </div>
-              <Button onClick={() => handleSaveToRepo()}>
-                {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
-              </Button>
-            </div>
+            <ContextSidebarPanel
+              selectedCount={editorSidebar?.selectedCount ?? 0}
+              canCombine={editorSidebar?.canCombine ?? false}
+              canSeparate={editorSidebar?.canSeparate ?? false}
+              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
+              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+              selectedCell={editorSidebar?.selectedCell ?? null}
+              selectedCoord={editorSidebar?.selectedCoord}
+              onUpdateCell={(updated, coord) => {
+                const fallback = editorSidebar?.selectedCoord;
+                const target = coord ?? fallback;
+                if (!target || !editorSidebar?.handlers.onUpdateCell) return;
+                editorSidebar.handlers.onUpdateCell(updated, target);
+              }}
+              combineDisabledReason={editorSidebar?.combineDisabledReason}
+              template={template}
+            />
           }
         />
       </div>
@@ -674,25 +686,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           />
         }
         right={
-          <div>
-            <FormatStylePanel
-              selectedCoord={selectedCoord}
-              visualTemplate={visual}
-              onUpdateVisual={setVisual}
-              template={template}
-              blockAspect={aspect}
-              onUpdateAspect={setAspect}
-            />
-            <div style={{ marginTop: '1rem' }}>
-              <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
-              <Button onClick={handleRename}>
-                {repoId ? 'Renombrar bloque' : 'Definir nombre'}
-              </Button>
-            </div>
-            <Button onClick={() => handleSaveToRepo()}>
-              {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
-            </Button>
-          </div>
+          <FormatStylePanel
+            selectedCoord={selectedCoord}
+            visualTemplate={visual}
+            onUpdateVisual={setVisual}
+            template={template}
+            blockAspect={aspect}
+            onUpdateAspect={setAspect}
+          />
         }
       />
     </div>
