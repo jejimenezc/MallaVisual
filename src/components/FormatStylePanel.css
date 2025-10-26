@@ -56,14 +56,28 @@
 
 .format-section__header {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.format-section__header > p {
-  margin: 0;
-  font-size: 13px;
-  color: color-mix(in srgb, currentColor 70%, transparent);
+.format-section__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.format-section__tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--divider, #111) 12%, transparent);
+  font-size: 12px;
+  line-height: 1;
+  cursor: help;
+  color: color-mix(in srgb, currentColor 75%, transparent);
 }
 
 .format-section__eyebrow {
@@ -83,16 +97,10 @@
   font-size: 13px;
 }
 
-.format-section-grid {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
+.format-section__list {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-}
-
-@media (min-width: 320px) {
-  .format-section-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .format-field {
@@ -238,43 +246,6 @@
   font: inherit;
 }
 
-.control-tabs {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.control-tabs__list {
-  display: inline-flex;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--divider, #111) 10%, transparent);
-  padding: 4px;
-  gap: 4px;
-}
-
-.control-tabs__tab {
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  color: color-mix(in srgb, currentColor 60%, transparent);
-}
-
-.control-tabs__tab.is-active {
-  background: #fff;
-  color: currentColor;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-
-.control-tabs__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 
 .format-popover-layer {
   position: fixed;

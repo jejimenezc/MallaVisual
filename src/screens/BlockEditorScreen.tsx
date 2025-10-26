@@ -544,7 +544,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             className={mode === 'edit' ? 'active' : ''}
             onClick={() => setMode('edit')}
           >
-            ✏️ Configurar controles
+            🎛️ Configurar controles
           </Button>
           <Button
             className={mode === 'view' ? 'active' : ''}

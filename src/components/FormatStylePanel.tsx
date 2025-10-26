@@ -10,7 +10,7 @@ import type {
   BlockAspect,
   ConditionalBg,
 } from '../types/visual';
-import type { BlockTemplate, BlockTemplateCell, InputType } from '../types/curricular';
+import type { BlockTemplate, BlockTemplateCell } from '../types/curricular';
 import { generatePalette } from '../utils/palette';
 
 interface FormatStylePanelProps {
@@ -88,34 +88,6 @@ const sanitizeConditionalBg = (value?: ConditionalBg | null): ConditionalBg | un
     next.hoverCheckedColor = value.hoverCheckedColor;
   }
   return Object.keys(next).length ? next : undefined;
-};
-
-type FormatTabKey = 'checkbox' | 'text';
-
-interface FormatTab {
-  key: FormatTabKey;
-  label: string;
-  type: InputType;
-}
-
-const CONTROL_TABS: FormatTab[] = [
-  { key: 'checkbox', label: 'Checkbox', type: 'checkbox' },
-  { key: 'text', label: 'Texto libre', type: 'text' },
-];
-
-const useFormatTabs = (selectedType?: InputType) => {
-  const initialTab: FormatTabKey = selectedType === 'checkbox' ? 'checkbox' : 'text';
-  const [activeTab, setActiveTab] = useState<FormatTabKey>(initialTab);
-
-  useEffect(() => {
-    if (selectedType === 'checkbox') {
-      setActiveTab('checkbox');
-    } else if (selectedType === 'text') {
-      setActiveTab('text');
-    }
-  }, [selectedType]);
-
-  return { activeTab, setActiveTab };
 };
 
 interface PopoverProps {
@@ -281,8 +253,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     if (!selectedCoord) return undefined;
     return template[selectedCoord.row]?.[selectedCoord.col];
   }, [selectedCoord, template]);
-
-  const { activeTab, setActiveTab } = useFormatTabs(selectedCell?.type);
 
   const patch = useCallback(
     (partial: Partial<VisualStyle>) => {
@@ -537,6 +507,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   ];
 
   const canEditControl = Boolean(selectedCoord && isControlType(selectedCell));
+  const isCheckboxControl = canEditControl && selectedCell?.type === 'checkbox';
+  const isTextControl = canEditControl && selectedCell?.type === 'text';
+  const isCustomizableControl = isCheckboxControl || isTextControl;
 
   return (
     <div className="format-style-panel" ref={panelRef}>
@@ -545,15 +518,21 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
           <span aria-hidden="true">🖌️</span>
           <h3>Formato de bloque</h3>
         </div>
-        <button type="button" className="format-panel-info" aria-label="Guía rápida de estilos">
-          ℹ️
-        </button>
       </header>
 
       <section className="format-section">
         <div className="format-section__header">
-          <span className="format-section__eyebrow">General</span>
-          <p>Configura parámetros que afectan al bloque completo.</p>
+          <div className="format-section__title">
+            <span className="format-section__eyebrow">General</span>
+            <span
+              className="format-section__tooltip"
+              role="img"
+              aria-label="Configura parámetros que afectan al bloque completo."
+              title="Configura parámetros que afectan al bloque completo."
+            >
+              ℹ️
+            </span>
+          </div>
         </div>
         <div className="format-field">
           <div className="format-field__label">
@@ -573,18 +552,39 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
           </select>
           <p className="format-field__hint">Ajusta la relación para mantener proporciones consistentes.</p>
         </div>
+        <div className="format-field">
+          <div className="format-field__label">
+            <span aria-hidden="true">🎨</span>
+            <span>Paleta de color</span>
+          </div>
+          <label className="toggle toggle--disabled">
+            <input type="checkbox" disabled />
+            <span className="toggle__indicator" aria-hidden="true" />
+            <span className="toggle__label">Próximamente</span>
+          </label>
+          <p className="format-field__hint">Centraliza colores aprobados para mantener consistencia.</p>
+        </div>
       </section>
 
       <section className="format-section">
         <div className="format-section__header">
-          <span className="format-section__eyebrow">Estilos base</span>
-          <p>Aplican al control seleccionado sin importar su tipo.</p>
+          <div className="format-section__title">
+            <span className="format-section__eyebrow">Estilos base</span>
+            <span
+              className="format-section__tooltip"
+              role="img"
+              aria-label="Aplican al control seleccionado sin importar su tipo."
+              title="Aplican al control seleccionado sin importar su tipo."
+            >
+              ℹ️
+            </span>
+          </div>
         </div>
         {!canEditControl && (
           <p className="format-section__empty">Selecciona una celda activa para editar sus estilos.</p>
         )}
         {canEditControl && (
-          <div className="format-section-grid">
+          <div className="format-section__list">
             <div className="format-field">
               <div className="format-field__label">
                 <span aria-hidden="true">🎨</span>
@@ -674,136 +674,104 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
       <section className="format-section">
         <div className="format-section__header">
-          <span className="format-section__eyebrow">Personalización por control</span>
-          <p>Accede a ajustes específicos según el tipo de control.</p>
+          <div className="format-section__title">
+            <span className="format-section__eyebrow">Formato condicional</span>
+            <span
+              className="format-section__tooltip"
+              role="img"
+              aria-label="Accede a ajustes específicos según el tipo de control."
+              title="Accede a ajustes específicos según el tipo de control."
+            >
+              ℹ️
+            </span>
+          </div>
         </div>
         {!canEditControl && (
           <p className="format-section__empty">Selecciona una celda para mostrar sus opciones específicas.</p>
         )}
         {canEditControl && (
-          <div className="control-tabs">
-            <div className="control-tabs__list" role="tablist">
-              {CONTROL_TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  role="tab"
-                  type="button"
-                  className={`control-tabs__tab${activeTab === tab.key ? ' is-active' : ''}`}
-                  aria-selected={activeTab === tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            <div className="control-tabs__panel" role="tabpanel">
-              {activeTab === 'checkbox' && selectedCell?.type === 'checkbox' && (
-                <div className="format-field">
-                  <div className="format-field__label">
-                    <span aria-hidden="true">✅</span>
-                    <span>Color al marcar</span>
-                  </div>
-                  <label className="toggle toggle--inline">
-                    <input
-                      type="checkbox"
-                      checked={checkboxColorEnabled}
-                      onChange={(event) => handleCheckboxColorToggle(event.target.checked)}
-                    />
-                    <span className="toggle__indicator" aria-hidden="true" />
-                    <span className="toggle__label">Personalizar</span>
-                  </label>
-                  {checkboxColorEnabled && (
-                    <div className="format-field__stack">
-                      <button
-                        type="button"
-                        className="value-chip"
-                        onClick={openColorPopover('checkbox-normal')}
-                      >
-                        Normal
-                      </button>
-                      <button
-                        type="button"
-                        className="value-chip"
-                        onClick={openColorPopover('checkbox-hover')}
-                      >
-                        Hover
-                      </button>
-                    </div>
-                  )}
+          <>
+            {isCheckboxControl && (
+              <div className="format-field">
+                <div className="format-field__label">
+                  <span aria-hidden="true">✅</span>
+                  <span>Color al marcar</span>
                 </div>
-              )}
-
-              {activeTab === 'checkbox' && selectedCell?.type !== 'checkbox' && (
-                <p className="format-section__empty">Este control no requiere opciones adicionales.</p>
-              )}
-
-              {activeTab === 'text' && selectedCell?.type === 'text' && (
-                <div className="format-field">
-                  <div className="format-field__label">
-                    <span aria-hidden="true">🎯</span>
-                    <span>Color según select</span>
+                <label className="toggle toggle--inline">
+                  <input
+                    type="checkbox"
+                    checked={checkboxColorEnabled}
+                    onChange={(event) => handleCheckboxColorToggle(event.target.checked)}
+                  />
+                  <span className="toggle__indicator" aria-hidden="true" />
+                  <span className="toggle__label">Personalizar</span>
+                </label>
+                {checkboxColorEnabled && (
+                  <div className="format-field__stack">
+                    <button
+                      type="button"
+                      className="value-chip"
+                      onClick={openColorPopover('checkbox-normal')}
+                    >
+                      Normal
+                    </button>
+                    <button
+                      type="button"
+                      className="value-chip"
+                      onClick={openColorPopover('checkbox-hover')}
+                    >
+                      Hover
+                    </button>
                   </div>
-                  {selectCells.length > 0 ? (
-                    <>
-                      <select
-                        value={current.conditionalBg?.selectSource?.coord ?? ''}
-                        onChange={(event) => handleSelectSourceChange(event.target.value)}
-                      >
-                        <option value="">Sin origen</option>
-                        {selectCells.map((cell) => (
-                          <option key={cell.coord} value={cell.coord}>
-                            {cell.coord}
-                          </option>
-                        ))}
-                      </select>
-                      {current.conditionalBg?.selectSource && (
-                        <div className="color-preview-grid">
-                          {Object.entries(current.conditionalBg.selectSource.colors).map(
-                            ([option, color]) => (
-                              <div key={option} className="color-preview-grid__item">
-                                <span style={{ backgroundColor: color }} aria-hidden="true" />
-                                <span>{option}</span>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="format-section__empty">
-                      No hay campos select disponibles en este bloque.
-                    </p>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
-              {activeTab === 'text' && selectedCell?.type !== 'text' && (
-                <p className="format-section__empty">Este control no requiere opciones adicionales.</p>
-              )}
-            </div>
-          </div>
+            {isTextControl && (
+              <div className="format-field">
+                <div className="format-field__label">
+                  <span aria-hidden="true">🎯</span>
+                  <span>Color según select</span>
+                </div>
+                {selectCells.length > 0 ? (
+                  <>
+                    <select
+                      value={current.conditionalBg?.selectSource?.coord ?? ''}
+                      onChange={(event) => handleSelectSourceChange(event.target.value)}
+                    >
+                      <option value="">Sin origen</option>
+                      {selectCells.map((cell) => (
+                        <option key={cell.coord} value={cell.coord}>
+                          {cell.coord}
+                        </option>
+                      ))}
+                    </select>
+                    {current.conditionalBg?.selectSource && (
+                      <div className="color-preview-grid">
+                        {Object.entries(current.conditionalBg.selectSource.colors).map(
+                          ([option, color]) => (
+                            <div key={option} className="color-preview-grid__item">
+                              <span style={{ backgroundColor: color }} aria-hidden="true" />
+                              <span>{option}</span>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="format-section__empty">
+                    No hay campos select disponibles en este bloque.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isCustomizableControl && (
+              <p className="format-section__empty">Este control no requiere opciones adicionales.</p>
+            )}
+          </>
         )}
-      </section>
-
-      <section className="format-section">
-        <div className="format-section__header">
-          <span className="format-section__eyebrow">Herramientas complementarias</span>
-          <p>Prepara funciones que acompañarán al formato del bloque.</p>
-        </div>
-        <div className="format-field">
-          <div className="format-field__label">
-            <span aria-hidden="true">🎨</span>
-            <span>Paleta de color por proyecto</span>
-          </div>
-          <label className="toggle toggle--disabled">
-            <input type="checkbox" disabled />
-            <span className="toggle__indicator" aria-hidden="true" />
-            <span className="toggle__label">Próximamente</span>
-          </label>
-          <p className="format-field__hint">
-            Centraliza colores aprobados para mantener consistencia.
-          </p>
-        </div>
       </section>
 
       {canEditControl && (
