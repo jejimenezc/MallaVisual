@@ -533,24 +533,24 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       title="Editor de Bloques"
       center={
         <>
-          <Button onClick={handleUndo} disabled={!canUndo}>
-            ↩️ Deshacer
+          <Button onClick={handleUndo} disabled={!canUndo} title="Deshacer">
+            ↻
           </Button>
-          <Button onClick={handleRedo} disabled={!canRedo}>
-            ↪️ Rehacer
+          <Button onClick={handleRedo} disabled={!canRedo} title="Rehacer">
+            ↺
           </Button>
 
           <Button
             className={mode === 'edit' ? 'active' : ''}
             onClick={() => setMode('edit')}
           >
-            ✏️ Editar
+            ✏️ Configurar controles
           </Button>
           <Button
             className={mode === 'view' ? 'active' : ''}
             onClick={() => setMode('view')}
           >
-            👁️ Vista
+            👁️ Configurar vista
           </Button>
         </>
       }
