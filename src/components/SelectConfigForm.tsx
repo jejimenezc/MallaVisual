@@ -46,7 +46,7 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
     <div className="control-config-form select-config-form format-section__list">
       <div className="format-field">
         <div className="format-field__label">
-          <label htmlFor={labelId}>Etiqueta</label>
+          <label htmlFor={labelId}>Nombre del control</label>
         </div>
         <input
           id={labelId}

@@ -45,7 +45,7 @@ const CONTROL_TOOLTIPS: Record<
     tooltip:
       'El control de texto libre permitirá ingresar contenido en el diseño de la malla.',
     description:
-      'La etiqueta es el nombre del control y no será visible en la malla. El texto de ayuda guiará a la persona usuaria.',
+      'El nombre del control no será visible en la malla. El texto de ayuda guiará a la persona usuaria.',
   },
   checkbox: {
     title: 'Checkbox',
@@ -55,19 +55,19 @@ const CONTROL_TOOLTIPS: Record<
   select: {
     title: 'Lista desplegable',
     tooltip: 'La lista desplegable permitirá elegir una opción entre las que definas aquí.',
-    description: 'La etiqueta es el nombre del control y no será visible en la malla. Escribe las opciones separadas por coma.',
+    description: 'El nombre del control no será visible en la malla. Escribe las opciones separadas por coma.',
   },
   number: {
     title: 'Número',
     tooltip: 'El control numérico permitirá registrar valores cuantitativos en la malla.',
     description:
-      'La etiqueta es el nombre del control y no será visible en la malla. El texto de ayuda guiará a la persona usuaria. Define cuántos dígitos decimales aceptará el campo.',
+      'El nombre del control no será visible en la malla. El texto de ayuda guiará a la persona usuaria. Define cuántos dígitos decimales aceptará el campo.',
   },
   calculated: {
     title: 'Campo calculado',
     tooltip: 'El campo calculado mostrará resultados a partir de operaciones con otros números.',
     description:
-      'La etiqueta es el nombre del control y no será visible en la malla. Construye la fórmula combinando celdas numéricas y operadores.',
+      'El nombre del control no será visible en la malla. Construye la fórmula combinando celdas numéricas y operadores.',
   },
 };
 

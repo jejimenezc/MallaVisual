@@ -47,7 +47,7 @@ export const TextConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => {
     <div className="control-config-form format-section__list">
       <div className="format-field">
         <div className="format-field__label">
-          <label htmlFor={labelId}>Etiqueta</label>
+          <label htmlFor={labelId}>Nombre del control</label>
         </div>
         <input
           id={labelId}
@@ -61,7 +61,7 @@ export const TextConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => {
 
       <div className="format-field">
         <div className="format-field__label">
-          <label htmlFor={placeholderId}>Placeholder (texto de ayuda)</label>
+          <label htmlFor={placeholderId}>Texto de ayuda</label>
         </div>
         <input
           id={placeholderId}

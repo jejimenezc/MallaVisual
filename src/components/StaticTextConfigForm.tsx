@@ -32,7 +32,7 @@ const StaticTextConfigForm: React.FC<Props> = ({ value, coord, onChange }) => {
     <div className="static-text-config-form format-section__list">
       <div className="format-field">
         <div className="format-field__label">
-          <label htmlFor={inputId}>Textbox</label>
+          <label htmlFor={inputId}>Contenido para mostrar</label>
         </div>
         <input
           id={inputId}

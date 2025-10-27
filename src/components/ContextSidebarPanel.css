@@ -55,6 +55,7 @@
 .context-sidebar-panel select {
   width: 100%;
   padding: 8px 10px;
+  box-sizing: border-box;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--divider, #111) 22%, transparent);
   background: #fff;
