@@ -22,20 +22,15 @@
 }
 
 .calculated-config-form__keypad {
-  display: flex;
-  gap: 2px;
-}
-
-.calculated-config-form__digits {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2px;
-}
-
-.calculated-config-form__operators {
-  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
   grid-auto-rows: 42px;
-  gap: 2px;
+}
+
+.calculated-config-form__keypad-spacer {
+  display: block;
+  height: 42px;
 }
 
 .calculated-config-form__button {
@@ -43,6 +38,7 @@
   align-items: center;
   justify-content: center;
   height: 42px;
+  width: 100%;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--divider, #111) 18%, transparent);
   background: #fff;

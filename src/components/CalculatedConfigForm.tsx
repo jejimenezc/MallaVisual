@@ -70,8 +70,6 @@ export const CalculatedConfigForm: React.FC<Props> = ({
     }
   };
 
-  const handleTokenClick = (tok: string) => () => insertToken(tok);
-
   const handleBackspace = () => {
     if (!expression) return;
     const next = expression.slice(0, -1);
@@ -79,19 +77,62 @@ export const CalculatedConfigForm: React.FC<Props> = ({
     onUpdate({ expression: next });
   };
 
+  const handleClear = () => {
+    setExpression('');
+    onUpdate({ expression: '' });
+  };
+
   const noNumberMsg =
     'Para definir un cálculo se requieren celdas numéricas. No hay celdas numéricas en el bloque';
 
-  const operatorTokens: { label: string; value: string; aria?: string }[] = [
-    { label: '+', value: '+' },
-    { label: '-', value: '-' },
-    { label: '×', value: '*', aria: 'Multiplicar' },
-    { label: '÷', value: '/', aria: 'Dividir' },
-    { label: '(', value: '(' },
-    { label: ')', value: ')' },
-  ];
+  type KeypadItem =
+    | {
+        type: 'token';
+        label: string;
+        value: string;
+        aria?: string;
+        variant?: 'operator' | 'digit';
+      }
+    | {
+        type: 'action';
+        action: 'backspace' | 'clear';
+        label: string;
+        aria: string;
+      }
+    | null;
 
-  const digitTokens = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'];
+  const keypadLayout: KeypadItem[][] = [
+    [
+      { type: 'token', label: '7', value: '7', variant: 'digit' },
+      { type: 'token', label: '8', value: '8', variant: 'digit' },
+      { type: 'token', label: '9', value: '9', variant: 'digit' },
+      { type: 'token', label: '/', value: '/', aria: 'Dividir', variant: 'operator' },
+    ],
+    [
+      { type: 'token', label: '4', value: '4', variant: 'digit' },
+      { type: 'token', label: '5', value: '5', variant: 'digit' },
+      { type: 'token', label: '6', value: '6', variant: 'digit' },
+      { type: 'token', label: 'x', value: '*', aria: 'Multiplicar', variant: 'operator' },
+    ],
+    [
+      { type: 'token', label: '1', value: '1', variant: 'digit' },
+      { type: 'token', label: '2', value: '2', variant: 'digit' },
+      { type: 'token', label: '3', value: '3', variant: 'digit' },
+      { type: 'token', label: '-', value: '-', variant: 'operator' },
+    ],
+    [
+      null,
+      { type: 'token', label: '0', value: '0', variant: 'digit' },
+      { type: 'token', label: '.', value: '.', variant: 'digit' },
+      { type: 'token', label: '+', value: '+', variant: 'operator' },
+    ],
+    [
+      { type: 'action', action: 'clear', label: 'C', aria: 'Limpiar expresión' },
+      { type: 'token', label: '(', value: '(', variant: 'operator' },
+      { type: 'token', label: ')', value: ')', variant: 'operator' },
+      { type: 'action', action: 'backspace', label: '⌫', aria: 'Borrar último carácter' },
+    ],
+  ];
 
   return (
     <div className="control-config-form calculated-config-form format-section__list">
@@ -136,39 +177,54 @@ export const CalculatedConfigForm: React.FC<Props> = ({
           </div>
 
           <div className="calculated-config-form__keypad">
-            <div className="calculated-config-form__digits">
-              {digitTokens.map((token) => (
-                <button
-                  type="button"
-                  key={token}
-                  onClick={handleTokenClick(token)}
-                  className="calculated-config-form__button"
-                >
-                  {token}
-                </button>
-              ))}
-            </div>
-            <div className="calculated-config-form__operators">
-              {operatorTokens.map((token) => (
-                <button
-                  type="button"
-                  key={token.value}
-                  onClick={handleTokenClick(token.value)}
-                  className="calculated-config-form__button calculated-config-form__button--operator"
-                  aria-label={token.aria}
-                >
-                  {token.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={handleBackspace}
-                className="calculated-config-form__button calculated-config-form__button--operator"
-                aria-label="Borrar"
-              >
-                ⌫
-              </button>
-            </div>
+            {keypadLayout.flatMap((row, rowIndex) =>
+              row.map((item, colIndex) => {
+                const key = `keypad-${rowIndex}-${colIndex}`;
+
+                if (!item) {
+                  return (
+                    <span
+                      key={key}
+                      className="calculated-config-form__keypad-spacer"
+                      aria-hidden="true"
+                    />
+                  );
+                }
+
+                if (item.type === 'token') {
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => insertToken(item.value)}
+                      className={`calculated-config-form__button${
+                        item.variant === 'operator'
+                          ? ' calculated-config-form__button--operator'
+                          : ''
+                      }`}
+                      aria-label={item.aria}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                }
+
+                const actionHandler =
+                  item.action === 'backspace' ? handleBackspace : handleClear;
+
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={actionHandler}
+                    className="calculated-config-form__button calculated-config-form__button--operator"
+                    aria-label={item.aria}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })
+            )}
           </div>
 
           <div className="format-field calculated-config-form__expression">
