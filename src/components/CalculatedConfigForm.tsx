@@ -1,6 +1,6 @@
 // src/components/CalculatedConfigForm.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { BlockTemplateCell, BlockTemplate } from '../types/curricular.ts';
+import type { BlockTemplateCell, BlockTemplate } from '../types/curricular.ts';
 import '../styles/CalculatedConfigForm.css';
 
 interface Props {
@@ -34,6 +34,9 @@ export const CalculatedConfigForm: React.FC<Props> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [label, setLabel] = useState(cell.label ?? '');
   const [expression, setExpression] = useState(cell.expression ?? '');
+  const labelId = `calculated-label-${coord.row}-${coord.col}`;
+  const selectId = `calculated-source-${coord.row}-${coord.col}`;
+  const expressionId = `calculated-expression-${coord.row}-${coord.col}`;
 
 
   useEffect(() => {
@@ -41,11 +44,11 @@ export const CalculatedConfigForm: React.FC<Props> = ({
     inputRef.current?.select();
     setExpression(cell.expression ?? '');
 
-  }, [coord]);
+  }, [coord, cell.expression]);
 
   useEffect(() => {
     setLabel(cell.label ?? '');
-  }, [coord]);
+  }, [coord, cell.label]);
 
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newLabel = e.target.value;
@@ -79,28 +82,48 @@ export const CalculatedConfigForm: React.FC<Props> = ({
   const noNumberMsg =
     'Para definir un cálculo se requieren celdas numéricas. No hay celdas numéricas en el bloque';
 
+  const operatorTokens: { label: string; value: string; aria?: string }[] = [
+    { label: '+', value: '+' },
+    { label: '-', value: '-' },
+    { label: '×', value: '*', aria: 'Multiplicar' },
+    { label: '÷', value: '/', aria: 'Dividir' },
+    { label: '(', value: '(' },
+    { label: ')', value: ')' },
+  ];
+
+  const digitTokens = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'];
+
   return (
-    <div className="control-config-form calculated-config-form">
-      <h4>Configuración de campo calculado</h4>
-      <label>
-        Etiqueta:
+    <div className="control-config-form calculated-config-form format-section__list">
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={labelId}>Etiqueta</label>
+        </div>
         <input
+          id={labelId}
           ref={inputRef}
           type="text"
           value={label}
           onChange={handleLabelChange}
           placeholder="Ej: Total"
         />
-      </label>
-      <p className="hint">
-        Se detectan {numberCells.length} campos numéricos en el bloque
+      </div>
+      <p className="format-field__hint">
+        Info: se detectan {numberCells.length} campos numéricos en el bloque.
       </p>
       {numberCells.length === 0 ? (
-        <p className="no-number-msg">{noNumberMsg}</p>
+        <p className="format-section__empty">{noNumberMsg}</p>
       ) : (
-        <div className="expression-builder">
-          <div className="row">
-            <select onChange={handleSelectChange} defaultValue="">
+        <div
+          className="calculated-config-form__builder"
+          role="group"
+          aria-label="Constructor de fórmulas"
+        >
+          <div className="format-field calculated-config-form__source">
+            <div className="format-field__label">
+              <label htmlFor={selectId}>Agregar celda numérica</label>
+            </div>
+            <select id={selectId} onChange={handleSelectChange} defaultValue="">
               <option value="" disabled>
                 Seleccionar celda
               </option>
@@ -110,35 +133,58 @@ export const CalculatedConfigForm: React.FC<Props> = ({
                 </option>
               ))}
             </select>
-            <div className="operators">
-              {['+', '-', '*', '/', '(', ')'].map((op) => (
+          </div>
+
+          <div className="calculated-config-form__keypad">
+            <div className="calculated-config-form__digits">
+              {digitTokens.map((token) => (
                 <button
                   type="button"
-                  key={op}
-                  onClick={handleTokenClick(op)}
+                  key={token}
+                  onClick={handleTokenClick(token)}
+                  className="calculated-config-form__button"
                 >
-                  {op}
+                  {token}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="digits">
-            {['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'].map((n) => (
-              <button type="button" key={n} onClick={handleTokenClick(n)}>
-                {n}
+            <div className="calculated-config-form__operators">
+              {operatorTokens.map((token) => (
+                <button
+                  type="button"
+                  key={token.value}
+                  onClick={handleTokenClick(token.value)}
+                  className="calculated-config-form__button calculated-config-form__button--operator"
+                  aria-label={token.aria}
+                >
+                  {token.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={handleBackspace}
+                className="calculated-config-form__button calculated-config-form__button--operator"
+                aria-label="Borrar"
+              >
+                ⌫
               </button>
-            ))}
-            <button type="button" onClick={handleBackspace} aria-label="Borrar">
-              ⌫
-            </button>
+            </div>
           </div>
-          <input
-            type="text"
-            readOnly
-            className="expression-display"
-            value={expression}
-          />
+
+          <div className="format-field calculated-config-form__expression">
+            <div className="format-field__label">
+              <label htmlFor={expressionId}>Expresión resultante</label>
+            </div>
+            <input
+              id={expressionId}
+              type="text"
+              readOnly
+              value={expression}
+              className="calculated-config-form__expression-input"
+            />
+          </div>
         </div>
-      )}    </div>
+      )}
+    </div>
   );
 };

@@ -1,7 +1,7 @@
 // src/components/CheckboxConfigForm.tsx
 
 import React, { useEffect, useRef, useState } from 'react';
-import { BlockTemplateCell } from '../types/curricular';
+import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/CheckboxConfigForm.css';
 
 export interface CheckboxConfigFormProps {
@@ -10,10 +10,10 @@ export interface CheckboxConfigFormProps {
   onUpdate: (updated: Partial<BlockTemplateCell>) => void;
 }
 
-export const CheckboxConfigForm: React.FC<CheckboxConfigFormProps> = ({ cell, coord, onUpdate }) => 
-{
+export const CheckboxConfigForm: React.FC<CheckboxConfigFormProps> = ({ cell, coord, onUpdate }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [label, setLabel] = useState(cell.label ?? '');
+  const inputId = `checkbox-label-${coord.row}-${coord.col}`;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -22,7 +22,7 @@ export const CheckboxConfigForm: React.FC<CheckboxConfigFormProps> = ({ cell, co
 
   useEffect(() => {
     setLabel(cell.label ?? '');
-  }, [coord]);
+  }, [coord, cell.label]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newLabel = e.target.value;
@@ -31,17 +31,20 @@ export const CheckboxConfigForm: React.FC<CheckboxConfigFormProps> = ({ cell, co
   };
 
   return (
-    <div className="control-config-form checkbox-config-form">
-      <label>
-        Etiqueta del checkbox:
+    <div className="control-config-form checkbox-config-form format-section__list">
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={inputId}>Etiqueta</label>
+        </div>
         <input
+          id={inputId}
           ref={inputRef}
           type="text"
           value={label}
           onChange={handleChange}
           placeholder="Ej: ¿Curso aprobado?"
         />
-      </label>
+      </div>
     </div>
   );
 };

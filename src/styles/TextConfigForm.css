@@ -3,37 +3,5 @@
 .control-config-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
-  font-size: 0.95rem;
-}
-
-.control-config-form h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #444;
-}
-
-.control-config-form label {
-  display: flex;
-  flex-direction: column;
-  font-weight: 500;
-  color: #333;
-}
-
-.control-config-form input[type="text"] {
-  margin-top: 0.25rem;
-  padding: 6px 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background-color: #fafafa;
-  transition: border-color 0.2s ease;
-}
-
-.control-config-form input[type="text"]:focus {
-  outline: none;
-  border-color: #007acc;
-  background-color: #fff;
+  gap: 12px;
 }

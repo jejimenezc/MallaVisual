@@ -1,6 +1,6 @@
 // src/components/NumberConfigForm.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { BlockTemplateCell } from '../types/curricular';
+import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/NumberConfigForm.css';
 
 interface Props {
@@ -14,12 +14,15 @@ export const NumberConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => 
   const [placeholder, setPlaceholder] = useState(cell.placeholder ?? '');
   const [decimalDigits, setDecimalDigits] = useState(cell.decimalDigits ?? 0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const labelId = `number-label-${coord.row}-${coord.col}`;
+  const placeholderId = `number-placeholder-${coord.row}-${coord.col}`;
+  const decimalId = `number-decimals-${coord.row}-${coord.col}`;
 
   useEffect(() => {
     setLabel(cell.label ?? '');
     setPlaceholder(cell.placeholder ?? '');
     setDecimalDigits(cell.decimalDigits ?? 0);
-  }, [coord]);
+  }, [coord, cell.decimalDigits, cell.label, cell.placeholder]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -45,38 +48,46 @@ export const NumberConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => 
   };
 
   return (
-    <div className="control-config-form number-config-form">
-      <h4>Configuración de número</h4>
-      <label>
-        Etiqueta:
+    <div className="control-config-form number-config-form format-section__list">
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={labelId}>Etiqueta</label>
+        </div>
         <input
+          id={labelId}
           ref={inputRef}
           type="text"
           value={label}
           onChange={handleLabelChange}
           placeholder="Ej: Cantidad"
         />
-      </label>
+      </div>
 
-      <label>
-        Placeholder (texto de ayuda):
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={placeholderId}>Placeholder (texto de ayuda)</label>
+        </div>
         <input
+          id={placeholderId}
           type="text"
           value={placeholder}
           onChange={handlePlaceholderChange}
           placeholder="Ej: 0"
         />
-      </label>
+      </div>
 
-      <label>
-        Dígitos decimales:
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={decimalId}>Dígitos decimales</label>
+        </div>
         <input
+          id={decimalId}
           type="number"
           min={0}
           value={decimalDigits}
           onChange={handleDecimalsChange}
         />
-      </label>
+      </div>
     </div>
   );
 };

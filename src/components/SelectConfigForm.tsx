@@ -1,6 +1,6 @@
 // src/components/SelectConfigForm.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { BlockTemplateCell } from '../types/curricular';
+import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/SelectConfigForm.css';
 
 interface SelectConfigFormProps {
@@ -13,11 +13,13 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
   const [label, setLabel] = useState(cell.label ?? '');
   const [rawOptions, setRawOptions] = useState(cell.dropdownOptions?.join(', ') ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
+  const labelId = `select-label-${coord.row}-${coord.col}`;
+  const optionsId = `select-options-${coord.row}-${coord.col}`;
 
   useEffect(() => {
     setLabel(cell.label ?? '');
     setRawOptions(cell.dropdownOptions?.join(', ') ?? '');
-  }, [coord]);
+  }, [coord, cell.dropdownOptions, cell.label]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -40,28 +42,34 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
     onUpdate({ dropdownOptions: options }, coord);
   };
 
-    return (
-    <div className="control-config-form select-config-form">
-      <label>
-        Etiqueta:
+  return (
+    <div className="control-config-form select-config-form format-section__list">
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={labelId}>Etiqueta</label>
+        </div>
         <input
+          id={labelId}
           ref={inputRef}
           type="text"
           value={label}
           onChange={handleLabelChange}
           placeholder="Ej: Tipo de asignatura"
         />
-      </label>
+      </div>
 
-      <label>
-        Opciones (separadas por coma):
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={optionsId}>Opciones (separadas por coma)</label>
+        </div>
         <input
+          id={optionsId}
           type="text"
           value={rawOptions}
           onChange={handleOptionsChange}
           placeholder="Ej: Obligatoria, Electiva, Optativa"
         />
-      </label>
+      </div>
     </div>
   );
 };
