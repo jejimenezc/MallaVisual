@@ -1,6 +1,7 @@
 // src/components/forms/TextConfigForm.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
+import { EyeOff } from 'lucide-react';
 import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/TextConfigForm.css';
 import { focusWithoutScroll } from '../utils/focusWithoutScroll';
@@ -48,6 +49,13 @@ export const TextConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => {
       <div className="format-field">
         <div className="format-field__label">
           <label htmlFor={labelId}>Nombre del control</label>
+          <span
+            className="format-field__label-indicator"
+            title="Esta propiedad no se muestra en la malla"
+          >
+            <EyeOff aria-hidden="true" size={16} />
+            <span className="format-field__sr">Esta propiedad no se muestra en la malla</span>
+          </span>
         </div>
         <input
           id={labelId}
