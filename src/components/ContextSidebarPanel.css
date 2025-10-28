@@ -10,12 +10,6 @@
   color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
-.context-sidebar-panel .format-section__description {
-  margin: 0;
-  font-size: 13px;
-  color: color-mix(in srgb, currentColor 65%, transparent);
-}
-
 .context-sidebar-panel__count {
   font-size: 20px;
   letter-spacing: 0.06em;

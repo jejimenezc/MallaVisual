@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { BlockTemplateCell, BlockTemplate } from '../types/curricular.ts';
 import '../styles/CalculatedConfigForm.css';
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 interface Props {
   cell: BlockTemplateCell;
@@ -40,10 +41,8 @@ export const CalculatedConfigForm: React.FC<Props> = ({
 
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
     setExpression(cell.expression ?? '');
-
   }, [coord, cell.expression]);
 
   useEffect(() => {

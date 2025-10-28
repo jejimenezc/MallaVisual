@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/CheckboxConfigForm.css';
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 export interface CheckboxConfigFormProps {
   cell: BlockTemplateCell;
@@ -16,8 +17,7 @@ export const CheckboxConfigForm: React.FC<CheckboxConfigFormProps> = ({ cell, co
   const inputId = `checkbox-label-${coord.row}-${coord.col}`;
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
   }, [coord]);
 
   useEffect(() => {

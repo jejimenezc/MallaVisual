@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/NumberConfigForm.css';
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 interface Props {
   cell: BlockTemplateCell;
@@ -25,8 +26,7 @@ export const NumberConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => 
   }, [coord, cell.decimalDigits, cell.label, cell.placeholder]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
   }, [coord]);
 
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {

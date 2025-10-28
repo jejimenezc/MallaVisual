@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/SelectConfigForm.css';
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 interface SelectConfigFormProps {
   cell: BlockTemplateCell;
@@ -22,8 +23,7 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
   }, [coord, cell.dropdownOptions, cell.label]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
   }, [coord]);
 
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { BlockTemplateCell } from '../types/curricular';
 import '../styles/TextConfigForm.css';
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 
 interface Props {
@@ -27,8 +28,7 @@ export const TextConfigForm: React.FC<Props> = ({ cell, coord, onUpdate }) => {
   }, [coord, cell.placeholder]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
   }, [coord]);
 
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {

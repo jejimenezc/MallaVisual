@@ -1,6 +1,7 @@
 // StaticTextConfigForm.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import '../styles/StaticTextConfigForm.css';
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 interface Props {
   value: string;
@@ -14,8 +15,7 @@ const StaticTextConfigForm: React.FC<Props> = ({ value, coord, onChange }) => {
   const inputId = `static-text-${coord.row}-${coord.col}`;
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
   }, [coord]);
 
   useEffect(() => {

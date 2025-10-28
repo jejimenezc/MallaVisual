@@ -33,41 +33,32 @@ interface Props {
 
 const CONTROL_TOOLTIPS: Record<
   NonNullable<BlockTemplateCell['type']>,
-  { title: string; tooltip: string; description: string }
+  { title: string; tooltip: string }
 > = {
   staticText: {
     title: 'Texto fijo',
     tooltip: 'El control de texto fijo desplegará en la malla el contenido que ingresas aquí.',
-    description: 'Escribe el texto que será visible en la malla sin interacción adicional.',
   },
   text: {
     title: 'Texto libre',
     tooltip:
       'El control de texto libre permitirá ingresar contenido en el diseño de la malla.',
-    description:
-      'El nombre del control no será visible en la malla. El texto de ayuda guiará a la persona usuaria.',
   },
   checkbox: {
     title: 'Checkbox',
     tooltip: 'El control de checkbox permitirá marcar o desmarcar una opción en la malla.',
-    description: 'La etiqueta es visible en la malla para describir la opción asociada al checkbox',
   },
   select: {
     title: 'Lista desplegable',
     tooltip: 'La lista desplegable permitirá elegir una opción entre las que definas aquí.',
-    description: 'El nombre del control no será visible en la malla. Escribe las opciones separadas por coma.',
   },
   number: {
     title: 'Número',
     tooltip: 'El control numérico permitirá registrar valores cuantitativos en la malla.',
-    description:
-      'El nombre del control no será visible en la malla. El texto de ayuda guiará a la persona usuaria. Define cuántos dígitos decimales aceptará el campo.',
   },
   calculated: {
     title: 'Campo calculado',
     tooltip: 'El campo calculado mostrará resultados a partir de operaciones con otros números.',
-    description:
-      'El nombre del control no será visible en la malla. Construye la fórmula combinando celdas numéricas y operadores.',
   },
 };
 
@@ -127,7 +118,6 @@ export const ContextSidebarPanel: React.FC<Props> = ({
           </span>
           </div>
         </header>
-        <p className="format-section__description">{meta.description}</p>
 
         {selectedCell.type === 'staticText' && (
           <StaticTextConfigForm
