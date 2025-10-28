@@ -1,6 +1,6 @@
 // src/components/ContextSidebarPanel.tsx
 
-import React from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import './ContextSidebarPanel.css';
 import type { BlockTemplateCell, BlockTemplate } from '../types/curricular';
 
@@ -74,6 +74,19 @@ export const ContextSidebarPanel: React.FC<Props> = ({
   combineDisabledReason,
   template,
 }) => {
+  const [isSelectionCollapsed, setSelectionCollapsed] = useState(
+    () => Boolean(selectedCell?.type)
+  );
+  const selectionContentId = useId();
+
+  useEffect(() => {
+    if (selectedCell?.type) {
+      setSelectionCollapsed(true);
+    } else {
+      setSelectionCollapsed(false);
+    }
+  }, [selectedCell?.type, selectedCoord?.row, selectedCoord?.col, selectedCount]);
+
   const patchCell = (update: Partial<BlockTemplateCell>) => {
     if (!onUpdateCell || !selectedCoord) return;
     onUpdateCell(update, selectedCoord);
@@ -84,8 +97,8 @@ export const ContextSidebarPanel: React.FC<Props> = ({
       return (
         <section className="format-section" aria-labelledby="configuracion-control">
           <header className="format-section__header">
-            <div className="format-section__title">
-              <span className="format-section__eyebrow">Configuración</span>
+          <div className="format-section__title">
+            <span className="format-section__eyebrow">Configuración</span>
             <span
               className="format-section__tooltip"
               title="Selecciona un control para ajustar sus opciones."
@@ -93,7 +106,7 @@ export const ContextSidebarPanel: React.FC<Props> = ({
             >
               ?
             </span>
-            </div>
+          </div>
           </header>
           <p className="format-section__empty">
             Aún no hay un control seleccionado. Selecciona una celda con un control definido para ver sus opciones.
@@ -113,9 +126,9 @@ export const ContextSidebarPanel: React.FC<Props> = ({
         <header className="format-section__header">
           <div className="format-section__title">
             <span className="format-section__eyebrow">{meta.title}</span>
-          <span className="format-section__tooltip" title={meta.tooltip} aria-hidden="true">
-            ?
-          </span>
+            <span className="format-section__tooltip" title={meta.tooltip} aria-hidden="true">
+              ?
+            </span>
           </div>
         </header>
 
@@ -180,55 +193,74 @@ export const ContextSidebarPanel: React.FC<Props> = ({
 
       <section className="format-section" aria-labelledby="seccion-seleccion">
         <header className="format-section__header">
-          <div className="format-section__title">
-            <span className="format-section__eyebrow">Selección</span>
-          <span
-            className="format-section__tooltip"
-            title="Gestiona la selección actual de celdas para combinar o separar."
-            aria-hidden="true"
+          <button
+            type="button"
+            className="format-section__toggle"
+            aria-expanded={!isSelectionCollapsed}
+            aria-controls={selectionContentId}
+            onClick={() => setSelectionCollapsed((prev) => !prev)}
           >
-            ?
-          </span>
-         </div>          
+            <div className="format-section__title">
+              <span className="format-section__eyebrow">Selección</span>
+              <span
+                className="format-section__tooltip"
+                title="Gestiona la selección actual de celdas para combinar o separar."
+                aria-hidden="true"
+              >
+                ?
+              </span>
+            </div>
+            <span className="format-section__chevron" aria-hidden="true">
+              {isSelectionCollapsed ? '▸' : '▾'}
+            </span>
+          </button>   
         </header>
-        <div className="format-field" role="status" aria-live="polite">
-          <div className="format-field__label">
-            <span>Celdas seleccionadas</span>
-          </div>
-          <div className="format-field__inline">
-            <strong className="context-sidebar-panel__count">{selectedCount}</strong>
-          </div>
-        </div>
-        <div className="format-field">
-          <div className="format-field__label">
-            <span>Acciones</span>
-          </div>
-          <div className="format-field__stack">
-            <button
-              className="btn context-sidebar-panel__action"
-              disabled={!canCombine}
-              onClick={onCombine}
-              title="Combinar celdas seleccionadas"
-              type="button"
-            >
-              Combinar
-            </button>
-            <button
-              className="btn context-sidebar-panel__action"
-              disabled={!canSeparate}
-              onClick={onSeparate}
-              title="Separar celdas seleccionadas"
-              type="button"
-            >
-              Separar
-            </button>
-          </div>
-        </div>
+        {!isSelectionCollapsed && (
+          <div
+            id={selectionContentId}
+            className="format-section__content"
+            aria-hidden={isSelectionCollapsed}
+          >
+            <div className="format-field" role="status" aria-live="polite">
+              <div className="format-field__label">
+                <span>Celdas seleccionadas</span>
+              </div>
+              <div className="format-field__inline">
+                <strong className="context-sidebar-panel__count">{selectedCount}</strong>
+              </div>
+            </div>
+            <div className="format-field">
+              <div className="format-field__label">
+                <span>Acciones</span>
+              </div>
+              <div className="format-field__stack">
+                <button
+                  className="btn context-sidebar-panel__action"
+                  disabled={!canCombine}
+                  onClick={onCombine}
+                  title="Combinar celdas seleccionadas"
+                  type="button"
+                >
+                  Combinar
+                </button>
+                <button
+                  className="btn context-sidebar-panel__action"
+                  disabled={!canSeparate}
+                  onClick={onSeparate}
+                  title="Separar celdas seleccionadas"
+                  type="button"
+                >
+                  Separar
+                </button>
+              </div>
+            </div>
 
-        {!canCombine && combineDisabledReason && (
-          <p className="sidebar-hint" role="status" aria-live="polite">
-            {combineDisabledReason}
-          </p>
+            {!canCombine && combineDisabledReason && (
+              <p className="sidebar-hint" role="status" aria-live="polite">
+                {combineDisabledReason}
+              </p>
+            )}
+          </div>
         )}
       </section>
 

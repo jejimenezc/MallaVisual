@@ -60,10 +60,37 @@
   justify-content: space-between;
 }
 
+.format-section__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.format-section__toggle:focus-visible {
+  outline: 2px solid #537ff7;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .format-section__title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.format-section__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .format-section__tooltip {
@@ -86,6 +113,12 @@
   text-transform: uppercase;
   font-weight: 600;
   color: color-mix(in srgb, currentColor 80%, transparent);
+}
+
+.format-section__chevron {
+  font-size: 12px;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  transition: transform 0.2s ease;
 }
 
 .format-section__empty {
