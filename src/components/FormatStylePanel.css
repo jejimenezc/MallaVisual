@@ -233,6 +233,22 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, white 40%, transparent 60%);
 }
 
+.color-chip__value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--divider, #111) 22%, transparent);
+  background: #fff;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, currentColor 80%, transparent);
+}
+
 .alignment-trigger {
   display: flex;
   align-items: center;

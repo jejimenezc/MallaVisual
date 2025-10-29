@@ -254,8 +254,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   onUpdateAspect,
 }) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const backgroundColorInputRef = useRef<HTMLInputElement | null>(null);
   const [colorPopover, setColorPopover] = useState<{
-    type: 'background' | 'checkbox-normal' | 'checkbox-hover';
+    type: 'checkbox-normal' | 'checkbox-hover';
     anchor: DOMRect | null;
   } | null>(null);
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
@@ -354,7 +355,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     updateConditionalBg((prev) => ({ ...prev, selectSource: { coord, colors } }));
   };
 
-  const openColorPopover = (type: 'background' | 'checkbox-normal' | 'checkbox-hover') => (
+  const openColorPopover = (type: 'checkbox-normal' | 'checkbox-hover') => (
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
     const anchor = event.currentTarget.getBoundingClientRect();
@@ -366,9 +367,21 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   };
 
   const backgroundColor = current.backgroundColor ?? '#ffffff';
+  const normalizedBackgroundColor = normalizeHex(backgroundColor);
+  const backgroundColorLabel = normalizedBackgroundColor.toUpperCase();
   const checkedColor = current.conditionalBg?.checkedColor ?? '#2dd4bf';
   const hoverCheckedColor = current.conditionalBg?.hoverCheckedColor ?? '#14b8a6';
   const checkboxColorEnabled = Boolean(current.conditionalBg?.checkedColor);
+
+  const handleBackgroundColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    patch({ backgroundColor: normalizeHex(event.target.value) });
+  };
+
+  const handleBackgroundPickerOpen = () => {
+    const input = backgroundColorInputRef.current;
+    if (!input) return;
+    input.click();
+  };
 
   const handleCheckboxColorToggle = (checked: boolean) => {
     if (checked) {
@@ -390,29 +403,17 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
   const renderColorPopoverContent = () => {
     if (!colorPopover) return null;
-    const isCheckbox =
-      colorPopover.type === 'checkbox-normal' || colorPopover.type === 'checkbox-hover';
-
     const rawValue =
-      colorPopover.type === 'background'
-        ? backgroundColor
-        : colorPopover.type === 'checkbox-normal'
-        ? checkedColor
-        : hoverCheckedColor;
+      colorPopover.type === 'checkbox-normal' ? checkedColor : hoverCheckedColor;
 
     const value = normalizeHex(rawValue);
 
-    const labelText = !isCheckbox
-      ? 'Color de fondo'
-      : colorPopover.type === 'checkbox-hover'
-      ? 'Estado hover'
-      : 'Estado normal';
+    const labelText =
+      colorPopover.type === 'checkbox-hover' ? 'Estado hover' : 'Estado normal';
 
     const handleChange = (nextColor: string) => {
       if (!k) return;
-      if (colorPopover.type === 'background') {
-        patch({ backgroundColor: nextColor });
-      } else if (colorPopover.type === 'checkbox-normal') {
+      if (colorPopover.type === 'checkbox-normal') {
         updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }));
       } else {
         updateConditionalBg((prev) => ({ ...prev, hoverCheckedColor: nextColor }));
@@ -432,11 +433,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
             />
             <output aria-live="polite">{value.toUpperCase()}</output>
           </label>
-          {isCheckbox && (
-            <p className="color-popover__hint">
-              Configura el color base y el estado hover para mantener contraste.
-            </p>
-          )}
+          <p className="color-popover__hint">
+            Configura el color base y el estado hover para mantener contraste.
+          </p>
         </div>
       </Popover>
     );
@@ -636,12 +635,23 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
               <div className="format-field__inline">
                 <span
                   className="color-chip"
-                  style={{ backgroundColor: backgroundColor }}
-                  aria-label={`Color actual ${backgroundColor}`}
+                  style={{ backgroundColor: normalizedBackgroundColor }}
+                  aria-label={`Color actual ${backgroundColorLabel}`}
                 />
-                <button type="button" onClick={openColorPopover('background')}>
-                  Editar
+                <span className="color-chip__value" aria-hidden="true">
+                  {backgroundColorLabel}
+                </span>
+                <button type="button" onClick={handleBackgroundPickerOpen}>
+                 Editar
                 </button>
+                <input
+                  ref={backgroundColorInputRef}
+                  className="format-field__sr"
+                  type="color"
+                  value={normalizedBackgroundColor}
+                  onChange={handleBackgroundColorChange}
+                  aria-label="Seleccionar color de fondo"
+                />
               </div>
             </div>
 
