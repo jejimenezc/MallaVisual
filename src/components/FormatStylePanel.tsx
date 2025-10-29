@@ -75,8 +75,6 @@ const ALIGNMENT_OPTIONS: { value: AlignmentValue; icon: string; label: string }[
 
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
-const clampChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
-
 const expandShortHex = (hex: string) =>
   `#${hex
     .slice(1)
@@ -94,117 +92,6 @@ const normalizeHex = (hex: string) => {
     return prefixed.toLowerCase();
   }
   return '#000000';
-};
-
-const hexToRgb = (hex: string): [number, number, number] => {
-  const normalized = normalizeHex(hex);
-  return [
-    parseInt(normalized.slice(1, 3), 16),
-    parseInt(normalized.slice(3, 5), 16),
-    parseInt(normalized.slice(5, 7), 16),
-  ];
-};
-
-const channelToHex = (channel: number) => clampChannel(channel).toString(16).padStart(2, '0');
-
-const rgbToHex = (red: number, green: number, blue: number) =>
-  `#${channelToHex(red)}${channelToHex(green)}${channelToHex(blue)}`;
-
-interface ColorPopoverContentProps {
-  label: string;
-  value: string;
-  onValueChange: (value: string) => void;
-  isCheckbox: boolean;
-}
-
-const ColorPopoverContent: React.FC<ColorPopoverContentProps> = ({
-  label,
-  value,
-  onValueChange,
-  isCheckbox,
-}) => {
-  const [draft, setDraft] = useState(value);
-  const [red, green, blue] = hexToRgb(value);
-
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
-
-  const handleChannelChange = (channel: 'r' | 'g' | 'b') =>
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const nextChannel = clampChannel(Number(event.target.value));
-      if (channel === 'r') {
-        onValueChange(rgbToHex(nextChannel, green, blue));
-      } else if (channel === 'g') {
-        onValueChange(rgbToHex(red, nextChannel, blue));
-      } else {
-        onValueChange(rgbToHex(red, green, nextChannel));
-      }
-    };
-
-  const handleHexChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = event.target.value.trim();
-    setDraft(raw);
-    if (/^#?[0-9a-fA-F]{3}$/.test(raw) || /^#?[0-9a-fA-F]{6}$/.test(raw)) {
-      onValueChange(normalizeHex(raw));
-    }
-  };
-
-  const handleHexBlur = () => {
-    setDraft(value);
-  };
-
-  const channels: { label: string; value: number; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void }[] = [
-    { label: 'R', value: red, onChange: handleChannelChange('r') },
-    { label: 'G', value: green, onChange: handleChannelChange('g') },
-    { label: 'B', value: blue, onChange: handleChannelChange('b') },
-  ];
-
-  return (
-    <div className="color-popover" role="group">
-      <div className="color-popover__picker" role="group" aria-label="Selector RGB">
-        <div className="color-popover__picker-preview">
-          <span aria-hidden="true" style={{ backgroundColor: value }} />
-          <div>
-            <strong>{value.toUpperCase()}</strong>
-            <span>{`RGB ${red}, ${green}, ${blue}`}</span>
-          </div>
-        </div>
-        <div className="color-popover__channels">
-          {channels.map((channel) => (
-            <label key={channel.label} className="color-popover__channel">
-              <span aria-hidden="true">{channel.label}</span>
-              <input
-                type="range"
-                min={0}
-                max={255}
-                value={channel.value}
-                onChange={channel.onChange}
-                aria-label={`Canal ${channel.label}`}
-              />
-              <output aria-hidden="true">{channel.value}</output>
-            </label>
-          ))}
-        </div>
-      </div>
-      <label className="color-popover__field">
-        <span>{label}</span>
-        <input
-          type="text"
-          value={draft}
-          onChange={handleHexChange}
-          onBlur={handleHexBlur}
-          placeholder="#000000"
-          spellCheck={false}
-        />
-      </label>
-      {isCheckbox && (
-        <p className="color-popover__hint">
-          Configura el color base y el estado hover para mantener contraste.
-        </p>
-      )}
-    </div>
-  );
 };
 
 const sanitizeConditionalBg = (value?: ConditionalBg | null): ConditionalBg | undefined => {
@@ -506,12 +393,14 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     const isCheckbox =
       colorPopover.type === 'checkbox-normal' || colorPopover.type === 'checkbox-hover';
 
-    const value =
+    const rawValue =
       colorPopover.type === 'background'
         ? backgroundColor
         : colorPopover.type === 'checkbox-normal'
         ? checkedColor
         : hoverCheckedColor;
+
+    const value = normalizeHex(rawValue);
 
     const labelText = !isCheckbox
       ? 'Color de fondo'
@@ -531,13 +420,24 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     };
 
     return (
-      <Popover anchorRect={colorPopover.anchor} onClose={closeColorPopover} width={260}>
-        <ColorPopoverContent
-          label={labelText}
-          value={value}
-          onValueChange={handleChange}
-          isCheckbox={isCheckbox}
-        />
+      <Popover anchorRect={colorPopover.anchor} onClose={closeColorPopover} width={240}>
+        <div className="color-popover" role="group" aria-label={labelText}>
+          <label className="color-popover__field">
+            <span>{labelText}</span>
+            <input
+              type="color"
+              value={value}
+              onChange={(event) => handleChange(normalizeHex(event.target.value))}
+              aria-label={labelText}
+            />
+            <output aria-live="polite">{value.toUpperCase()}</output>
+          </label>
+          {isCheckbox && (
+            <p className="color-popover__hint">
+              Configura el color base y el estado hover para mantener contraste.
+            </p>
+          )}
+        </div>
       </Popover>
     );
   };
