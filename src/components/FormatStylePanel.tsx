@@ -255,6 +255,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 }) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const backgroundColorInputRef = useRef<HTMLInputElement | null>(null);
+  const backgroundColorHexInputRef = useRef<HTMLInputElement | null>(null);
   const [colorPopover, setColorPopover] = useState<{
     type: 'checkbox-normal' | 'checkbox-hover';
     anchor: DOMRect | null;
@@ -369,12 +370,34 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const backgroundColor = current.backgroundColor ?? '#ffffff';
   const normalizedBackgroundColor = normalizeHex(backgroundColor);
   const backgroundColorLabel = normalizedBackgroundColor.toUpperCase();
+  const [backgroundColorText, setBackgroundColorText] = useState(backgroundColorLabel);
+  useEffect(() => {
+    if (backgroundColorHexInputRef.current === document.activeElement) return;
+    setBackgroundColorText(backgroundColorLabel);
+  }, [backgroundColorLabel]);
   const checkedColor = current.conditionalBg?.checkedColor ?? '#2dd4bf';
   const hoverCheckedColor = current.conditionalBg?.hoverCheckedColor ?? '#14b8a6';
   const checkboxColorEnabled = Boolean(current.conditionalBg?.checkedColor);
 
   const handleBackgroundColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     patch({ backgroundColor: normalizeHex(event.target.value) });
+  };
+
+  const handleBackgroundHexInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = event.target.value.trim();
+    setBackgroundColorText(rawValue);
+    const sanitized = rawValue.startsWith('#') ? rawValue.slice(1) : rawValue;
+    if (/^[0-9a-fA-F]{6}$/.test(sanitized)) {
+      patch({ backgroundColor: normalizeHex(rawValue) });
+      return;
+    }
+    if (/^[0-9a-fA-F]{3}$/.test(sanitized) && sanitized.length === 3 && rawValue.length <= 4) {
+      patch({ backgroundColor: normalizeHex(rawValue) });
+    }
+  };
+
+  const handleBackgroundHexInputBlur = () => {
+    setBackgroundColorText(backgroundColorLabel);
   };
 
   const handleBackgroundPickerOpen = () => {
@@ -638,11 +661,19 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                   style={{ backgroundColor: normalizedBackgroundColor }}
                   aria-label={`Color actual ${backgroundColorLabel}`}
                 />
-                <span className="color-chip__value" aria-hidden="true">
-                  {backgroundColorLabel}
-                </span>
+                <input
+                  ref={backgroundColorHexInputRef}
+                  className="color-chip__value-input"
+                  type="text"
+                  value={backgroundColorText}
+                  onChange={handleBackgroundHexInputChange}
+                  onBlur={handleBackgroundHexInputBlur}
+                  maxLength={7}
+                  spellCheck={false}
+                  aria-label="Editar color de fondo en formato hexadecimal"
+                />
                 <button type="button" onClick={handleBackgroundPickerOpen}>
-                 Editar
+                  Editar
                 </button>
                 <input
                   ref={backgroundColorInputRef}
@@ -709,7 +740,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
               aria-haspopup="dialog"
               aria-expanded={Boolean(advancedAnchor)}
             >
-              Avanzado
+              Configuración avanzada...
             </button>
           </div>
         )}
