@@ -190,6 +190,14 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   } | null>(null);
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
+  const [isPaletteEnabled, setIsPaletteEnabled] = useState(false);
+  const [paintWithPalette, setPaintWithPalette] = useState(false);
+
+  useEffect(() => {
+    if (!isPaletteEnabled) {
+      setPaintWithPalette(false);
+    }
+  }, [isPaletteEnabled]);
 
   const k = selectedCoord ? coordKey(selectedCoord.row, selectedCoord.col) : undefined;
 
@@ -594,10 +602,14 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
             <span aria-hidden="true">🎨</span>
             <span>Paleta de color</span>
           </div>
-          <label className="toggle toggle--disabled">
-            <input type="checkbox" disabled />
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={isPaletteEnabled}
+              onChange={(event) => setIsPaletteEnabled(event.target.checked)}
+            />
             <span className="toggle__indicator" aria-hidden="true" />
-            <span className="toggle__label">Próximamente</span>
+            <span className="toggle__label">{isPaletteEnabled ? 'Activo' : 'Inactivo'}</span>
           </label>
           <p className="format-field__hint">Centraliza colores aprobados para mantener consistencia.</p>
         </div>
@@ -622,77 +634,101 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
         )}
         {canEditControl && (
           <div className="format-section__list">
-            <div className="format-field">
-              <div className="format-field__label">
-                <span aria-hidden="true">🎨</span>
-                <span>Color de fondo</span>
-              </div>
-              <div className="format-field__inline">
-                <span
-                  className="color-chip"
-                  style={{ backgroundColor: normalizedBackgroundColor }}
-                  aria-label={`Color actual ${backgroundColorLabel}`}
-                />
-                <input
-                  ref={backgroundColorHexInputRef}
-                  className="color-chip__value-input"
-                  type="text"
-                  value={backgroundColorText}
-                  onChange={handleBackgroundHexInputChange}
-                  onBlur={handleBackgroundHexInputBlur}
-                  maxLength={7}
-                  spellCheck={false}
-                  aria-label="Editar color de fondo en formato hexadecimal"
-                />
-                <button type="button" onClick={handleBackgroundPickerOpen}>
-                  Editar
-                </button>
-                <input
-                  ref={backgroundColorInputRef}
-                  className="format-field__sr"
-                  type="color"
-                  value={normalizedBackgroundColor}
-                  onChange={handleBackgroundColorChange}
-                  aria-label="Seleccionar color de fondo"
-                />
-              </div>
-            </div>
+            {!isPaletteEnabled && (
+              <>
+                <div className="format-field">
+                  <div className="format-field__label">
+                    <span aria-hidden="true">🎨</span>
+                    <span>Color de fondo</span>
+                  </div>
+                  <div className="format-field__inline">
+                    <span
+                      className="color-chip"
+                      style={{ backgroundColor: normalizedBackgroundColor }}
+                      aria-label={`Color actual ${backgroundColorLabel}`}
+                    />
+                    <input
+                      ref={backgroundColorHexInputRef}
+                      className="color-chip__value-input"
+                      type="text"
+                      value={backgroundColorText}
+                      onChange={handleBackgroundHexInputChange}
+                      onBlur={handleBackgroundHexInputBlur}
+                      maxLength={7}
+                      spellCheck={false}
+                      aria-label="Editar color de fondo en formato hexadecimal"
+                    />
+                    <button type="button" onClick={handleBackgroundPickerOpen}>
+                      Editar
+                    </button>
+                    <input
+                      ref={backgroundColorInputRef}
+                      className="format-field__sr"
+                      type="color"
+                      value={normalizedBackgroundColor}
+                      onChange={handleBackgroundColorChange}
+                      aria-label="Seleccionar color de fondo"
+                    />
+                  </div>
+                </div>
 
-            <div className="format-field">
-              <div className="format-field__label">
-                <span aria-hidden="true">🅰️</span>
-                <span>Color de texto</span>
+                <div className="format-field">
+                  <div className="format-field__label">
+                    <span aria-hidden="true">🅰️</span>
+                    <span>Color de texto</span>
+                  </div>
+                  <div className="format-field__inline">
+                    <span
+                      className="color-chip"
+                      style={{ backgroundColor: normalizedTextColor }}
+                      aria-label={`Color actual ${textColorLabel}`}
+                    />
+                    <input
+                      ref={textColorHexInputRef}
+                      className="color-chip__value-input"
+                      type="text"
+                      value={textColorText}
+                      onChange={handleTextHexInputChange}
+                      onBlur={handleTextHexInputBlur}
+                      maxLength={7}
+                      spellCheck={false}
+                      aria-label="Editar color de texto en formato hexadecimal"
+                    />
+                    <button type="button" onClick={handleTextColorPickerOpen}>
+                      Editar
+                    </button>
+                    <input
+                      ref={textColorInputRef}
+                      className="format-field__sr"
+                      type="color"
+                      value={normalizedTextColor}
+                      onChange={handleTextColorChange}
+                      aria-label="Seleccionar color de texto"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {isPaletteEnabled && (
+              <div className="format-field">
+                <div className="format-field__label">
+                  <span aria-hidden="true">🟩</span>
+                  <span>Color de celda</span>
+                </div>
+                <div className="format-field__inline">
+                  <label className="toggle toggle--inline">
+                    <input
+                      type="checkbox"
+                      checked={paintWithPalette}
+                      onChange={(event) => setPaintWithPalette(event.target.checked)}
+                    />
+                    <span className="toggle__indicator" aria-hidden="true" />
+                    <span className="toggle__label">Pintar con paleta</span>
+                  </label>
+                </div>
               </div>
-              <div className="format-field__inline">
-                <span
-                  className="color-chip"
-                  style={{ backgroundColor: normalizedTextColor }}
-                  aria-label={`Color actual ${textColorLabel}`}
-                />
-                <input
-                  ref={textColorHexInputRef}
-                  className="color-chip__value-input"
-                  type="text"
-                  value={textColorText}
-                  onChange={handleTextHexInputChange}
-                  onBlur={handleTextHexInputBlur}
-                  maxLength={7}
-                  spellCheck={false}
-                  aria-label="Editar color de texto en formato hexadecimal"
-                />
-                <button type="button" onClick={handleTextColorPickerOpen}>
-                  Editar
-                </button>
-                <input
-                  ref={textColorInputRef}
-                  className="format-field__sr"
-                  type="color"
-                  value={normalizedTextColor}
-                  onChange={handleTextColorChange}
-                  aria-label="Seleccionar color de texto"
-                />
-              </div>
-            </div>
+            )}
 
             <div className="format-field">
               <div className="format-field__label">
