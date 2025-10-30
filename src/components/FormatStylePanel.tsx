@@ -30,7 +30,6 @@ type SliderConfig = {
   min: number;
   max: number;
   step: number;
-  presets: number[];
   suffix: string;
 };
 
@@ -41,7 +40,6 @@ const SLIDERS: Record<SliderKey, SliderConfig> = {
     min: 10,
     max: 48,
     step: 1,
-    presets: [12, 14, 16, 18, 24, 32],
     suffix: 'px',
   },
   paddingX: {
@@ -50,7 +48,6 @@ const SLIDERS: Record<SliderKey, SliderConfig> = {
     min: 0,
     max: 100,
     step: 1,
-    presets: [0, 4, 8, 16, 24, 32],
     suffix: 'px',
   },
   paddingY: {
@@ -59,7 +56,6 @@ const SLIDERS: Record<SliderKey, SliderConfig> = {
     min: 0,
     max: 100,
     step: 1,
-    presets: [0, 4, 8, 12, 16, 24],
     suffix: 'px',
   },
 };
@@ -163,86 +159,6 @@ const Popover: React.FC<PopoverProps> = ({
   );
 };
 
-interface SliderPopoverProps {
-  slider: SliderConfig;
-  value: number;
-  onChange: (value: number) => void;
-  onClose: () => void;
-  anchorRect: DOMRect | null;
-  panelRect: DOMRect | null;
-}
-
-const SliderPopover: React.FC<SliderPopoverProps> = ({
-  slider,
-  value,
-  onChange,
-  onClose,
-  anchorRect,
-  panelRect,
-}) => (
-  <Popover
-    anchorRect={anchorRect}
-    onClose={onClose}
-    width={200}
-    style={
-      panelRect
-        ? {
-            top: anchorRect ? anchorRect.top + window.scrollY : undefined,
-            left: panelRect.right - 200 + window.scrollX,
-            height: 200,
-          }
-        : { height: 200 }
-    }
-    className="slider-popover"
-  >
-    <div className="slider-popover__content" role="group" aria-label={slider.label}>
-      <div className="slider-popover__value">
-        <strong>{`${value}${slider.suffix}`}</strong>
-        <span>Ctrl+↑/↓ para ajustes rápidos</span>
-      </div>
-      <input
-        className="slider-popover__slider"
-        type="range"
-        min={slider.min}
-        max={slider.max}
-        step={slider.step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        aria-valuetext={`${value}${slider.suffix}`}
-      />
-      <input
-        className="slider-popover__input"
-        type="number"
-        min={slider.min}
-        max={slider.max}
-        step={slider.step}
-        value={value}
-        onChange={(event) =>
-          onChange(clamp(Number(event.target.value), slider.min, slider.max))
-        }
-        aria-label={`${slider.label} exacto`}
-      />
-      <div className="slider-popover__presets" role="list">
-        {slider.presets.map((preset) => (
-          <button
-            key={preset}
-            type="button"
-            className="slider-popover__preset"
-            onClick={() => onChange(preset)}
-          >
-            {`${preset}${slider.suffix}`}
-          </button>
-        ))}
-      </div>
-      <div className="slider-popover__actions">
-        <button type="button" onClick={onClose} className="slider-popover__close">
-          Listo
-        </button>
-      </div>
-    </div>
-  </Popover>
-);
-
 const isControlType = (cell?: BlockTemplateCell | null): cell is BlockTemplateCell => Boolean(cell);
 
 export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
@@ -263,10 +179,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     anchor: DOMRect | null;
   } | null>(null);
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
-  const [activeSlider, setActiveSlider] = useState<{
-    key: SliderKey;
-    anchor: DOMRect | null;
-  } | null>(null);
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
 
   const k = selectedCoord ? coordKey(selectedCoord.row, selectedCoord.col) : undefined;
@@ -529,44 +441,45 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     </Popover>
   );
 
-  const renderSliderPopover = () => {
-    if (!activeSlider) return null;
-    const config = SLIDERS[activeSlider.key];
-    const value =
-      activeSlider.key === 'fontSizePx'
-        ? fontPx
-        : activeSlider.key === 'paddingX'
-        ? padX
-        : padY;
-    const panelRect = panelRef.current?.getBoundingClientRect() ?? null;
-
-    const handleChange = (val: number) => {
-      const next = clamp(val, config.min, config.max);
-      if (activeSlider.key === 'fontSizePx') {
+  const handleSliderChange = useCallback(
+    (key: SliderKey, rawValue: number) => {
+      const slider = SLIDERS[key];
+      const next = clamp(rawValue, slider.min, slider.max);
+      if (key === 'fontSizePx') {
         patch({ fontSizePx: next });
-      } else if (activeSlider.key === 'paddingX') {
+      } else if (key === 'paddingX') {
         patch({ paddingX: next });
       } else {
         patch({ paddingY: next });
       }
-    };
+    },
+    [patch]
+  );
 
-    return (
-      <SliderPopover
-        slider={config}
-        value={value}
-        onChange={handleChange}
-        onClose={() => setActiveSlider(null)}
-        anchorRect={activeSlider.anchor}
-        panelRect={panelRect}
-      />
-    );
-  };
-
-  const handleSliderOpen = (key: SliderKey) => (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAdvancedAnchor(null);
-    setActiveSlider({ key, anchor: event.currentTarget.getBoundingClientRect() });
-  };
+  const renderSliderChip = useCallback(
+    (key: SliderKey, value: number) => {
+      const slider = SLIDERS[key];
+      return (
+        <div className="slider-chip">
+          <input
+            className="slider-chip__range"
+            type="range"
+            min={slider.min}
+            max={slider.max}
+            step={slider.step}
+            value={value}
+            onChange={(event) => handleSliderChange(key, Number(event.target.value))}
+            aria-label={slider.label}
+            aria-valuetext={`${value}${slider.suffix}`}
+          />
+          <output className="slider-chip__value" aria-live="polite">
+            {`${value}${slider.suffix}`}
+          </output>
+        </div>
+      );
+    },
+    [handleSliderChange]
+  );
 
   const toggleAdvanced = (event: React.MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -578,25 +491,36 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const renderAdvancedPopover = () => {
     if (!advancedAnchor) return null;
     return (
-      <Popover anchorRect={advancedAnchor} onClose={closeAdvanced} width={240}>
+      <Popover anchorRect={advancedAnchor} onClose={closeAdvanced} width={260}>
         <div className="advanced-popover" role="group" aria-label="Opciones avanzadas de estilo">
+          <div className="format-field">
+            <div className="format-field__label">
+              <span aria-hidden="true">🧱</span>
+              <span>Borde visible</span>
+            </div>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={current.border !== false}
+                onChange={(event) => patch({ border: event.target.checked })}
+              />
+              <span className="toggle__indicator" aria-hidden="true" />
+              <span className="toggle__label">Activar</span>
+            </label>
+          </div>
           <div className="format-field">
             <div className="format-field__label">
               <span aria-hidden="true">↔️</span>
               <span>Relleno horizontal</span>
             </div>
-            <button type="button" className="value-chip" onClick={handleSliderOpen('paddingX')}>
-              {`${padX}px`}
-            </button>
+            {renderSliderChip('paddingX', padX)}
           </div>
           <div className="format-field">
             <div className="format-field__label">
               <span aria-hidden="true">↕️</span>
               <span>Relleno vertical</span>
             </div>
-            <button type="button" className="value-chip" onClick={handleSliderOpen('paddingY')}>
-              {`${padY}px`}
-            </button>
+            {renderSliderChip('paddingY', padY)}
           </div>
         </div>
       </Popover>
@@ -783,28 +707,10 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
             <div className="format-field">
               <div className="format-field__label">
-                <span aria-hidden="true">🧱</span>
-                <span>Borde visible</span>
-              </div>
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={current.border !== false}
-                  onChange={(event) => patch({ border: event.target.checked })}
-                />
-                <span className="toggle__indicator" aria-hidden="true" />
-                <span className="toggle__label">Activar</span>
-              </label>
-            </div>
-
-            <div className="format-field">
-              <div className="format-field__label">
                 <span aria-hidden="true">🔠</span>
                 <span>Tamaño de fuente</span>
               </div>
-              <button type="button" className="value-chip" onClick={handleSliderOpen('fontSizePx')}>
-                {`${fontPx}px`}
-              </button>
+              {renderSliderChip('fontSizePx', fontPx)}
             </div>
 
             <button
@@ -930,7 +836,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
       {renderColorPopoverContent()}
       {renderAlignmentPopover()}
-      {renderSliderPopover()}
       {renderAdvancedPopover()}
     </div>
   );
