@@ -64,8 +64,8 @@ type AlignmentValue = NonNullable<VisualStyle['textAlign']>;
 
 const ALIGNMENT_OPTIONS: { value: AlignmentValue; icon: string; label: string }[] = [
   { value: 'left', icon: '⭰', label: 'Izquierda' },
-  { value: 'center', icon: '⭲', label: 'Centro' },
-  { value: 'right', icon: '⭱', label: 'Derecha' },
+  { value: 'center', icon: '⚀', label: 'Centro' },
+  { value: 'right', icon: '⭲', label: 'Derecha' },
   { value: 'justify', icon: '☰', label: 'Justificado' },
 ];
 
@@ -111,6 +111,7 @@ interface PopoverProps {
   width?: number;
   className?: string;
   style?: React.CSSProperties;
+  placement?: 'bottom' | 'top';
   children: React.ReactNode;
 }
 
@@ -120,6 +121,7 @@ const Popover: React.FC<PopoverProps> = ({
   width = 220,
   className,
   style,
+  placement = 'bottom',
   children,
 }) => {
   useEffect(() => {
@@ -135,11 +137,19 @@ const Popover: React.FC<PopoverProps> = ({
 
   if (!anchorRect) return null;
 
-  const baseStyle: React.CSSProperties = {
-    top: anchorRect.bottom + window.scrollY + 8,
-    left: anchorRect.left + window.scrollX,
-    width,
-  };
+  const baseStyle: React.CSSProperties =
+    placement === 'top'
+      ? {
+          top: anchorRect.top + window.scrollY - 8,
+          left: anchorRect.left + window.scrollX,
+          width,
+          transform: 'translateY(-100%)',
+        }
+      : {
+          top: anchorRect.bottom + window.scrollY + 8,
+          left: anchorRect.left + window.scrollX,
+          width,
+        };
 
   const mergedStyle = { ...baseStyle, ...style } as React.CSSProperties;
 
@@ -491,7 +501,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const renderAdvancedPopover = () => {
     if (!advancedAnchor) return null;
     return (
-      <Popover anchorRect={advancedAnchor} onClose={closeAdvanced} width={260}>
+      <Popover anchorRect={advancedAnchor} onClose={closeAdvanced} width={260} placement="top">
         <div className="advanced-popover" role="group" aria-label="Opciones avanzadas de estilo">
           <div className="format-field">
             <div className="format-field__label">
