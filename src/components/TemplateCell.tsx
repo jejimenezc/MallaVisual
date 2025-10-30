@@ -210,6 +210,17 @@ export const TemplateCell: React.FC<Props> = ({
     if (cell.type === 'staticText') {
       contentStyle.height = 'auto';
     }
+      if (cell.type === 'checkbox') {
+      const justify =
+        v?.textAlign === 'right'
+          ? 'flex-end'
+          : v?.textAlign === 'center'
+          ? 'center'
+          : 'flex-start';
+      (contentStyle as React.CSSProperties & Record<string, string>)[
+        '--checkbox-justify'
+      ] = justify;
+    }
   }
   
   const numberStep =
