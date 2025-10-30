@@ -15,6 +15,7 @@ export interface ConditionalBg {
 
 export interface VisualStyle {
   backgroundColor?: string;
+  textColor?: string;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
   border?: boolean;
 

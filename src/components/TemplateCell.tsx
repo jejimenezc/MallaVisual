@@ -130,6 +130,7 @@ export const TemplateCell: React.FC<Props> = ({
   }
 
   const bgColor = conditionalColor || v?.backgroundColor || viewFallbackBg;
+  const textColor = v?.textColor ?? cell.style?.textColor;
 
   // Estilo del contenedor (.template-cell)
   const style: React.CSSProperties = {
@@ -212,6 +213,7 @@ export const TemplateCell: React.FC<Props> = ({
     contentStyle.padding = `${py}px ${px}px`;
     if (computedFontSizePx) contentStyle.fontSize = `${computedFontSizePx}px`;
     if (v?.textAlign) contentStyle.textAlign = v.textAlign;
+    if (textColor) contentStyle.color = textColor;
     // staticText: allow cell-content to shrink vertically so parent flex can center it
     if (cell.type === 'staticText') {
       contentStyle.height = 'auto';

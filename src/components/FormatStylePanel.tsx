@@ -256,6 +256,8 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const backgroundColorInputRef = useRef<HTMLInputElement | null>(null);
   const backgroundColorHexInputRef = useRef<HTMLInputElement | null>(null);
+  const textColorInputRef = useRef<HTMLInputElement | null>(null);
+  const textColorHexInputRef = useRef<HTMLInputElement | null>(null);
   const [colorPopover, setColorPopover] = useState<{
     type: 'checkbox-normal' | 'checkbox-hover';
     anchor: DOMRect | null;
@@ -367,6 +369,15 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     setColorPopover(null);
   };
 
+  const rawTextColor = current.textColor ?? selectedCell?.style?.textColor ?? '#111827';
+  const normalizedTextColor = normalizeHex(rawTextColor);
+  const textColorLabel = normalizedTextColor.toUpperCase();
+  const [textColorText, setTextColorText] = useState(textColorLabel);
+  useEffect(() => {
+    if (textColorHexInputRef.current === document.activeElement) return;
+    setTextColorText(textColorLabel);
+  }, [textColorLabel]);
+
   const backgroundColor = current.backgroundColor ?? '#ffffff';
   const normalizedBackgroundColor = normalizeHex(backgroundColor);
   const backgroundColorLabel = normalizedBackgroundColor.toUpperCase();
@@ -402,6 +413,33 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
   const handleBackgroundPickerOpen = () => {
     const input = backgroundColorInputRef.current;
+    if (!input) return;
+    input.click();
+  };
+
+  const handleTextColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    patch({ textColor: normalizeHex(event.target.value) });
+  };
+
+  const handleTextHexInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = event.target.value.trim();
+    setTextColorText(rawValue);
+    const sanitized = rawValue.startsWith('#') ? rawValue.slice(1) : rawValue;
+    if (/^[0-9a-fA-F]{6}$/.test(sanitized)) {
+      patch({ textColor: normalizeHex(rawValue) });
+      return;
+    }
+    if (/^[0-9a-fA-F]{3}$/.test(sanitized) && sanitized.length === 3 && rawValue.length <= 4) {
+      patch({ textColor: normalizeHex(rawValue) });
+    }
+  };
+
+  const handleTextHexInputBlur = () => {
+    setTextColorText(textColorLabel);
+  };
+
+  const handleTextColorPickerOpen = () => {
+    const input = textColorInputRef.current;
     if (!input) return;
     input.click();
   };
@@ -682,6 +720,42 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                   value={normalizedBackgroundColor}
                   onChange={handleBackgroundColorChange}
                   aria-label="Seleccionar color de fondo"
+                />
+              </div>
+            </div>
+
+            <div className="format-field">
+              <div className="format-field__label">
+                <span aria-hidden="true">🅰️</span>
+                <span>Color de texto</span>
+              </div>
+              <div className="format-field__inline">
+                <span
+                  className="color-chip"
+                  style={{ backgroundColor: normalizedTextColor }}
+                  aria-label={`Color actual ${textColorLabel}`}
+                />
+                <input
+                  ref={textColorHexInputRef}
+                  className="color-chip__value-input"
+                  type="text"
+                  value={textColorText}
+                  onChange={handleTextHexInputChange}
+                  onBlur={handleTextHexInputBlur}
+                  maxLength={7}
+                  spellCheck={false}
+                  aria-label="Editar color de texto en formato hexadecimal"
+                />
+                <button type="button" onClick={handleTextColorPickerOpen}>
+                  Editar
+                </button>
+                <input
+                  ref={textColorInputRef}
+                  className="format-field__sr"
+                  type="color"
+                  value={normalizedTextColor}
+                  onChange={handleTextColorChange}
+                  aria-label="Seleccionar color de texto"
                 />
               </div>
             </div>

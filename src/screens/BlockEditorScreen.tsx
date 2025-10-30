@@ -534,7 +534,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       left={
         <div className="block-editor-header-toolbar">
           <div className="block-editor-header-name">
-            <span className="block-editor-header-name-label">Bloque:</span>
+            <span className="block-editor-header-name-label">Bloque curricular:</span>
             <span
               className="block-editor-block-name"
               title={repoName || 'Sin nombre'}
@@ -542,7 +542,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               {repoName || 'Sin nombre'}
             </span>
             <Button onClick={handleRename}>
-              {repoId ? '✏️ Renombrar' : '✏️ Definir nombre'}
+              {repoId ? '✏️ ' : '✏️ '}
             </Button>
           </div>
         </div>
