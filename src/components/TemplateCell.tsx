@@ -137,7 +137,13 @@ export const TemplateCell: React.FC<Props> = ({
     ...(applyVisual ? {} : editBaseStyle),
     ...spanStyle,
     // Fondo/borde del contenedor en vista
-    ...(applyVisual && v?.border ? { border: '1px solid #333' } : {}),
+    ...(applyVisual
+      ? v?.border === false
+        ? { border: '1px solid transparent' }
+        : v?.border
+        ? { border: '1px solid #333' }
+        : {}
+      : {}),
     ...(applyVisual && bgColor ? { backgroundColor: bgColor } : {}),
     ...(applyVisual && cell.type === 'checkbox' && checked && v?.conditionalBg?.checkedColor
       ? { backgroundColor: v.conditionalBg.checkedColor }
