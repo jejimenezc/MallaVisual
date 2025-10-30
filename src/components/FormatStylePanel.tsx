@@ -1,6 +1,6 @@
 // src/components/FormatStylePanel.tsx
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './FormatStylePanel.css';
 import { coordKey } from '../types/visual';
@@ -192,7 +192,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
   const [isPaletteEnabled, setIsPaletteEnabled] = useState(false);
   const [paintWithPalette, setPaintWithPalette] = useState(false);
-
   useEffect(() => {
     if (!isPaletteEnabled) {
       setPaintWithPalette(false);
@@ -555,6 +554,19 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const isCheckboxControl = canEditControl && selectedCell?.type === 'checkbox';
   const isTextControl = canEditControl && selectedCell?.type === 'text';
   const isCustomizableControl = isCheckboxControl || isTextControl;
+  const [isGeneralCollapsed, setGeneralCollapsed] = useState(
+    () => Boolean(selectedCell?.type)
+  );
+  const generalContentId = useId();
+  const generalSectionLabelId = useId();
+
+  useEffect(() => {
+    if (selectedCell?.type) {
+      setGeneralCollapsed(true);
+    } else {
+      setGeneralCollapsed(false);
+    }
+  }, [selectedCell?.type, selectedCoord?.row, selectedCoord?.col]);
 
   return (
     <div className="format-style-panel" ref={panelRef}>
@@ -565,54 +577,73 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
         </div>
       </header>
 
-      <section className="format-section">
-        <div className="format-section__header">
-          <div className="format-section__title">
-            <span className="format-section__eyebrow">General</span>
-            <span
-              className="format-section__tooltip"
-              role="img"
-              aria-label="Configura parámetros que afectan al bloque completo."
-              title="Configura parámetros que afectan al bloque completo."
-            >
-              ℹ️
-            </span>
-          </div>
-        </div>
-        <div className="format-field">
-          <div className="format-field__label">
-            <span aria-hidden="true">📐</span>
-            <label htmlFor="aspect-select">Relación de aspecto</label>
-          </div>
-          <select
-            id="aspect-select"
-            value={blockAspect}
-            onChange={(event) => onUpdateAspect(event.target.value as BlockAspect)}
+      <section className="format-section" aria-labelledby={generalSectionLabelId}>
+        <header className="format-section__header">
+          <button
+            type="button"
+            className="format-section__toggle"
+            aria-expanded={!isGeneralCollapsed}
+            aria-controls={generalContentId}
+            onClick={() => setGeneralCollapsed((prev) => !prev)}
           >
-            {aspectOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <p className="format-field__hint">Ajusta la relación para mantener proporciones consistentes.</p>
-        </div>
-        <div className="format-field">
-          <div className="format-field__label">
-            <span aria-hidden="true">🎨</span>
-            <span>Paleta de color</span>
+            <div className="format-section__title" id={generalSectionLabelId}>
+              <span className="format-section__eyebrow">General</span>
+              <span
+                className="format-section__tooltip"
+                role="img"
+                aria-label="Configura parámetros que afectan al bloque completo."
+                title="Configura parámetros que afectan al bloque completo."
+              >
+                ℹ️
+              </span>
+            </div>
+            <span className="format-section__chevron" aria-hidden="true">
+              {isGeneralCollapsed ? '▸' : '▾'}
+            </span>
+          </button>
+        </header>
+        {!isGeneralCollapsed && (
+          <div
+            id={generalContentId}
+            className="format-section__content"
+            aria-hidden={isGeneralCollapsed}
+          >
+            <div className="format-field">
+              <div className="format-field__label">
+                <span aria-hidden="true">📐</span>
+                <label htmlFor="aspect-select">Relación de aspecto</label>
+              </div>
+              <select
+                id="aspect-select"
+                value={blockAspect}
+                onChange={(event) => onUpdateAspect(event.target.value as BlockAspect)}
+              >
+                {aspectOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="format-field__hint">Ajusta la relación para mantener proporciones consistentes.</p>
+            </div>
+            <div className="format-field">
+              <div className="format-field__label">
+                <span aria-hidden="true">🎨</span>
+                <span>Paleta de color</span>
+              </div>
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={isPaletteEnabled}
+                  onChange={(event) => setIsPaletteEnabled(event.target.checked)}
+                />
+                <span className="toggle__indicator" aria-hidden="true" />
+                <span className="toggle__label">{isPaletteEnabled ? 'Activo' : 'Inactivo'}</span>
+              </label>
+              <p className="format-field__hint">Centraliza colores aprobados para mantener consistencia.</p>
+            </div>
           </div>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={isPaletteEnabled}
-              onChange={(event) => setIsPaletteEnabled(event.target.checked)}
-            />
-            <span className="toggle__indicator" aria-hidden="true" />
-            <span className="toggle__label">{isPaletteEnabled ? 'Activo' : 'Inactivo'}</span>
-          </label>
-          <p className="format-field__hint">Centraliza colores aprobados para mantener consistencia.</p>
-        </div>
+        )}
       </section>
 
       <section className="format-section">
