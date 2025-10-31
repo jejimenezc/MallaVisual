@@ -190,6 +190,10 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   } | null>(null);
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
+  const [selectColorPopover, setSelectColorPopover] = useState<{
+    option: string;
+    anchor: DOMRect | null;
+  } | null>(null);
   const [isPaletteEnabled, setIsPaletteEnabled] = useState(false);
   const [paintWithPalette, setPaintWithPalette] = useState(false);
   useEffect(() => {
@@ -296,6 +300,28 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
   const closeColorPopover = () => {
     setColorPopover(null);
+  };
+
+  useEffect(() => {
+    const selectSource = current.conditionalBg?.selectSource;
+    if (!selectSource) {
+      setSelectColorPopover(null);
+      return;
+    }
+    if (selectColorPopover && !(selectColorPopover.option in selectSource.colors)) {
+      setSelectColorPopover(null);
+    }
+  }, [current.conditionalBg?.selectSource, selectColorPopover]);
+
+  const openSelectColorPopover = (option: string) => (
+    event: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    const anchor = event.currentTarget.getBoundingClientRect();
+    setSelectColorPopover({ option, anchor });
+  };
+
+  const closeSelectColorPopover = () => {
+    setSelectColorPopover(null);
   };
 
   const rawTextColor = current.textColor ?? selectedCell?.style?.textColor ?? '#111827';
@@ -426,6 +452,50 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
           <p className="color-popover__hint">
             Configura el color base y el estado hover para mantener contraste.
           </p>
+        </div>
+      </Popover>
+    );
+  };
+
+  const renderSelectColorPopover = () => {
+    if (!selectColorPopover) return null;
+    const option = selectColorPopover.option;
+    const colors = current.conditionalBg?.selectSource?.colors ?? {};
+    const value = normalizeHex(colors[option] ?? '#ffffff');
+
+    const handleChange = (nextColor: string) => {
+      if (!k) return;
+      updateConditionalBg((prev) => {
+        if (!prev?.selectSource) return prev;
+        const nextColors = { ...prev.selectSource.colors, [option]: nextColor };
+        return {
+          ...prev,
+          selectSource: {
+            ...prev.selectSource,
+            colors: nextColors,
+          },
+        };
+      });
+    };
+
+    return (
+      <Popover
+        anchorRect={selectColorPopover.anchor}
+        onClose={closeSelectColorPopover}
+        width={240}
+        placement="top"
+      >
+        <div className="color-popover" role="group" aria-label={`Color para ${option}`}>
+          <label className="color-popover__field">
+            <span>{option}</span>
+            <input
+              type="color"
+              value={value}
+              onChange={(event) => handleChange(normalizeHex(event.target.value))}
+              aria-label={`Seleccionar color para ${option}`}
+            />
+            <output aria-live="polite">{value.toUpperCase()}</output>
+          </label>
         </div>
       </Popover>
     );
@@ -878,14 +948,29 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                       ))}
                     </select>
                     {current.conditionalBg?.selectSource && (
-                      <div className="color-preview-grid">
+                      <div className="select-color-grid" role="list">
                         {Object.entries(current.conditionalBg.selectSource.colors).map(
-                          ([option, color]) => (
-                            <div key={option} className="color-preview-grid__item">
-                              <span style={{ backgroundColor: color }} aria-hidden="true" />
-                              <span>{option}</span>
-                            </div>
-                          )
+                          ([option, color]) => {
+                            const normalized = normalizeHex(color);
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                className="select-color-grid__item"
+                                onClick={openSelectColorPopover(option)}
+                                aria-label={`Editar color para ${option}`}
+                                role="listitem"
+                              >
+                                <span
+                                  className="select-color-grid__swatch"
+                                  style={{ backgroundColor: normalized }}
+                                  aria-hidden="true"
+                                />
+                                <span className="select-color-grid__label">{option}</span>
+                                <span className="select-color-grid__value">{normalized.toUpperCase()}</span>
+                              </button>
+                            );
+                          }
                         )}
                       </div>
                     )}
@@ -912,6 +997,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       )}
 
       {renderColorPopoverContent()}
+      {renderSelectColorPopover()}
       {renderAlignmentPopover()}
       {renderAdvancedPopover()}
     </div>
