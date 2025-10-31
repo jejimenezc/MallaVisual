@@ -113,7 +113,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [aspect, setAspect] = useState<BlockAspect>(
     initialData?.aspect ?? '1/1'
   );
-  const { autoSave, flushAutoSave } = useProject({ projectId, projectName });
+  const { autoSave, flushAutoSave, loadProject } = useProject({ projectId, projectName });
   const {
     saveBlock: repoSaveBlock,
     listBlocks,
@@ -143,27 +143,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setAspect(content.aspect);
   }, [initialData, initialDataSignature]);
 
-  useEffect(() => {
-    if (!projectId) return;
-    const snapshot = blocksToRepository(repoBlocks);
-
-    const data: MallaExport = {
-      version: MALLA_SCHEMA_VERSION,
-      masters: { master: { template, visual, aspect } },
-      grid: { cols: 5, rows: 5 },
-      pieces: [],
-      values: {},
-      floatingPieces: [],
-      activeMasterId: 'master',
-      repository: snapshot.entries,
-    };
-    const serialized = JSON.stringify(data);
-    if (savedRef.current === serialized) return;
-    savedRef.current = serialized;
-    autoSave(data);
-  }, [template, visual, aspect, projectId, projectName, autoSave, repoBlocks]);
-
-  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
+  const persistedProjectRef = useRef<MallaExport | null>(null);
+  const hasLoadedProjectRef = useRef(false);
 
   const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
   const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
@@ -178,20 +159,90 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [initialRepoId]);
 
   useEffect(() => {
-    if (initialRepoMetadata) {
-      setRepoMetadata(initialRepoMetadata);
-      setRepoName(initialRepoMetadata.name);
-      return;
+    persistedProjectRef.current = null;
+    hasLoadedProjectRef.current = false;
+  }, [projectId]);
+
+  const shouldReusePersistedMalla = useCallback((project: MallaExport | null) => {
+    if (!project) return false;
+    const piecesCount = project.pieces?.length ?? 0;
+    const floatingCount = project.floatingPieces?.length ?? 0;
+    if (piecesCount > 0 || floatingCount > 0) return true;
+    const activeId = project.activeMasterId ?? '';
+    if (activeId && activeId !== 'master') return true;
+    const masters = project.masters ?? {};
+    if (Object.keys(masters).some((id) => id !== 'master')) return true;
+    const grid = project.grid;
+    if (grid && (grid.cols !== 5 || grid.rows !== 5)) return true;
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    if (!hasLoadedProjectRef.current) {
+      const record = loadProject(projectId);
+      persistedProjectRef.current = record?.data ?? null;
+      hasLoadedProjectRef.current = true;
     }
-    if (!initialRepoId) {
-      setRepoMetadata(null);
-      if (initialRepoName) {
-        setRepoName(initialRepoName);
-      } else if (!repoRecord) {
-        setRepoName('');
-      }
+
+    const snapshot = blocksToRepository(repoBlocks);
+    const base = persistedProjectRef.current;
+    const reuseMalla = shouldReusePersistedMalla(base);
+
+    let data: MallaExport;
+    if (reuseMalla && base) {
+      const nextMasters = { ...(base.masters ?? {}) };
+      const candidateIds = new Set<string>();
+      if (base.activeMasterId) candidateIds.add(base.activeMasterId);
+      if (repoId) candidateIds.add(repoId);
+      if (candidateIds.size === 0) candidateIds.add('master');
+      candidateIds.forEach((id) => {
+        nextMasters[id] = { template, visual, aspect };
+      });
+
+      data = {
+        ...base,
+        version: MALLA_SCHEMA_VERSION,
+        masters: nextMasters,
+        grid: base.grid ?? { cols: 5, rows: 5 },
+        pieces: base.pieces ?? [],
+        values: base.values ?? {},
+        floatingPieces: base.floatingPieces ?? [],
+        activeMasterId: base.activeMasterId ?? repoId ?? 'master',
+        repository: snapshot.entries,
+      };
+    } else {
+      data = {
+        version: MALLA_SCHEMA_VERSION,
+        masters: { master: { template, visual, aspect } },
+        grid: { cols: 5, rows: 5 },
+        pieces: [],
+        values: {},
+        floatingPieces: [],
+        activeMasterId: 'master',
+        repository: snapshot.entries,
+      };
     }
-  }, [initialRepoMetadata, initialRepoId, initialRepoName]);
+
+    const serialized = JSON.stringify(data);
+    if (savedRef.current === serialized) return;
+    savedRef.current = serialized;
+    persistedProjectRef.current = data;
+    autoSave(data);
+  }, [
+    template,
+    visual,
+    aspect,
+    projectId,
+    autoSave,
+    repoBlocks,
+    loadProject,
+    repoId,
+    shouldReusePersistedMalla,
+  ]);
+
+  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
 
   const draftContent = useMemo<BlockContent>(
     () => ({ template, visual, aspect }),
