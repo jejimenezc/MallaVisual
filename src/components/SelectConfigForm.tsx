@@ -20,8 +20,12 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
 
   useEffect(() => {
     setLabel(cell.label ?? '');
-    setRawOptions(cell.dropdownOptions?.join(', ') ?? '');
-  }, [coord, cell.dropdownOptions, cell.label]);
+  }, [coord, cell.label]);
+
+  useEffect(() => {
+    const serialized = cell.dropdownOptions?.join(', ') ?? '';
+    setRawOptions((prev) => (prev === serialized ? prev : serialized));
+  }, [coord, cell.dropdownOptions]);
 
   useEffect(() => {
     focusWithoutScroll(inputRef.current);
@@ -40,7 +44,13 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
       .split(',')
       .map((opt) => opt.trim())
       .filter((opt) => opt.length > 0);
-    onUpdate({ dropdownOptions: options }, coord);
+    const existing = cell.dropdownOptions ?? [];
+    const hasChanged =
+      existing.length !== options.length || existing.some((opt, idx) => opt !== options[idx]);
+
+    if (hasChanged) {
+      onUpdate({ dropdownOptions: options }, coord);
+    }
   };
 
   return (
