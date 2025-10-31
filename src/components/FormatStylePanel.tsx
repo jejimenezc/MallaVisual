@@ -554,19 +554,19 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const isCheckboxControl = canEditControl && selectedCell?.type === 'checkbox';
   const isTextControl = canEditControl && selectedCell?.type === 'text';
   const isCustomizableControl = isCheckboxControl || isTextControl;
-  const [isGeneralCollapsed, setGeneralCollapsed] = useState(
-    () => Boolean(selectedCell?.type)
+  const [isGeneralCollapsed, setGeneralCollapsed] = useState(() =>
+    Boolean(selectedCell)
   );
   const generalContentId = useId();
   const generalSectionLabelId = useId();
 
   useEffect(() => {
-    if (selectedCell?.type) {
+    if (selectedCell) {
       setGeneralCollapsed(true);
     } else {
       setGeneralCollapsed(false);
     }
-  }, [selectedCell?.type, selectedCoord?.row, selectedCoord?.col]);
+  }, [selectedCell, selectedCoord?.row, selectedCoord?.col]);
 
   return (
     <div className="format-style-panel" ref={panelRef}>
