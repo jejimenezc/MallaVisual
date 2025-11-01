@@ -663,7 +663,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     .join(' ');
   
   const handleSelectMaster = (id: string) => {
-    if (id && id !== repoId) {
+    if (id !== selectedMasterId) {
       skipNextNormalizedInitialRef.current = true;
     }
     if (id !== selectedMasterId) {
