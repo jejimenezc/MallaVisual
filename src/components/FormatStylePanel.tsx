@@ -242,10 +242,8 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const backgroundColorHexInputRef = useRef<HTMLInputElement | null>(null);
   const textColorInputRef = useRef<HTMLInputElement | null>(null);
   const textColorHexInputRef = useRef<HTMLInputElement | null>(null);
-  const [colorPopover, setColorPopover] = useState<{
-    type: 'checkbox-normal' | 'checkbox-hover';
-    anchor: DOMRect | null;
-  } | null>(null);
+  const checkboxColorInputRef = useRef<HTMLInputElement | null>(null);
+  const checkboxColorHexInputRef = useRef<HTMLInputElement | null>(null);
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
   const selectColorInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
@@ -343,17 +341,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     updateConditionalBg((prev) => ({ ...prev, selectSource: { coord, colors } }));
   };
 
-  const openColorPopover = (type: 'checkbox-normal' | 'checkbox-hover') => (
-    event: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    const anchor = event.currentTarget.getBoundingClientRect();
-    setColorPopover({ type, anchor });
-  };
-
-  const closeColorPopover = () => {
-    setColorPopover(null);
-  };
-
   const rawTextColor = current.textColor ?? selectedCell?.style?.textColor ?? '#111827';
   const normalizedTextColor = normalizeHex(rawTextColor);
   const textColorLabel = normalizedTextColor.toUpperCase();
@@ -372,7 +359,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     setBackgroundColorText(backgroundColorLabel);
   }, [backgroundColorLabel]);
   const checkedColor = current.conditionalBg?.checkedColor ?? '#2dd4bf';
-  const hoverCheckedColor = current.conditionalBg?.hoverCheckedColor ?? '#14b8a6';
   const checkboxColorEnabled = Boolean(current.conditionalBg?.checkedColor);
 
   const handleBackgroundColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -434,57 +420,51 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       updateConditionalBg((prev) => ({
         ...prev,
         checkedColor: prev?.checkedColor ?? '#2dd4bf',
-        hoverCheckedColor: prev?.hoverCheckedColor ?? '#14b8a6',
       }));
     } else {
       updateConditionalBg((prev) => {
         if (!prev) return undefined;
         const next: ConditionalBg = { ...prev };
         delete next.checkedColor;
-        delete next.hoverCheckedColor;
         return next;
       });
     }
   };
 
-  const renderColorPopoverContent = () => {
-    if (!colorPopover) return null;
-    const rawValue =
-      colorPopover.type === 'checkbox-normal' ? checkedColor : hoverCheckedColor;
+  const normalizedCheckboxColor = normalizeHex(checkedColor);
+  const checkboxColorLabel = normalizedCheckboxColor.toUpperCase();
+  const [checkboxColorText, setCheckboxColorText] = useState(checkboxColorLabel);
+  useEffect(() => {
+    if (checkboxColorHexInputRef.current === document.activeElement) return;
+    setCheckboxColorText(checkboxColorLabel);
+  }, [checkboxColorLabel]);
 
-    const value = normalizeHex(rawValue);
+  const handleCheckboxColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextColor = normalizeHex(event.target.value);
+    updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }));
+  };
 
-    const labelText =
-      colorPopover.type === 'checkbox-hover' ? 'Estado hover' : 'Estado normal';
+  const handleCheckboxHexInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = event.target.value.trim();
+    setCheckboxColorText(rawValue);
+    const sanitized = rawValue.startsWith('#') ? rawValue.slice(1) : rawValue;
+    if (/^[0-9a-fA-F]{6}$/.test(sanitized)) {
+      updateConditionalBg((prev) => ({ ...prev, checkedColor: normalizeHex(rawValue) }));
+      return;
+    }
+    if (/^[0-9a-fA-F]{3}$/.test(sanitized) && sanitized.length === 3 && rawValue.length <= 4) {
+      updateConditionalBg((prev) => ({ ...prev, checkedColor: normalizeHex(rawValue) }));
+    }
+  };
 
-    const handleChange = (nextColor: string) => {
-      if (!k) return;
-      if (colorPopover.type === 'checkbox-normal') {
-        updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }));
-      } else {
-        updateConditionalBg((prev) => ({ ...prev, hoverCheckedColor: nextColor }));
-      }
-    };
+  const handleCheckboxHexInputBlur = () => {
+    setCheckboxColorText(checkboxColorLabel);
+  };
 
-    return (
-      <Popover anchorRect={colorPopover.anchor} onClose={closeColorPopover} width={240}>
-        <div className="color-popover" role="group" aria-label={labelText}>
-          <label className="color-popover__field">
-            <span>{labelText}</span>
-            <input
-              type="color"
-              value={value}
-              onChange={(event) => handleChange(normalizeHex(event.target.value))}
-              aria-label={labelText}
-            />
-            <output aria-live="polite">{value.toUpperCase()}</output>
-          </label>
-          <p className="color-popover__hint">
-            Configura el color base y el estado hover para mantener contraste.
-          </p>
-        </div>
-      </Popover>
-    );
+  const handleCheckboxPickerOpen = () => {
+    const input = checkboxColorInputRef.current;
+    if (!input) return;
+    input.click();
   };
 
   const renderAlignmentPopover = () => (
@@ -894,21 +874,34 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                   <span className="toggle__label">Personalizar</span>
                 </label>
                 {checkboxColorEnabled && (
-                  <div className="format-field__stack">
-                    <button
-                      type="button"
-                      className="value-chip"
-                      onClick={openColorPopover('checkbox-normal')}
-                    >
-                      Normal
+                  <div className="format-field__inline">
+                    <span
+                      className="color-chip"
+                      style={{ backgroundColor: normalizedCheckboxColor }}
+                      aria-label={`Color actual ${checkboxColorLabel}`}
+                    />
+                    <input
+                      ref={checkboxColorHexInputRef}
+                      className="color-chip__value-input"
+                      type="text"
+                      value={checkboxColorText}
+                      onChange={handleCheckboxHexInputChange}
+                      onBlur={handleCheckboxHexInputBlur}
+                      maxLength={7}
+                      spellCheck={false}
+                      aria-label="Editar color del checkbox en formato hexadecimal"
+                    />
+                    <button type="button" onClick={handleCheckboxPickerOpen}>
+                      Editar
                     </button>
-                    <button
-                      type="button"
-                      className="value-chip"
-                      onClick={openColorPopover('checkbox-hover')}
-                    >
-                      Hover
-                    </button>
+                    <input
+                      ref={checkboxColorInputRef}
+                      className="format-field__sr"
+                      type="color"
+                      value={normalizedCheckboxColor}
+                      onChange={handleCheckboxColorChange}
+                      aria-label="Seleccionar color del checkbox"
+                    />
                   </div>
                 )}
               </div>
@@ -1022,7 +1015,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
         </button>
       )}
 
-      {renderColorPopoverContent()}
       {renderAlignmentPopover()}
       {renderAdvancedPopover()}
     </div>
