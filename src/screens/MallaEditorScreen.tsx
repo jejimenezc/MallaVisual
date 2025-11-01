@@ -364,11 +364,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
       return;
     }
     const data: MasterBlockData = { template, visual, aspect };
-    setMastersById((prev) => ({
-      ...prev,
-      [selectedMasterId]: data,
-    }));
-  }, [selectedMasterId, template, visual, aspect]);
+    runHistoryTransaction(() => {
+      setMastersById((prev) => ({
+        ...prev,
+        [selectedMasterId]: data,
+      }));
+    });
+  }, [selectedMasterId, template, visual, aspect, runHistoryTransaction]);
 
   // --- drag & drop
   const [draggingId, setDraggingId] = useState<string | null>(null);
