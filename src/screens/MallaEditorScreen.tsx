@@ -251,6 +251,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
     if (skipNextHistoryRef.current) {
       skipNextHistoryRef.current = false;
+      const currentHistory = historyRef.current.slice();
+      const currentSerialized = historySerializedRef.current.slice();
+      currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
+      currentSerialized[historyIndex] = historySnapshotSerialized;
+      historyRef.current = currentHistory;
+      historySerializedRef.current = currentSerialized;
       return;
     }
     const currentSerialized = historySerializedRef.current[historyIndex];
