@@ -78,17 +78,66 @@ const expandShortHex = (hex: string) =>
     .map((char) => char + char)
     .join('')}`;
 
-const normalizeHex = (hex: string) => {
-  if (!hex) return '#000000';
-  const prefixed = hex.startsWith('#') ? hex : `#${hex}`;
+const tryNormalizeHex = (hex: string): string | null => {
+  if (!hex) return null;
+  const trimmed = hex.trim();
+  if (!trimmed) return null;
+  const prefixed = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
   if (/^#[0-9a-fA-F]{3}$/.test(prefixed)) {
     return expandShortHex(prefixed).toLowerCase();
   }
   if (/^#[0-9a-fA-F]{6}$/.test(prefixed)) {
     return prefixed.toLowerCase();
   }
-  return '#000000';
+  return null;
 };
+
+const rgbStringToHex = (value: string): string | null => {
+  const match = value.match(/rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+  if (!match) return null;
+  const [, r, g, b] = match;
+  const toHex = (component: string) => {
+    const intVal = Math.round(parseFloat(component));
+    const clamped = Math.max(0, Math.min(255, intVal));
+    return clamped.toString(16).padStart(2, '0');
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+};
+
+const parseCssColorToHex = (() => {
+  let ctx: CanvasRenderingContext2D | null = null;
+  const ensureCtx = () => {
+    if (typeof document === 'undefined') return null;
+    if (!ctx) {
+      const canvas = document.createElement('canvas');
+      ctx = canvas.getContext('2d');
+    }
+    return ctx;
+  };
+  return (value: string): string | null => {
+    const context = ensureCtx();
+    if (!context) return null;
+    try {
+      context.fillStyle = '#000000';
+      context.fillStyle = value;
+      const computed = context.fillStyle;
+      if (typeof computed !== 'string' || computed.length === 0) return null;
+      if (computed.startsWith('#')) {
+        return tryNormalizeHex(computed);
+      }
+      const rgbHex = rgbStringToHex(computed);
+      return rgbHex ? tryNormalizeHex(rgbHex) : null;
+    } catch (error) {
+      if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        console.warn('No se pudo interpretar el color', value, error);
+      }
+      return null;
+    }
+  };
+})();
+
+const normalizeHex = (value: string) =>
+  tryNormalizeHex(value) ?? parseCssColorToHex(value) ?? '#000000';
 
 const sanitizeConditionalBg = (value?: ConditionalBg | null): ConditionalBg | undefined => {
   if (!value) return undefined;
