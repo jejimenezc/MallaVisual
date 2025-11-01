@@ -215,6 +215,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
   const isRestoringRef = useRef(false);
   const ignoreNextInitialMallaRef = useRef(false);
+  const skipNextMasterSyncRef = useRef(false);
+  const skipNextHistoryRef = useRef(false);
 
   const historySnapshot = useMemo<MallaHistoryEntry>(
     () => ({
@@ -245,6 +247,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
     if (isRestoringRef.current) {
       isRestoringRef.current = false;
+      return;
+    }
+    if (skipNextHistoryRef.current) {
+      skipNextHistoryRef.current = false;
       return;
     }
     const currentSerialized = historySerializedRef.current[historyIndex];
@@ -320,6 +326,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
     if (!selectedMasterId) return;
+    if (skipNextMasterSyncRef.current) {
+      skipNextMasterSyncRef.current = false;
+      return;
+    }
     const data: MasterBlockData = { template, visual, aspect };
     setMastersById((prev) => ({
       ...prev,
@@ -344,6 +354,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   });
   const savedRef = useRef<string | null>(null);
   const skipNextSyncRef = useRef(false);
+  const skipNextNormalizedInitialRef = useRef(false);
   const initialPersistenceSignatureRef = useRef<string | null>(null);
 
   const applyHistorySnapshot = useCallback(
@@ -354,10 +365,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setPieces(clone.pieces);
       setPieceValues(clone.pieceValues);
       setFloatingPieces(clone.floatingPieces);
+      skipNextMasterSyncRef.current = true;
       setMastersById(clone.mastersById);
       setSelectedMasterId(clone.selectedMasterId);
       setDraggingId(null);
       setDragPos({ x: 0, y: 0 });
+      const restoredMaster = clone.mastersById[clone.selectedMasterId];
+      if (restoredMaster) {
+        onUpdateMaster?.({
+          template: restoredMaster.template,
+          visual: restoredMaster.visual,
+          aspect: restoredMaster.aspect,
+          repoId: clone.selectedMasterId,
+        });
+      }
     },
     [
       setCols,
@@ -369,6 +390,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId,
       setDraggingId,
       setDragPos,
+      onUpdateMaster,
     ],
   );
 
@@ -635,6 +657,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     .join(' ');
   
   const handleSelectMaster = (id: string) => {
+    if (id && id !== repoId) {
+      skipNextNormalizedInitialRef.current = true;
+    }
+    if (id !== selectedMasterId) {
+      skipNextHistoryRef.current = true;
+    }
     setSelectedMasterId(id);
     if (!id) {
       return;
@@ -713,6 +741,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (!normalizedInitial) {
       savedRef.current = null;
       initialPersistenceSignatureRef.current = null;
+      skipNextNormalizedInitialRef.current = false;
+      return;
+    }
+
+    if (skipNextNormalizedInitialRef.current) {
+      skipNextNormalizedInitialRef.current = false;
       return;
     }
 
