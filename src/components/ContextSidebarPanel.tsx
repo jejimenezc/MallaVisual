@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import './ContextSidebarPanel.css';
 import type { BlockTemplateCell, BlockTemplate } from '../types/curricular';
+import { coordKey } from '../types/visual';
 
 import StaticTextConfigForm from './StaticTextConfigForm';
 import { TextConfigForm } from './TextConfigForm';
@@ -28,6 +29,7 @@ interface Props {
 
   combineDisabledReason?: string;
   template: BlockTemplate;
+  onSelectOptionsEditingChange?: (coord: string | null, isEditing: boolean) => void;
 
 }
 
@@ -73,6 +75,7 @@ export const ContextSidebarPanel: React.FC<Props> = ({
   onUpdateCell,
   combineDisabledReason,
   template,
+  onSelectOptionsEditingChange,
 }) => {
   const [isSelectionCollapsed, setSelectionCollapsed] = useState(
     () => Boolean(selectedCell?.type)
@@ -158,6 +161,11 @@ export const ContextSidebarPanel: React.FC<Props> = ({
             coord={selectedCoord}
             onUpdate={(u, coord) => {
               if (onUpdateCell) onUpdateCell(u, coord);
+            }}
+            onOptionsEditingChange={(isEditing) => {
+              if (!selectedCoord) return;
+              const coordId = coordKey(selectedCoord.row, selectedCoord.col);
+              onSelectOptionsEditingChange?.(coordId, isEditing);
             }}
           />
         )}

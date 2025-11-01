@@ -9,9 +9,15 @@ interface SelectConfigFormProps {
   cell: BlockTemplateCell;
   coord: { row: number; col: number };
   onUpdate: (updated: Partial<BlockTemplateCell>, coord: { row: number; col: number }) => void;
+  onOptionsEditingChange?: (isEditing: boolean) => void;
 }
 
-export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord, onUpdate }) => {
+export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({
+  cell,
+  coord,
+  onUpdate,
+  onOptionsEditingChange,
+}) => {
   const [label, setLabel] = useState(cell.label ?? '');
   const [rawOptions, setRawOptions] = useState(cell.dropdownOptions?.join(', ') ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +36,8 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
   useEffect(() => {
     focusWithoutScroll(inputRef.current);
   }, [coord]);
+
+  useEffect(() => () => onOptionsEditingChange?.(false), [onOptionsEditingChange, coord.row, coord.col]);
 
   const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newLabel = e.target.value;
@@ -85,6 +93,8 @@ export const SelectConfigForm: React.FC<SelectConfigFormProps> = ({ cell, coord,
           type="text"
           value={rawOptions}
           onChange={handleOptionsChange}
+          onFocus={() => onOptionsEditingChange?.(true)}
+          onBlur={() => onOptionsEditingChange?.(false)}
           placeholder="Ej: Obligatoria, Electiva, Optativa"
         />
       </div>
