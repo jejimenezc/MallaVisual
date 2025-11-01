@@ -1,6 +1,6 @@
 // src/components/ContextSidebarPanel.tsx
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import './ContextSidebarPanel.css';
 import type { BlockTemplateCell, BlockTemplate } from '../types/curricular';
 import { coordKey } from '../types/visual';
@@ -81,6 +81,17 @@ export const ContextSidebarPanel: React.FC<Props> = ({
     () => Boolean(selectedCell?.type)
   );
   const selectionContentId = useId();
+  const selectCoordId = selectedCoord
+    ? coordKey(selectedCoord.row, selectedCoord.col)
+    : null;
+
+  const handleSelectOptionsEditingChange = useCallback(
+    (isEditing: boolean) => {
+      if (!selectCoordId) return;
+      onSelectOptionsEditingChange?.(selectCoordId, isEditing);
+    },
+    [selectCoordId, onSelectOptionsEditingChange]
+  );
 
   useEffect(() => {
     if (selectedCell?.type) {
@@ -162,11 +173,7 @@ export const ContextSidebarPanel: React.FC<Props> = ({
             onUpdate={(u, coord) => {
               if (onUpdateCell) onUpdateCell(u, coord);
             }}
-            onOptionsEditingChange={(isEditing) => {
-              if (!selectedCoord) return;
-              const coordId = coordKey(selectedCoord.row, selectedCoord.col);
-              onSelectOptionsEditingChange?.(coordId, isEditing);
-            }}
+            onOptionsEditingChange={handleSelectOptionsEditingChange}
           />
         )}
 
