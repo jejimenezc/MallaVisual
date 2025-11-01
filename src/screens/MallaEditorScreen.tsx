@@ -208,6 +208,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [initialMalla, initialMasters, repoId]);
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
+  const selectedMasterIdRef = useRef(selectedMasterId);
 
   const historyRef = useRef<MallaHistoryEntry[]>([]);
   const historySerializedRef = useRef<string[]>([]);
@@ -403,26 +404,38 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const skipNextNormalizedInitialRef = useRef(false);
   const initialPersistenceSignatureRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    selectedMasterIdRef.current = selectedMasterId;
+  }, [selectedMasterId]);
+
   const applyHistorySnapshot = useCallback(
     (entry: MallaHistoryEntry) => {
       const clone = cloneMallaHistoryEntry(entry);
+      const nextMasters = clone.mastersById;
+      const preferredMasterId = selectedMasterIdRef.current;
+      const fallbackMasterId = clone.selectedMasterId;
+      const nextSelectedId =
+        preferredMasterId && nextMasters[preferredMasterId]
+          ? preferredMasterId
+          : fallbackMasterId;
+
       setCols(clone.cols);
       setRows(clone.rows);
       setPieces(clone.pieces);
       setPieceValues(clone.pieceValues);
       setFloatingPieces(clone.floatingPieces);
       skipNextMasterSyncRef.current = true;
-      setMastersById(clone.mastersById);
-      setSelectedMasterId(clone.selectedMasterId);
+      setMastersById(nextMasters);
+      setSelectedMasterId(nextSelectedId);
       setDraggingId(null);
       setDragPos({ x: 0, y: 0 });
-      const restoredMaster = clone.mastersById[clone.selectedMasterId];
+      const restoredMaster = nextSelectedId ? nextMasters[nextSelectedId] : undefined;
       if (restoredMaster) {
         onUpdateMaster?.({
           template: restoredMaster.template,
           visual: restoredMaster.visual,
           aspect: restoredMaster.aspect,
-          repoId: clone.selectedMasterId,
+          repoId: nextSelectedId,
         });
       }
     },
