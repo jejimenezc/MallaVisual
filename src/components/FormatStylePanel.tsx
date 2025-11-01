@@ -11,7 +11,7 @@ import type {
   ConditionalBg,
 } from '../types/visual';
 import type { BlockTemplate, BlockTemplateCell } from '../types/curricular';
-import { generatePalette } from '../utils/palette';
+import { assignSelectOptionColors } from '../utils/selectColors';
 
 interface FormatStylePanelProps {
   selectedCoord?: { row: number; col: number };
@@ -339,10 +339,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       return;
     }
     const source = selectCells.find((c) => c.coord === coord);
-    const palette = generatePalette(source?.options.length ?? 0);
-    const colors = Object.fromEntries(
-      (source?.options ?? []).map((opt, idx) => [opt, palette[idx] ?? '#cccccc'])
-    );
+    const colors = assignSelectOptionColors(source?.options ?? []);
     updateConditionalBg((prev) => ({ ...prev, selectSource: { coord, colors } }));
   };
 

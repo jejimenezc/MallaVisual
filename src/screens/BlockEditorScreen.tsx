@@ -40,7 +40,7 @@ import {
 } from '../utils/block-content.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
-import { generatePalette } from '../utils/palette.ts';
+import { assignSelectOptionColors } from '../utils/selectColors.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -226,32 +226,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
         const options = currentOptions.get(selectSource.coord) ?? [];
         const existingColors = selectSource.colors ?? {};
-        const palette = generatePalette(options.length);
-        const nextColors: Record<string, string> = {};
-        let colorsChanged = false;
+        const nextColors = assignSelectOptionColors(options, existingColors);
 
-        options.forEach((option, index) => {
-          const existing = existingColors[option];
-          if (existing) {
-            nextColors[option] = existing;
-          } else {
-            nextColors[option] = palette[index] ?? '#cccccc';
-            colorsChanged = true;
-          }
-        });
+        const colorsChanged =
+          Object.keys(existingColors).length !== options.length ||
+          options.some((option) => existingColors[option] !== nextColors[option]);
 
-        if (!colorsChanged) {
-          const existingKeys = Object.keys(existingColors);
-          if (existingKeys.length !== options.length) {
-            colorsChanged = true;
-          } else if (existingKeys.some((option) => !options.includes(option))) {
-            colorsChanged = true;
-          }
-        }
-
-        if (!colorsChanged) {
-          return;
-        }
+        if (!colorsChanged) return;
 
         const nextStyle: VisualStyle = {
           ...style,
