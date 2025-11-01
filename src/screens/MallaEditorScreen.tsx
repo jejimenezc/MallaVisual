@@ -224,13 +224,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
     historyShouldMergeRef.current = true;
 
     const scheduleClose = () => {
-      queueMicrotask(() => {
+      setTimeout(() => {
         historyTransactionDepthRef.current -= 1;
         if (historyTransactionDepthRef.current <= 0) {
           historyTransactionDepthRef.current = 0;
           historyShouldMergeRef.current = false;
         }
-      });
+      }, 0);
     };
 
     try {
