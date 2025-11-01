@@ -216,7 +216,35 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const isRestoringRef = useRef(false);
   const ignoreNextInitialMallaRef = useRef(false);
   const skipNextMasterSyncRef = useRef(false);
-  const skipNextHistoryRef = useRef(false);
+  const historyTransactionDepthRef = useRef(0);
+  const historyShouldMergeRef = useRef(false);
+
+  const runHistoryTransaction = useCallback(<T,>(task: () => T | Promise<T>): T | Promise<T> => {
+    historyTransactionDepthRef.current += 1;
+    historyShouldMergeRef.current = true;
+
+    const scheduleClose = () => {
+      queueMicrotask(() => {
+        historyTransactionDepthRef.current -= 1;
+        if (historyTransactionDepthRef.current <= 0) {
+          historyTransactionDepthRef.current = 0;
+          historyShouldMergeRef.current = false;
+        }
+      });
+    };
+
+    try {
+      const result = task();
+      if (result && typeof (result as PromiseLike<T>).then === 'function') {
+        return (result as Promise<T>).finally(scheduleClose);
+      }
+      scheduleClose();
+      return result;
+    } catch (error) {
+      scheduleClose();
+      throw error;
+    }
+  }, []);
 
   const historySnapshot = useMemo<MallaHistoryEntry>(
     () => ({
@@ -249,8 +277,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       isRestoringRef.current = false;
       return;
     }
-    if (skipNextHistoryRef.current) {
-      skipNextHistoryRef.current = false;
+    if (historyShouldMergeRef.current) {
       const currentHistory = historyRef.current.slice();
       const currentSerialized = historySerializedRef.current.slice();
       currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
@@ -663,39 +690,38 @@ export const MallaEditorScreen: React.FC<Props> = ({
     .join(' ');
   
   const handleSelectMaster = (id: string) => {
-    if (id !== selectedMasterId) {
-      skipNextNormalizedInitialRef.current = true;
-    }
-    if (id !== selectedMasterId) {
-      skipNextHistoryRef.current = true;
-    }
-    setSelectedMasterId(id);
-    if (!id) {
-      return;
-    }
+    runHistoryTransaction(() => {
+      if (id !== selectedMasterId) {
+        skipNextNormalizedInitialRef.current = true;
+      }
+      setSelectedMasterId(id);
+      if (!id) {
+        return;
+      }
 
-    const stored = mastersById[id];
-    if (stored) {
-      onUpdateMaster?.({
-        template: stored.template,
-        visual: stored.visual,
-        aspect: stored.aspect,
-        repoId: id,
-      });
-      return;
-    }
+      const stored = mastersById[id];
+      if (stored) {
+        onUpdateMaster?.({
+          template: stored.template,
+          visual: stored.visual,
+          aspect: stored.aspect,
+          repoId: id,
+        });
+        return;
+      }
 
-    const rec = listBlocks().find((b) => b.metadata.uuid === id);
-    if (rec) {
-      const data = rec.data;
-      setMastersById((prev) => ({ ...prev, [id]: data }));
-      onUpdateMaster?.({
-        template: data.template,
-        visual: data.visual,
-        aspect: data.aspect,
-        repoId: id,
-      });
-    }
+      const rec = listBlocks().find((b) => b.metadata.uuid === id);
+      if (rec) {
+        const data = rec.data;
+        setMastersById((prev) => ({ ...prev, [id]: data }));
+        onUpdateMaster?.({
+          template: data.template,
+          visual: data.visual,
+          aspect: data.aspect,
+          repoId: id,
+        });
+      }
+    });
   };
 
   const normalizedInitial = useMemo(() => {
