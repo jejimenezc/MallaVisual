@@ -216,6 +216,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const isRestoringRef = useRef(false);
   const ignoreNextInitialMallaRef = useRef(false);
   const skipNextMasterSyncRef = useRef(false);
+  const skipNextHistoryForMasterChangeRef = useRef(false);
   const historyTransactionDepthRef = useRef(0);
   const historyShouldMergeRef = useRef(false);
 
@@ -275,6 +276,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
     if (isRestoringRef.current) {
       isRestoringRef.current = false;
+      return;
+    }
+    if (skipNextHistoryForMasterChangeRef.current) {
+      skipNextHistoryForMasterChangeRef.current = false;
+      const currentHistory = historyRef.current.slice();
+      const currentSerialized = historySerializedRef.current.slice();
+      currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
+      currentSerialized[historyIndex] = historySnapshotSerialized;
+      historyRef.current = currentHistory;
+      historySerializedRef.current = currentSerialized;
       return;
     }
     if (historyShouldMergeRef.current) {
@@ -695,6 +706,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     runHistoryTransaction(() => {
       if (id !== selectedMasterId) {
         skipNextNormalizedInitialRef.current = true;
+        skipNextHistoryForMasterChangeRef.current = true;
       }
       setSelectedMasterId(id);
       if (!id) {
