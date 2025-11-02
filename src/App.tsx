@@ -939,13 +939,23 @@ export default function App(): JSX.Element | null {
     loadRepositoryBlock(stored, { navigate: !hasExistingBlock });
   };
 
+  const blocksInUse = useMemo(() => {
+    const used = new Set<string>();
+    if (!malla) return used;
+    for (const piece of malla.pieces ?? []) {
+      if (piece.kind === 'ref') {
+        used.add(piece.ref.sourceId);
+      } else if (piece.kind === 'snapshot' && piece.origin) {
+        used.add(piece.origin.sourceId);
+      }
+    }
+    return used;
+  }, [malla]);
+
   const blockInUse = useMemo(() => {
     if (!block?.repoId) return false;
-    if (!malla) return false;
-    return malla.pieces?.some(
-      (piece) => piece.kind === 'ref' && piece.ref.sourceId === block.repoId,
-    );
-  }, [block?.repoId, malla]);
+    return blocksInUse.has(block.repoId);
+  }, [block?.repoId, blocksInUse]);
 
   useEffect(() => {
     setBlock((prev) => {
@@ -1120,6 +1130,7 @@ export default function App(): JSX.Element | null {
                 onBlockImported={handleBlockImported}
                 onOpenBlock={handleOpenRepositoryBlock}
                 activeProjectId={projectId ?? undefined}
+                blocksInUse={blocksInUse}
               />
             }
           />

@@ -13,12 +13,14 @@ interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
   onOpenBlock?: (block: StoredBlock) => void;
   activeProjectId?: string;
+  blocksInUse?: ReadonlySet<string>;
 }
 
 export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   onBlockImported,
   onOpenBlock,
   activeProjectId,
+  blocksInUse,
 }) => {
   const {
     listBlocks,
@@ -111,6 +113,15 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     if (!selectedUuid) return;
     const rec = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!rec) return;
+    const blockLabel = rec.metadata.name?.trim() || rec.metadata.uuid || 'el bloque';
+    if (blocksInUse?.has(rec.metadata.uuid)) {
+      alert(`No es posible eliminar "${blockLabel}" porque está en uso en la malla.`);
+      return;
+    }
+    const confirmed = window.confirm(
+      `Se eliminará "${blockLabel}" del repositorio. Esta acción no se puede deshacer. ¿Deseas continuar?`,
+    );
+    if (!confirmed) return;
     removeBlock(rec.id);
     refresh();
     setSelectedUuid('');
