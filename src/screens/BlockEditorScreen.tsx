@@ -8,7 +8,13 @@ import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { VisualTemplate, BlockAspect } from '../types/visual.ts';
+import {
+  VisualTemplate,
+  BlockAspect,
+  VisualStyle,
+  ConditionalBg,
+  coordKey,
+} from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
@@ -34,6 +40,16 @@ import {
 } from '../utils/block-content.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
+import { assignSelectOptionColors } from '../utils/selectColors.ts';
+
+const arrayShallowEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, idx) => value === b[idx]);
+
+const removeSelectSource = (conditional?: ConditionalBg): ConditionalBg | undefined => {
+  if (!conditional) return undefined;
+  const { selectSource: _selectSource, ...rest } = conditional;
+  return Object.keys(rest).length ? rest : undefined;
+};
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -113,7 +129,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [aspect, setAspect] = useState<BlockAspect>(
     initialData?.aspect ?? '1/1'
   );
-  const { autoSave, flushAutoSave } = useProject({ projectId, projectName });
+  const previousSelectOptionsRef = useRef<Map<string, string[]>>(new Map());
+  const [selectOptionsEditingCoord, setSelectOptionsEditingCoord] = useState<string | null>(null);
+  const { autoSave, flushAutoSave, loadProject } = useProject({ projectId, projectName });
   const {
     saveBlock: repoSaveBlock,
     listBlocks,
@@ -144,26 +162,103 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [initialData, initialDataSignature]);
 
   useEffect(() => {
-    if (!projectId) return;
-    const snapshot = blocksToRepository(repoBlocks);
+    const previousOptions = previousSelectOptionsRef.current;
+    const currentOptions = new Map<string, string[]>();
+    const changedSelects = new Set<string>();
+    const removedSelects = new Set<string>(previousOptions.keys());
 
-    const data: MallaExport = {
-      version: MALLA_SCHEMA_VERSION,
-      masters: { master: { template, visual, aspect } },
-      grid: { cols: 5, rows: 5 },
-      pieces: [],
-      values: {},
-      floatingPieces: [],
-      activeMasterId: 'master',
-      repository: snapshot.entries,
-    };
-    const serialized = JSON.stringify(data);
-    if (savedRef.current === serialized) return;
-    savedRef.current = serialized;
-    autoSave(data);
-  }, [template, visual, aspect, projectId, projectName, autoSave, repoBlocks]);
+    template.forEach((row, rIdx) => {
+      row.forEach((cell, cIdx) => {
+        if (cell.type !== 'select') return;
+        const coord = coordKey(rIdx, cIdx);
+        const previous = previousOptions.get(coord);
+        const shouldDefer =
+          Boolean(selectOptionsEditingCoord) && previous && coord === selectOptionsEditingCoord;
+        if (shouldDefer) {
+          currentOptions.set(coord, previous);
+          removedSelects.delete(coord);
+          return;
+        }
+        const options = [...(cell.dropdownOptions ?? [])];
+        currentOptions.set(coord, options);
+        if (!previous || !arrayShallowEqual(options, previous)) {
+          changedSelects.add(coord);
+        }
+        removedSelects.delete(coord);
+      });
+    });
 
-  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
+    if (selectOptionsEditingCoord && removedSelects.has(selectOptionsEditingCoord)) {
+      setSelectOptionsEditingCoord(null);
+    }
+
+    previousSelectOptionsRef.current = currentOptions;
+
+    if (changedSelects.size === 0 && removedSelects.size === 0) {
+      return;
+    }
+
+    setVisual((currentVisual) => {
+      let didChange = false;
+      const nextVisual: VisualTemplate = { ...currentVisual };
+
+      Object.entries(currentVisual).forEach(([key, style]) => {
+        if (!style) return;
+        const selectSource = style.conditionalBg?.selectSource;
+        if (!selectSource) return;
+
+        if (removedSelects.has(selectSource.coord)) {
+          const nextStyle: VisualStyle = { ...style };
+          const nextConditional = removeSelectSource(style.conditionalBg);
+          if (nextConditional) {
+            nextStyle.conditionalBg = nextConditional;
+          } else {
+            delete nextStyle.conditionalBg;
+          }
+          nextVisual[key] = nextStyle;
+          didChange = true;
+          return;
+        }
+
+        if (!changedSelects.has(selectSource.coord)) {
+          return;
+        }
+
+        const options = currentOptions.get(selectSource.coord) ?? [];
+        const existingColors = selectSource.colors ?? {};
+        const nextColors = assignSelectOptionColors(options, existingColors);
+
+        const colorsChanged =
+          Object.keys(existingColors).length !== options.length ||
+          options.some((option) => existingColors[option] !== nextColors[option]);
+
+        if (!colorsChanged) return;
+
+        const nextStyle: VisualStyle = {
+          ...style,
+          conditionalBg: {
+            ...(style.conditionalBg ?? {}),
+            selectSource: {
+              coord: selectSource.coord,
+              colors: nextColors,
+            },
+          },
+        };
+        nextVisual[key] = nextStyle;
+        didChange = true;
+      });
+
+      return didChange ? nextVisual : currentVisual;
+    });
+  }, [
+    template,
+    setVisual,
+    selectOptionsEditingCoord,
+    setSelectOptionsEditingCoord,
+  ]);
+
+  const persistedProjectRef = useRef<MallaExport | null>(null);
+  const hasLoadedProjectRef = useRef(false);
 
   const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
   const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
@@ -178,20 +273,90 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [initialRepoId]);
 
   useEffect(() => {
-    if (initialRepoMetadata) {
-      setRepoMetadata(initialRepoMetadata);
-      setRepoName(initialRepoMetadata.name);
-      return;
+    persistedProjectRef.current = null;
+    hasLoadedProjectRef.current = false;
+  }, [projectId]);
+
+  const shouldReusePersistedMalla = useCallback((project: MallaExport | null) => {
+    if (!project) return false;
+    const piecesCount = project.pieces?.length ?? 0;
+    const floatingCount = project.floatingPieces?.length ?? 0;
+    if (piecesCount > 0 || floatingCount > 0) return true;
+    const activeId = project.activeMasterId ?? '';
+    if (activeId && activeId !== 'master') return true;
+    const masters = project.masters ?? {};
+    if (Object.keys(masters).some((id) => id !== 'master')) return true;
+    const grid = project.grid;
+    if (grid && (grid.cols !== 5 || grid.rows !== 5)) return true;
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    if (!hasLoadedProjectRef.current) {
+      const record = loadProject(projectId);
+      persistedProjectRef.current = record?.data ?? null;
+      hasLoadedProjectRef.current = true;
     }
-    if (!initialRepoId) {
-      setRepoMetadata(null);
-      if (initialRepoName) {
-        setRepoName(initialRepoName);
-      } else if (!repoRecord) {
-        setRepoName('');
-      }
+
+    const snapshot = blocksToRepository(repoBlocks);
+    const base = persistedProjectRef.current;
+    const reuseMalla = shouldReusePersistedMalla(base);
+
+    let data: MallaExport;
+    if (reuseMalla && base) {
+      const nextMasters = { ...(base.masters ?? {}) };
+      const candidateIds = new Set<string>();
+      if (base.activeMasterId) candidateIds.add(base.activeMasterId);
+      if (repoId) candidateIds.add(repoId);
+      if (candidateIds.size === 0) candidateIds.add('master');
+      candidateIds.forEach((id) => {
+        nextMasters[id] = { template, visual, aspect };
+      });
+
+      data = {
+        ...base,
+        version: MALLA_SCHEMA_VERSION,
+        masters: nextMasters,
+        grid: base.grid ?? { cols: 5, rows: 5 },
+        pieces: base.pieces ?? [],
+        values: base.values ?? {},
+        floatingPieces: base.floatingPieces ?? [],
+        activeMasterId: base.activeMasterId ?? repoId ?? 'master',
+        repository: snapshot.entries,
+      };
+    } else {
+      data = {
+        version: MALLA_SCHEMA_VERSION,
+        masters: { master: { template, visual, aspect } },
+        grid: { cols: 5, rows: 5 },
+        pieces: [],
+        values: {},
+        floatingPieces: [],
+        activeMasterId: 'master',
+        repository: snapshot.entries,
+      };
     }
-  }, [initialRepoMetadata, initialRepoId, initialRepoName]);
+
+    const serialized = JSON.stringify(data);
+    if (savedRef.current === serialized) return;
+    savedRef.current = serialized;
+    persistedProjectRef.current = data;
+    autoSave(data);
+  }, [
+    template,
+    visual,
+    aspect,
+    projectId,
+    autoSave,
+    repoBlocks,
+    loadProject,
+    repoId,
+    shouldReusePersistedMalla,
+  ]);
+
+  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
 
   const draftContent = useMemo<BlockContent>(
     () => ({ template, visual, aspect }),
@@ -474,6 +639,38 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   // Estado que publica el editor para poblar el ContextSidebarPanel
   const [editorSidebar, setEditorSidebar] = useState<EditorSidebarState | null>(null);
 
+  useEffect(() => {
+    if (mode !== 'edit') {
+      setSelectOptionsEditingCoord(null);
+      return;
+    }
+    const coord = editorSidebar?.selectedCoord;
+    if (!coord) {
+      setSelectOptionsEditingCoord((prev) => (prev === null ? prev : null));
+      return;
+    }
+    const key = coordKey(coord.row, coord.col);
+    setSelectOptionsEditingCoord((prev) => {
+      if (!prev) return prev;
+      return prev === key ? prev : null;
+    });
+  }, [mode, editorSidebar?.selectedCoord]);
+
+  const handleSelectOptionsEditingChange = useCallback(
+    (coord: string | null, isEditing: boolean) => {
+      setSelectOptionsEditingCoord((prev) => {
+        if (isEditing) {
+          return coord ?? null;
+        }
+        if (!coord) {
+          return null;
+        }
+        return prev === coord ? null : prev;
+      });
+    },
+    [],
+  );
+
   // Selección en modo vista
   const [selectedCoord, setSelectedCoord] =
     useState<{ row: number; col: number } | undefined>(undefined);
@@ -531,28 +728,51 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const header = (
     <Header
       title="Editor de Bloques"
+      left={
+        <div className="block-editor-header-toolbar">
+          <div className="block-editor-header-name">
+            <span className="block-editor-header-name-label">Bloque curricular:</span>
+            <span
+              className="block-editor-block-name"
+              title={repoName || 'Sin nombre'}
+            >
+              {repoName || 'Sin nombre'}
+            </span>
+            <Button onClick={handleRename}>
+              {repoId ? '✏️ ' : '✏️ '}
+            </Button>
+          </div>
+        </div>
+      }
       center={
-        <>
-          <Button onClick={handleUndo} disabled={!canUndo}>
-            ↩️ Deshacer
+        <div className="block-editor-header-toolbar">
+          <Button onClick={handleUndo} disabled={!canUndo} title="Deshacer">
+            ↻
           </Button>
-          <Button onClick={handleRedo} disabled={!canRedo}>
-            ↪️ Rehacer
+          <Button onClick={handleRedo} disabled={!canRedo} title="Rehacer">
+            ↺
           </Button>
 
           <Button
             className={mode === 'edit' ? 'active' : ''}
             onClick={() => setMode('edit')}
           >
-            ✏️ Editar
+            🎛️ Configurar controles
           </Button>
           <Button
             className={mode === 'view' ? 'active' : ''}
             onClick={() => setMode('view')}
           >
-            👁️ Vista
+            👁️ Configurar vista
           </Button>
-        </>
+        </div>
+      }
+      right={
+        <div className="block-editor-header-toolbar">
+          <Button onClick={() => handleSaveToRepo()}>
+            {repoId ? 'Actualizar en repositorio' : 'Guardar en repositorio'}
+          </Button>
+        </div>
       }
     />
   );
@@ -563,6 +783,54 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       resetHandler();
     };
   }, [setHandler, resetHandler, ensurePublishedAndProceed]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const body = document.body;
+    if (!body) return;
+
+    const appMain = document.querySelector('[data-app-main]');
+
+    if (mode !== 'view') {
+      return;
+    }
+
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyPaddingRight = body.style.paddingRight;
+
+    let previousMainOverflow: string | null = null;
+    let previousMainPaddingRight: string | null = null;
+
+    if (appMain instanceof HTMLElement) {
+      previousMainOverflow = appMain.style.overflow;
+      previousMainPaddingRight = appMain.style.paddingRight;
+    }
+
+    const scrollbarCompensation = window.innerWidth - document.documentElement.clientWidth;
+
+    body.style.overflow = 'hidden';
+    if (scrollbarCompensation > 0) {
+      body.style.paddingRight = `${scrollbarCompensation}px`;
+    }
+
+    if (appMain instanceof HTMLElement) {
+      appMain.style.overflow = 'hidden';
+      if (scrollbarCompensation > 0) {
+        appMain.style.paddingRight = `${scrollbarCompensation}px`;
+      }
+    }
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      body.style.paddingRight = previousBodyPaddingRight;
+
+      if (appMain instanceof HTMLElement) {
+        appMain.style.overflow = previousMainOverflow ?? '';
+        appMain.style.paddingRight = previousMainPaddingRight ?? '';
+      }
+    };
+  }, [mode]);
 
   if (mode === 'edit') {
     return (
@@ -577,34 +845,24 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             />
           }
           right={
-            <div>
-              <ContextSidebarPanel
-                selectedCount={editorSidebar?.selectedCount ?? 0}
-                canCombine={editorSidebar?.canCombine ?? false}
-                canSeparate={editorSidebar?.canSeparate ?? false}
-                onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-                onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
-                selectedCell={editorSidebar?.selectedCell ?? null}
-                selectedCoord={editorSidebar?.selectedCoord}
-                onUpdateCell={(updated, coord) => {
-                  const fallback = editorSidebar?.selectedCoord;
-                  const target = coord ?? fallback;
-                  if (!target || !editorSidebar?.handlers.onUpdateCell) return;
-                  editorSidebar.handlers.onUpdateCell(updated, target);
-                }}
-                combineDisabledReason={editorSidebar?.combineDisabledReason}
-                template={template}
-              />
-              <div style={{ marginTop: '1rem' }}>
-                <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
-                <Button onClick={handleRename}>
-                  {repoId ? 'Renombrar bloque' : 'Definir nombre'}
-                </Button>
-              </div>
-              <Button onClick={() => handleSaveToRepo()}>
-                {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
-              </Button>
-            </div>
+            <ContextSidebarPanel
+              selectedCount={editorSidebar?.selectedCount ?? 0}
+              canCombine={editorSidebar?.canCombine ?? false}
+              canSeparate={editorSidebar?.canSeparate ?? false}
+              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
+              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+              selectedCell={editorSidebar?.selectedCell ?? null}
+              selectedCoord={editorSidebar?.selectedCoord}
+              onUpdateCell={(updated, coord) => {
+                const fallback = editorSidebar?.selectedCoord;
+                const target = coord ?? fallback;
+                if (!target || !editorSidebar?.handlers.onUpdateCell) return;
+                editorSidebar.handlers.onUpdateCell(updated, target);
+              }}
+              combineDisabledReason={editorSidebar?.combineDisabledReason}
+              template={template}
+              onSelectOptionsEditingChange={handleSelectOptionsEditingChange}
+            />
           }
         />
       </div>
@@ -626,25 +884,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           />
         }
         right={
-          <div>
-            <FormatStylePanel
-              selectedCoord={selectedCoord}
-              visualTemplate={visual}
-              onUpdateVisual={setVisual}
-              template={template}
-              blockAspect={aspect}
-              onUpdateAspect={setAspect}
-            />
-            <div style={{ marginTop: '1rem' }}>
-              <div><strong>Nombre:</strong> {repoName || 'Sin nombre'}</div>
-              <Button onClick={handleRename}>
-                {repoId ? 'Renombrar bloque' : 'Definir nombre'}
-              </Button>
-            </div>
-            <Button onClick={() => handleSaveToRepo()}>
-              {repoId ? 'Actualizar bloque' : 'Guardar en repositorio'}
-            </Button>
-          </div>
+          <FormatStylePanel
+            selectedCoord={selectedCoord}
+            visualTemplate={visual}
+            onUpdateVisual={setVisual}
+            template={template}
+            blockAspect={aspect}
+            onUpdateAspect={setAspect}
+          />
         }
       />
     </div>

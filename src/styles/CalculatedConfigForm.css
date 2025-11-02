@@ -3,79 +3,74 @@
 .calculated-config-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-top: 1rem;
-  font-size: 0.95rem;
+  gap: 12px;
 }
 
-.calculated-config-form label {
+.calculated-config-form__builder {
   display: flex;
   flex-direction: column;
-  font-weight: 500;
-  color: #333;
+  gap: 12px;
 }
 
-.calculated-config-form input[type="text"] {
-  margin-top: 0.25rem;
-  padding: 6px 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background-color: #fafafa;
-  transition: border-color 0.2s ease;
+.calculated-config-form__source select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider, #111) 22%, transparent);
+  background: #fff;
+  font: inherit;
 }
 
-.calculated-config-form input[type="text"]:focus {
-  outline: none;
-  border-color: #007acc;
-  background-color: #fff;
-}
-
-.calculated-config-form .hint {
-  font-size: 0.9rem;
-  color: #555;
-}
-
-.calculated-config-form .no-number-msg {
-  font-size: 0.9rem;
-  color: #b91c1c;
-}
-
-.calculated-config-form .expression-builder {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.expression-builder .row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.expression-builder select {
-  padding: 4px 6px;
-}
-
-.expression-builder .operators button {
-  margin-right: 0.25rem;
-  padding: 4px 8px;
-}
-
-.expression-builder .digits button {
-  margin-right: 0;
-  padding: 4px 8px;
-}
-
-.expression-builder .digits {
+.calculated-config-form__keypad {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.25rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  grid-auto-rows: 42px;
 }
 
-.expression-builder .expression-display {
-  padding: 6px 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: #fff;
+.calculated-config-form__keypad-spacer {
+  display: block;
+  height: 42px;
+}
+
+.calculated-config-form__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider, #111) 18%, transparent);
+  background: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.calculated-config-form__button:hover {
+  background: color-mix(in srgb, var(--divider, #111) 8%, transparent);
+}
+
+.calculated-config-form__button:focus-visible {
+  outline: 2px solid #537ff7;
+  outline-offset: 2px;
+}
+
+.calculated-config-form__button--operator {
+  font-weight: 600;
+}
+
+.calculated-config-form__expression-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider, #111) 22%, transparent);
+  background: #fff;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+}
+
+.calculated-config-form__expression-input:focus-visible {
+  outline: 2px solid #537ff7;
+  outline-offset: 2px;
 }

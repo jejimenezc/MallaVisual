@@ -1,57 +1,81 @@
 /* src/components/ContextSidebarPanel.css */
 
-/* Título dentro del marco del layout */
-.sidebar-panel .panel-title {
+.context-sidebar-panel {
+  gap: 16px;
+}
+
+.context-sidebar-panel__intro {
   margin: 0;
-  font-size: 1rem;
-  color: #333;
+  font-size: 13px;
+  color: color-mix(in srgb, currentColor 70%, transparent);
 }
 
-/* Botonera */
-.sidebar-panel .sidebar-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.context-sidebar-panel__count {
+  font-size: 20px;
+  letter-spacing: 0.06em;
 }
 
-.sidebar-panel .sidebar-buttons button {
-  padding: 0.4rem 0.6rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+.context-sidebar-panel__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider, #111) 22%, transparent);
+  background: #fff;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.sidebar-panel .sidebar-buttons button:disabled {
-  opacity: 0.5;
+.context-sidebar-panel__action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--divider, #111) 8%, transparent);
+}
+
+.context-sidebar-panel__action:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-.sidebar-panel .sidebar-buttons button:hover:not(:disabled) {
-  background-color: #f0f0f0;
+.context-sidebar-panel__action:focus-visible {
+  outline: 2px solid #537ff7;
+  outline-offset: 2px;
 }
 
-/* Sección de formularios/config */
-.sidebar-panel .config-section {
-  border-top: 1px solid #ddd;
-  padding-top: 0.5rem;
+.context-sidebar-panel input[type='text'],
+.context-sidebar-panel input[type='number'],
+.context-sidebar-panel select {
+  width: 100%;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--divider, #111) 22%, transparent);
+  background: #fff;
+  font: inherit;
 }
 
-.sidebar-panel .config-section h4 {
-  margin: 0 0 0.5rem;
-  font-size: 0.9rem;
-  color: #444;
+.context-sidebar-panel input[type='text']:focus-visible,
+.context-sidebar-panel input[type='number']:focus-visible,
+.context-sidebar-panel select:focus-visible {
+  outline: 2px solid #537ff7;
+  outline-offset: 2px;
 }
 
-/* Aviso liviano cuando la acción está deshabilitada por regla */
+.context-sidebar-panel .format-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .sidebar-hint {
-  font-size: 0.875rem;
-  line-height: 1.3;
-  color: #6b7280;        /* gris medio */
-  background: #f3f4f6;   /* gris claro */
-  border: 1px dashed #d1d5db;
-  padding: 8px;
-  border-radius: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #4b5563;
+  background: color-mix(in srgb, var(--divider, #111) 6%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--divider, #111) 18%, transparent);
+  padding: 10px;
+  border-radius: 8px;
 }

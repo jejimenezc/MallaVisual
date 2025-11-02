@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { JSX } from 'react';
 
 export type AppCommandId = 'undo' | 'redo';
@@ -19,6 +27,40 @@ const AppCommandsContext = createContext<AppCommandsContextValue | undefined>(un
 export function AppCommandsProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [commands, setCommands] = useState<Partial<Record<AppCommandId, AppCommandDescriptor>>>({});
   const commandsRef = useRef(commands);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const isInteractiveElement = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName.toLowerCase();
+      if (['input', 'textarea', 'select', 'button'].includes(tag)) return true;
+      if (target.isContentEditable) return true;
+      return Boolean(target.closest('input,textarea,select,button,[contenteditable]'));
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (isInteractiveElement(event.target)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (event.shiftKey) {
+          commandsRef.current.redo?.isEnabled && commandsRef.current.redo?.run();
+        } else {
+          commandsRef.current.undo?.isEnabled && commandsRef.current.undo?.run();
+        }
+      } else if (key === 'y') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        commandsRef.current.redo?.isEnabled && commandsRef.current.redo?.run();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     commandsRef.current = commands;

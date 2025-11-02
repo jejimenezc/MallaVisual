@@ -177,12 +177,17 @@ h2 {
 }
 
 /* Control checkbox simulado en modo vista */
+.template-cell .cell-content[data-kind='checkbox'] {
+  --checkbox-justify: flex-start;
+}
+
 .template-cell .checkbox-control {
   display: flex;
   align-items: center;
   gap: 4px;
   width: 100%;
   height: 100%;
+  justify-content: var(--checkbox-justify, flex-start);
 }
 
 /* Control select simulado en modo vista */

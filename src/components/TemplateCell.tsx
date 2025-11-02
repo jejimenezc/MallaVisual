@@ -130,6 +130,7 @@ export const TemplateCell: React.FC<Props> = ({
   }
 
   const bgColor = conditionalColor || v?.backgroundColor || viewFallbackBg;
+  const textColor = v?.textColor ?? cell.style?.textColor;
 
   // Estilo del contenedor (.template-cell)
   const style: React.CSSProperties = {
@@ -137,7 +138,13 @@ export const TemplateCell: React.FC<Props> = ({
     ...(applyVisual ? {} : editBaseStyle),
     ...spanStyle,
     // Fondo/borde del contenedor en vista
-    ...(applyVisual && v?.border ? { border: '1px solid #333' } : {}),
+    ...(applyVisual
+      ? v?.border === false
+        ? { border: '1px solid transparent' }
+        : v?.border
+        ? { border: '1px solid #333' }
+        : {}
+      : {}),
     ...(applyVisual && bgColor ? { backgroundColor: bgColor } : {}),
     ...(applyVisual && cell.type === 'checkbox' && checked && v?.conditionalBg?.checkedColor
       ? { backgroundColor: v.conditionalBg.checkedColor }
@@ -206,9 +213,21 @@ export const TemplateCell: React.FC<Props> = ({
     contentStyle.padding = `${py}px ${px}px`;
     if (computedFontSizePx) contentStyle.fontSize = `${computedFontSizePx}px`;
     if (v?.textAlign) contentStyle.textAlign = v.textAlign;
+    if (textColor) contentStyle.color = textColor;
     // staticText: allow cell-content to shrink vertically so parent flex can center it
     if (cell.type === 'staticText') {
       contentStyle.height = 'auto';
+    }
+      if (cell.type === 'checkbox') {
+      const justify =
+        v?.textAlign === 'right'
+          ? 'flex-end'
+          : v?.textAlign === 'center'
+          ? 'center'
+          : 'flex-start';
+      (contentStyle as React.CSSProperties & Record<string, string>)[
+        '--checkbox-justify'
+      ] = justify;
     }
   }
   

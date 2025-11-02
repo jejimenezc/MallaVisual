@@ -325,7 +325,9 @@ function AppLayout({
         isChromeVisible={showChrome}
         onToggleChrome={toggleChrome}
       />
-      <main className={styles.appMain}>{children}</main>
+      <main className={styles.appMain} data-app-main>
+        {children}
+      </main>
     </div>
   );
 }

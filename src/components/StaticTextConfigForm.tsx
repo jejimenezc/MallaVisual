@@ -1,7 +1,7 @@
 // StaticTextConfigForm.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from 'react';
 import '../styles/StaticTextConfigForm.css';
-
+import { focusWithoutScroll } from '../utils/focusWithoutScroll';
 
 interface Props {
   value: string;
@@ -9,14 +9,13 @@ interface Props {
   onChange: (newValue: string) => void;
 }
 
-
 const StaticTextConfigForm: React.FC<Props> = ({ value, coord, onChange }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState(value);
+  const inputId = `static-text-${coord.row}-${coord.col}`;
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    focusWithoutScroll(inputRef.current);
   }, [coord]);
 
   useEffect(() => {
@@ -30,15 +29,20 @@ const StaticTextConfigForm: React.FC<Props> = ({ value, coord, onChange }) => {
   };
 
   return (
-    <div className="config-form">
-      <label>Texto fijo:</label>
-      <input
-        ref={inputRef}
-        type="text"
-        value={text}
-        onChange={handleChange}
-        placeholder="Ej. 'Créditos Totales'"
-      />
+    <div className="static-text-config-form format-section__list">
+      <div className="format-field">
+        <div className="format-field__label">
+          <label htmlFor={inputId}>Contenido para mostrar</label>
+        </div>
+        <input
+          id={inputId}
+          ref={inputRef}
+          type="text"
+          value={text}
+          onChange={handleChange}
+          placeholder="Ej. 'Créditos Totales'"
+        />
+      </div>
     </div>
   );
 };

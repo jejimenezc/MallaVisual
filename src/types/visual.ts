@@ -7,11 +7,16 @@ export type BlockAspect = '1/1' | '1/2' | '2/1';
 
 export interface ConditionalBg {
   selectSource?: { coord: string; colors: Record<string, string> };
+  /** Color de fondo para celdas marcadas */
+  checkedColor?: string;
+  /** Color hover para celdas marcadas */
+  hoverCheckedColor?: string;
 }
 
 export interface VisualStyle {
   backgroundColor?: string;
-  textAlign?: 'left' | 'center' | 'right';
+  textColor?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
   border?: boolean;
 
   /** Compatibilidad con versiones anteriores */
@@ -27,10 +32,7 @@ export interface VisualStyle {
   paddingY?: number;
 
   /** Colores de fondo condicionales */
-  conditionalBg?: ConditionalBg &{
-        /** Color de fondo para celdas marcadas */
-    checkedColor?: string;
-  };
+  conditionalBg?: ConditionalBg;
 }
 
 /** Clave = "row-col" del base (o la propia si no hay merge) */
