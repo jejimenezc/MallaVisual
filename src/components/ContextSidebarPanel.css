@@ -44,9 +44,7 @@
   outline-offset: 2px;
 }
 
-.context-sidebar-panel input[type='text'],
-.context-sidebar-panel input[type='number'],
-.context-sidebar-panel select {
+.context-sidebar-panel :is(input[type='text'], textarea, input[type='number'], select) {
   width: 100%;
   padding: 8px 10px;
   box-sizing: border-box;
@@ -56,9 +54,7 @@
   font: inherit;
 }
 
-.context-sidebar-panel input[type='text']:focus-visible,
-.context-sidebar-panel input[type='number']:focus-visible,
-.context-sidebar-panel select:focus-visible {
+.context-sidebar-panel :is(input[type='text'], textarea, input[type='number'], select):focus-visible {
   outline: 2px solid #537ff7;
   outline-offset: 2px;
 }

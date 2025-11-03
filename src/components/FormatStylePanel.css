@@ -380,6 +380,7 @@
 .format-section select,
 .format-section input[type='number'],
 .format-section input[type='text'],
+.format-section textarea,
 .format-section button[type='button'] {
   font: inherit;
 }

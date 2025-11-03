@@ -57,19 +57,16 @@ export const TemplateCell: React.FC<Props> = ({
     )
     .filter((v): v is { row: number; col: number } => v !== undefined);
 
-  const checked = Boolean(values[valueKey]);
+  const cellValue = values[valueKey];
+  const checked = Boolean(cellValue);
+  const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
 
-    // --- VISIBILIDAD ---
-    if (applyVisual) {
-      // Vista: solo activas; miembros no renderizan
-      if (!cell.active) return null;
-      if (isMerged && !isBase) return null;
-    }
-    // Edición: nunca return null (miembros quedan invisibles pero ocupan su celda)
+  const shouldSkipRender =
+    applyVisual && (!cell.active || (isMerged && !isBase));
 
-    // Lookup de estilo visual (solo vista)
-    const baseKey = cell.mergedWith ?? key;
-    const v = applyVisual ? visualTemplate?.[baseKey] : undefined;
+  // Lookup de estilo visual (solo vista)
+  const baseKey = cell.mergedWith ?? key;
+  const v = applyVisual ? visualTemplate?.[baseKey] : undefined;
 
   // Vista: expandimos si todo el grupo está activo
   const allActiveInGroup =
@@ -116,6 +113,13 @@ export const TemplateCell: React.FC<Props> = ({
 
   const computedFontSizePx =
     applyVisual ? (v?.fontSizePx ?? enumToPx(v?.fontSize)) : undefined;
+  const textAlignment = applyVisual ? v?.textAlign : undefined;
+  const justifyFromAlignment =
+    textAlignment === 'right'
+      ? 'flex-end'
+      : textAlignment === 'center'
+      ? 'center'
+      : 'flex-start';
   let conditionalColor: string | undefined;
   if (applyVisual && cell.type === 'text') {
     const src = v?.conditionalBg?.selectSource;
@@ -131,6 +135,75 @@ export const TemplateCell: React.FC<Props> = ({
 
   const bgColor = conditionalColor || v?.backgroundColor || viewFallbackBg;
   const textColor = v?.textColor ?? cell.style?.textColor;
+
+  const baseTextAreaPaddingY = applyVisual
+    ? Math.max(0, Math.min(64, v?.paddingY ?? 6))
+    : 2;
+
+  const updateTextareaVerticalPadding = React.useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.paddingTop = `${baseTextAreaPaddingY}px`;
+    textarea.style.paddingBottom = `${baseTextAreaPaddingY}px`;
+
+    if (typeof window === 'undefined') return;
+
+    const computed = window.getComputedStyle(textarea);
+    const paddingTop = Number.parseFloat(computed.paddingTop) || baseTextAreaPaddingY;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || baseTextAreaPaddingY;
+    const totalPadding = paddingTop + paddingBottom;
+
+    const previousHeight = textarea.style.height;
+    textarea.style.height = 'auto';
+    const rawScrollHeight = textarea.scrollHeight;
+    textarea.style.height = previousHeight;
+
+    const lineHeight = Number.parseFloat(computed.lineHeight) || 0;
+    const contentHeight = Math.max(
+      rawScrollHeight - totalPadding,
+      lineHeight
+    );
+
+    const innerHeight = textarea.clientHeight - totalPadding;
+    const extraSpace = Math.max(0, innerHeight - contentHeight);
+
+    if (extraSpace > 0.5) {
+      const adjustment = extraSpace / 2;
+      textarea.style.paddingTop = `${baseTextAreaPaddingY + adjustment}px`;
+      textarea.style.paddingBottom = `${baseTextAreaPaddingY + adjustment}px`;
+    }
+  }, [baseTextAreaPaddingY]);
+
+  const scheduleTextareaPaddingUpdate = React.useCallback(() => {
+    if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        updateTextareaVerticalPadding();
+      });
+    } else {
+      updateTextareaVerticalPadding();
+    }
+  }, [updateTextareaVerticalPadding]);
+
+  React.useLayoutEffect(() => {
+    if (!applyVisual || cell.type !== 'text' || shouldSkipRender) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    updateTextareaVerticalPadding();
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      updateTextareaVerticalPadding();
+    });
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [applyVisual, cell.type, shouldSkipRender, updateTextareaVerticalPadding]);
+
+  React.useLayoutEffect(() => {
+    if (!applyVisual || cell.type !== 'text' || shouldSkipRender) return;
+    updateTextareaVerticalPadding();
+  }, [applyVisual, cell.type, cellValue, cell.placeholder, shouldSkipRender, updateTextareaVerticalPadding]);
 
   // Estilo del contenedor (.template-cell)
   const style: React.CSSProperties = {
@@ -217,8 +290,11 @@ export const TemplateCell: React.FC<Props> = ({
     // staticText: allow cell-content to shrink vertically so parent flex can center it
     if (cell.type === 'staticText') {
       contentStyle.height = 'auto';
+      contentStyle.display = 'flex';
+      contentStyle.alignItems = 'center';
+      contentStyle.justifyContent = justifyFromAlignment;
     }
-      if (cell.type === 'checkbox') {
+    if (cell.type === 'checkbox') {
       const justify =
         v?.textAlign === 'right'
           ? 'flex-end'
@@ -230,11 +306,24 @@ export const TemplateCell: React.FC<Props> = ({
       ] = justify;
     }
   }
+
+  const textInputWrapperStyle: React.CSSProperties | undefined =
+    applyVisual && cell.type === 'text'
+      ? {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: justifyFromAlignment,
+          width: '100%',
+          height: '100%',
+        }
+      : undefined;
   
   const numberStep =
     cell.type === 'number'
       ? Math.pow(10, -(cell.decimalDigits ?? 0))
       : undefined;
+
+  if (shouldSkipRender) return null;
 
   return (
     <div
@@ -253,17 +342,43 @@ export const TemplateCell: React.FC<Props> = ({
       {controlIcon && <span className="control-icon">{controlIcon}</span>}
       {displayStaticText ? (
         <div className="cell-content" data-kind="staticText" style={contentStyle}>
-          {displayStaticText}
+          <span className="cell-text">{displayStaticText}</span>
         </div>
       ) : applyVisual && cell.type === 'text' ? (
-        <input
-          type="text"
-          placeholder={cell.placeholder}
-          className="text-input"
-          style={contentStyle}
-          value={String(values[valueKey] ?? '')}
-          onChange={(e) => onValueChange?.(valueKey, e.target.value)}
-        />
+        <div className="cell-content input-wrapper" data-kind="textInput" style={textInputWrapperStyle}>
+            <textarea
+              ref={textareaRef}
+              placeholder={cell.placeholder}
+              className="text-input"
+              style={contentStyle}
+              rows={1}
+              value={String(cellValue ?? '')}
+              onChange={(e) => {
+                onValueChange?.(valueKey, e.target.value);
+                scheduleTextareaPaddingUpdate();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                }
+              }}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              if (!text) return;
+              e.preventDefault();
+              const target = e.target as HTMLTextAreaElement;
+                const sanitized = text.replace(/[\r\n]+/g, '');
+                const { selectionStart, selectionEnd, value } = target;
+                const nextValue =
+                  value.slice(0, selectionStart ?? 0) +
+                  sanitized +
+                  value.slice(selectionEnd ?? value.length);
+                target.value = nextValue;
+                onValueChange?.(valueKey, nextValue);
+                scheduleTextareaPaddingUpdate();
+              }}
+            />
+        </div>
       ) : applyVisual && cell.type === 'number' ? (
           <input
             type="number"
@@ -271,7 +386,7 @@ export const TemplateCell: React.FC<Props> = ({
             className="number-input"
             style={contentStyle}
             step={numberStep}
-            value={typeof values[valueKey] === 'number' ? values[valueKey] : ''}
+            value={typeof cellValue === 'number' ? cellValue : ''}
             onChange={(e) => {
               const val = parseFloat(e.target.value);
               onValueChange?.(valueKey, Number.isNaN(val) ? 0 : val);
@@ -292,7 +407,7 @@ export const TemplateCell: React.FC<Props> = ({
         <select
           className="select-input"
           style={contentStyle}
-          value={String(values[valueKey] ?? '')}
+          value={String(cellValue ?? '')}
           onChange={(e) => onValueChange?.(valueKey, e.target.value)}
         >
           {/* Opción en blanco por defecto para evitar cambios iniciales de color */}
@@ -319,7 +434,7 @@ export const TemplateCell: React.FC<Props> = ({
         />
       ) : displayPlaceholder ? (
         <div className="cell-content placeholder" data-kind="textPlaceholder" style={contentStyle}>
-          {displayPlaceholder}
+          <span className="cell-text">{displayPlaceholder}</span>
         </div>
             ) : null}
 
