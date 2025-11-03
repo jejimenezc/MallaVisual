@@ -256,13 +256,32 @@ export const TemplateCell: React.FC<Props> = ({
           {displayStaticText}
         </div>
       ) : applyVisual && cell.type === 'text' ? (
-        <input
-          type="text"
+        <textarea
           placeholder={cell.placeholder}
           className="text-input"
           style={contentStyle}
+          rows={1}
           value={String(values[valueKey] ?? '')}
           onChange={(e) => onValueChange?.(valueKey, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+            }
+          }}
+          onPaste={(e) => {
+            const text = e.clipboardData.getData('text');
+            if (!text) return;
+            e.preventDefault();
+            const target = e.target as HTMLTextAreaElement;
+            const sanitized = text.replace(/[\r\n]+/g, '');
+            const { selectionStart, selectionEnd, value } = target;
+            const nextValue =
+              value.slice(0, selectionStart ?? 0) +
+              sanitized +
+              value.slice(selectionEnd ?? value.length);
+            target.value = nextValue;
+            onValueChange?.(valueKey, nextValue);
+          }}
         />
       ) : applyVisual && cell.type === 'number' ? (
           <input
