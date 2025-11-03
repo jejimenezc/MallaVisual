@@ -147,7 +147,27 @@ export const TemplateCell: React.FC<Props> = ({
     textarea.style.paddingTop = `${baseTextAreaPaddingY}px`;
     textarea.style.paddingBottom = `${baseTextAreaPaddingY}px`;
 
-    const extraSpace = Math.max(0, textarea.clientHeight - textarea.scrollHeight);
+    if (typeof window === 'undefined') return;
+
+    const computed = window.getComputedStyle(textarea);
+    const paddingTop = Number.parseFloat(computed.paddingTop) || baseTextAreaPaddingY;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || baseTextAreaPaddingY;
+    const totalPadding = paddingTop + paddingBottom;
+
+    const previousHeight = textarea.style.height;
+    textarea.style.height = 'auto';
+    const rawScrollHeight = textarea.scrollHeight;
+    textarea.style.height = previousHeight;
+
+    const lineHeight = Number.parseFloat(computed.lineHeight) || 0;
+    const contentHeight = Math.max(
+      rawScrollHeight - totalPadding,
+      lineHeight
+    );
+
+    const innerHeight = textarea.clientHeight - totalPadding;
+    const extraSpace = Math.max(0, innerHeight - contentHeight);
+
     if (extraSpace > 0.5) {
       const adjustment = extraSpace / 2;
       textarea.style.paddingTop = `${baseTextAreaPaddingY + adjustment}px`;
