@@ -37,8 +37,8 @@ export const BlockTemplateViewer: React.FC<Props> = ({
           template={template}
           selectedCells={selectedCells}
           onClick={(e, row, col) => {
-            const tag = (e.target as HTMLElement).tagName;
-            if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'LABEL') {
+            const tag = (e.target as HTMLElement).tagName.toUpperCase();
+            if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'LABEL' && tag !== 'TEXTAREA') {
               e.preventDefault();
             }
             const cell = template[row][col];
