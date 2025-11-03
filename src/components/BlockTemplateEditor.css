@@ -150,7 +150,7 @@ h2 {
 }
 
 /* Controles de entrada simulados en modo vista */
-.template-cell .text-input,
+.template-cell :is(input, textarea).text-input,
 .template-cell .number-input,
 .template-cell .calculated-input {
   width: 100%;
@@ -161,6 +161,10 @@ h2 {
   color: inherit;
   box-sizing: border-box;
   padding: 2px 4px;
+}
+
+.template-cell textarea.text-input {
+  resize: none;
 }
 
 /* Quitar spinners de inputs numéricos en modo vista */
