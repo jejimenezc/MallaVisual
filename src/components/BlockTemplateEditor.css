@@ -120,14 +120,37 @@ h2 {
 
 /* Contenido textual real dentro de la celda */
 .template-cell .cell-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 6px 8px;
   white-space: pre-wrap;        /* respeta saltos de línea si los hay */
   word-break: break-word;       /* evita desbordes */
   overflow: hidden;             /* segura ante textos muy largos */
+  overflow-wrap: anywhere;      /* permite cortes en palabras largas */
   text-overflow: ellipsis;      /* elipsis si no cabe */
   line-height: 1.2;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
+}
+
+.template-cell .cell-content .cell-text {
+  display: block;
+  width: 100%;
+  white-space: inherit;
+  word-break: inherit;
+  overflow-wrap: inherit;
+  text-align: inherit;
+}
+
+.template-cell .cell-content.input-wrapper {
+  padding: 0;
+  overflow: visible;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  text-overflow: initial;
 }
 
 .template-cell .cell-content.placeholder {
@@ -135,9 +158,9 @@ h2 {
   font-style: italic;
 }
 
-/* Ayuda visual: cuando la base se expande por merge, que el contenido se mantenga legible */
+/* Ayuda visual: cuando la base se expande por merge, mantener el contenido centrado y legible */
 .template-cell.base-cell .cell-content {
-  display: block;
+  display: flex;
 }
 
 /* Icono indicativo del tipo de control */
@@ -165,6 +188,11 @@ h2 {
 
 .template-cell textarea.text-input {
   resize: none;
+  display: block;
+  width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Quitar spinners de inputs numéricos en modo vista */

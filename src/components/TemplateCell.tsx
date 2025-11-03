@@ -116,6 +116,13 @@ export const TemplateCell: React.FC<Props> = ({
 
   const computedFontSizePx =
     applyVisual ? (v?.fontSizePx ?? enumToPx(v?.fontSize)) : undefined;
+  const textAlignment = applyVisual ? v?.textAlign : undefined;
+  const justifyFromAlignment =
+    textAlignment === 'right'
+      ? 'flex-end'
+      : textAlignment === 'center'
+      ? 'center'
+      : 'flex-start';
   let conditionalColor: string | undefined;
   if (applyVisual && cell.type === 'text') {
     const src = v?.conditionalBg?.selectSource;
@@ -217,8 +224,11 @@ export const TemplateCell: React.FC<Props> = ({
     // staticText: allow cell-content to shrink vertically so parent flex can center it
     if (cell.type === 'staticText') {
       contentStyle.height = 'auto';
+      contentStyle.display = 'flex';
+      contentStyle.alignItems = 'center';
+      contentStyle.justifyContent = justifyFromAlignment;
     }
-      if (cell.type === 'checkbox') {
+    if (cell.type === 'checkbox') {
       const justify =
         v?.textAlign === 'right'
           ? 'flex-end'
@@ -230,6 +240,17 @@ export const TemplateCell: React.FC<Props> = ({
       ] = justify;
     }
   }
+
+  const textInputWrapperStyle: React.CSSProperties | undefined =
+    applyVisual && cell.type === 'text'
+      ? {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: justifyFromAlignment,
+          width: '100%',
+          height: '100%',
+        }
+      : undefined;
   
   const numberStep =
     cell.type === 'number'
@@ -253,36 +274,38 @@ export const TemplateCell: React.FC<Props> = ({
       {controlIcon && <span className="control-icon">{controlIcon}</span>}
       {displayStaticText ? (
         <div className="cell-content" data-kind="staticText" style={contentStyle}>
-          {displayStaticText}
+          <span className="cell-text">{displayStaticText}</span>
         </div>
       ) : applyVisual && cell.type === 'text' ? (
-        <textarea
-          placeholder={cell.placeholder}
-          className="text-input"
-          style={contentStyle}
-          rows={1}
-          value={String(values[valueKey] ?? '')}
-          onChange={(e) => onValueChange?.(valueKey, e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+        <div className="cell-content input-wrapper" data-kind="textInput" style={textInputWrapperStyle}>
+          <textarea
+            placeholder={cell.placeholder}
+            className="text-input"
+            style={contentStyle}
+            rows={1}
+            value={String(values[valueKey] ?? '')}
+            onChange={(e) => onValueChange?.(valueKey, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+              }
+            }}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              if (!text) return;
               e.preventDefault();
-            }
-          }}
-          onPaste={(e) => {
-            const text = e.clipboardData.getData('text');
-            if (!text) return;
-            e.preventDefault();
-            const target = e.target as HTMLTextAreaElement;
-            const sanitized = text.replace(/[\r\n]+/g, '');
-            const { selectionStart, selectionEnd, value } = target;
-            const nextValue =
-              value.slice(0, selectionStart ?? 0) +
-              sanitized +
-              value.slice(selectionEnd ?? value.length);
-            target.value = nextValue;
-            onValueChange?.(valueKey, nextValue);
-          }}
-        />
+              const target = e.target as HTMLTextAreaElement;
+              const sanitized = text.replace(/[\r\n]+/g, '');
+              const { selectionStart, selectionEnd, value } = target;
+              const nextValue =
+                value.slice(0, selectionStart ?? 0) +
+                sanitized +
+                value.slice(selectionEnd ?? value.length);
+              target.value = nextValue;
+              onValueChange?.(valueKey, nextValue);
+            }}
+          />
+        </div>
       ) : applyVisual && cell.type === 'number' ? (
           <input
             type="number"
@@ -338,7 +361,7 @@ export const TemplateCell: React.FC<Props> = ({
         />
       ) : displayPlaceholder ? (
         <div className="cell-content placeholder" data-kind="textPlaceholder" style={contentStyle}>
-          {displayPlaceholder}
+          <span className="cell-text">{displayPlaceholder}</span>
         </div>
             ) : null}
 
