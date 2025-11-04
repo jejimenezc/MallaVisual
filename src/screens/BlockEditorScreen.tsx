@@ -8,7 +8,7 @@ import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { VisualTemplate, BlockAspect, VisualStyle, ConditionalBg } from '../types/visual.ts';
+import { VisualTemplate, BlockAspect, VisualStyle, ConditionalBg, coordKey } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
@@ -158,6 +158,38 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setAspect(content.aspect);
   }, [initialData, initialDataSignature]);
 
+  const handleClearSelectVisual = useCallback(
+    ({ row, col, controlName }: { row: number; col: number; controlName?: string }) => {
+      const targetCoord = coordKey(row, col);
+      setVisual((currentVisual) => {
+        let didChange = false;
+        const nextVisual: VisualTemplate = { ...currentVisual };
+
+        Object.entries(currentVisual).forEach(([key, style]) => {
+          if (!style) return;
+          const selectSource = style.conditionalBg?.selectSource;
+          if (!selectSource) return;
+          const matchesCoord = selectSource.coord === targetCoord;
+          const matchesName = controlName ? selectSource.controlName === controlName : false;
+          if (!matchesCoord && !matchesName) return;
+
+          const nextStyle: VisualStyle = { ...style };
+          const nextConditional = removeSelectSource(style.conditionalBg);
+          if (nextConditional) {
+            nextStyle.conditionalBg = nextConditional;
+          } else {
+            delete nextStyle.conditionalBg;
+          }
+          nextVisual[key] = nextStyle;
+          didChange = true;
+        });
+
+        return didChange ? nextVisual : currentVisual;
+      });
+    },
+    [setVisual],
+  );
+
   useEffect(() => {
     const controls = collectSelectControls(template);
     const controlsByName = new Map(controls.map((control) => [control.name, control]));
@@ -194,7 +226,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
     previousSelectOptionsRef.current = currentOptions;
 
-    if (changedSelects.size === 0 && removedSelects.size === 0) {
+    if (changedSelects.size === 0) {
       return;
     }
 
@@ -214,32 +246,10 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           (selectSource.coord ? controlsByCoord.get(selectSource.coord) : undefined);
 
         if (!resolvedControl) {
-          const nextStyle: VisualStyle = { ...style };
-          const nextConditional = removeSelectSource(style.conditionalBg);
-          if (nextConditional) {
-            nextStyle.conditionalBg = nextConditional;
-          } else {
-            delete nextStyle.conditionalBg;
-          }
-          nextVisual[key] = nextStyle;
-          didChange = true;
           return;
         }
 
         const resolvedName = resolvedControl.name;
-
-        if (removedSelects.has(resolvedName)) {
-          const nextStyle: VisualStyle = { ...style };
-          const nextConditional = removeSelectSource(style.conditionalBg);
-          if (nextConditional) {
-            nextStyle.conditionalBg = nextConditional;
-          } else {
-            delete nextStyle.conditionalBg;
-          }
-          nextVisual[key] = nextStyle;
-          didChange = true;
-          return;
-        }
 
         const options = currentOptions.get(resolvedName) ?? [];
         const existingColors = selectSource.colors ?? {};
@@ -868,6 +878,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               template={template}
               setTemplate={setTemplate}
               onSidebarStateChange={setEditorSidebar}
+              onClearSelectVisual={handleClearSelectVisual}
             />
           }
           right={

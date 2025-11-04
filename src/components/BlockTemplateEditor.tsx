@@ -6,18 +6,21 @@ import { CellContextMenu } from './CellContextMenu';
 import { TemplateGrid } from './TemplateGrid';
 import './BlockTemplateEditor.css';
 import type { EditorSidebarState } from '../types/panel.ts';
+import { findSelectControlNameAt } from '../utils/selectControls.ts';
 
 interface Props {
   template: BlockTemplate;
   setTemplate: React.Dispatch<React.SetStateAction<BlockTemplate>>;
   /** Publica al padre el estado necesario para el ContextSidebarPanel */
   onSidebarStateChange?: (state: EditorSidebarState) => void;
+  onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
 }
 
 export const BlockTemplateEditor: React.FC<Props> = ({
   template,
   setTemplate,
   onSidebarStateChange,
+  onClearSelectVisual,
 }) => {
   const [selectedCells, setSelectedCells] = useState<{ row: number; col: number }[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -146,6 +149,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     if (type === undefined) {
       // 🗑️ BORRAR: 1) ignorar escrituras de forms mientras desmontan  2) limpiar campos  3) reactivar escrituras
       ignoreUpdatesRef.current.add(k);
+      const previousName = findSelectControlNameAt(template, row, col) ?? undefined;
 
       setTemplate((prev) => {
         const updated = prev.map((r) => r.map((c) => ({ ...c }))) as BlockTemplate;
@@ -160,6 +164,8 @@ export const BlockTemplateEditor: React.FC<Props> = ({
         };
         return updated;
       });
+
+      onClearSelectVisual?.({ row, col, controlName: previousName });
 
       // Permite que el cleanup de los forms ocurra sin reescribir (siguiente tick)
       setTimeout(() => {
