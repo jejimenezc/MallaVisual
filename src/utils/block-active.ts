@@ -1,6 +1,7 @@
 // src/utils/block-active.ts
 import type { BlockTemplate, BlockTemplateCell } from '../types/curricular.ts';
 import type { VisualTemplate } from '../types/visual.ts';
+import { collectSelectControls } from './selectControls.ts';
 
 export interface ActiveBounds {
   minRow: number;
@@ -167,9 +168,13 @@ export const cropTemplate = (
 /** Recorta el visual a ActiveBounds, rebasando claves "r-c" al nuevo origen */
 export const cropVisualTemplate = (
   visual: VisualTemplate,
+  template: BlockTemplate,
   b: ActiveBounds
 ): VisualTemplate => {
   const result: VisualTemplate = {};
+  const controls = collectSelectControls(template);
+  const controlsByName = new Map(controls.map((control) => [control.name, control]));
+  const controlsByCoord = new Map(controls.map((control) => [control.coord, control]));
   for (let r = b.minRow; r <= b.maxRow; r++) {
     for (let c = b.minCol; c <= b.maxCol; c++) {
       const key = keyOf(r, c);
@@ -183,14 +188,25 @@ export const cropVisualTemplate = (
         // ✅ Rebase de coord de selectSource (si está dentro del recorte)
         const src = cloned.conditionalBg?.selectSource;
         if (src) {
-          const [sr, sc] = src.coord.split('-').map(Number);
-          const rr = sr - b.minRow;
-          const cc = sc - b.minCol;
-          if (rr >= 0 && rr < b.rows && cc >= 0 && cc < b.cols) {
-            cloned.conditionalBg = {
-              ...cloned.conditionalBg,
-              selectSource: { coord: keyOf(rr, cc), colors: { ...src.colors } },
-            };
+          const control =
+            (src.controlName ? controlsByName.get(src.controlName) : undefined) ??
+            (src.coord ? controlsByCoord.get(src.coord) : undefined);
+          if (control) {
+            const rr = control.row - b.minRow;
+            const cc = control.col - b.minCol;
+            if (rr >= 0 && rr < b.rows && cc >= 0 && cc < b.cols) {
+              cloned.conditionalBg = {
+                ...cloned.conditionalBg,
+                selectSource: {
+                  controlName: control.name,
+                  coord: keyOf(rr, cc),
+                  colors: { ...src.colors },
+                },
+              };
+            } else {
+              const { selectSource: _selectSource, ...rest } = cloned.conditionalBg!;
+              cloned.conditionalBg = Object.keys(rest).length ? rest : undefined;
+            }
           } else {
             const { selectSource: _selectSource, ...rest } = cloned.conditionalBg!;
             cloned.conditionalBg = Object.keys(rest).length ? rest : undefined;

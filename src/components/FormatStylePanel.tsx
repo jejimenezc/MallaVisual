@@ -12,6 +12,7 @@ import type {
 } from '../types/visual';
 import type { BlockTemplate, BlockTemplateCell } from '../types/curricular';
 import { assignSelectOptionColors } from '../utils/selectColors';
+import { collectSelectControls } from '../utils/selectControls';
 
 interface FormatStylePanelProps {
   selectedCoord?: { row: number; col: number };
@@ -151,8 +152,15 @@ const normalizeHex = (value: string) =>
 const sanitizeConditionalBg = (value?: ConditionalBg | null): ConditionalBg | undefined => {
   if (!value) return undefined;
   const next: ConditionalBg = {};
-  if (value.selectSource && value.selectSource.coord) {
-    next.selectSource = value.selectSource;
+  if (value.selectSource) {
+    const { controlName, coord, colors } = value.selectSource;
+    if ((controlName || coord) && colors) {
+      next.selectSource = {
+        colors: { ...colors },
+        ...(controlName ? { controlName } : {}),
+        ...(coord ? { coord } : {}),
+      };
+    }
   }
   if (value.checkedColor) {
     next.checkedColor = value.checkedColor;
@@ -310,24 +318,31 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const padX = current.paddingX ?? 8;
   const padY = current.paddingY ?? 6;
 
-  const selectCells = useMemo(() => {
-    const cells: { coord: string; options: string[] }[] = [];
-    template.forEach((row, rIdx) =>
-      row.forEach((cell, cIdx) => {
-        if (cell.type === 'select') {
-          cells.push({
-            coord: coordKey(rIdx, cIdx),
-            options: cell.dropdownOptions ?? [],
-          });
-        }
-      })
-    );
-    return cells;
+  const {
+    list: selectControlsList,
+    byName: selectControlsByName,
+    byCoord: selectControlsByCoord,
+  } = useMemo(() => {
+    const list = collectSelectControls(template);
+    const byName = new Map(list.map((control) => [control.name, control]));
+    const byCoord = new Map(list.map((control) => [control.coord, control]));
+    return { list, byName, byCoord };
   }, [template]);
 
-  const handleSelectSourceChange = (coord: string) => {
+  const selectedSelectSource = current.conditionalBg?.selectSource;
+  const selectedControlName = useMemo(() => {
+    if (!selectedSelectSource) return '';
+    if (selectedSelectSource.controlName) return selectedSelectSource.controlName;
+    if (selectedSelectSource.coord) {
+      const control = selectControlsByCoord.get(selectedSelectSource.coord);
+      return control?.name ?? '';
+    }
+    return '';
+  }, [selectedSelectSource, selectControlsByCoord]);
+
+  const handleSelectSourceChange = (controlName: string) => {
     if (!k) return;
-    if (!coord) {
+    if (!controlName) {
       updateConditionalBg((prev) => {
         if (!prev) return undefined;
         const next: ConditionalBg = { ...prev };
@@ -336,9 +351,16 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       });
       return;
     }
-    const source = selectCells.find((c) => c.coord === coord);
-    const colors = assignSelectOptionColors(source?.options ?? []);
-    updateConditionalBg((prev) => ({ ...prev, selectSource: { coord, colors } }));
+    const control = selectControlsByName.get(controlName);
+    const colors = assignSelectOptionColors(control?.options ?? []);
+    updateConditionalBg((prev) => ({
+      ...prev,
+      selectSource: {
+        controlName,
+        coord: control?.coord,
+        colors,
+      },
+    }));
   };
 
   const rawTextColor = current.textColor ?? selectedCell?.style?.textColor ?? '#111827';
@@ -913,16 +935,16 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                   <span aria-hidden="true">🎯</span>
                   <span>Color según select</span>
                 </div>
-                {selectCells.length > 0 ? (
+                {selectControlsList.length > 0 ? (
                   <>
                     <select
-                      value={current.conditionalBg?.selectSource?.coord ?? ''}
+                      value={selectedControlName}
                       onChange={(event) => handleSelectSourceChange(event.target.value)}
                     >
                       <option value="">Sin origen</option>
-                      {selectCells.map((cell) => (
-                        <option key={cell.coord} value={cell.coord}>
-                          {cell.coord}
+                      {selectControlsList.map((cell) => (
+                        <option key={cell.coord} value={cell.name}>
+                          {cell.name}
                         </option>
                       ))}
                     </select>

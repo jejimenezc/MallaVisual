@@ -32,8 +32,11 @@ export const BlockSnapshot: React.FC<Props> = ({ template, visualTemplate, aspec
 
   const bounds = useMemo(() => getActiveBounds(template), [template]);
   const subTemplate = useMemo(() => cropTemplate(template, bounds), [template, bounds]);
-  const subVisual   = useMemo(() => cropVisualTemplate(visualTemplate, bounds), [visualTemplate, bounds]);
-
+  const subVisual = useMemo(
+    () => cropVisualTemplate(visualTemplate, template, bounds),
+    [visualTemplate, template, bounds],
+  );
+  
   const { cellW, cellH } = useMemo(() => getCellSizeByAspect(aspect), [aspect]);
 
   // Medidas de la grilla a partir del recorte activo

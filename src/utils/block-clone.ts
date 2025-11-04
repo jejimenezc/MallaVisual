@@ -20,7 +20,7 @@ export const duplicateActiveCrop = (data: BlockData): BlockData => {
   const b = getActiveBounds(data.template);
   return {
     template: cropTemplate(data.template, b),
-    visual: cropVisualTemplate(data.visual, b),
+    visual: cropVisualTemplate(data.visual, data.template, b),
     aspect: data.aspect,
   };
 };

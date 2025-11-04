@@ -8,13 +8,7 @@ import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import {
-  VisualTemplate,
-  BlockAspect,
-  VisualStyle,
-  ConditionalBg,
-  coordKey,
-} from '../types/visual.ts';
+import { VisualTemplate, BlockAspect, VisualStyle, ConditionalBg, coordKey } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
@@ -41,6 +35,7 @@ import {
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
 import { assignSelectOptionColors } from '../utils/selectColors.ts';
+import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -130,7 +125,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     initialData?.aspect ?? '1/1'
   );
   const previousSelectOptionsRef = useRef<Map<string, string[]>>(new Map());
-  const [selectOptionsEditingCoord, setSelectOptionsEditingCoord] = useState<string | null>(null);
+  const [selectOptionsEditingControlName, setSelectOptionsEditingControlName] = useState<
+    string | null
+  >(null);
   const { autoSave, flushAutoSave, loadProject } = useProject({ projectId, projectName });
   const {
     saveBlock: repoSaveBlock,
@@ -161,40 +158,75 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setAspect(content.aspect);
   }, [initialData, initialDataSignature]);
 
+  const handleClearSelectVisual = useCallback(
+    ({ row, col, controlName }: { row: number; col: number; controlName?: string }) => {
+      const targetCoord = coordKey(row, col);
+      setVisual((currentVisual) => {
+        let didChange = false;
+        const nextVisual: VisualTemplate = { ...currentVisual };
+
+        Object.entries(currentVisual).forEach(([key, style]) => {
+          if (!style) return;
+          const selectSource = style.conditionalBg?.selectSource;
+          if (!selectSource) return;
+          const matchesCoord = selectSource.coord === targetCoord;
+          const matchesName = controlName ? selectSource.controlName === controlName : false;
+          if (!matchesCoord && !matchesName) return;
+
+          const nextStyle: VisualStyle = { ...style };
+          const nextConditional = removeSelectSource(style.conditionalBg);
+          if (nextConditional) {
+            nextStyle.conditionalBg = nextConditional;
+          } else {
+            delete nextStyle.conditionalBg;
+          }
+          nextVisual[key] = nextStyle;
+          didChange = true;
+        });
+
+        return didChange ? nextVisual : currentVisual;
+      });
+    },
+    [setVisual],
+  );
+
   useEffect(() => {
+    const controls = collectSelectControls(template);
+    const controlsByName = new Map(controls.map((control) => [control.name, control]));
+    const controlsByCoord = new Map(controls.map((control) => [control.coord, control]));
+
     const previousOptions = previousSelectOptionsRef.current;
     const currentOptions = new Map<string, string[]>();
     const changedSelects = new Set<string>();
     const removedSelects = new Set<string>(previousOptions.keys());
 
-    template.forEach((row, rIdx) => {
-      row.forEach((cell, cIdx) => {
-        if (cell.type !== 'select') return;
-        const coord = coordKey(rIdx, cIdx);
-        const previous = previousOptions.get(coord);
-        const shouldDefer =
-          Boolean(selectOptionsEditingCoord) && previous && coord === selectOptionsEditingCoord;
-        if (shouldDefer) {
-          currentOptions.set(coord, previous);
-          removedSelects.delete(coord);
-          return;
-        }
-        const options = [...(cell.dropdownOptions ?? [])];
-        currentOptions.set(coord, options);
-        if (!previous || !arrayShallowEqual(options, previous)) {
-          changedSelects.add(coord);
-        }
-        removedSelects.delete(coord);
-      });
+    controls.forEach((control) => {
+      const { name, options } = control;
+      const previous = previousOptions.get(name);
+      const shouldDefer =
+        Boolean(selectOptionsEditingControlName) &&
+        Boolean(previous) &&
+        name === selectOptionsEditingControlName;
+      if (shouldDefer) {
+        currentOptions.set(name, previous!);
+        removedSelects.delete(name);
+        return;
+      }
+      const optionList = [...options];
+      currentOptions.set(name, optionList);
+      if (!previous || !arrayShallowEqual(optionList, previous)) {
+        changedSelects.add(name);
+      }
+      removedSelects.delete(name);
     });
 
-    if (selectOptionsEditingCoord && removedSelects.has(selectOptionsEditingCoord)) {
-      setSelectOptionsEditingCoord(null);
+    if (selectOptionsEditingControlName && removedSelects.has(selectOptionsEditingControlName)) {
+      setSelectOptionsEditingControlName(null);
     }
 
     previousSelectOptionsRef.current = currentOptions;
 
-    if (changedSelects.size === 0 && removedSelects.size === 0) {
+    if (changedSelects.size === 0) {
       return;
     }
 
@@ -207,24 +239,19 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         const selectSource = style.conditionalBg?.selectSource;
         if (!selectSource) return;
 
-        if (removedSelects.has(selectSource.coord)) {
-          const nextStyle: VisualStyle = { ...style };
-          const nextConditional = removeSelectSource(style.conditionalBg);
-          if (nextConditional) {
-            nextStyle.conditionalBg = nextConditional;
-          } else {
-            delete nextStyle.conditionalBg;
-          }
-          nextVisual[key] = nextStyle;
-          didChange = true;
+        const resolvedControl =
+          (selectSource.controlName
+            ? controlsByName.get(selectSource.controlName)
+            : undefined) ??
+          (selectSource.coord ? controlsByCoord.get(selectSource.coord) : undefined);
+
+        if (!resolvedControl) {
           return;
         }
 
-        if (!changedSelects.has(selectSource.coord)) {
-          return;
-        }
+        const resolvedName = resolvedControl.name;
 
-        const options = currentOptions.get(selectSource.coord) ?? [];
+        const options = currentOptions.get(resolvedName) ?? [];
         const existingColors = selectSource.colors ?? {};
         const nextColors = assignSelectOptionColors(options, existingColors);
 
@@ -232,14 +259,21 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           Object.keys(existingColors).length !== options.length ||
           options.some((option) => existingColors[option] !== nextColors[option]);
 
-        if (!colorsChanged) return;
+        const needsRefUpdate =
+          selectSource.controlName !== resolvedName ||
+          (resolvedControl.coord && selectSource.coord !== resolvedControl.coord);
+
+        if (!colorsChanged && !needsRefUpdate) {
+          return;
+        }
 
         const nextStyle: VisualStyle = {
           ...style,
           conditionalBg: {
             ...(style.conditionalBg ?? {}),
             selectSource: {
-              coord: selectSource.coord,
+              controlName: resolvedName,
+              coord: resolvedControl.coord,
               colors: nextColors,
             },
           },
@@ -253,8 +287,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [
     template,
     setVisual,
-    selectOptionsEditingCoord,
-    setSelectOptionsEditingCoord,
+    selectOptionsEditingControlName,
+    setSelectOptionsEditingControlName,
   ]);
 
   const persistedProjectRef = useRef<MallaExport | null>(null);
@@ -641,31 +675,33 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   useEffect(() => {
     if (mode !== 'edit') {
-      setSelectOptionsEditingCoord(null);
+      setSelectOptionsEditingControlName(null);
       return;
     }
     const coord = editorSidebar?.selectedCoord;
-    if (!coord) {
-      setSelectOptionsEditingCoord((prev) => (prev === null ? prev : null));
+    const cell = editorSidebar?.selectedCell;
+    if (!coord || !cell || cell.type !== 'select') {
+      setSelectOptionsEditingControlName((prev) => (prev === null ? prev : null));
       return;
     }
-    const key = coordKey(coord.row, coord.col);
-    setSelectOptionsEditingCoord((prev) => {
+    const controlName = findSelectControlNameAt(template, coord.row, coord.col);
+    setSelectOptionsEditingControlName((prev) => {
       if (!prev) return prev;
-      return prev === key ? prev : null;
+      if (!controlName) return null;
+      return prev === controlName ? prev : null;
     });
-  }, [mode, editorSidebar?.selectedCoord]);
+  }, [mode, editorSidebar?.selectedCoord, editorSidebar?.selectedCell, template]);
 
   const handleSelectOptionsEditingChange = useCallback(
-    (coord: string | null, isEditing: boolean) => {
-      setSelectOptionsEditingCoord((prev) => {
+    (controlName: string | null, isEditing: boolean) => {
+      setSelectOptionsEditingControlName((prev) => {
         if (isEditing) {
-          return coord ?? null;
+          return controlName ?? null;
         }
-        if (!coord) {
+        if (!controlName) {
           return null;
         }
-        return prev === coord ? null : prev;
+        return prev === controlName ? null : prev;
       });
     },
     [],
@@ -842,6 +878,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               template={template}
               setTemplate={setTemplate}
               onSidebarStateChange={setEditorSidebar}
+              onClearSelectVisual={handleClearSelectVisual}
             />
           }
           right={

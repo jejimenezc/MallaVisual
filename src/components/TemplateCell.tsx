@@ -3,6 +3,7 @@
 import React from 'react';
 import { BlockTemplate, BlockTemplateCell } from '../types/curricular.ts';
 import { VisualTemplate } from '../types/visual.ts';
+import { collectSelectControls } from '../utils/selectControls.ts';
 import { evaluateExpression } from '../utils/calc.ts';
 
 interface Props {
@@ -120,15 +121,28 @@ export const TemplateCell: React.FC<Props> = ({
       : textAlignment === 'center'
       ? 'center'
       : 'flex-start';
+  const selectControlIndex = React.useMemo(() => {
+    if (!applyVisual) return null;
+    const controls = collectSelectControls(template);
+    return {
+      byName: new Map(controls.map((control) => [control.name, control])),
+      byCoord: new Map(controls.map((control) => [control.coord, control])),
+    };
+  }, [applyVisual, template]);
+
   let conditionalColor: string | undefined;
   if (applyVisual && cell.type === 'text') {
     const src = v?.conditionalBg?.selectSource;
-    if (src) {
-      const [sr, sc] = src.coord.split('-').map(Number);
-      const selKey = `r${sr}c${sc}`;
-      const selVal = values[selKey];
-      if (selVal !== undefined) {
-        conditionalColor = src.colors[String(selVal)];
+    if (src && selectControlIndex) {
+      const control =
+        (src.controlName ? selectControlIndex.byName.get(src.controlName) : undefined) ??
+        (src.coord ? selectControlIndex.byCoord.get(src.coord) : undefined);
+      if (control) {
+        const selKey = `r${control.row}c${control.col}`;
+        const selVal = values[selKey];
+        if (selVal !== undefined) {
+          conditionalColor = src.colors[String(selVal)];
+        }
       }
     }
   }

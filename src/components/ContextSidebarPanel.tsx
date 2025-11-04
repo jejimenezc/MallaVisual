@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useId, useState } from 'react';
 import './ContextSidebarPanel.css';
 import type { BlockTemplateCell, BlockTemplate } from '../types/curricular';
-import { coordKey } from '../types/visual';
+import { findSelectControlNameAt } from '../utils/selectControls';
 
 import StaticTextConfigForm from './StaticTextConfigForm';
 import { TextConfigForm } from './TextConfigForm';
@@ -29,7 +29,7 @@ interface Props {
 
   combineDisabledReason?: string;
   template: BlockTemplate;
-  onSelectOptionsEditingChange?: (coord: string | null, isEditing: boolean) => void;
+  onSelectOptionsEditingChange?: (controlName: string | null, isEditing: boolean) => void;
 
 }
 
@@ -81,16 +81,17 @@ export const ContextSidebarPanel: React.FC<Props> = ({
     () => Boolean(selectedCell?.type)
   );
   const selectionContentId = useId();
-  const selectCoordId = selectedCoord
-    ? coordKey(selectedCoord.row, selectedCoord.col)
-    : null;
+  const selectControlName =
+    selectedCoord && selectedCell?.type === 'select'
+      ? findSelectControlNameAt(template, selectedCoord.row, selectedCoord.col)
+      : null;
 
   const handleSelectOptionsEditingChange = useCallback(
     (isEditing: boolean) => {
-      if (!selectCoordId) return;
-      onSelectOptionsEditingChange?.(selectCoordId, isEditing);
+      if (!selectControlName) return;
+      onSelectOptionsEditingChange?.(selectControlName, isEditing);
     },
-    [selectCoordId, onSelectOptionsEditingChange]
+    [selectControlName, onSelectOptionsEditingChange]
   );
 
   useEffect(() => {
