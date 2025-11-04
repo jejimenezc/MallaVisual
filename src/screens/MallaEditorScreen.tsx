@@ -1048,7 +1048,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
           const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
           const tpl = cropTemplate(master.template, safeBounds);
-          const vis = cropVisualTemplate(master.visual, safeBounds);
+          const vis = cropVisualTemplate(master.visual, master.template, safeBounds);
           const origin: BlockSourceRef = { ...p.ref };
           return {
             kind: 'snapshot',
@@ -1500,7 +1500,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
               const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
 
               pieceTemplate = cropTemplate(master.template, safeBounds);
-              pieceVisual   = cropVisualTemplate(master.visual, safeBounds);
+              pieceVisual   = cropVisualTemplate(master.visual, master.template, safeBounds);
 
               // Las piezas referenciadas siguen el aspecto del maestro asociado
               pieceAspect = master.aspect;

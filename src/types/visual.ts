@@ -5,8 +5,14 @@ export type VisualFontSize = 'small' | 'normal' | 'large';
 /** Relación de aspecto del bloque completo en modo vista */
 export type BlockAspect = '1/1' | '1/2' | '2/1';
 
+export interface ConditionalSelectSource {
+  controlName?: string;
+  coord?: string;
+  colors: Record<string, string>;
+}
+
 export interface ConditionalBg {
-  selectSource?: { coord: string; colors: Record<string, string> };
+  selectSource?: ConditionalSelectSource;
   /** Color de fondo para celdas marcadas */
   checkedColor?: string;
   /** Color hover para celdas marcadas */
