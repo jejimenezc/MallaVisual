@@ -66,24 +66,52 @@ export function AppCommandsProvider({ children }: { children: React.ReactNode })
     commandsRef.current = commands;
   }, [commands]);
 
+  const removeCommand = useCallback((id: AppCommandId) => {
+    if (!commandsRef.current[id]) return;
+    setCommands((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      commandsRef.current = next;
+      return next;
+    });
+  }, []);
+
   const registerCommand = useCallback(
     (id: AppCommandId, descriptor: AppCommandDescriptor) => {
+      const current = commandsRef.current[id];
+      if (
+        current &&
+        (current === descriptor ||
+          (current.isEnabled === descriptor.isEnabled && current.run === descriptor.run))
+      ) {
+        return () => {};
+      }
+
+      let didRegister = false;
       setCommands((prev) => {
+        const previous = prev[id];
+        if (
+          previous &&
+          (previous === descriptor ||
+            (previous.isEnabled === descriptor.isEnabled && previous.run === descriptor.run))
+        ) {
+          return prev;
+        }
+
+        didRegister = true;
         const next = { ...prev, [id]: descriptor };
         commandsRef.current = next;
         return next;
       });
-      return () => {
-        setCommands((prev) => {
-          if (!(id in prev)) return prev;
-          const next = { ...prev };
-          delete next[id];
-          commandsRef.current = next;
-          return next;
-        });
-      };
+
+      if (!didRegister) {
+        return () => {};
+      }
+
+      return () => removeCommand(id);
     },
-    [],
+    [removeCommand],
   );
 
   const executeCommand = useCallback((id: AppCommandId) => {
