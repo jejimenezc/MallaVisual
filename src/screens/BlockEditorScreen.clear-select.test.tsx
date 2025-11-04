@@ -177,7 +177,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
           <CommandsObserver />
           <BlockEditorScreen
             initialData={initialData}
-            onDraftChange={(draft) => {
+            onDraftChange={(draft: BlockContent) => {
               recordedDrafts.push(draft);
             }}
           />

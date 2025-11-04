@@ -6,8 +6,9 @@ import {
   AppCommandsProvider,
   useAppCommands,
   type AppCommandDescriptor,
-  type AppCommandsContextValue,
 } from './app-commands.tsx';
+
+type AppCommandsContextValue = ReturnType<typeof useAppCommands>;
 
 describe('AppCommandsProvider registerCommand', () => {
   let container: HTMLDivElement;
