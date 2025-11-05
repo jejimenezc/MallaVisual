@@ -14,6 +14,8 @@ interface Props {
   /** Publica al padre el estado necesario para el ContextSidebarPanel */
   onSidebarStateChange?: (state: EditorSidebarState) => void;
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
+  controlsInUse?: ReadonlySet<string>;
+  onConfirmDeleteControl?: (coord: string) => boolean;
 }
 
 export const BlockTemplateEditor: React.FC<Props> = ({
@@ -21,6 +23,8 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   setTemplate,
   onSidebarStateChange,
   onClearSelectVisual,
+  controlsInUse,
+  onConfirmDeleteControl,
 }) => {
   const [selectedCells, setSelectedCells] = useState<{ row: number; col: number }[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -147,6 +151,14 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     const k = coordKey(row, col);
 
     if (type === undefined) {
+      const isControlInUse = controlsInUse?.has(k) ?? false;
+      if (isControlInUse) {
+        const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k) : true;
+        if (!confirmed) {
+          setContextMenu(null);
+          return;
+        }
+      }
       // 🗑️ BORRAR: 1) ignorar escrituras de forms mientras desmontan  2) limpiar campos  3) reactivar escrituras
       ignoreUpdatesRef.current.add(k);
       const previousName = findSelectControlNameAt(template, row, col) ?? undefined;

@@ -91,6 +91,7 @@ interface BlockEditorScreenProps {
     aspect: BlockAspect;
   }) => void;
   isBlockInUse?: boolean;
+  controlsInUse?: Map<string, ReadonlySet<string>>;
 }
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
@@ -107,6 +108,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onRepoMetadataChange,
   onPublishBlock,
   isBlockInUse = false,
+  controlsInUse,
 }) => {
   const {
     setHandler,
@@ -188,6 +190,23 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       });
     },
     [setVisual],
+  );
+
+  const controlsInUseForRepo = useMemo(() => {
+    if (!repoId) return undefined;
+    return controlsInUse?.get(repoId);
+  }, [controlsInUse, repoId]);
+
+  const handleConfirmDeleteControl = useCallback(
+    (coord: string) => {
+      if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
+        return true;
+      }
+      return window.confirm(
+        'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
+      );
+    },
+    [controlsInUseForRepo],
   );
 
   useEffect(() => {
@@ -879,6 +898,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               setTemplate={setTemplate}
               onSidebarStateChange={setEditorSidebar}
               onClearSelectVisual={handleClearSelectVisual}
+              controlsInUse={controlsInUseForRepo}
+              onConfirmDeleteControl={handleConfirmDeleteControl}
             />
           }
           right={

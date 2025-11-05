@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import type { BlockTemplate, MasterBlockData } from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
+import { coordKey } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -939,17 +940,58 @@ export default function App(): JSX.Element | null {
     loadRepositoryBlock(stored, { navigate: !hasExistingBlock });
   };
 
-  const blocksInUse = useMemo(() => {
-    const used = new Set<string>();
-    if (!malla) return used;
-    for (const piece of malla.pieces ?? []) {
-      if (piece.kind === 'ref') {
-        used.add(piece.ref.sourceId);
-      } else if (piece.kind === 'snapshot' && piece.origin) {
-        used.add(piece.origin.sourceId);
+  const { blocksInUse, controlsInUse } = useMemo(() => {
+    const usedBlocks = new Set<string>();
+    const usedControls = new Map<string, Set<string>>();
+
+    if (malla) {
+      const pieceValues = malla.values ?? {};
+      for (const piece of malla.pieces ?? []) {
+        let repoId: string | null = null;
+        let offsetRow = 0;
+        let offsetCol = 0;
+
+        if (piece.kind === 'ref') {
+          repoId = piece.ref.sourceId;
+          offsetRow = piece.ref.bounds?.minRow ?? 0;
+          offsetCol = piece.ref.bounds?.minCol ?? 0;
+        } else if (piece.kind === 'snapshot' && piece.origin) {
+          repoId = piece.origin.sourceId;
+          offsetRow = piece.origin.bounds?.minRow ?? 0;
+          offsetCol = piece.origin.bounds?.minCol ?? 0;
+        }
+
+        if (!repoId) {
+          continue;
+        }
+
+        usedBlocks.add(repoId);
+
+        const valuesForPiece = pieceValues[piece.id];
+        if (!valuesForPiece) {
+          continue;
+        }
+
+        for (const key of Object.keys(valuesForPiece)) {
+          const match = /^r(\d+)c(\d+)$/.exec(key);
+          if (!match) continue;
+
+          const row = Number.parseInt(match[1] ?? '', 10);
+          const col = Number.parseInt(match[2] ?? '', 10);
+          if (Number.isNaN(row) || Number.isNaN(col)) continue;
+
+          const absoluteCoord = coordKey(row + offsetRow, col + offsetCol);
+          let repoControls = usedControls.get(repoId);
+          if (!repoControls) {
+            repoControls = new Set<string>();
+            usedControls.set(repoId, repoControls);
+          }
+          repoControls.add(absoluteCoord);
+        }
       }
     }
-    return used;
+
+    return { blocksInUse: usedBlocks, controlsInUse: usedControls };
   }, [malla]);
 
   const blockInUse = useMemo(() => {
@@ -1092,6 +1134,7 @@ export default function App(): JSX.Element | null {
                 onRepoMetadataChange={handleRepoMetadataChange}
                 onPublishBlock={handleBlockPublish}
                 isBlockInUse={blockInUse}
+                controlsInUse={controlsInUse}
               />
             }
           />
@@ -1117,6 +1160,7 @@ export default function App(): JSX.Element | null {
                   onRepoMetadataChange={handleRepoMetadataChange}
                   onPublishBlock={handleBlockPublish}
                   isBlockInUse={blockInUse}
+                  controlsInUse={controlsInUse}
                 />
               ) : (
                 <Navigate to="/" replace />
