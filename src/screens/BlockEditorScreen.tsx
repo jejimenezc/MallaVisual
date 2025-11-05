@@ -138,6 +138,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   } = useBlocksRepo();
   const savedRef = useRef<string | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
+  const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
+  const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
+    initialRepoMetadata ?? null,
+  );
+  const [repoName, setRepoName] = useState<string>(
+    initialRepoMetadata?.name ?? initialRepoName ?? '',
+  );
 
   useEffect(() => {
     const sync = () => setRepoBlocks(listBlocks());
@@ -312,14 +319,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const persistedProjectRef = useRef<MallaExport | null>(null);
   const hasLoadedProjectRef = useRef(false);
-
-  const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
-  const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
-    initialRepoMetadata ?? null,
-  );
-  const [repoName, setRepoName] = useState<string>(
-    initialRepoMetadata?.name ?? initialRepoName ?? '',
-  );
 
   useEffect(() => {
     setRepoId(initialRepoId ?? null);
