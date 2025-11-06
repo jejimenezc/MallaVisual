@@ -947,52 +947,105 @@ export default function App(): JSX.Element | null {
     if (malla) {
       const pieceValues = malla.values ?? {};
       for (const piece of malla.pieces ?? []) {
-        let repoId: string | null = null;
-        let offsetRow = 0;
-        let offsetCol = 0;
-
         if (piece.kind === 'ref') {
-          repoId = piece.ref.sourceId;
-          offsetRow = piece.ref.bounds?.minRow ?? 0;
-          offsetCol = piece.ref.bounds?.minCol ?? 0;
-        } else if (piece.kind === 'snapshot' && piece.origin) {
-          repoId = piece.origin.sourceId;
-          offsetRow = piece.origin.bounds?.minRow ?? 0;
-          offsetCol = piece.origin.bounds?.minCol ?? 0;
-        }
+          const repoId = piece.ref.sourceId;
+          if (!repoId) continue;
 
-        if (!repoId) {
-          continue;
-        }
+          const bounds = piece.ref.bounds;
+          const offsetRow = bounds?.minRow ?? 0;
+          const offsetCol = bounds?.minCol ?? 0;
+          const repoEntry = repositorySnapshot.repository[repoId];
+          const repoTemplate = repoEntry?.template;
 
-        usedBlocks.add(repoId);
+          usedBlocks.add(repoId);
 
-        const valuesForPiece = pieceValues[piece.id];
-        if (!valuesForPiece) {
-          continue;
-        }
+          const addControlCoord = (coord: string) => {
+            let repoControls = usedControls.get(repoId);
+            if (!repoControls) {
+              repoControls = new Set<string>();
+              usedControls.set(repoId, repoControls);
+            }
+            repoControls.add(coord);
+          };
 
-        for (const key of Object.keys(valuesForPiece)) {
-          const match = /^r(\d+)c(\d+)$/.exec(key);
-          if (!match) continue;
+          const valuesForPiece = pieceValues[piece.id];
+          if (valuesForPiece) {
+            for (const key of Object.keys(valuesForPiece)) {
+              const match = /^r(\d+)c(\d+)$/.exec(key);
+              if (!match) continue;
 
-          const row = Number.parseInt(match[1] ?? '', 10);
-          const col = Number.parseInt(match[2] ?? '', 10);
-          if (Number.isNaN(row) || Number.isNaN(col)) continue;
+              const row = Number.parseInt(match[1] ?? '', 10);
+              const col = Number.parseInt(match[2] ?? '', 10);
+              if (Number.isNaN(row) || Number.isNaN(col)) continue;
 
-          const absoluteCoord = coordKey(row + offsetRow, col + offsetCol);
-          let repoControls = usedControls.get(repoId);
-          if (!repoControls) {
-            repoControls = new Set<string>();
-            usedControls.set(repoId, repoControls);
+              addControlCoord(coordKey(row + offsetRow, col + offsetCol));
+            }
           }
-          repoControls.add(absoluteCoord);
+
+          if (repoTemplate && bounds) {
+            for (let r = 0; r < bounds.rows; r++) {
+              const templateRow = bounds.minRow + r;
+              const rowCells = repoTemplate[templateRow];
+              if (!rowCells) continue;
+              for (let c = 0; c < bounds.cols; c++) {
+                const templateCol = bounds.minCol + c;
+                const cell = rowCells[templateCol];
+                if (!cell?.active || !cell.type) continue;
+                addControlCoord(coordKey(templateRow, templateCol));
+              }
+            }
+          }
+        } else if (piece.kind === 'snapshot' && piece.origin) {
+          const repoId = piece.origin.sourceId;
+          if (!repoId) continue;
+
+          const bounds = piece.origin.bounds;
+          const offsetRow = bounds?.minRow ?? 0;
+          const offsetCol = bounds?.minCol ?? 0;
+          const template = piece.template;
+
+          usedBlocks.add(repoId);
+
+          const addControlCoord = (coord: string) => {
+            let repoControls = usedControls.get(repoId);
+            if (!repoControls) {
+              repoControls = new Set<string>();
+              usedControls.set(repoId, repoControls);
+            }
+            repoControls.add(coord);
+          };
+
+          const valuesForPiece = pieceValues[piece.id];
+          if (valuesForPiece) {
+            for (const key of Object.keys(valuesForPiece)) {
+              const match = /^r(\d+)c(\d+)$/.exec(key);
+              if (!match) continue;
+
+              const row = Number.parseInt(match[1] ?? '', 10);
+              const col = Number.parseInt(match[2] ?? '', 10);
+              if (Number.isNaN(row) || Number.isNaN(col)) continue;
+
+              addControlCoord(coordKey(row + offsetRow, col + offsetCol));
+            }
+          }
+
+          if (template) {
+            for (let r = 0; r < template.length; r++) {
+              const rowCells = template[r];
+              if (!rowCells) continue;
+              for (let c = 0; c < rowCells.length; c++) {
+                const cell = rowCells[c];
+                if (!cell?.active || !cell.type) continue;
+                addControlCoord(coordKey(r + offsetRow, c + offsetCol));
+              }
+            }
+          }
         }
       }
     }
 
     return { blocksInUse: usedBlocks, controlsInUse: usedControls };
-  }, [malla]);
+  }, [malla, repositorySnapshot]);
 
   const blockInUse = useMemo(() => {
     if (!block?.repoId) return false;
