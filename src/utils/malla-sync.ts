@@ -113,9 +113,6 @@ function getPieceOrigin(piece: CurricularPiece): BlockSourceRef | null {
   if (piece.kind === 'ref') {
     return piece.ref;
   }
-  if (piece.kind === 'snapshot' && piece.origin) {
-    return piece.origin;
-  }
   return null;
 }
 
@@ -141,6 +138,9 @@ export function clearControlValues({
   };
 
   for (const piece of pieces) {
+    // Only ref pieces are eligible for cleanup. Snapshots may include
+    // historical origin metadata but their control values must be preserved
+    // so editing snapshots does not unexpectedly wipe user input.
     const origin = getPieceOrigin(piece);
     if (!origin || origin.sourceId !== repoId) {
       continue;

@@ -57,7 +57,7 @@ function buildSamplePieces(): CurricularPiece[] {
 }
 
 describe('clearControlValues', () => {
-  it('removes control values for pieces referencing the target repository', () => {
+  it('removes control values for ref pieces referencing the target repository', () => {
     const pieces = buildSamplePieces();
     const originalValues = {
       'ref-1': { 'r0c0': 'keep', 'r1c1': 'old-value' },
@@ -74,9 +74,27 @@ describe('clearControlValues', () => {
 
     expect(result).not.toBe(originalValues);
     expect(result['ref-1']).toEqual({ 'r0c0': 'keep' });
-    expect(result['snap-1']).toBeUndefined();
+    expect(result['snap-1']).toBe(originalValues['snap-1']);
     expect(result['ref-2']).toBe(originalValues['ref-2']);
     expect(originalValues['ref-1']).toHaveProperty('r1c1', 'old-value');
+  });
+
+  it('keeps snapshot control values even when they contain origin metadata', () => {
+    const pieces = buildSamplePieces();
+    const originalValues = {
+      'ref-1': { 'r0c0': 'keep', 'r1c1': 'old-value' },
+      'snap-1': { 'r0c0': true, 'r1c1': 'snapshot-value' },
+    } satisfies Record<string, Record<string, string | number | boolean>>;
+
+    const result = clearControlValues({
+      repoId: 'repo-1',
+      coordKey: '3-4',
+      pieces,
+      pieceValues: originalValues,
+    });
+
+    expect(result['snap-1']).toBe(originalValues['snap-1']);
+    expect(result['ref-1']).toEqual({ 'r0c0': 'keep' });
   });
 
   it('is a no-op when repoId or coordKey are invalid', () => {
