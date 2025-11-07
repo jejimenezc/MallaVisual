@@ -16,6 +16,7 @@ interface Props {
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
   controlsInUse?: ReadonlySet<string>;
   onConfirmDeleteControl?: (coord: string) => boolean;
+  onControlDeleted?: (coord: string) => void;
 }
 
 export const BlockTemplateEditor: React.FC<Props> = ({
@@ -25,6 +26,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   onClearSelectVisual,
   controlsInUse,
   onConfirmDeleteControl,
+  onControlDeleted,
 }) => {
   const [selectedCells, setSelectedCells] = useState<{ row: number; col: number }[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -178,6 +180,8 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       });
 
       onClearSelectVisual?.({ row, col, controlName: previousName });
+
+      onControlDeleted?.(k);
 
       // Permite que el cleanup de los forms ocurra sin reescribir (siguiente tick)
       setTimeout(() => {

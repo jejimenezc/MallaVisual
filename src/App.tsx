@@ -34,6 +34,7 @@ import {
   remapPiecesWithMapping,
   synchronizeMastersWithRepository,
   remapIds,
+  clearControlValues,
 } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
@@ -1052,6 +1053,31 @@ export default function App(): JSX.Element | null {
     return blocksInUse.has(block.repoId);
   }, [block?.repoId, blocksInUse]);
 
+  const activeRepoId = block?.repoId ?? null;
+
+  const handleRequestControlDataClear = useCallback(
+    (coord: string) => {
+      if (!activeRepoId) return;
+      setMalla((prev) => {
+        if (!prev) return prev;
+        const nextValues = clearControlValues({
+          repoId: activeRepoId,
+          coordKey: coord,
+          pieces: prev.pieces,
+          pieceValues: prev.values,
+        });
+        if (nextValues === prev.values) {
+          return prev;
+        }
+        return {
+          ...prev,
+          values: nextValues,
+        };
+      });
+    },
+    [activeRepoId],
+  );
+
   useEffect(() => {
     setBlock((prev) => {
       if (!prev?.repoId) return prev;
@@ -1188,6 +1214,7 @@ export default function App(): JSX.Element | null {
                 onPublishBlock={handleBlockPublish}
                 isBlockInUse={blockInUse}
                 controlsInUse={controlsInUse}
+                onRequestControlDataClear={handleRequestControlDataClear}
               />
             }
           />
@@ -1214,6 +1241,7 @@ export default function App(): JSX.Element | null {
                   onPublishBlock={handleBlockPublish}
                   isBlockInUse={blockInUse}
                   controlsInUse={controlsInUse}
+                  onRequestControlDataClear={handleRequestControlDataClear}
                 />
               ) : (
                 <Navigate to="/" replace />

@@ -92,6 +92,7 @@ interface BlockEditorScreenProps {
   }) => void;
   isBlockInUse?: boolean;
   controlsInUse?: Map<string, ReadonlySet<string>>;
+  onRequestControlDataClear?: (coord: string) => void;
 }
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
@@ -109,6 +110,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onPublishBlock,
   isBlockInUse = false,
   controlsInUse,
+  onRequestControlDataClear,
 }) => {
   const {
     setHandler,
@@ -214,6 +216,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       );
     },
     [controlsInUseForRepo],
+  );
+
+  const handleControlDeleted = useCallback(
+    (coord: string) => {
+      onRequestControlDataClear?.(coord);
+    },
+    [onRequestControlDataClear],
   );
 
   useEffect(() => {
@@ -899,6 +908,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               onClearSelectVisual={handleClearSelectVisual}
               controlsInUse={controlsInUseForRepo}
               onConfirmDeleteControl={handleConfirmDeleteControl}
+              onControlDeleted={handleControlDeleted}
             />
           }
           right={
