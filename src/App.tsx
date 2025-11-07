@@ -730,51 +730,54 @@ export default function App(): JSX.Element | null {
     [loadProject, handleOpenProject],
   );
 
-  const handleProceedToMalla = (
-    template: BlockTemplate,
-    visual: VisualTemplate,
-    aspect: BlockAspect,
-    targetPath?: string,
-    repoId?: string | null,
-    published?: BlockContent | null,
-  ) => {
-    const destination = targetPath ?? '/malla/design';
-    if (!malla && destination === '/malla/design') {
-      try {
-        window.localStorage.removeItem('malla-editor-state');
-      } catch {
-        /* ignore */
+  const handleProceedToMalla = useCallback(
+    (
+      template: BlockTemplate,
+      visual: VisualTemplate,
+      aspect: BlockAspect,
+      targetPath?: string,
+      repoId?: string | null,
+      published?: BlockContent | null,
+    ) => {
+      const destination = targetPath ?? '/malla/design';
+      if (!malla && destination === '/malla/design') {
+        try {
+          window.localStorage.removeItem('malla-editor-state');
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    const content: BlockContent = { template, visual, aspect };
-    setBlock((prev) => {
-      const nextRepoId =
-        repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
-      const draft = cloneBlockContent(content);
-      const nextMetadata =
-        nextRepoId && repositorySnapshot.metadata[nextRepoId]
-          ? repositorySnapshot.metadata[nextRepoId]
-          : nextRepoId
-            ? prev?.repoMetadata ?? null
-            : null;
-      const nextPublished = !nextRepoId
-        ? null
-        : published === undefined
-          ? prev?.published
-            ? cloneBlockContent(prev.published)
-            : null
-          : published === null
-            ? null
-            : cloneBlockContent(published);
-      return {
-        draft,
-        repoId: nextRepoId,
-        repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
-        repoMetadata: nextMetadata,
-        published: nextPublished,
-      };
-    });
-  };
+      const content: BlockContent = { template, visual, aspect };
+      setBlock((prev) => {
+        const nextRepoId =
+          repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
+        const draft = cloneBlockContent(content);
+        const nextMetadata =
+          nextRepoId && repositorySnapshot.metadata[nextRepoId]
+            ? repositorySnapshot.metadata[nextRepoId]
+            : nextRepoId
+              ? prev?.repoMetadata ?? null
+              : null;
+        const nextPublished = !nextRepoId
+          ? null
+          : published === undefined
+            ? prev?.published
+              ? cloneBlockContent(prev.published)
+              : null
+            : published === null
+              ? null
+              : cloneBlockContent(published);
+        return {
+          draft,
+          repoId: nextRepoId,
+          repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
+          repoMetadata: nextMetadata,
+          published: nextPublished,
+        };
+      });
+    },
+    [malla, repositorySnapshot, setBlock],
+  );
 
   const handleRepoIdChange = (repoId: string | null) => {
     setBlock((prev) => {
@@ -810,42 +813,45 @@ export default function App(): JSX.Element | null {
     [setBlock],
   );
 
-  const handleBlockPublish = (
-    payload: {
-      repoId: string;
-      metadata: BlockMetadata;
-      template: BlockTemplate;
-      visual: VisualTemplate;
-      aspect: BlockAspect;
-    },
-  ) => {
-    const content: BlockContent = {
-      template: payload.template,
-      visual: payload.visual,
-      aspect: payload.aspect,
-    };
-    const metadata = { ...payload.metadata };
-    setBlock((prev) => {
-      const nextDraft = cloneBlockContent(content);
-      if (!prev) {
+  const handleBlockPublish = useCallback(
+    (
+      payload: {
+        repoId: string;
+        metadata: BlockMetadata;
+        template: BlockTemplate;
+        visual: VisualTemplate;
+        aspect: BlockAspect;
+      },
+    ) => {
+      const content: BlockContent = {
+        template: payload.template,
+        visual: payload.visual,
+        aspect: payload.aspect,
+      };
+      const metadata = { ...payload.metadata };
+      setBlock((prev) => {
+        const nextDraft = cloneBlockContent(content);
+        if (!prev) {
+          return {
+            draft: nextDraft,
+            repoId: payload.repoId,
+            repoName: metadata.name,
+            repoMetadata: metadata,
+            published: cloneBlockContent(nextDraft),
+          };
+        }
         return {
+          ...prev,
           draft: nextDraft,
-          repoId: payload.repoId,
+          repoId: payload.repoId ?? prev.repoId,
           repoName: metadata.name,
           repoMetadata: metadata,
           published: cloneBlockContent(nextDraft),
         };
-      }
-      return {
-        ...prev,
-        draft: nextDraft,
-        repoId: payload.repoId ?? prev.repoId,
-        repoName: metadata.name,
-        repoMetadata: metadata,
-        published: cloneBlockContent(nextDraft),
-      };
-    });
-  };
+      });
+    },
+    [setBlock],
+  );
 
   const loadRepositoryBlock = (
     stored: StoredBlock,

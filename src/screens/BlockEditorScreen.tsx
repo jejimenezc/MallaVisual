@@ -139,6 +139,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     updateBlockMetadata: repoUpdateBlockMetadata,
   } = useBlocksRepo();
   const savedRef = useRef<string | null>(null);
+  const proceedHandlerRef = useRef<ProceedToMallaHandler | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
   const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
   const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
@@ -841,9 +842,15 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   );
 
   useEffect(() => {
-    setHandler(ensurePublishedAndProceed);
+    if (proceedHandlerRef.current !== ensurePublishedAndProceed) {
+      setHandler(ensurePublishedAndProceed);
+      proceedHandlerRef.current = ensurePublishedAndProceed;
+    }
     return () => {
-      resetHandler();
+      if (proceedHandlerRef.current === ensurePublishedAndProceed) {
+        resetHandler();
+        proceedHandlerRef.current = null;
+      }
     };
   }, [setHandler, resetHandler, ensurePublishedAndProceed]);
 
