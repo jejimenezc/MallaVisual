@@ -210,20 +210,38 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const handleConfirmDeleteControl = useCallback(
     (coord: string) => {
       if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
+        console.info('[ControlDeletion] No confirmation required before deleting control', {
+          coord,
+          repoId,
+        });
         return true;
       }
-      return window.confirm(
+      console.info('[ControlDeletion] Requesting confirmation before deleting control', {
+        coord,
+        repoId,
+      });
+      const shouldDelete = window.confirm(
         'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
       );
+      console.info('[ControlDeletion] Confirmation result', {
+        coord,
+        repoId,
+        shouldDelete,
+      });
+      return shouldDelete;
     },
-    [controlsInUseForRepo],
+    [controlsInUseForRepo, repoId],
   );
 
   const handleControlDeleted = useCallback(
     (coord: string) => {
+      console.info('[ControlDeletion] Control deletion confirmed in template editor', {
+        coord,
+        repoId,
+      });
       onRequestControlDataClear?.(coord);
     },
-    [onRequestControlDataClear],
+    [onRequestControlDataClear, repoId],
   );
 
   useEffect(() => {
@@ -841,18 +859,29 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     />
   );
 
+  const proceedHandlerRegistrarRef = useRef<typeof setHandler | null>(null);
+
   useEffect(() => {
-    if (proceedHandlerRef.current !== ensurePublishedAndProceed) {
-      setHandler(ensurePublishedAndProceed);
-      proceedHandlerRef.current = ensurePublishedAndProceed;
+    if (
+      proceedHandlerRef.current === ensurePublishedAndProceed &&
+      proceedHandlerRegistrarRef.current === setHandler
+    ) {
+      return;
     }
+    setHandler(ensurePublishedAndProceed);
+    proceedHandlerRef.current = ensurePublishedAndProceed;
+    proceedHandlerRegistrarRef.current = setHandler;
+  }, [setHandler, ensurePublishedAndProceed]);
+
+  useEffect(() => {
     return () => {
-      if (proceedHandlerRef.current === ensurePublishedAndProceed) {
+      if (proceedHandlerRef.current) {
         resetHandler();
         proceedHandlerRef.current = null;
+        proceedHandlerRegistrarRef.current = null;
       }
     };
-  }, [setHandler, resetHandler, ensurePublishedAndProceed]);
+  }, [resetHandler]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;

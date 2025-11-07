@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 
 const autoSaveMock = vi.fn();
 const flushAutoSaveMock = vi.fn();
@@ -98,7 +99,7 @@ describe('BlockEditorScreen – eliminación de control con datos', () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   const onRequestControlDataClear = vi.fn();
-  let confirmSpy: ReturnType<typeof vi.spyOn>;
+  let confirmSpy: MockInstance<typeof window.confirm>;
 
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

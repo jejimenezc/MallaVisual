@@ -340,6 +340,7 @@ export default function App(): JSX.Element | null {
   const storedActiveProjectRef = useRef(readStoredActiveProject());
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
+  const mallaRef = useRef<MallaExport | null>(malla);
   const [projectId, setProjectId] = useState<string | null>(
     storedActiveProjectRef.current.id,
   );
@@ -357,6 +358,15 @@ export default function App(): JSX.Element | null {
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
   );
+  const repositorySnapshotRef = useRef(repositorySnapshot);
+
+  useEffect(() => {
+    mallaRef.current = malla;
+  }, [malla]);
+
+  useEffect(() => {
+    repositorySnapshotRef.current = repositorySnapshot;
+  }, [repositorySnapshot]);
 
   const clearPersistedProjectMetadata = useCallback(() => {
     clearStoredActiveProject();
@@ -740,7 +750,7 @@ export default function App(): JSX.Element | null {
       published?: BlockContent | null,
     ) => {
       const destination = targetPath ?? '/malla/design';
-      if (!malla && destination === '/malla/design') {
+      if (!mallaRef.current && destination === '/malla/design') {
         try {
           window.localStorage.removeItem('malla-editor-state');
         } catch {
@@ -749,12 +759,13 @@ export default function App(): JSX.Element | null {
       }
       const content: BlockContent = { template, visual, aspect };
       setBlock((prev) => {
+        const snapshot = repositorySnapshotRef.current;
         const nextRepoId =
           repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
         const draft = cloneBlockContent(content);
         const nextMetadata =
-          nextRepoId && repositorySnapshot.metadata[nextRepoId]
-            ? repositorySnapshot.metadata[nextRepoId]
+          nextRepoId && snapshot.metadata[nextRepoId]
+            ? snapshot.metadata[nextRepoId]
             : nextRepoId
               ? prev?.repoMetadata ?? null
               : null;
@@ -776,7 +787,7 @@ export default function App(): JSX.Element | null {
         };
       });
     },
-    [malla, repositorySnapshot, setBlock],
+    [setBlock],
   );
 
   const handleRepoIdChange = (repoId: string | null) => {
@@ -1064,8 +1075,16 @@ export default function App(): JSX.Element | null {
   const handleRequestControlDataClear = useCallback(
     (coord: string) => {
       if (!activeRepoId) return;
+      console.info('[ControlDeletion] Clearing data for control', {
+        coord,
+        repoId: activeRepoId,
+      });
       setMalla((prev) => {
         if (!prev) return prev;
+        console.info('[ControlDeletion] Previous malla values snapshot before clearing', {
+          hasValues: Boolean(prev.values?.[activeRepoId]),
+          pieceCount: prev.pieces?.length ?? 0,
+        });
         const nextValues = clearControlValues({
           repoId: activeRepoId,
           coordKey: coord,
@@ -1073,8 +1092,16 @@ export default function App(): JSX.Element | null {
           pieceValues: prev.values,
         });
         if (nextValues === prev.values) {
+          console.info('[ControlDeletion] No values changed after clear request', {
+            coord,
+            repoId: activeRepoId,
+          });
           return prev;
         }
+        console.info('[ControlDeletion] Control data cleared, updating malla values', {
+          coord,
+          repoId: activeRepoId,
+        });
         return {
           ...prev,
           values: nextValues,
