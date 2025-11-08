@@ -123,6 +123,11 @@ function createEmptyMaster(): MasterBlockData {
   };
 }
 
+interface ControlDataClearRequest {
+  repoId: string;
+  coord: string;
+}
+
 function prepareMallaProjectState(
   data: MallaExport,
   repositorySnapshot: RepositorySnapshot,
@@ -341,6 +346,8 @@ export default function App(): JSX.Element | null {
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const mallaRef = useRef<MallaExport | null>(malla);
+  const pendingControlDataClearsRef = useRef<ControlDataClearRequest[]>([]);
+  const [pendingControlDataClearTick, bumpPendingControlDataClearTick] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(
     storedActiveProjectRef.current.id,
   );
@@ -367,6 +374,76 @@ export default function App(): JSX.Element | null {
   useEffect(() => {
     repositorySnapshotRef.current = repositorySnapshot;
   }, [repositorySnapshot]);
+
+  useEffect(() => {
+    if (pendingControlDataClearsRef.current.length === 0) {
+      return;
+    }
+
+    const requests = pendingControlDataClearsRef.current;
+    pendingControlDataClearsRef.current = [];
+
+    const uniqueRequests = new Map<string, ControlDataClearRequest>();
+    for (const request of requests) {
+      const key = `${request.repoId}::${request.coord}`;
+      if (!uniqueRequests.has(key)) {
+        uniqueRequests.set(key, request);
+      }
+    }
+
+    if (uniqueRequests.size === 0) {
+      return;
+    }
+
+    setMalla((prev) => {
+      if (!prev) return prev;
+
+      let workingValues = prev.values ?? {};
+      let changed = false;
+
+      for (const { repoId, coord } of uniqueRequests.values()) {
+        console.info('[ControlDeletion] Processing queued data clear request', {
+          coord,
+          repoId,
+        });
+        console.info('[ControlDeletion] Previous malla values snapshot before clearing', {
+          coord,
+          repoId,
+          hasValues: Boolean(workingValues[repoId]),
+          pieceCount: prev.pieces?.length ?? 0,
+        });
+        const updatedValues = clearControlValues({
+          repoId,
+          coordKey: coord,
+          pieces: prev.pieces,
+          pieceValues: workingValues,
+        });
+        if (updatedValues === workingValues) {
+          console.info('[ControlDeletion] No values changed after clear request', {
+            coord,
+            repoId,
+          });
+          continue;
+        }
+
+        console.info('[ControlDeletion] Control data cleared, updating malla values', {
+          coord,
+          repoId,
+        });
+        workingValues = updatedValues;
+        changed = true;
+      }
+
+      if (!changed) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        values: workingValues,
+      };
+    });
+  }, [pendingControlDataClearTick]);
 
   const clearPersistedProjectMetadata = useCallback(() => {
     clearStoredActiveProject();
@@ -1075,38 +1152,15 @@ export default function App(): JSX.Element | null {
   const handleRequestControlDataClear = useCallback(
     (coord: string) => {
       if (!activeRepoId) return;
-      console.info('[ControlDeletion] Clearing data for control', {
+      console.info('[ControlDeletion] Queueing data clear request for control', {
         coord,
         repoId: activeRepoId,
       });
-      setMalla((prev) => {
-        if (!prev) return prev;
-        console.info('[ControlDeletion] Previous malla values snapshot before clearing', {
-          hasValues: Boolean(prev.values?.[activeRepoId]),
-          pieceCount: prev.pieces?.length ?? 0,
-        });
-        const nextValues = clearControlValues({
-          repoId: activeRepoId,
-          coordKey: coord,
-          pieces: prev.pieces,
-          pieceValues: prev.values,
-        });
-        if (nextValues === prev.values) {
-          console.info('[ControlDeletion] No values changed after clear request', {
-            coord,
-            repoId: activeRepoId,
-          });
-          return prev;
-        }
-        console.info('[ControlDeletion] Control data cleared, updating malla values', {
-          coord,
-          repoId: activeRepoId,
-        });
-        return {
-          ...prev,
-          values: nextValues,
-        };
+      pendingControlDataClearsRef.current.push({
+        coord,
+        repoId: activeRepoId,
       });
+      bumpPendingControlDataClearTick((tick) => tick + 1);
     },
     [activeRepoId],
   );
