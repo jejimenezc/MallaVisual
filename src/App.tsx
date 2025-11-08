@@ -1228,8 +1228,15 @@ export default function App(): JSX.Element | null {
 
     const previousSnapshot = previousTemplateControlsRef.current.get(repoId);
     const previousControls = previousSnapshot?.active ?? new Set<string>();
-    const previouslyCleaned = previousSnapshot?.cleaned ?? new Set<string>();
+    const previouslyCleaned = new Set(previousSnapshot?.cleaned ?? []);
     const coordsToClear = new Set<string>();
+
+    // Detect controls that were previously cleaned but have reappeared in the template.
+    // They must be removed from the "already cleaned" set before computing new cleanups
+    // so future deletions can be processed normally.
+    for (const coord of currentControls) {
+      previouslyCleaned.delete(coord);
+    }
 
     for (const coord of previousControls) {
       if (currentControls.has(coord)) continue;
@@ -1244,9 +1251,6 @@ export default function App(): JSX.Element | null {
     }
 
     const nextCleaned = new Set(previouslyCleaned);
-    for (const coord of currentControls) {
-      nextCleaned.delete(coord);
-    }
     for (const coord of coordsToClear) {
       nextCleaned.add(coord);
     }
