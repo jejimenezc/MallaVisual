@@ -347,6 +347,7 @@ export default function App(): JSX.Element | null {
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const mallaRef = useRef<MallaExport | null>(malla);
   const pendingControlDataClearsRef = useRef<ControlDataClearRequest[]>([]);
+  const previousTemplateControlsRef = useRef<Map<string, Set<string>>>(new Map());
   const [pendingControlDataClearTick, bumpPendingControlDataClearTick] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(
     storedActiveProjectRef.current.id,
@@ -1165,6 +1166,41 @@ export default function App(): JSX.Element | null {
     [activeRepoId],
   );
 
+  useEffect(() => {
+    const repoId = block?.repoId ?? null;
+    if (!repoId) {
+      previousTemplateControlsRef.current = new Map();
+      return;
+    }
+
+    const template = block?.draft.template;
+    const currentControls = new Set<string>();
+
+    if (template) {
+      for (let r = 0; r < template.length; r += 1) {
+        const row = template[r] ?? [];
+        for (let c = 0; c < row.length; c += 1) {
+          const cell = row[c];
+          if (!cell?.active || !cell.type) continue;
+          currentControls.add(coordKey(r, c));
+        }
+      }
+    }
+
+    const previousControls = previousTemplateControlsRef.current.get(repoId);
+    if (previousControls) {
+      for (const coord of previousControls) {
+        if (!currentControls.has(coord)) {
+          handleRequestControlDataClear(coord);
+        }
+      }
+    }
+
+    const updatedControls = new Map(previousTemplateControlsRef.current);
+    updatedControls.set(repoId, currentControls);
+    previousTemplateControlsRef.current = updatedControls;
+  }, [block?.draft.template, block?.repoId, handleRequestControlDataClear]);
+  
   useEffect(() => {
     setBlock((prev) => {
       if (!prev?.repoId) return prev;
