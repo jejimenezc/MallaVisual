@@ -210,20 +210,20 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const handleConfirmDeleteControl = useCallback(
     (coord: string) => {
       if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
-        console.info('[ControlDeletion] No confirmation required before deleting control', {
+        console.info('[ControlDeletion] No diff cleanup confirmation required before deleting control', {
           coord,
           repoId,
         });
         return true;
       }
-      console.info('[ControlDeletion] Requesting confirmation before deleting control', {
+      console.info('[ControlDeletion] Requesting confirmation before diff cleanup deletion', {
         coord,
         repoId,
       });
       const shouldDelete = window.confirm(
         'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
       );
-      console.info('[ControlDeletion] Confirmation result', {
+      console.info('[ControlDeletion] Diff cleanup confirmation result', {
         coord,
         repoId,
         shouldDelete,
@@ -235,7 +235,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const handleControlDeleted = useCallback(
     (coord: string) => {
-      console.info('[ControlDeletion] Control deletion confirmed in template editor', {
+      console.info('[ControlDeletion] Control deletion confirmed; diff cleanup scheduled', {
         coord,
         repoId,
       });

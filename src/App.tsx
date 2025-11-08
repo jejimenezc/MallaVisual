@@ -133,6 +133,50 @@ interface ControlDataClearRequest {
   coord: string;
 }
 
+type PieceValueMap = Record<string, Record<string, string | number | boolean>>;
+
+function summarizePieceValues(values: PieceValueMap) {
+  const pieceIds = Object.keys(values);
+  let entryCount = 0;
+  let nonEmptyPieceCount = 0;
+
+  for (const pieceId of pieceIds) {
+    const entryKeys = Object.keys(values[pieceId] ?? {});
+    if (entryKeys.length > 0) {
+      nonEmptyPieceCount += 1;
+      entryCount += entryKeys.length;
+    }
+  }
+
+  return {
+    pieceCount: pieceIds.length,
+    nonEmptyPieceCount,
+    entryCount,
+    hasValues: entryCount > 0,
+  };
+}
+
+function diffPieceValues(prevValues: PieceValueMap, nextValues: PieceValueMap) {
+  const removedPieceIds: string[] = [];
+  const clearedValueKeysByPiece: Record<string, string[]> = {};
+
+  for (const pieceId of Object.keys(prevValues)) {
+    const prevForPiece = prevValues[pieceId];
+    const nextForPiece = nextValues[pieceId];
+    if (!nextForPiece) {
+      removedPieceIds.push(pieceId);
+      continue;
+    }
+    if (prevForPiece === nextForPiece) continue;
+    const removedKeys = Object.keys(prevForPiece).filter((key) => !(key in nextForPiece));
+    if (removedKeys.length > 0) {
+      clearedValueKeysByPiece[pieceId] = removedKeys;
+    }
+  }
+
+  return { removedPieceIds, clearedValueKeysByPiece };
+}
+
 function prepareMallaProjectState(
   data: MallaExport,
   repositorySnapshot: RepositorySnapshot,
@@ -410,15 +454,21 @@ export default function App(): JSX.Element | null {
       let changed = false;
 
       for (const { repoId, coord } of uniqueRequests.values()) {
-        console.info('[ControlDeletion] Processing queued data clear request', {
+        const beforeSummary = summarizePieceValues(workingValues);
+
+        console.info('[ControlDeletion] Processing diff cleanup request', {
           coord,
           repoId,
+          queuedRequestCount: uniqueRequests.size,
         });
-        console.info('[ControlDeletion] Previous malla values snapshot before clearing', {
+        console.info('[ControlDeletion] Snapshot before applying control value diff', {
           coord,
           repoId,
-          hasValues: Boolean(workingValues[repoId]),
+          hasValues: beforeSummary.hasValues,
           pieceCount: prev.pieces?.length ?? 0,
+          trackedPieceCount: beforeSummary.pieceCount,
+          nonEmptyPieceCount: beforeSummary.nonEmptyPieceCount,
+          entryCount: beforeSummary.entryCount,
         });
         const updatedValues = clearControlValues({
           repoId,
@@ -427,16 +477,33 @@ export default function App(): JSX.Element | null {
           pieceValues: workingValues,
         });
         if (updatedValues === workingValues) {
-          console.info('[ControlDeletion] No values changed after clear request', {
+          console.info('[ControlDeletion] No control value diff generated for request', {
             coord,
             repoId,
+            hasValues: beforeSummary.hasValues,
           });
           continue;
         }
 
-        console.info('[ControlDeletion] Control data cleared, updating malla values', {
+        const diffSummary = diffPieceValues(workingValues, updatedValues);
+        const afterSummary = summarizePieceValues(updatedValues);
+
+        console.info('[ControlDeletion] Applied control value diff', {
           coord,
           repoId,
+          diff: diffSummary,
+          totals: {
+            before: {
+              trackedPieceCount: beforeSummary.pieceCount,
+              nonEmptyPieceCount: beforeSummary.nonEmptyPieceCount,
+              entryCount: beforeSummary.entryCount,
+            },
+            after: {
+              trackedPieceCount: afterSummary.pieceCount,
+              nonEmptyPieceCount: afterSummary.nonEmptyPieceCount,
+              entryCount: afterSummary.entryCount,
+            },
+          },
         });
         workingValues = updatedValues;
         changed = true;
@@ -1173,13 +1240,14 @@ export default function App(): JSX.Element | null {
 
       let added = false;
       for (const coord of coords) {
-        console.info('[ControlDeletion] Queueing data clear request for control', {
-          coord,
-          repoId: activeRepoId,
-        });
         pendingControlDataClearsRef.current.push({
           coord,
           repoId: activeRepoId,
+        });
+        console.info('[ControlDeletion] Queueing diff cleanup request for control', {
+          coord,
+          repoId: activeRepoId,
+          pendingQueueSize: pendingControlDataClearsRef.current.length,
         });
         added = true;
       }
