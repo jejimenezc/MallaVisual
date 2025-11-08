@@ -8,7 +8,7 @@ import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { VisualTemplate, BlockAspect, VisualStyle, ConditionalBg, coordKey } from '../types/visual.ts';
+import { VisualTemplate, BlockAspect, VisualStyle, coordKey } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
@@ -39,12 +39,6 @@ import { collectSelectControls, findSelectControlNameAt } from '../utils/selectC
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
-
-const removeSelectSource = (conditional?: ConditionalBg): ConditionalBg | undefined => {
-  if (!conditional) return undefined;
-  const { selectSource: _selectSource, ...rest } = conditional;
-  return Object.keys(rest).length ? rest : undefined;
-};
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -177,6 +171,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         let didChange = false;
         const nextVisual: VisualTemplate = { ...currentVisual };
 
+        if (nextVisual[targetCoord]) {
+          delete nextVisual[targetCoord];
+          didChange = true;
+        }
+
         Object.entries(currentVisual).forEach(([key, style]) => {
           if (!style) return;
           const selectSource = style.conditionalBg?.selectSource;
@@ -185,14 +184,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           const matchesName = controlName ? selectSource.controlName === controlName : false;
           if (!matchesCoord && !matchesName) return;
 
-          const nextStyle: VisualStyle = { ...style };
-          const nextConditional = removeSelectSource(style.conditionalBg);
-          if (nextConditional) {
-            nextStyle.conditionalBg = nextConditional;
-          } else {
-            delete nextStyle.conditionalBg;
-          }
-          nextVisual[key] = nextStyle;
+          delete nextVisual[key];
           didChange = true;
         });
 
