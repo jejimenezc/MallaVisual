@@ -42,6 +42,11 @@ import { handleProjectFile } from './utils/project-file.ts';
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
 
+interface TemplateControlSnapshot {
+  active: Set<string>;
+  cleaned: Set<string>;
+}
+
 function getSafeLocalStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -347,7 +352,9 @@ export default function App(): JSX.Element | null {
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const mallaRef = useRef<MallaExport | null>(malla);
   const pendingControlDataClearsRef = useRef<ControlDataClearRequest[]>([]);
-  const previousTemplateControlsRef = useRef<Map<string, Set<string>>>(new Map());
+  const previousTemplateControlsRef = useRef<Map<string, TemplateControlSnapshot>>(
+    new Map<string, TemplateControlSnapshot>(),
+  );
   const [pendingControlDataClearTick, bumpPendingControlDataClearTick] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(
     storedActiveProjectRef.current.id,
@@ -1169,7 +1176,7 @@ export default function App(): JSX.Element | null {
   useEffect(() => {
     const repoId = block?.repoId ?? null;
     if (!repoId) {
-      previousTemplateControlsRef.current = new Map();
+      previousTemplateControlsRef.current = new Map<string, TemplateControlSnapshot>();
       return;
     }
 
@@ -1187,17 +1194,33 @@ export default function App(): JSX.Element | null {
       }
     }
 
-    const previousControls = previousTemplateControlsRef.current.get(repoId);
-    if (previousControls) {
-      for (const coord of previousControls) {
-        if (!currentControls.has(coord)) {
-          handleRequestControlDataClear(coord);
-        }
+    const previousSnapshot = previousTemplateControlsRef.current.get(repoId);
+    const previousControls = previousSnapshot?.active ?? new Set<string>();
+    const previouslyCleaned = previousSnapshot?.cleaned ?? new Set<string>();
+    const coordsToClear = new Set<string>();
+
+    for (const coord of previousControls) {
+      if (currentControls.has(coord)) continue;
+      if (previouslyCleaned.has(coord)) continue;
+      coordsToClear.add(coord);
+    }
+
+    if (coordsToClear.size > 0) {
+      for (const coord of coordsToClear) {
+        handleRequestControlDataClear(coord);
       }
     }
 
+    const nextCleaned = new Set(previouslyCleaned);
+    for (const coord of currentControls) {
+      nextCleaned.delete(coord);
+    }
+    for (const coord of coordsToClear) {
+      nextCleaned.add(coord);
+    }
+
     const updatedControls = new Map(previousTemplateControlsRef.current);
-    updatedControls.set(repoId, currentControls);
+    updatedControls.set(repoId, { active: currentControls, cleaned: nextCleaned });
     previousTemplateControlsRef.current = updatedControls;
   }, [block?.draft.template, block?.repoId, handleRequestControlDataClear]);
   
