@@ -162,14 +162,42 @@ export function clearControlValues({
       continue;
     }
 
-    const valueKey = `r${localRow}c${localCol}`;
     const currentValues = getCurrentValues(piece.id);
-    if (!currentValues || !(valueKey in currentValues)) {
+    if (!currentValues) {
+      continue;
+    }
+
+    const expectedKey = `r${localRow}c${localCol}`;
+    const keysToDelete = new Set<string>();
+
+    if (expectedKey in currentValues) {
+      keysToDelete.add(expectedKey);
+    }
+
+    if (keysToDelete.size === 0) {
+      for (const key of Object.keys(currentValues)) {
+        const match = /^r(\d+)c(\d+)/.exec(key);
+        if (!match) continue;
+        const localKeyRow = Number.parseInt(match[1] ?? '', 10);
+        const localKeyCol = Number.parseInt(match[2] ?? '', 10);
+        if (Number.isNaN(localKeyRow) || Number.isNaN(localKeyCol)) continue;
+
+        const absoluteRow = bounds.minRow + localKeyRow;
+        const absoluteCol = bounds.minCol + localKeyCol;
+        if (absoluteRow === targetRow && absoluteCol === targetCol) {
+          keysToDelete.add(key);
+        }
+      }
+    }
+
+    if (keysToDelete.size === 0) {
       continue;
     }
 
     const nextForPiece = { ...currentValues };
-    delete nextForPiece[valueKey];
+    for (const key of keysToDelete) {
+      delete nextForPiece[key];
+    }
 
     if (Object.keys(nextForPiece).length === 0) {
       removals.add(piece.id);

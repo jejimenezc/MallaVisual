@@ -79,6 +79,42 @@ describe('clearControlValues', () => {
     expect(originalValues['ref-1']).toHaveProperty('r1c1', 'old-value');
   });
 
+  it('clears boolean values persisted by checkbox controls', () => {
+    const pieces = buildSamplePieces();
+    const originalValues = {
+      'ref-1': { 'r0c0': 'keep', 'r1c1': true },
+      'ref-2': { 'r0c0': 'other' },
+    } satisfies Record<string, Record<string, string | number | boolean>>;
+
+    const result = clearControlValues({
+      repoId: 'repo-1',
+      coordKey: '3-4',
+      pieces,
+      pieceValues: originalValues,
+    });
+
+    expect(result['ref-1']).toEqual({ 'r0c0': 'keep' });
+    expect(result['ref-2']).toBe(originalValues['ref-2']);
+  });
+
+  it('clears values stored with extended checkbox keys for backwards compatibility', () => {
+    const pieces = buildSamplePieces();
+    const originalValues = {
+      'ref-1': { 'r0c0': 'keep', 'r1c1::checkbox': true },
+      'ref-2': { 'r0c0': 'other' },
+    } satisfies Record<string, Record<string, string | number | boolean>>;
+
+    const result = clearControlValues({
+      repoId: 'repo-1',
+      coordKey: '3-4',
+      pieces,
+      pieceValues: originalValues,
+    });
+
+    expect(result['ref-1']).toEqual({ 'r0c0': 'keep' });
+    expect(result['ref-2']).toBe(originalValues['ref-2']);
+  });
+
   it('keeps snapshot control values even when they contain origin metadata', () => {
     const pieces = buildSamplePieces();
     const originalValues = {
