@@ -1157,20 +1157,52 @@ export default function App(): JSX.Element | null {
 
   const activeRepoId = block?.repoId ?? null;
 
-  const handleRequestControlDataClear = useCallback(
-    (coord: string) => {
+  const schedulePendingControlDataClearFlush = useCallback(() => {
+    if (typeof React.startTransition === 'function') {
+      React.startTransition(() => {
+        bumpPendingControlDataClearTick((tick) => tick + 1);
+      });
+      return;
+    }
+    bumpPendingControlDataClearTick((tick) => tick + 1);
+  }, [bumpPendingControlDataClearTick]);
+
+  const enqueueControlDataClearRequests = useCallback(
+    (coords: Iterable<string>) => {
       if (!activeRepoId) return;
-      console.info('[ControlDeletion] Queueing data clear request for control', {
-        coord,
-        repoId: activeRepoId,
-      });
-      pendingControlDataClearsRef.current.push({
-        coord,
-        repoId: activeRepoId,
-      });
-      bumpPendingControlDataClearTick((tick) => tick + 1);
+
+      let added = false;
+      for (const coord of coords) {
+        console.info('[ControlDeletion] Queueing data clear request for control', {
+          coord,
+          repoId: activeRepoId,
+        });
+        pendingControlDataClearsRef.current.push({
+          coord,
+          repoId: activeRepoId,
+        });
+        added = true;
+      }
+
+      if (!added) {
+        return;
+      }
+
+      schedulePendingControlDataClearFlush();
     },
-    [activeRepoId],
+    [activeRepoId, schedulePendingControlDataClearFlush],
+  );
+
+  const handleRequestControlDataClear = useCallback(
+    (coordOrCoords: string | Iterable<string>) => {
+      if (typeof coordOrCoords === 'string') {
+        enqueueControlDataClearRequests([coordOrCoords]);
+        return;
+      }
+
+      enqueueControlDataClearRequests(coordOrCoords);
+    },
+    [enqueueControlDataClearRequests],
   );
 
   useEffect(() => {
