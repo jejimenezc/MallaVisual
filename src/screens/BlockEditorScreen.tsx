@@ -1,14 +1,14 @@
 // src/screens/BlockEditorScreen.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { BlockTemplate } from '../types/curricular.ts';
-import { BlockTemplateEditor } from '../components/BlockTemplateEditor';
+import { BlockTemplateEditor, type ControlCleanupMode } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
 import { ContextSidebarPanel } from '../components/ContextSidebarPanel';
 import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { VisualTemplate, BlockAspect, VisualStyle, ConditionalBg, coordKey } from '../types/visual.ts';
+import { VisualTemplate, BlockAspect, VisualStyle, coordKey } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
@@ -39,12 +39,6 @@ import { collectSelectControls, findSelectControlNameAt } from '../utils/selectC
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
-
-const removeSelectSource = (conditional?: ConditionalBg): ConditionalBg | undefined => {
-  if (!conditional) return undefined;
-  const { selectSource: _selectSource, ...rest } = conditional;
-  return Object.keys(rest).length ? rest : undefined;
-};
 
 const isInteractiveElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -91,6 +85,8 @@ interface BlockEditorScreenProps {
     aspect: BlockAspect;
   }) => void;
   isBlockInUse?: boolean;
+  controlsInUse?: Map<string, ReadonlySet<string>>;
+  onRequestControlDataClear?: (coord: string) => void;
 }
 
 export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
@@ -107,6 +103,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   onRepoMetadataChange,
   onPublishBlock,
   isBlockInUse = false,
+  controlsInUse,
+  onRequestControlDataClear,
 }) => {
   const {
     setHandler,
@@ -135,7 +133,15 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     updateBlockMetadata: repoUpdateBlockMetadata,
   } = useBlocksRepo();
   const savedRef = useRef<string | null>(null);
+  const proceedHandlerRef = useRef<ProceedToMallaHandler | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
+  const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
+  const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
+    initialRepoMetadata ?? null,
+  );
+  const [repoName, setRepoName] = useState<string>(
+    initialRepoMetadata?.name ?? initialRepoName ?? '',
+  );
 
   useEffect(() => {
     const sync = () => setRepoBlocks(listBlocks());
@@ -165,6 +171,11 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         let didChange = false;
         const nextVisual: VisualTemplate = { ...currentVisual };
 
+        if (nextVisual[targetCoord]) {
+          delete nextVisual[targetCoord];
+          didChange = true;
+        }
+
         Object.entries(currentVisual).forEach(([key, style]) => {
           if (!style) return;
           const selectSource = style.conditionalBg?.selectSource;
@@ -173,14 +184,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           const matchesName = controlName ? selectSource.controlName === controlName : false;
           if (!matchesCoord && !matchesName) return;
 
-          const nextStyle: VisualStyle = { ...style };
-          const nextConditional = removeSelectSource(style.conditionalBg);
-          if (nextConditional) {
-            nextStyle.conditionalBg = nextConditional;
-          } else {
-            delete nextStyle.conditionalBg;
-          }
-          nextVisual[key] = nextStyle;
+          delete nextVisual[key];
           didChange = true;
         });
 
@@ -188,6 +192,53 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       });
     },
     [setVisual],
+  );
+
+  const controlsInUseForRepo = useMemo(() => {
+    if (!repoId) return undefined;
+    return controlsInUse?.get(repoId);
+  }, [controlsInUse, repoId]);
+
+  const handleConfirmDeleteControl = useCallback(
+    (coord: string, mode: ControlCleanupMode) => {
+      if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
+        console.info('[ControlDeletion] No diff cleanup confirmation required before deleting control', {
+          coord,
+          repoId,
+          mode,
+        });
+        return true;
+      }
+      console.info('[ControlDeletion] Requesting confirmation before diff cleanup deletion', {
+        coord,
+        repoId,
+        mode,
+      });
+      const message =
+        mode === 'replace'
+          ? 'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?'
+          : 'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?';
+      const shouldDelete = window.confirm(message);
+      console.info('[ControlDeletion] Diff cleanup confirmation result', {
+        coord,
+        repoId,
+        shouldDelete,
+        mode,
+      });
+      return shouldDelete;
+    },
+    [controlsInUseForRepo, repoId],
+  );
+
+  const handleControlDeleted = useCallback(
+    (coord: string) => {
+      console.info('[ControlDeletion] Control deletion confirmed; diff cleanup scheduled', {
+        coord,
+        repoId,
+      });
+      onRequestControlDataClear?.(coord);
+    },
+    [onRequestControlDataClear, repoId],
   );
 
   useEffect(() => {
@@ -293,14 +344,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const persistedProjectRef = useRef<MallaExport | null>(null);
   const hasLoadedProjectRef = useRef(false);
-
-  const [repoId, setRepoId] = useState<string | null>(initialRepoId ?? null);
-  const [repoMetadata, setRepoMetadata] = useState<BlockMetadata | null>(
-    initialRepoMetadata ?? null,
-  );
-  const [repoName, setRepoName] = useState<string>(
-    initialRepoMetadata?.name ?? initialRepoName ?? '',
-  );
 
   useEffect(() => {
     setRepoId(initialRepoId ?? null);
@@ -813,12 +856,29 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     />
   );
 
+  const proceedHandlerRegistrarRef = useRef<typeof setHandler | null>(null);
+
   useEffect(() => {
+    if (
+      proceedHandlerRef.current === ensurePublishedAndProceed &&
+      proceedHandlerRegistrarRef.current === setHandler
+    ) {
+      return;
+    }
     setHandler(ensurePublishedAndProceed);
+    proceedHandlerRef.current = ensurePublishedAndProceed;
+    proceedHandlerRegistrarRef.current = setHandler;
+  }, [setHandler, ensurePublishedAndProceed]);
+
+  useEffect(() => {
     return () => {
-      resetHandler();
+      if (proceedHandlerRef.current) {
+        resetHandler();
+        proceedHandlerRef.current = null;
+        proceedHandlerRegistrarRef.current = null;
+      }
     };
-  }, [setHandler, resetHandler, ensurePublishedAndProceed]);
+  }, [resetHandler]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -879,6 +939,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               setTemplate={setTemplate}
               onSidebarStateChange={setEditorSidebar}
               onClearSelectVisual={handleClearSelectVisual}
+              controlsInUse={controlsInUseForRepo}
+              onConfirmDeleteControl={handleConfirmDeleteControl}
+              onControlDeleted={handleControlDeleted}
             />
           }
           right={

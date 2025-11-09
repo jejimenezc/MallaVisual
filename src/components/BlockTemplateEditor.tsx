@@ -8,12 +8,17 @@ import './BlockTemplateEditor.css';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { findSelectControlNameAt } from '../utils/selectControls.ts';
 
+export type ControlCleanupMode = 'delete' | 'replace';
+
 interface Props {
   template: BlockTemplate;
   setTemplate: React.Dispatch<React.SetStateAction<BlockTemplate>>;
   /** Publica al padre el estado necesario para el ContextSidebarPanel */
   onSidebarStateChange?: (state: EditorSidebarState) => void;
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
+  controlsInUse?: ReadonlySet<string>;
+  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => boolean;
+  onControlDeleted?: (coord: string) => void;
 }
 
 export const BlockTemplateEditor: React.FC<Props> = ({
@@ -21,6 +26,9 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   setTemplate,
   onSidebarStateChange,
   onClearSelectVisual,
+  controlsInUse,
+  onConfirmDeleteControl,
+  onControlDeleted,
 }) => {
   const [selectedCells, setSelectedCells] = useState<{ row: number; col: number }[]>([]);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -146,8 +154,17 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     const { row, col } = contextMenu;
     const k = coordKey(row, col);
 
-    if (type === undefined) {
-      // 🗑️ BORRAR: 1) ignorar escrituras de forms mientras desmontan  2) limpiar campos  3) reactivar escrituras
+    const confirmCleanupIfNeeded = (mode: ControlCleanupMode) => {
+      const isControlInUse = controlsInUse?.has(k) ?? false;
+      if (!isControlInUse) return true;
+      const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k, mode) : true;
+      if (!confirmed) {
+        setContextMenu(null);
+      }
+      return confirmed;
+    };
+
+    const performCleanup = () => {
       ignoreUpdatesRef.current.add(k);
       const previousName = findSelectControlNameAt(template, row, col) ?? undefined;
 
@@ -166,30 +183,66 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       });
 
       onClearSelectVisual?.({ row, col, controlName: previousName });
+      onControlDeleted?.(k);
 
-      // Permite que el cleanup de los forms ocurra sin reescribir (siguiente tick)
-      setTimeout(() => {
-        ignoreUpdatesRef.current.delete(k);
-      }, 0);
+      return () => {
+        setTimeout(() => {
+          ignoreUpdatesRef.current.delete(k);
+        }, 0);
+      };
+    };
+
+    if (type === undefined) {
+      if (!confirmCleanupIfNeeded('delete')) {
+        return;
+      }
+      const release = performCleanup();
+      release();
     } else {
-      // Asignar nuevo tipo y activar celda, limpiando propiedades previas
-      setTemplate((prev) => {
-        const updated = prev.map((r) => r.map((c) => ({ ...c }))) as BlockTemplate;
-        updated[row][col] = {
-          ...updated[row][col],
-          type,
-          active: true,
-          label: '',
-          placeholder: type === 'text' || type === 'number' ? '' : undefined,
-          dropdownOptions: type === 'select' ? [] : undefined,
-          decimalDigits: type === 'number' ? 0 : undefined,
-          expression: undefined,
-        };
+      const currentType = template[row][col].type;
+      const isReplacement = currentType && currentType !== type;
 
-        return updated;
-      });
+      if (isReplacement) {
+        if (!confirmCleanupIfNeeded('replace')) {
+          return;
+        }
+        const release = performCleanup();
 
-      // Selección única a esa celda (opcional, como veníamos haciendo)
+        setTemplate((prev) => {
+          const updated = prev.map((r) => r.map((c) => ({ ...c }))) as BlockTemplate;
+          updated[row][col] = {
+            ...updated[row][col],
+            type,
+            active: true,
+            label: '',
+            placeholder: type === 'text' || type === 'number' ? '' : undefined,
+            dropdownOptions: type === 'select' ? [] : undefined,
+            decimalDigits: type === 'number' ? 0 : undefined,
+            expression: undefined,
+          };
+
+          return updated;
+        });
+
+        release();
+      } else {
+        setTemplate((prev) => {
+          const updated = prev.map((r) => r.map((c) => ({ ...c }))) as BlockTemplate;
+          updated[row][col] = {
+            ...updated[row][col],
+            type,
+            active: true,
+            label: '',
+            placeholder: type === 'text' || type === 'number' ? '' : undefined,
+            dropdownOptions: type === 'select' ? [] : undefined,
+            decimalDigits: type === 'number' ? 0 : undefined,
+            expression: undefined,
+          };
+
+          return updated;
+        });
+      }
+
       setTimeout(() => {
         setSelectedCells([{ row, col }]);
       }, 0);

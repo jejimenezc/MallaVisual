@@ -1,6 +1,10 @@
 // src/utils/malla-sync.ts
 import type { BlockExport } from './block-io.ts';
-import type { CurricularPiece, MasterBlockData } from '../types/curricular.ts';
+import type {
+  CurricularPiece,
+  MasterBlockData,
+  BlockSourceRef,
+} from '../types/curricular.ts';
 import {
   blockContentEquals,
   cloneBlockContent,
@@ -86,4 +90,140 @@ export function remapPiecesWithMapping(
 export function remapIds(ids: string[] | undefined, mapping: Map<string, string>): string[] {
   if (!ids || ids.length === 0) return [];
   return ids.map((id) => mapping.get(id) ?? id);
+}
+
+interface ClearControlValuesParams {
+  repoId: string | null | undefined;
+  coordKey: string;
+  pieces?: CurricularPiece[];
+  pieceValues?: Record<string, Record<string, string | number | boolean>>;
+}
+
+function parseCoordKey(key: string): { row: number; col: number } | null {
+  const [rowStr, colStr] = key.split('-');
+  const row = Number.parseInt(rowStr ?? '', 10);
+  const col = Number.parseInt(colStr ?? '', 10);
+  if (Number.isNaN(row) || Number.isNaN(col)) {
+    return null;
+  }
+  return { row, col };
+}
+
+function getPieceOrigin(piece: CurricularPiece): BlockSourceRef | null {
+  if (piece.kind === 'ref') {
+    return piece.ref;
+  }
+  return null;
+}
+
+export function clearControlValues({
+  repoId,
+  coordKey: targetCoordKey,
+  pieces = [],
+  pieceValues = {},
+}: ClearControlValuesParams): Record<string, Record<string, string | number | boolean>> {
+  if (!repoId) return pieceValues;
+  const parsed = parseCoordKey(targetCoordKey);
+  if (!parsed) return pieceValues;
+  const { row: targetRow, col: targetCol } = parsed;
+
+  const updates = new Map<string, Record<string, string | number | boolean>>();
+  const removals = new Set<string>();
+  let changed = false;
+
+  const getCurrentValues = (pieceId: string) => {
+    if (removals.has(pieceId)) return undefined;
+    if (updates.has(pieceId)) return updates.get(pieceId);
+    return pieceValues[pieceId];
+  };
+
+  for (const piece of pieces) {
+    // Only ref pieces are eligible for cleanup. Snapshots may include
+    // historical origin metadata but their control values must be preserved
+    // so editing snapshots does not unexpectedly wipe user input.
+    const origin = getPieceOrigin(piece);
+    if (!origin || origin.sourceId !== repoId) {
+      continue;
+    }
+    const bounds = origin.bounds;
+    if (!bounds) continue;
+    if (
+      targetRow < bounds.minRow ||
+      targetRow > bounds.maxRow ||
+      targetCol < bounds.minCol ||
+      targetCol > bounds.maxCol
+    ) {
+      continue;
+    }
+
+    const localRow = targetRow - bounds.minRow;
+    const localCol = targetCol - bounds.minCol;
+    if (localRow < 0 || localCol < 0 || localRow >= bounds.rows || localCol >= bounds.cols) {
+      continue;
+    }
+
+    const currentValues = getCurrentValues(piece.id);
+    if (!currentValues) {
+      continue;
+    }
+
+    const expectedKey = `r${localRow}c${localCol}`;
+    const keysToDelete = new Set<string>();
+
+    if (expectedKey in currentValues) {
+      keysToDelete.add(expectedKey);
+    }
+
+    if (keysToDelete.size === 0) {
+      for (const key of Object.keys(currentValues)) {
+        const match = /^r(\d+)c(\d+)/.exec(key);
+        if (!match) continue;
+        const localKeyRow = Number.parseInt(match[1] ?? '', 10);
+        const localKeyCol = Number.parseInt(match[2] ?? '', 10);
+        if (Number.isNaN(localKeyRow) || Number.isNaN(localKeyCol)) continue;
+
+        const absoluteRow = bounds.minRow + localKeyRow;
+        const absoluteCol = bounds.minCol + localKeyCol;
+        if (absoluteRow === targetRow && absoluteCol === targetCol) {
+          keysToDelete.add(key);
+        }
+      }
+    }
+
+    if (keysToDelete.size === 0) {
+      continue;
+    }
+
+    const nextForPiece = { ...currentValues };
+    for (const key of keysToDelete) {
+      delete nextForPiece[key];
+    }
+
+    if (Object.keys(nextForPiece).length === 0) {
+      removals.add(piece.id);
+      updates.delete(piece.id);
+    } else {
+      updates.set(piece.id, nextForPiece);
+    }
+
+    changed = true;
+  }
+
+  if (!changed) {
+    return pieceValues;
+  }
+
+  const nextValues: Record<string, Record<string, string | number | boolean>> = {
+    ...pieceValues,
+  };
+
+  for (const pieceId of removals) {
+    delete nextValues[pieceId];
+  }
+
+  for (const [pieceId, values] of updates) {
+    nextValues[pieceId] = values;
+  }
+
+  return nextValues;
 }

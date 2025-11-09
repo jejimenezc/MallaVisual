@@ -4,6 +4,7 @@ import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import type { BlockTemplate, MasterBlockData } from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
+import { coordKey } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -33,12 +34,18 @@ import {
   remapPiecesWithMapping,
   synchronizeMastersWithRepository,
   remapIds,
+  clearControlValues,
 } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
+
+interface TemplateControlSnapshot {
+  active: Set<string>;
+  cleaned: Set<string>;
+}
 
 function getSafeLocalStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -119,6 +126,55 @@ function createEmptyMaster(): MasterBlockData {
     visual: {},
     aspect: '1/1',
   };
+}
+
+interface ControlDataClearRequest {
+  repoId: string;
+  coord: string;
+}
+
+type PieceValueMap = Record<string, Record<string, string | number | boolean>>;
+
+function summarizePieceValues(values: PieceValueMap) {
+  const pieceIds = Object.keys(values);
+  let entryCount = 0;
+  let nonEmptyPieceCount = 0;
+
+  for (const pieceId of pieceIds) {
+    const entryKeys = Object.keys(values[pieceId] ?? {});
+    if (entryKeys.length > 0) {
+      nonEmptyPieceCount += 1;
+      entryCount += entryKeys.length;
+    }
+  }
+
+  return {
+    pieceCount: pieceIds.length,
+    nonEmptyPieceCount,
+    entryCount,
+    hasValues: entryCount > 0,
+  };
+}
+
+function diffPieceValues(prevValues: PieceValueMap, nextValues: PieceValueMap) {
+  const removedPieceIds: string[] = [];
+  const clearedValueKeysByPiece: Record<string, string[]> = {};
+
+  for (const pieceId of Object.keys(prevValues)) {
+    const prevForPiece = prevValues[pieceId];
+    const nextForPiece = nextValues[pieceId];
+    if (!nextForPiece) {
+      removedPieceIds.push(pieceId);
+      continue;
+    }
+    if (prevForPiece === nextForPiece) continue;
+    const removedKeys = Object.keys(prevForPiece).filter((key) => !(key in nextForPiece));
+    if (removedKeys.length > 0) {
+      clearedValueKeysByPiece[pieceId] = removedKeys;
+    }
+  }
+
+  return { removedPieceIds, clearedValueKeysByPiece };
 }
 
 function prepareMallaProjectState(
@@ -338,6 +394,12 @@ export default function App(): JSX.Element | null {
   const storedActiveProjectRef = useRef(readStoredActiveProject());
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
+  const mallaRef = useRef<MallaExport | null>(malla);
+  const pendingControlDataClearsRef = useRef<ControlDataClearRequest[]>([]);
+  const previousTemplateControlsRef = useRef<Map<string, TemplateControlSnapshot>>(
+    new Map<string, TemplateControlSnapshot>(),
+  );
+  const [pendingControlDataClearTick, bumpPendingControlDataClearTick] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(
     storedActiveProjectRef.current.id,
   );
@@ -355,6 +417,108 @@ export default function App(): JSX.Element | null {
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
   );
+  const repositorySnapshotRef = useRef(repositorySnapshot);
+
+  useEffect(() => {
+    mallaRef.current = malla;
+  }, [malla]);
+
+  useEffect(() => {
+    repositorySnapshotRef.current = repositorySnapshot;
+  }, [repositorySnapshot]);
+
+  useEffect(() => {
+    if (pendingControlDataClearsRef.current.length === 0) {
+      return;
+    }
+
+    const requests = pendingControlDataClearsRef.current;
+    pendingControlDataClearsRef.current = [];
+
+    const uniqueRequests = new Map<string, ControlDataClearRequest>();
+    for (const request of requests) {
+      const key = `${request.repoId}::${request.coord}`;
+      if (!uniqueRequests.has(key)) {
+        uniqueRequests.set(key, request);
+      }
+    }
+
+    if (uniqueRequests.size === 0) {
+      return;
+    }
+
+    setMalla((prev) => {
+      if (!prev) return prev;
+
+      let workingValues = prev.values ?? {};
+      let changed = false;
+
+      for (const { repoId, coord } of uniqueRequests.values()) {
+        const beforeSummary = summarizePieceValues(workingValues);
+
+        console.info('[ControlDeletion] Processing diff cleanup request', {
+          coord,
+          repoId,
+          queuedRequestCount: uniqueRequests.size,
+        });
+        console.info('[ControlDeletion] Snapshot before applying control value diff', {
+          coord,
+          repoId,
+          hasValues: beforeSummary.hasValues,
+          pieceCount: prev.pieces?.length ?? 0,
+          trackedPieceCount: beforeSummary.pieceCount,
+          nonEmptyPieceCount: beforeSummary.nonEmptyPieceCount,
+          entryCount: beforeSummary.entryCount,
+        });
+        const updatedValues = clearControlValues({
+          repoId,
+          coordKey: coord,
+          pieces: prev.pieces,
+          pieceValues: workingValues,
+        });
+        if (updatedValues === workingValues) {
+          console.info('[ControlDeletion] No control value diff generated for request', {
+            coord,
+            repoId,
+            hasValues: beforeSummary.hasValues,
+          });
+          continue;
+        }
+
+        const diffSummary = diffPieceValues(workingValues, updatedValues);
+        const afterSummary = summarizePieceValues(updatedValues);
+
+        console.info('[ControlDeletion] Applied control value diff', {
+          coord,
+          repoId,
+          diff: diffSummary,
+          totals: {
+            before: {
+              trackedPieceCount: beforeSummary.pieceCount,
+              nonEmptyPieceCount: beforeSummary.nonEmptyPieceCount,
+              entryCount: beforeSummary.entryCount,
+            },
+            after: {
+              trackedPieceCount: afterSummary.pieceCount,
+              nonEmptyPieceCount: afterSummary.nonEmptyPieceCount,
+              entryCount: afterSummary.entryCount,
+            },
+          },
+        });
+        workingValues = updatedValues;
+        changed = true;
+      }
+
+      if (!changed) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        values: workingValues,
+      };
+    });
+  }, [pendingControlDataClearTick]);
 
   const clearPersistedProjectMetadata = useCallback(() => {
     clearStoredActiveProject();
@@ -728,51 +892,55 @@ export default function App(): JSX.Element | null {
     [loadProject, handleOpenProject],
   );
 
-  const handleProceedToMalla = (
-    template: BlockTemplate,
-    visual: VisualTemplate,
-    aspect: BlockAspect,
-    targetPath?: string,
-    repoId?: string | null,
-    published?: BlockContent | null,
-  ) => {
-    const destination = targetPath ?? '/malla/design';
-    if (!malla && destination === '/malla/design') {
-      try {
-        window.localStorage.removeItem('malla-editor-state');
-      } catch {
-        /* ignore */
+  const handleProceedToMalla = useCallback(
+    (
+      template: BlockTemplate,
+      visual: VisualTemplate,
+      aspect: BlockAspect,
+      targetPath?: string,
+      repoId?: string | null,
+      published?: BlockContent | null,
+    ) => {
+      const destination = targetPath ?? '/malla/design';
+      if (!mallaRef.current && destination === '/malla/design') {
+        try {
+          window.localStorage.removeItem('malla-editor-state');
+        } catch {
+          /* ignore */
+        }
       }
-    }
-    const content: BlockContent = { template, visual, aspect };
-    setBlock((prev) => {
-      const nextRepoId =
-        repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
-      const draft = cloneBlockContent(content);
-      const nextMetadata =
-        nextRepoId && repositorySnapshot.metadata[nextRepoId]
-          ? repositorySnapshot.metadata[nextRepoId]
-          : nextRepoId
-            ? prev?.repoMetadata ?? null
-            : null;
-      const nextPublished = !nextRepoId
-        ? null
-        : published === undefined
-          ? prev?.published
-            ? cloneBlockContent(prev.published)
-            : null
-          : published === null
-            ? null
-            : cloneBlockContent(published);
-      return {
-        draft,
-        repoId: nextRepoId,
-        repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
-        repoMetadata: nextMetadata,
-        published: nextPublished,
-      };
-    });
-  };
+      const content: BlockContent = { template, visual, aspect };
+      setBlock((prev) => {
+        const snapshot = repositorySnapshotRef.current;
+        const nextRepoId =
+          repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
+        const draft = cloneBlockContent(content);
+        const nextMetadata =
+          nextRepoId && snapshot.metadata[nextRepoId]
+            ? snapshot.metadata[nextRepoId]
+            : nextRepoId
+              ? prev?.repoMetadata ?? null
+              : null;
+        const nextPublished = !nextRepoId
+          ? null
+          : published === undefined
+            ? prev?.published
+              ? cloneBlockContent(prev.published)
+              : null
+            : published === null
+              ? null
+              : cloneBlockContent(published);
+        return {
+          draft,
+          repoId: nextRepoId,
+          repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
+          repoMetadata: nextMetadata,
+          published: nextPublished,
+        };
+      });
+    },
+    [setBlock],
+  );
 
   const handleRepoIdChange = (repoId: string | null) => {
     setBlock((prev) => {
@@ -808,42 +976,45 @@ export default function App(): JSX.Element | null {
     [setBlock],
   );
 
-  const handleBlockPublish = (
-    payload: {
-      repoId: string;
-      metadata: BlockMetadata;
-      template: BlockTemplate;
-      visual: VisualTemplate;
-      aspect: BlockAspect;
-    },
-  ) => {
-    const content: BlockContent = {
-      template: payload.template,
-      visual: payload.visual,
-      aspect: payload.aspect,
-    };
-    const metadata = { ...payload.metadata };
-    setBlock((prev) => {
-      const nextDraft = cloneBlockContent(content);
-      if (!prev) {
+  const handleBlockPublish = useCallback(
+    (
+      payload: {
+        repoId: string;
+        metadata: BlockMetadata;
+        template: BlockTemplate;
+        visual: VisualTemplate;
+        aspect: BlockAspect;
+      },
+    ) => {
+      const content: BlockContent = {
+        template: payload.template,
+        visual: payload.visual,
+        aspect: payload.aspect,
+      };
+      const metadata = { ...payload.metadata };
+      setBlock((prev) => {
+        const nextDraft = cloneBlockContent(content);
+        if (!prev) {
+          return {
+            draft: nextDraft,
+            repoId: payload.repoId,
+            repoName: metadata.name,
+            repoMetadata: metadata,
+            published: cloneBlockContent(nextDraft),
+          };
+        }
         return {
+          ...prev,
           draft: nextDraft,
-          repoId: payload.repoId,
+          repoId: payload.repoId ?? prev.repoId,
           repoName: metadata.name,
           repoMetadata: metadata,
           published: cloneBlockContent(nextDraft),
         };
-      }
-      return {
-        ...prev,
-        draft: nextDraft,
-        repoId: payload.repoId ?? prev.repoId,
-        repoName: metadata.name,
-        repoMetadata: metadata,
-        published: cloneBlockContent(nextDraft),
-      };
-    });
-  };
+      });
+    },
+    [setBlock],
+  );
 
   const loadRepositoryBlock = (
     stored: StoredBlock,
@@ -939,24 +1110,224 @@ export default function App(): JSX.Element | null {
     loadRepositoryBlock(stored, { navigate: !hasExistingBlock });
   };
 
-  const blocksInUse = useMemo(() => {
-    const used = new Set<string>();
-    if (!malla) return used;
-    for (const piece of malla.pieces ?? []) {
-      if (piece.kind === 'ref') {
-        used.add(piece.ref.sourceId);
-      } else if (piece.kind === 'snapshot' && piece.origin) {
-        used.add(piece.origin.sourceId);
+  const { blocksInUse, controlsInUse } = useMemo(() => {
+    const usedBlocks = new Set<string>();
+    const usedControls = new Map<string, Set<string>>();
+
+    if (malla) {
+      const pieceValues = malla.values ?? {};
+      for (const piece of malla.pieces ?? []) {
+        if (piece.kind === 'ref') {
+          const repoId = piece.ref.sourceId;
+          if (!repoId) continue;
+
+          const bounds = piece.ref.bounds;
+          const offsetRow = bounds?.minRow ?? 0;
+          const offsetCol = bounds?.minCol ?? 0;
+          const repoEntry = repositorySnapshot.repository[repoId];
+          const repoTemplate = repoEntry?.template;
+
+          usedBlocks.add(repoId);
+
+          const addControlCoord = (coord: string) => {
+            let repoControls = usedControls.get(repoId);
+            if (!repoControls) {
+              repoControls = new Set<string>();
+              usedControls.set(repoId, repoControls);
+            }
+            repoControls.add(coord);
+          };
+
+          const valuesForPiece = pieceValues[piece.id];
+          if (valuesForPiece) {
+            for (const key of Object.keys(valuesForPiece)) {
+              const match = /^r(\d+)c(\d+)$/.exec(key);
+              if (!match) continue;
+
+              const row = Number.parseInt(match[1] ?? '', 10);
+              const col = Number.parseInt(match[2] ?? '', 10);
+              if (Number.isNaN(row) || Number.isNaN(col)) continue;
+
+              addControlCoord(coordKey(row + offsetRow, col + offsetCol));
+            }
+          }
+
+          if (repoTemplate && bounds) {
+            for (let r = 0; r < bounds.rows; r++) {
+              const templateRow = bounds.minRow + r;
+              const rowCells = repoTemplate[templateRow];
+              if (!rowCells) continue;
+              for (let c = 0; c < bounds.cols; c++) {
+                const templateCol = bounds.minCol + c;
+                const cell = rowCells[templateCol];
+                if (!cell?.active || !cell.type) continue;
+                addControlCoord(coordKey(templateRow, templateCol));
+              }
+            }
+          }
+        } else if (piece.kind === 'snapshot' && piece.origin) {
+          const repoId = piece.origin.sourceId;
+          if (!repoId) continue;
+
+          const bounds = piece.origin.bounds;
+          const offsetRow = bounds?.minRow ?? 0;
+          const offsetCol = bounds?.minCol ?? 0;
+          const template = piece.template;
+
+          usedBlocks.add(repoId);
+
+          const addControlCoord = (coord: string) => {
+            let repoControls = usedControls.get(repoId);
+            if (!repoControls) {
+              repoControls = new Set<string>();
+              usedControls.set(repoId, repoControls);
+            }
+            repoControls.add(coord);
+          };
+
+          const valuesForPiece = pieceValues[piece.id];
+          if (valuesForPiece) {
+            for (const key of Object.keys(valuesForPiece)) {
+              const match = /^r(\d+)c(\d+)$/.exec(key);
+              if (!match) continue;
+
+              const row = Number.parseInt(match[1] ?? '', 10);
+              const col = Number.parseInt(match[2] ?? '', 10);
+              if (Number.isNaN(row) || Number.isNaN(col)) continue;
+
+              addControlCoord(coordKey(row + offsetRow, col + offsetCol));
+            }
+          }
+
+          if (template) {
+            for (let r = 0; r < template.length; r++) {
+              const rowCells = template[r];
+              if (!rowCells) continue;
+              for (let c = 0; c < rowCells.length; c++) {
+                const cell = rowCells[c];
+                if (!cell?.active || !cell.type) continue;
+                addControlCoord(coordKey(r + offsetRow, c + offsetCol));
+              }
+            }
+          }
+        }
       }
     }
-    return used;
-  }, [malla]);
+
+    return { blocksInUse: usedBlocks, controlsInUse: usedControls };
+  }, [malla, repositorySnapshot]);
 
   const blockInUse = useMemo(() => {
     if (!block?.repoId) return false;
     return blocksInUse.has(block.repoId);
   }, [block?.repoId, blocksInUse]);
 
+  const activeRepoId = block?.repoId ?? null;
+
+  const schedulePendingControlDataClearFlush = useCallback(() => {
+    if (typeof React.startTransition === 'function') {
+      React.startTransition(() => {
+        bumpPendingControlDataClearTick((tick) => tick + 1);
+      });
+      return;
+    }
+    bumpPendingControlDataClearTick((tick) => tick + 1);
+  }, [bumpPendingControlDataClearTick]);
+
+  const enqueueControlDataClearRequests = useCallback(
+    (coords: Iterable<string>) => {
+      if (!activeRepoId) return;
+
+      let added = false;
+      for (const coord of coords) {
+        pendingControlDataClearsRef.current.push({
+          coord,
+          repoId: activeRepoId,
+        });
+        console.info('[ControlDeletion] Queueing diff cleanup request for control', {
+          coord,
+          repoId: activeRepoId,
+          pendingQueueSize: pendingControlDataClearsRef.current.length,
+        });
+        added = true;
+      }
+
+      if (!added) {
+        return;
+      }
+
+      schedulePendingControlDataClearFlush();
+    },
+    [activeRepoId, schedulePendingControlDataClearFlush],
+  );
+
+  const handleRequestControlDataClear = useCallback(
+    (coordOrCoords: string | Iterable<string>) => {
+      if (typeof coordOrCoords === 'string') {
+        enqueueControlDataClearRequests([coordOrCoords]);
+        return;
+      }
+
+      enqueueControlDataClearRequests(coordOrCoords);
+    },
+    [enqueueControlDataClearRequests],
+  );
+
+  useEffect(() => {
+    const repoId = block?.repoId ?? null;
+    if (!repoId) {
+      previousTemplateControlsRef.current = new Map<string, TemplateControlSnapshot>();
+      return;
+    }
+
+    const template = block?.draft.template;
+    const currentControls = new Set<string>();
+
+    if (template) {
+      for (let r = 0; r < template.length; r += 1) {
+        const row = template[r] ?? [];
+        for (let c = 0; c < row.length; c += 1) {
+          const cell = row[c];
+          if (!cell?.active || !cell.type) continue;
+          currentControls.add(coordKey(r, c));
+        }
+      }
+    }
+
+    const previousSnapshot = previousTemplateControlsRef.current.get(repoId);
+    const previousControls = previousSnapshot?.active ?? new Set<string>();
+    const previouslyCleaned = new Set(previousSnapshot?.cleaned ?? []);
+    const coordsToClear = new Set<string>();
+
+    // Detect controls that were previously cleaned but have reappeared in the template.
+    // They must be removed from the "already cleaned" set before computing new cleanups
+    // so future deletions can be processed normally.
+    for (const coord of currentControls) {
+      previouslyCleaned.delete(coord);
+    }
+
+    for (const coord of previousControls) {
+      if (currentControls.has(coord)) continue;
+      if (previouslyCleaned.has(coord)) continue;
+      coordsToClear.add(coord);
+    }
+
+    if (coordsToClear.size > 0) {
+      for (const coord of coordsToClear) {
+        handleRequestControlDataClear(coord);
+      }
+    }
+
+    const nextCleaned = new Set(previouslyCleaned);
+    for (const coord of coordsToClear) {
+      nextCleaned.add(coord);
+    }
+
+    const updatedControls = new Map(previousTemplateControlsRef.current);
+    updatedControls.set(repoId, { active: currentControls, cleaned: nextCleaned });
+    previousTemplateControlsRef.current = updatedControls;
+  }, [block?.draft.template, block?.repoId, handleRequestControlDataClear]);
+  
   useEffect(() => {
     setBlock((prev) => {
       if (!prev?.repoId) return prev;
@@ -1092,6 +1463,8 @@ export default function App(): JSX.Element | null {
                 onRepoMetadataChange={handleRepoMetadataChange}
                 onPublishBlock={handleBlockPublish}
                 isBlockInUse={blockInUse}
+                controlsInUse={controlsInUse}
+                onRequestControlDataClear={handleRequestControlDataClear}
               />
             }
           />
@@ -1117,6 +1490,8 @@ export default function App(): JSX.Element | null {
                   onRepoMetadataChange={handleRepoMetadataChange}
                   onPublishBlock={handleBlockPublish}
                   isBlockInUse={blockInUse}
+                  controlsInUse={controlsInUse}
+                  onRequestControlDataClear={handleRequestControlDataClear}
                 />
               ) : (
                 <Navigate to="/" replace />
