@@ -1,7 +1,7 @@
 // src/screens/BlockEditorScreen.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { BlockTemplate } from '../types/curricular.ts';
-import { BlockTemplateEditor } from '../components/BlockTemplateEditor';
+import { BlockTemplateEditor, type ControlCleanupMode } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
 import { ContextSidebarPanel } from '../components/ContextSidebarPanel';
 import { FormatStylePanel } from '../components/FormatStylePanel';
@@ -200,25 +200,30 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [controlsInUse, repoId]);
 
   const handleConfirmDeleteControl = useCallback(
-    (coord: string) => {
+    (coord: string, mode: ControlCleanupMode) => {
       if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
         console.info('[ControlDeletion] No diff cleanup confirmation required before deleting control', {
           coord,
           repoId,
+          mode,
         });
         return true;
       }
       console.info('[ControlDeletion] Requesting confirmation before diff cleanup deletion', {
         coord,
         repoId,
+        mode,
       });
-      const shouldDelete = window.confirm(
-        'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
-      );
+      const message =
+        mode === 'replace'
+          ? 'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?'
+          : 'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?';
+      const shouldDelete = window.confirm(message);
       console.info('[ControlDeletion] Diff cleanup confirmation result', {
         coord,
         repoId,
         shouldDelete,
+        mode,
       });
       return shouldDelete;
     },

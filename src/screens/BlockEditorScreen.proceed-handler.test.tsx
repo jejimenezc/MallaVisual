@@ -74,13 +74,13 @@ vi.mock('../components/BlockTemplateEditor', () => ({
     onConfirmDeleteControl,
     onControlDeleted,
   }: {
-    onConfirmDeleteControl: (coord: string) => boolean;
+    onConfirmDeleteControl: (coord: string, mode: 'delete' | 'replace') => boolean;
     onControlDeleted: (coord: string) => void;
   }) => {
     useEffect(() => {
       const coord = 'r0c0';
       deleteControlSpy();
-      if (onConfirmDeleteControl(coord)) {
+      if (onConfirmDeleteControl(coord, 'delete')) {
         onControlDeleted(coord);
       }
     }, [onConfirmDeleteControl, onControlDeleted]);

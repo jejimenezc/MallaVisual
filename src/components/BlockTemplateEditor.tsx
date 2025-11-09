@@ -8,6 +8,8 @@ import './BlockTemplateEditor.css';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { findSelectControlNameAt } from '../utils/selectControls.ts';
 
+export type ControlCleanupMode = 'delete' | 'replace';
+
 interface Props {
   template: BlockTemplate;
   setTemplate: React.Dispatch<React.SetStateAction<BlockTemplate>>;
@@ -15,7 +17,7 @@ interface Props {
   onSidebarStateChange?: (state: EditorSidebarState) => void;
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
   controlsInUse?: ReadonlySet<string>;
-  onConfirmDeleteControl?: (coord: string) => boolean;
+  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => boolean;
   onControlDeleted?: (coord: string) => void;
 }
 
@@ -152,10 +154,10 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     const { row, col } = contextMenu;
     const k = coordKey(row, col);
 
-    const confirmCleanupIfNeeded = () => {
+    const confirmCleanupIfNeeded = (mode: ControlCleanupMode) => {
       const isControlInUse = controlsInUse?.has(k) ?? false;
       if (!isControlInUse) return true;
-      const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k) : true;
+      const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k, mode) : true;
       if (!confirmed) {
         setContextMenu(null);
       }
@@ -191,7 +193,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     };
 
     if (type === undefined) {
-      if (!confirmCleanupIfNeeded()) {
+      if (!confirmCleanupIfNeeded('delete')) {
         return;
       }
       const release = performCleanup();
@@ -201,7 +203,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       const isReplacement = currentType && currentType !== type;
 
       if (isReplacement) {
-        if (!confirmCleanupIfNeeded()) {
+        if (!confirmCleanupIfNeeded('replace')) {
           return;
         }
         const release = performCleanup();

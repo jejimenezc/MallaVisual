@@ -179,12 +179,19 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
       },
     };
 
+    const controlsInUse = new Map<string, ReadonlySet<string>>([
+      ['repo-1', new Set([coordKey(selectCoord.row, selectCoord.col)])],
+    ]);
+
     await act(async () => {
       root.render(
         <AppCommandsProvider>
           <CommandsObserver />
           <BlockEditorScreen
             initialData={initialData}
+            initialRepoId="repo-1"
+            controlsInUse={controlsInUse}
+            onRequestControlDataClear={onRequestControlDataClear}
             onDraftChange={(draft: BlockContent) => {
               recordedDrafts.push(draft);
             }}
@@ -222,6 +229,10 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await flushEffects();
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
+    );
 
     const finalDraft = recordedDrafts.at(-1);
     expect(finalDraft).toBeDefined();
@@ -313,6 +324,10 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     await flushEffects();
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?',
+    );
 
     const textKey = coordKey(textCoord.row, textCoord.col);
     const finalDraft = recordedDrafts.at(-1);
