@@ -10,6 +10,48 @@ import { findSelectControlNameAt } from '../utils/selectControls.ts';
 
 export type ControlCleanupMode = 'delete' | 'replace';
 
+const coordKey = (row: number, col: number) => `${row}-${col}`;
+
+const findMergeBase = (template: BlockTemplate, row: number, col: number) => {
+  const cell = template[row]?.[col];
+  if (!cell) return null;
+
+  if (cell.mergedWith) {
+    const [rawRow, rawCol] = cell.mergedWith.split('-');
+    const baseRow = Number(rawRow);
+    const baseCol = Number(rawCol);
+    if (!Number.isNaN(baseRow) && !Number.isNaN(baseCol) && template[baseRow]?.[baseCol]) {
+      return { row: baseRow, col: baseCol } as const;
+    }
+    return null;
+  }
+
+  const baseKey = coordKey(row, col);
+  const hasMembers = template.some((r) => r.some((c) => c?.mergedWith === baseKey));
+  if (hasMembers) {
+    return { row, col } as const;
+  }
+
+  return null;
+};
+
+const collectMergeGroup = (template: BlockTemplate, row: number, col: number) => {
+  const base = findMergeBase(template, row, col);
+  if (!base) return [{ row, col }];
+
+  const group = [{ row: base.row, col: base.col }];
+  const baseKey = coordKey(base.row, base.col);
+  template.forEach((r, rIdx) => {
+    r.forEach((cell, cIdx) => {
+      if (cell?.mergedWith === baseKey) {
+        group.push({ row: rIdx, col: cIdx });
+      }
+    });
+  });
+
+  return group;
+};
+
 interface Props {
   template: BlockTemplate;
   setTemplate: React.Dispatch<React.SetStateAction<BlockTemplate>>;
@@ -37,8 +79,6 @@ export const BlockTemplateEditor: React.FC<Props> = ({
 
   // ↪️ Durante "borrar tipo" debemos ignorar escrituras de forms (p.ej. cleanup de SelectConfigForm)
   const ignoreUpdatesRef = useRef<Set<string>>(new Set());
-  const coordKey = (row: number, col: number) => `${row}-${col}`;
-
   // Selección por arrastre (independiente de active)
   const rectFrom = (a: { row: number; col: number }, b: { row: number; col: number }) => {
     const minRow = Math.min(a.row, b.row);
@@ -303,14 +343,20 @@ export const BlockTemplateEditor: React.FC<Props> = ({
           if (!template[row][col].active) {
             setTemplate((prev) => {
               const updated = prev.map((r) => r.map((c) => ({ ...c }))) as BlockTemplate;
-              updated[row][col] = { ...updated[row][col], active: true };
+              const group = collectMergeGroup(prev, row, col);
+              group.forEach(({ row: gr, col: gc }) => {
+                updated[gr][gc] = { ...updated[gr][gc], active: true };
+              });
               return updated;
             });
             setContextMenu({ x: e.clientX, y: e.clientY, row, col });
           } else {
             setTemplate((prev) => {
               const updated = prev.map((r) => r.map((c) => ({ ...c }))) as BlockTemplate;
-              updated[row][col] = { ...updated[row][col], active: false };
+              const group = collectMergeGroup(prev, row, col);
+              group.forEach(({ row: gr, col: gc }) => {
+                updated[gr][gc] = { ...updated[gr][gc], active: false };
+              });
               return updated;
             });
           }
