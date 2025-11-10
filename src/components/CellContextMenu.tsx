@@ -24,20 +24,25 @@ export const CellContextMenu: React.FC<CellContextMenuProps> = ({ x, y, onSelect
     const menu = menuRef.current;
     if (!menu) return;
 
+    const container =
+      (menu.offsetParent as HTMLElement | null) ??
+      (menu.closest('.two-pane') as HTMLElement | null) ??
+      menu.ownerDocument?.documentElement ??
+      document.documentElement;
+
+    const containerRect = container.getBoundingClientRect();
     const rect = menu.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
     const margin = 8;
 
-    let nextLeft = x;
-    let nextTop = y;
+    let nextLeft = x - containerRect.left;
+    let nextTop = y - containerRect.top;
 
-    if (nextLeft + rect.width > viewportWidth - margin) {
-      nextLeft = Math.max(margin, viewportWidth - rect.width - margin);
+    if (nextLeft + rect.width > containerRect.width - margin) {
+      nextLeft = Math.max(margin, containerRect.width - rect.width - margin);
     }
 
-    if (nextTop + rect.height > viewportHeight - margin) {
-      nextTop = Math.max(margin, y - rect.height);
+    if (nextTop + rect.height > containerRect.height - margin) {
+      nextTop = Math.max(margin, nextTop - rect.height);
     }
 
     if (nextLeft !== position.left || nextTop !== position.top) {
