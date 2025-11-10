@@ -217,7 +217,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
       );
     });
 
-    const clearOption = container.querySelector<HTMLDivElement>('[title="Borrar tipo"]');
+    const clearOption = container.querySelector<HTMLDivElement>('[title="Borrar campo"]');
     expect(clearOption).not.toBeNull();
 
     await act(async () => {
@@ -312,7 +312,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
       );
     });
 
-    const replaceOption = container.querySelector<HTMLDivElement>('[title="Insertar campo de texto"]');
+    const replaceOption = container.querySelector<HTMLDivElement>('[title="Texto libre"]');
     expect(replaceOption).not.toBeNull();
 
     await act(async () => {
