@@ -32,18 +32,39 @@ export const CellContextMenu: React.FC<CellContextMenuProps> = ({ x, y, onSelect
 
     const containerRect = container.getBoundingClientRect();
     const rect = menu.getBoundingClientRect();
+    const viewport = menu.ownerDocument?.documentElement ?? document.documentElement;
+    const viewportWidth = viewport.clientWidth || window.innerWidth;
+    const viewportHeight = viewport.clientHeight || window.innerHeight;
     const margin = 8;
+
+    const clamp = (value: number, min: number, max: number) => {
+      if (min > max) return min;
+      return Math.min(Math.max(value, min), max);
+    };
+
+    const minLeft = margin - containerRect.left;
+    const maxLeft = viewportWidth - rect.width - margin - containerRect.left;
+    const minTop = margin - containerRect.top;
+    const maxTop = viewportHeight - rect.height - margin - containerRect.top;
 
     let nextLeft = x - containerRect.left;
     let nextTop = y - containerRect.top;
 
-    if (nextLeft + rect.width > containerRect.width - margin) {
-      nextLeft = Math.max(margin, containerRect.width - rect.width - margin);
+    const willOverflowRight = x + rect.width + margin > viewportWidth;
+    if (willOverflowRight) {
+      nextLeft = clamp(viewportWidth - rect.width - margin - containerRect.left, minLeft, maxLeft);
     }
 
-    if (nextTop + rect.height > containerRect.height - margin) {
-      nextTop = Math.max(margin, nextTop - rect.height);
+    const willOverflowBottom = y + rect.height + margin > viewportHeight;
+    const hasRoomAbove = y - rect.height - margin >= 0;
+    if (willOverflowBottom && hasRoomAbove) {
+      nextTop = y - rect.height - containerRect.top;
+    } else if (willOverflowBottom) {
+      nextTop = clamp(viewportHeight - rect.height - margin - containerRect.top, minTop, maxTop);
     }
+
+    nextLeft = clamp(nextLeft, minLeft, maxLeft);
+    nextTop = clamp(nextTop, minTop, maxTop);
 
     if (nextLeft !== position.left || nextTop !== position.top) {
       setPosition({ top: nextTop, left: nextLeft });
