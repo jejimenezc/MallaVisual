@@ -32,9 +32,8 @@ export const CellContextMenu: React.FC<CellContextMenuProps> = ({ x, y, onSelect
 
     const containerRect = container.getBoundingClientRect();
     const rect = menu.getBoundingClientRect();
-    const viewport = menu.ownerDocument?.documentElement ?? document.documentElement;
-    const viewportWidth = viewport.clientWidth || window.innerWidth;
-    const viewportHeight = viewport.clientHeight || window.innerHeight;
+    const scrollLeft = container.scrollLeft ?? 0;
+    const scrollTop = container.scrollTop ?? 0;
     const margin = 8;
 
     const clamp = (value: number, min: number, max: number) => {
@@ -42,25 +41,27 @@ export const CellContextMenu: React.FC<CellContextMenuProps> = ({ x, y, onSelect
       return Math.min(Math.max(value, min), max);
     };
 
-    const minLeft = margin - containerRect.left;
-    const maxLeft = viewportWidth - rect.width - margin - containerRect.left;
-    const minTop = margin - containerRect.top;
-    const maxTop = viewportHeight - rect.height - margin - containerRect.top;
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    const minLeft = scrollLeft + margin;
+    const maxLeft = scrollLeft + containerWidth - rect.width - margin;
+    const minTop = scrollTop + margin;
+    const maxTop = scrollTop + containerHeight - rect.height - margin;
 
-    let nextLeft = x - containerRect.left;
-    let nextTop = y - containerRect.top;
+    let nextLeft = scrollLeft + x - containerRect.left;
+    let nextTop = scrollTop + y - containerRect.top;
 
-    const willOverflowRight = x + rect.width + margin > viewportWidth;
+    const willOverflowRight = x + rect.width + margin > containerRect.right;
     if (willOverflowRight) {
-      nextLeft = clamp(viewportWidth - rect.width - margin - containerRect.left, minLeft, maxLeft);
+      nextLeft = clamp(scrollLeft + containerWidth - rect.width - margin, minLeft, maxLeft);
     }
 
-    const willOverflowBottom = y + rect.height + margin > viewportHeight;
-    const hasRoomAbove = y - rect.height - margin >= 0;
+    const willOverflowBottom = y + rect.height + margin > containerRect.bottom;
+    const hasRoomAbove = y - rect.height - margin >= containerRect.top;
     if (willOverflowBottom && hasRoomAbove) {
-      nextTop = y - rect.height - containerRect.top;
+      nextTop = scrollTop + y - rect.height - containerRect.top;
     } else if (willOverflowBottom) {
-      nextTop = clamp(viewportHeight - rect.height - margin - containerRect.top, minTop, maxTop);
+      nextTop = clamp(scrollTop + containerHeight - rect.height - margin, minTop, maxTop);
     }
 
     nextLeft = clamp(nextLeft, minLeft, maxLeft);
