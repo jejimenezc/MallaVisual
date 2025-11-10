@@ -24,7 +24,7 @@ const ITEMS: MenuItem[] = [
   { label: 'Lista desplegable', value: 'select', icon: '▾' },
   { label: 'Número', value: 'number', icon: '#' },
   { label: 'Campo calculado', value: 'calculated', icon: '∑' },
-  { label: 'Borrar tipo', value: undefined, icon: '🗑️', danger: true },
+  { label: 'Borrar campo', value: undefined, icon: '🗑️', danger: true },
 ];
 
 
@@ -119,6 +119,7 @@ export const CellContextMenu: React.FC<CellContextMenuProps> = ({
             type="button"
             role="menuitem"
             className={`cell-context-menu-item${item.danger ? ' danger' : ''}`}
+            title={item.label}
             onClick={() => handleItem(item.value)}
           >
             {item.icon ? <span className="icon" aria-hidden="true">{item.icon}</span> : null}
