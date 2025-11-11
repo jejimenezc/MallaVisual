@@ -13,7 +13,13 @@ import { NavTabs } from './components/NavTabs';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
 import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
-import { type MallaExport, type MallaRepositoryEntry, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
+import {
+  type MallaExport,
+  type MallaRepositoryEntry,
+  MALLA_SCHEMA_VERSION,
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+} from './utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
@@ -267,6 +273,7 @@ function prepareMallaProjectState(
     floatingPieces,
     activeMasterId: activeId,
     repository: repositoryEntries,
+    theme: normalizeProjectTheme(data.theme),
   };
 
   return { block, malla: mallaState };
@@ -703,6 +710,7 @@ export default function App(): JSX.Element | null {
         values: {},
         floatingPieces: [],
         activeMasterId: 'master',
+        theme: createDefaultProjectTheme(),
       };
     }
     return null;

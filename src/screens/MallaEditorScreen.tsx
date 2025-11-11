@@ -19,7 +19,13 @@ import {
 } from '../utils/block-active.ts';
 import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
 import { blockContentEquals } from '../utils/block-content.ts';
-import { type MallaExport, MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
+import {
+  type MallaExport,
+  MALLA_SCHEMA_VERSION,
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+  type ProjectTheme,
+} from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
@@ -44,6 +50,7 @@ interface MallaHistoryEntry {
   floatingPieces: string[];
   mastersById: Record<string, MasterBlockData>;
   selectedMasterId: string;
+  theme: ProjectTheme;
 }
 
 const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
@@ -163,6 +170,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
+  const [theme, setTheme] = useState<ProjectTheme>(
+    initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
+  );
   const [showPieceMenus, setShowPieceMenus] = useState(true);
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -257,8 +267,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       mastersById,
       selectedMasterId,
+      theme,
     }),
-    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId],
+    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, theme],
   );
 
   const historySnapshotSerialized = useMemo(
@@ -429,6 +440,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId(nextSelectedId);
       setDraggingId(null);
       setDragPos({ x: 0, y: 0 });
+      setTheme(clone.theme);
       const restoredMaster = nextSelectedId ? nextMasters[nextSelectedId] : undefined;
       if (restoredMaster) {
         onUpdateMaster?.({
@@ -449,6 +461,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId,
       setDraggingId,
       setDragPos,
+      setTheme,
       onUpdateMaster,
     ],
   );
@@ -773,6 +786,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const nextFloating = (initialMalla.floatingPieces ?? []).slice();
     const fallbackActiveId = initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
     const nextActiveId = repoId ?? fallbackActiveId;
+    const nextTheme = normalizeProjectTheme(initialMalla.theme);
 
     const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
@@ -783,6 +797,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces: nextFloating,
       activeMasterId: nextActiveId,
       repository: initialMalla.repository ?? {},
+      theme: nextTheme,
     };
 
     return {
@@ -793,6 +808,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values: nextValues,
       floatingPieces: nextFloating,
       activeMasterId: nextActiveId,
+      theme: nextTheme,
     };
   }, [initialMalla, repoId, template, visual, aspect]);
 
@@ -817,6 +833,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values,
       floatingPieces: nextFloating,
       activeMasterId,
+      theme: nextTheme,
     } = normalizedInitial;
 
     const serialized = JSON.stringify(project);
@@ -832,6 +849,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(values);
     setFloatingPieces(nextFloating);
     setSelectedMasterId(activeMasterId);
+    setTheme(nextTheme);
     setIsHistoryInitialized(false);
   }, [normalizedInitial]);
 
@@ -845,6 +863,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       activeMasterId: selectedMasterId,
       repository: repositoryEntries,
+      theme,
     };
     const serialized = JSON.stringify(project);
     const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
@@ -879,6 +898,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     floatingPieces,
     selectedMasterId,
     repositoryEntries,
+    theme,
     autoSave,
     onMallaChange,
   ]);
@@ -930,6 +950,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(data?.pieces ?? []);
     setPieceValues(data?.values ?? {});
     setFloatingPieces(data?.floatingPieces ?? []);
+    setTheme(normalizeProjectTheme(data?.theme));
     setIsHistoryInitialized(false);
   }, [
     aspect,

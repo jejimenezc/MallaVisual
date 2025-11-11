@@ -10,8 +10,12 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { VisualTemplate, BlockAspect, VisualStyle, coordKey } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
-import type { MallaExport } from '../utils/malla-io.ts';
-import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
+import {
+  type MallaExport,
+  MALLA_SCHEMA_VERSION,
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+} from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -402,6 +406,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         floatingPieces: base.floatingPieces ?? [],
         activeMasterId: base.activeMasterId ?? repoId ?? 'master',
         repository: snapshot.entries,
+        theme: normalizeProjectTheme(base.theme),
       };
     } else {
       data = {
@@ -413,6 +418,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         floatingPieces: [],
         activeMasterId: 'master',
         repository: snapshot.entries,
+        theme: normalizeProjectTheme(base.theme),
       };
     }
 

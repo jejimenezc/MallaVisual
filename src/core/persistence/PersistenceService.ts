@@ -1,4 +1,10 @@
-import { exportMalla, importMalla, type MallaExport, MALLA_SCHEMA_VERSION } from '../../utils/malla-io.ts';
+import {
+  exportMalla,
+  importMalla,
+  type MallaExport,
+  MALLA_SCHEMA_VERSION,
+  normalizeProjectTheme,
+} from '../../utils/malla-io.ts';
 import {
   listBlocks as repoListBlocks,
   saveBlock as repoSaveBlock,
@@ -68,11 +74,15 @@ export class PersistenceService {
   }) {
     try {
       const { storageKey, projectId, projectName, data } = pending;
+      const normalizedData: MallaExport = {
+        ...data,
+        theme: normalizeProjectTheme(data.theme),
+      };
       if (storageKey) {
-        window.localStorage.setItem(storageKey, exportMalla(data));
+        window.localStorage.setItem(storageKey, exportMalla(normalizedData));
       }
       if (projectId) {
-        this.projectRepo.save(projectId, projectName ?? 'Proyecto', data);
+        this.projectRepo.save(projectId, projectName ?? 'Proyecto', normalizedData);
       }
       this.lastSaved = Date.now();
       this.setStatus('idle');
@@ -173,8 +183,15 @@ export class PersistenceService {
   // Project repository helpers
   listProjects = () => this.projectRepo.list();
 
-  loadProject = (id: string): ProjectRecord<MallaExport> | null =>
-    this.projectRepo.load(id);
+  loadProject = (id: string): ProjectRecord<MallaExport> | null => {
+    const record = this.projectRepo.load(id);
+    if (!record) return null;
+    const normalized: MallaExport = {
+      ...record.data,
+      theme: normalizeProjectTheme(record.data?.theme),
+    };
+    return { meta: record.meta, data: normalized };
+  };
 
   removeProject = (id: string): void => {
     this.projectRepo.remove(id);
