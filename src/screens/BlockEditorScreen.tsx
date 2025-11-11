@@ -388,6 +388,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     const snapshot = blocksToRepository(repoBlocks);
     const base = persistedProjectRef.current;
     const reuseMalla = shouldReusePersistedMalla(base);
+    const normalizedTheme = normalizeProjectTheme(base?.theme);
 
     let data: MallaExport;
     if (reuseMalla && base) {
@@ -410,7 +411,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         floatingPieces: base.floatingPieces ?? [],
         activeMasterId: base.activeMasterId ?? repoId ?? 'master',
         repository: snapshot.entries,
-        theme: normalizeProjectTheme(base.theme),
+        theme: normalizedTheme,
       };
     } else {
       data = {
@@ -422,7 +423,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         floatingPieces: [],
         activeMasterId: 'master',
         repository: snapshot.entries,
-        theme: normalizeProjectTheme(base.theme),
+        theme: normalizedTheme,
       };
     }
 
