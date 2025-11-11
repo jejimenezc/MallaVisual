@@ -1,11 +1,20 @@
-// src/utils/palette.ts
+import {
+  buildPalettePreset,
+  generateOptionPalette,
+  type BuildPaletteOptions,
+  type PalettePresetId,
+  type PaletteTokens,
+} from './palettePresets';
 
-export const generatePalette = (count: number): string[] => {
-  if (count <= 0) return [];
-  return Array.from({ length: count }, (_, i) => {
-    const hue = Math.round((360 / count) * i);
-    return `hsl(${hue}, 70%, 60%)`;
-  });
-};
+export { buildPalettePreset } from './palettePresets';
+export type { PalettePresetId, BuildPaletteOptions, PaletteTokens } from './palettePresets';
+
+const DEFAULT_PRESET: PalettePresetId = 'categorias-claras';
+
+export const generatePalette = (
+  count: number,
+  preset: PalettePresetId = DEFAULT_PRESET,
+  options: BuildPaletteOptions = {},
+): string[] => generateOptionPalette(count, preset, options);
 
 export default generatePalette;
