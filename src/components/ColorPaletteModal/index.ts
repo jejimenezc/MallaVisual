@@ -1,0 +1,1 @@
+export { ColorPaletteModal } from './ColorPaletteModal';
