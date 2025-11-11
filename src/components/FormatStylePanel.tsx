@@ -13,6 +13,7 @@ import type {
 import type { BlockTemplate, BlockTemplateCell } from '../types/curricular';
 import { assignSelectOptionColors } from '../utils/selectColors';
 import { collectSelectControls } from '../utils/selectControls';
+import { useProjectTheme } from '../state/project-theme.tsx';
 
 interface FormatStylePanelProps {
   selectedCoord?: { row: number; col: number };
@@ -255,17 +256,17 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
   const selectColorInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
-  const [isPaletteEnabled, setIsPaletteEnabled] = useState(false);
-  const [paintWithPalette, setPaintWithPalette] = useState(false);
-  useEffect(() => {
-    if (!isPaletteEnabled) {
-      setPaintWithPalette(false);
-    }
-  }, [isPaletteEnabled]);
+  const { theme: projectTheme, isActive: themeActive } = useProjectTheme();
+  const paletteAvailable = useMemo(() => {
+    if (!themeActive) return false;
+    return Object.keys(projectTheme.tokens ?? {}).length > 0;
+  }, [projectTheme.tokens, themeActive]);
+  const [isPaletteEnabled, setIsPaletteEnabled] = useState(paletteAvailable);
 
   const k = selectedCoord ? coordKey(selectedCoord.row, selectedCoord.col) : undefined;
 
   const current: VisualStyle = useMemo(() => (k ? visualTemplate[k] ?? {} : {}), [k, visualTemplate]);
+  const paintWithPalette = Boolean(current.paintWithPalette);
 
   const selectedCell = useMemo(() => {
     if (!selectedCoord) return undefined;
@@ -306,6 +307,21 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     },
     [current, k, onUpdateVisual, visualTemplate]
   );
+
+  useEffect(() => {
+    if (!paletteAvailable && isPaletteEnabled) {
+      setIsPaletteEnabled(false);
+    }
+    if (paletteAvailable && current.paintWithPalette) {
+      setIsPaletteEnabled(true);
+    }
+  }, [paletteAvailable, current.paintWithPalette, isPaletteEnabled]);
+
+  useEffect(() => {
+    if (!isPaletteEnabled && current.paintWithPalette) {
+      patch({ paintWithPalette: false });
+    }
+  }, [isPaletteEnabled, current.paintWithPalette, patch]);
 
   const resetStyle = useCallback(() => {
     if (!k) return;
@@ -694,6 +710,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                   type="checkbox"
                   checked={isPaletteEnabled}
                   onChange={(event) => setIsPaletteEnabled(event.target.checked)}
+                  disabled={!paletteAvailable}
                 />
                 <span className="toggle__indicator" aria-hidden="true" />
                 <span className="toggle__label">{isPaletteEnabled ? 'Activo' : 'Inactivo'}</span>
@@ -810,7 +827,8 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                     <input
                       type="checkbox"
                       checked={paintWithPalette}
-                      onChange={(event) => setPaintWithPalette(event.target.checked)}
+                      onChange={(event) => patch({ paintWithPalette: event.target.checked })}
+                      disabled={!isPaletteEnabled}
                     />
                     <span className="toggle__indicator" aria-hidden="true" />
                     <span className="toggle__label">Pintar con paleta</span>

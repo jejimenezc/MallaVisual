@@ -26,6 +26,7 @@ import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider, useProceedToMalla } from './state/proceed-to-malla';
 import { useUILayout } from './state/ui-layout.tsx';
 import { AppCommandsProvider } from './state/app-commands';
+import { ProjectThemeProvider } from './state/project-theme.tsx';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -1405,31 +1406,42 @@ export default function App(): JSX.Element | null {
   const hasPublishedBlock = Boolean(block?.published);
   const hasPublishedRepositoryBlock = Object.keys(repositorySnapshot.repository).length > 0;
 
+  const projectTheme = useMemo(
+    () =>
+      currentProject
+        ? normalizeProjectTheme(currentProject.theme)
+        : createDefaultProjectTheme(),
+    [currentProject],
+  );
+
+  const hasProject = !!currentProject;
+
   if (!isHydrated) {
     return null;
   }
 
   return (
-    <AppCommandsProvider>
-      <ProceedToMallaProvider
-      hasDirtyBlock={hasDirtyBlock}
-      hasPublishedBlock={hasPublishedBlock}
-      hasPublishedRepositoryBlock={hasPublishedRepositoryBlock}
-    >
-      <AppLayout
-        projectName={projectName}
-        hasProject={!!currentProject}
-        onNewProject={handleNewProject}
-        onImportProjectFile={handleImportProjectFile}
-        onExportProject={handleExportProject}
-        onCloseProject={handleCloseProject}
-        getRecentProjects={getRecentProjects}
-        onOpenRecentProject={handleOpenRecentProject}
-        onShowIntro={handleShowIntroOverlay}
-        locationPath={location.pathname}
-        navigate={navigate}
-      >
-        <Routes>
+    <ProjectThemeProvider theme={projectTheme} active={hasProject}>
+      <AppCommandsProvider>
+        <ProceedToMallaProvider
+          hasDirtyBlock={hasDirtyBlock}
+          hasPublishedBlock={hasPublishedBlock}
+          hasPublishedRepositoryBlock={hasPublishedRepositoryBlock}
+        >
+          <AppLayout
+            projectName={projectName}
+            hasProject={hasProject}
+            onNewProject={handleNewProject}
+            onImportProjectFile={handleImportProjectFile}
+            onExportProject={handleExportProject}
+            onCloseProject={handleCloseProject}
+            getRecentProjects={getRecentProjects}
+            onOpenRecentProject={handleOpenRecentProject}
+            onShowIntro={handleShowIntroOverlay}
+            locationPath={location.pathname}
+            navigate={navigate}
+          >
+          <Routes>
           <Route
             path="/"
             element={
@@ -1542,9 +1554,10 @@ export default function App(): JSX.Element | null {
         </Routes>
       </AppLayout>
     </ProceedToMallaProvider>
-    {isIntroOverlayVisible ? (
-      <IntroOverlay onClose={handleHideIntroOverlay} />
-    ) : null}
-  </AppCommandsProvider>
+        {isIntroOverlayVisible ? (
+          <IntroOverlay onClose={handleHideIntroOverlay} />
+        ) : null}
+      </AppCommandsProvider>
+    </ProjectThemeProvider>
   );
 }

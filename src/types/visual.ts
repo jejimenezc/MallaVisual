@@ -39,6 +39,9 @@ export interface VisualStyle {
 
   /** Colores de fondo condicionales */
   conditionalBg?: ConditionalBg;
+
+  /** Usa tokens de paleta del proyecto cuando están disponibles */
+  paintWithPalette?: boolean;
 }
 
 /** Clave = "row-col" del base (o la propia si no hay merge) */

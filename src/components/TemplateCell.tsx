@@ -6,6 +6,29 @@ import { VisualTemplate } from '../types/visual.ts';
 import { collectSelectControls } from '../utils/selectControls.ts';
 import { evaluateExpression } from '../utils/calc.ts';
 
+const DEFAULT_BG_COLOR = '#ffffff';
+const DEFAULT_TEXT_COLOR = '#111827';
+const DEFAULT_CHECKBOX_ACTIVE_COLOR = '#2dd4bf';
+
+const extractFallbackColor = (value: string | undefined, defaultColor: string) => {
+  if (!value) return defaultColor;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('var(')) return trimmed;
+  const inner = trimmed.slice(4, -1);
+  const commaIndex = inner.indexOf(',');
+  if (commaIndex === -1) return defaultColor;
+  const candidate = inner.slice(commaIndex + 1).trim();
+  if (!candidate || candidate.startsWith('var(')) {
+    return defaultColor;
+  }
+  return candidate;
+};
+
+const buildTokenValue = (token: string, fallback: string) => {
+  const safeFallback = (fallback && fallback.trim()) || DEFAULT_BG_COLOR;
+  return `var(${token}, ${safeFallback})`;
+};
+
 interface Props {
   cell: BlockTemplateCell;
   row: number;
@@ -131,6 +154,7 @@ export const TemplateCell: React.FC<Props> = ({
   }, [applyVisual, template]);
 
   let conditionalColor: string | undefined;
+  let conditionalOptionIndex: number | null = null;
   if (applyVisual && cell.type === 'text') {
     const src = v?.conditionalBg?.selectSource;
     if (src && selectControlIndex) {
@@ -141,14 +165,63 @@ export const TemplateCell: React.FC<Props> = ({
         const selKey = `r${control.row}c${control.col}`;
         const selVal = values[selKey];
         if (selVal !== undefined) {
-          conditionalColor = src.colors[String(selVal)];
+          const stringValue = String(selVal);
+          conditionalColor = src.colors[stringValue];
+          conditionalOptionIndex = control.options.findIndex((option) => option === stringValue);
         }
       }
     }
   }
 
-  const bgColor = conditionalColor || v?.backgroundColor || viewFallbackBg;
-  const textColor = v?.textColor ?? cell.style?.textColor;
+  const paletteActive = applyVisual && Boolean(v?.paintWithPalette);
+
+  const manualBackgroundColor = conditionalColor ?? v?.backgroundColor;
+  const resolvedBackgroundColor = manualBackgroundColor ?? viewFallbackBg ?? DEFAULT_BG_COLOR;
+  const backgroundFallbackColor = extractFallbackColor(resolvedBackgroundColor, DEFAULT_BG_COLOR);
+
+  const manualTextColorValue = v?.textColor ?? cell.style?.textColor;
+  const resolvedTextColor = manualTextColorValue ?? DEFAULT_TEXT_COLOR;
+  const textFallbackColor = extractFallbackColor(resolvedTextColor, DEFAULT_TEXT_COLOR);
+
+  const manualCheckboxBackground = v?.conditionalBg?.checkedColor;
+  const checkboxFallbackColor = extractFallbackColor(
+    manualCheckboxBackground,
+    DEFAULT_CHECKBOX_ACTIVE_COLOR,
+  );
+
+  let finalBackgroundColor = resolvedBackgroundColor;
+  let finalTextColor = resolvedTextColor;
+  let finalCheckboxBg = manualCheckboxBackground ?? null;
+  let finalCheckboxTextColor = resolvedTextColor;
+
+  if (paletteActive) {
+    if (conditionalOptionIndex !== null && conditionalOptionIndex >= 0) {
+      const optionIndex = conditionalOptionIndex + 1;
+      const optionFallback = extractFallbackColor(conditionalColor, backgroundFallbackColor);
+      finalBackgroundColor = buildTokenValue(`--option-${optionIndex}`, optionFallback);
+      finalTextColor = buildTokenValue(`--option-${optionIndex}-text`, textFallbackColor);
+    } else {
+      finalBackgroundColor = buildTokenValue('--cell-active', backgroundFallbackColor);
+      finalTextColor = buildTokenValue('--cell-active-text', textFallbackColor);
+    }
+
+    const checkboxBackgroundFallback = extractFallbackColor(
+      manualCheckboxBackground,
+      checkboxFallbackColor,
+    );
+    finalCheckboxBg = buildTokenValue('--checkbox-on', checkboxBackgroundFallback);
+    const checkboxTextFallback = extractFallbackColor(finalCheckboxTextColor, textFallbackColor);
+    finalCheckboxTextColor = buildTokenValue('--checkbox-on-text', checkboxTextFallback);
+  } else {
+    if (!manualBackgroundColor) {
+      finalBackgroundColor = resolvedBackgroundColor;
+    }
+    if (!manualTextColorValue) {
+      finalTextColor = resolvedTextColor;
+    }
+  }
+
+  const contentTextColor = cell.type === 'checkbox' ? finalCheckboxTextColor : finalTextColor;
 
   const baseTextAreaPaddingY = applyVisual
     ? Math.max(0, Math.min(64, v?.paddingY ?? 6))
@@ -232,9 +305,11 @@ export const TemplateCell: React.FC<Props> = ({
         ? { border: '1px solid #333' }
         : {}
       : {}),
-    ...(applyVisual && bgColor ? { backgroundColor: bgColor } : {}),
-    ...(applyVisual && cell.type === 'checkbox' && checked && v?.conditionalBg?.checkedColor
-      ? { backgroundColor: v.conditionalBg.checkedColor }
+    ...(applyVisual && finalBackgroundColor
+      ? { backgroundColor: finalBackgroundColor }
+      : {}),
+    ...(applyVisual && cell.type === 'checkbox' && checked && finalCheckboxBg
+      ? { backgroundColor: finalCheckboxBg }
       : {}),
     // ⛔️ OJO: ya NO aplicamos fontSize ni textAlign aquí
     ...(applyVisual && v?.textAlign
@@ -300,7 +375,7 @@ export const TemplateCell: React.FC<Props> = ({
     contentStyle.padding = `${py}px ${px}px`;
     if (computedFontSizePx) contentStyle.fontSize = `${computedFontSizePx}px`;
     if (v?.textAlign) contentStyle.textAlign = v.textAlign;
-    if (textColor) contentStyle.color = textColor;
+    if (contentTextColor) contentStyle.color = contentTextColor;
     // staticText: allow cell-content to shrink vertically so parent flex can center it
     if (cell.type === 'staticText') {
       contentStyle.height = 'auto';
