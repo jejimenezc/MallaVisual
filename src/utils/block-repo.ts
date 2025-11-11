@@ -4,6 +4,7 @@ import {
   exportBlock as ioExportBlock,
   type BlockExport,
 } from './block-io.ts';
+import { normalizeProjectTheme } from './project-theme.ts';
 import {
   buildBlockId,
   createBlockId,
@@ -90,16 +91,26 @@ function normalizeStoredBlock(
   const updatedAt = rawMetadata.updatedAt ?? now;
 
   const normalizedId = buildBlockId(projectId, uuid);
+  const metadata: BlockMetadata = {
+    projectId,
+    uuid,
+    name,
+    updatedAt,
+  };
+  const normalizedTheme = normalizeProjectTheme((block.data as { theme?: unknown }).theme);
+  const normalizedData: BlockExport = {
+    version: block.data.version,
+    template: block.data.template,
+    visual: block.data.visual,
+    aspect: block.data.aspect,
+    metadata,
+    theme: normalizedTheme,
+  };
 
   return {
     id: normalizedId,
-    metadata: {
-      projectId,
-      uuid,
-      name,
-      updatedAt,
-    },
-    data: block.data,
+    metadata,
+    data: normalizedData,
   };
 }
 
@@ -135,15 +146,24 @@ function readAll(): PersistedBlockRecord {
         const projectId = 'legacy';
         const id = createBlockId(projectId);
         const { uuid } = parseBlockId(id);
+        const metadata: BlockMetadata = {
+          projectId,
+          uuid,
+          name: key,
+          updatedAt: now,
+        };
+        const theme = normalizeProjectTheme((value as { theme?: unknown }).theme);
         migrated[id] = {
           id,
-          metadata: {
-            projectId,
-            uuid,
-            name: key,
-            updatedAt: now,
+          metadata,
+          data: {
+            version: value.version,
+            template: value.template,
+            visual: value.visual,
+            aspect: value.aspect,
+            metadata,
+            theme,
           },
-          data: value,
         };
       }
     }
@@ -218,7 +238,7 @@ export function removeBlock(id: BlockId): void {
 
 export const importBlock = ioImportBlock;
 export function exportBlock(block: BlockExport): string {
-  return ioExportBlock(block.template, block.visual, block.aspect, block.metadata);
+  return ioExportBlock(block.template, block.visual, block.aspect, block.metadata, block.theme);
 }
 
 function normalizeReplacement(

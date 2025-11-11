@@ -5,6 +5,7 @@ import {
   createDefaultProjectTheme,
   type ProjectTheme,
 } from '../utils/malla-io.ts';
+import { filterThemeTokenEntries } from '../utils/theme-style.ts';
 
 interface ProjectThemeContextValue {
   theme: ProjectTheme;
@@ -19,14 +20,6 @@ const defaultValue: ProjectThemeContextValue = {
 const ProjectThemeContext = createContext<ProjectThemeContextValue>(defaultValue);
 
 const STYLE_SELECTOR = 'style[data-project-theme]';
-const TOKEN_KEY_PATTERN = /^--[a-zA-Z0-9-_]+$/;
-
-const sanitizeTokenEntries = (tokens: ProjectTheme['tokens']) =>
-  Object.entries(tokens ?? {}).filter(([key, value]) => {
-    if (!TOKEN_KEY_PATTERN.test(key)) return false;
-    const trimmed = value?.trim();
-    return Boolean(trimmed);
-  });
 
 const toCssText = (entries: Array<[string, string]>) => {
   if (entries.length === 0) return '';
@@ -87,7 +80,7 @@ export const ProjectThemeProvider: React.FC<ProviderProps> = ({
     }
 
     root.setAttribute('data-theme', 'project');
-    const entries = sanitizeTokenEntries(normalized.tokens);
+    const entries = filterThemeTokenEntries(normalized.tokens);
     if (entries.length === 0) {
       removeStyleElement();
       return undefined;

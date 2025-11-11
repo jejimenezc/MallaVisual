@@ -5,11 +5,14 @@ import { TemplateGrid } from './TemplateGrid';
 import { getActiveBounds, cropTemplate, cropVisualTemplate } from '../utils/block-active';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import './BlockSnapshot.css';
+import type { ProjectThemeTokens } from '../utils/project-theme.ts';
+import { buildThemeStyleObject } from '../utils/theme-style.ts';
 
 interface Props {
   template: BlockTemplate;
   visualTemplate: VisualTemplate;
   aspect: BlockAspect;
+  paletteTokens?: ProjectThemeTokens;
 }
 
 /** Tamaños base por aspecto (centralizado) */
@@ -26,9 +29,15 @@ export function getCellSizeByAspect(aspect: BlockAspect) {
  * Snapshot estático del BLOQUE ACTIVO (recorte), escalado para caber en el contenedor,
  * respetando la relación de aspecto y SIN interacciones.
  */
-export const BlockSnapshot: React.FC<Props> = ({ template, visualTemplate, aspect }) => {
+export const BlockSnapshot: React.FC<Props> = ({
+  template,
+  visualTemplate,
+  aspect,
+  paletteTokens,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const paletteStyle = useMemo(() => buildThemeStyleObject(paletteTokens), [paletteTokens]);
 
   const bounds = useMemo(() => getActiveBounds(template), [template]);
   const subTemplate = useMemo(() => cropTemplate(template, bounds), [template, bounds]);
@@ -91,7 +100,12 @@ export const BlockSnapshot: React.FC<Props> = ({ template, visualTemplate, aspec
   };
 
   return (
-    <div className="snapshot-viewport" ref={containerRef} data-aspect={aspect}>
+    <div
+      className="snapshot-viewport"
+      ref={containerRef}
+      data-aspect={aspect}
+      style={paletteStyle}
+    >
       <div className="snapshot-scale" style={scaledStyle}>
         <TemplateGrid
           template={subTemplate}

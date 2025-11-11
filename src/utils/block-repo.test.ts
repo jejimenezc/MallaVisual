@@ -8,6 +8,7 @@ import {
   type StoredBlock,
 } from './block-repo.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './block-io.ts';
+import { createDefaultProjectTheme } from './project-theme.ts';
 
 const STORAGE_KEY = 'block-repo';
 
@@ -21,6 +22,7 @@ describe('block-repo storage', () => {
     template: [],
     visual: {},
     aspect: '1/1',
+    theme: createDefaultProjectTheme(),
   };
 
   beforeEach(() => {
@@ -83,7 +85,12 @@ describe('block-repo storage', () => {
     expect(block.metadata.uuid).toBe('uuid-1');
     expect(block.metadata.updatedAt).toBe('2023-01-01T00:00:00.000Z');
     expect(block.id).toBe('legacy:uuid-1');
-    expect(block.data).toEqual(sampleExport);
+    expect(block.data.version).toBe(sampleExport.version);
+    expect(block.data.template).toEqual(sampleExport.template);
+    expect(block.data.visual).toEqual(sampleExport.visual);
+    expect(block.data.aspect).toBe(sampleExport.aspect);
+    expect(block.data.theme).toEqual(sampleExport.theme);
+    expect(block.data.metadata).toEqual(block.metadata);
     expect(dispatchEventMock).toHaveBeenCalledTimes(1);
 
     const persisted = JSON.parse(storageData[STORAGE_KEY]);

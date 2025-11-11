@@ -1327,7 +1327,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
         </div>
 
         <div className={styles.repoSnapshot}>
-          <BlockSnapshot template={template} visualTemplate={visual} aspect={aspect} />
+          <BlockSnapshot
+            template={template}
+            visualTemplate={visual}
+            aspect={aspect}
+            paletteTokens={theme.tokens}
+          />
         </div>
         <div className={styles.repoActions}>
         {onBack && (

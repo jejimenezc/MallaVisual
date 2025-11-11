@@ -8,21 +8,13 @@ import {
   synchronizeMastersWithRepository,
 } from './malla-sync.ts';
 import { cloneBlockContent, toBlockContent } from './block-content.ts';
-
-export interface ProjectThemeParameters {
-  seedHue?: number;
-  [key: string]: string | number | boolean | null | undefined;
-}
-
-export interface ProjectThemeTokens {
-  [token: string]: string;
-}
-
-export interface ProjectTheme {
-  paletteId: string | null;
-  params?: ProjectThemeParameters;
-  tokens: ProjectThemeTokens;
-}
+import {
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+  type ProjectTheme,
+  type ProjectThemeParameters,
+  type ProjectThemeTokens,
+} from './project-theme.ts';
 
 export interface MallaRepositoryEntry {
   id: BlockId;
@@ -47,68 +39,22 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export const MALLA_SCHEMA_VERSION = 5;
 
-export function createDefaultProjectTheme(): ProjectTheme {
-  return { paletteId: null, tokens: {} };
-}
-
-function normalizeThemeParams(params: unknown): ProjectTheme['params'] {
-  if (!params || typeof params !== 'object') {
-    return undefined;
-  }
-  const entries = Object.entries(params as Record<string, unknown>);
-  if (entries.length === 0) {
-    return undefined;
-  }
-  const normalized: Record<string, string | number | boolean | null | undefined> = {};
-  for (const [key, value] of entries) {
-    if (
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean' ||
-      value === null
-    ) {
-      normalized[key] = value;
-    }
-  }
-  return Object.keys(normalized).length > 0 ? normalized : undefined;
-}
-
-function normalizeThemeTokens(tokens: unknown): ProjectThemeTokens {
-  if (!tokens || typeof tokens !== 'object') {
-    return {};
-  }
-  const normalized: ProjectThemeTokens = {};
-  for (const [key, value] of Object.entries(tokens as Record<string, unknown>)) {
-    if (typeof value === 'string') {
-      normalized[key] = value;
-    }
-  }
-  return normalized;
-}
-
-export function normalizeProjectTheme(theme: unknown): ProjectTheme {
-  if (!theme || typeof theme !== 'object') {
-    return createDefaultProjectTheme();
-  }
-  const source = theme as Partial<ProjectTheme>;
-  const paletteId = typeof source.paletteId === 'string' ? source.paletteId.trim() : null;
-  const params = normalizeThemeParams(source.params);
-  const tokens = normalizeThemeTokens((source as { tokens?: unknown }).tokens);
-  const normalizedPaletteId = paletteId && paletteId.length > 0 ? paletteId : null;
-  const normalized: ProjectTheme = {
-    paletteId: normalizedPaletteId,
-    tokens,
-  };
-  if (params) {
-    normalized.params = params;
-  }
-  return normalized;
-}
+export { createDefaultProjectTheme, normalizeProjectTheme };
+export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
 
 function cloneBlockExport(data: BlockExport, metadata: BlockMetadata): BlockExport {
+  const theme = normalizeProjectTheme(data.theme);
+  const clonedTheme: ProjectTheme = {
+    paletteId: theme.paletteId,
+    tokens: { ...theme.tokens },
+  };
+  if (theme.params) {
+    clonedTheme.params = { ...theme.params };
+  }
   return {
     ...data,
     metadata: data.metadata ? { ...data.metadata } : { ...metadata },
+    theme: clonedTheme,
   };
 }
 
@@ -203,6 +149,7 @@ function masterToBlockExport(master: MasterBlockData): BlockExport {
     template: content.template,
     visual: content.visual,
     aspect: content.aspect,
+    theme: createDefaultProjectTheme(),
   };
 }
 

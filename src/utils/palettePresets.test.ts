@@ -81,3 +81,42 @@ describe('generateOptionPalette', () => {
     expect(generateOptionPalette(-2)).toEqual([]);
   });
 });
+
+describe('synthetic grid contrast scenarios', () => {
+  it('maintains contrast and differentiation across palette roles', () => {
+    const tokens = buildPalettePreset('alta-distincion', { optionCount: 5, seedHue: 32 });
+
+    const rolePairs = [
+      { background: tokens['--cell-active'], text: tokens['--cell-active-text'], minimum: 4.5 },
+      { background: tokens['--checkbox-on'], text: tokens['--checkbox-on-text'], minimum: 4.5 },
+    ];
+
+    const optionBackgrounds: string[] = [];
+    for (let index = 1; index <= 5; index += 1) {
+      const background = tokens[`--option-${index}`];
+      const text = tokens[`--option-${index}-text`];
+      expect(background).toBeDefined();
+      expect(text).toBeDefined();
+      rolePairs.push({ background, text, minimum: 4.5 });
+      optionBackgrounds.push(background);
+    }
+
+    rolePairs.forEach(({ background, text, minimum }) => {
+      const contrast = paletteInternals.contrastRatio(getRgb(background), getRgb(text));
+      expect(contrast).toBeGreaterThanOrEqual(minimum);
+    });
+
+    const uniqueBackgrounds = new Set(optionBackgrounds);
+    expect(uniqueBackgrounds.size).toBe(optionBackgrounds.length);
+
+    optionBackgrounds.forEach((value, index) => {
+      for (let next = index + 1; next < optionBackgrounds.length; next += 1) {
+        const delta = paletteInternals.oklchDeltaE(
+          paletteInternals.hexToOklch(value),
+          paletteInternals.hexToOklch(optionBackgrounds[next]),
+        );
+        expect(delta).toBeGreaterThanOrEqual(paletteInternals.PRESET_MIN_DELTA['alta-distincion']);
+      }
+    });
+  });
+});

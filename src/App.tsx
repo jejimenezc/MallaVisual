@@ -871,10 +871,12 @@ export default function App(): JSX.Element | null {
     if (!normalized) return;
     const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
+    const theme = normalizeProjectTheme(data.theme);
     setProjectId(id);
     setProjectName(name);
     setBlock(createBlockStateFromContent(toBlockContent(data)));
     loadMallaState(null);
+    setProjectThemeState(theme);
     clearPersistedProjectMetadata();
     navigate('/block/design');
   };
@@ -1049,38 +1051,43 @@ export default function App(): JSX.Element | null {
   );
 
   const handleBlockPublish = useCallback(
-    (
-      payload: {
-        repoId: string;
-        metadata: BlockMetadata;
-        template: BlockTemplate;
-        visual: VisualTemplate;
-        aspect: BlockAspect;
-      },
-    ) => {
+    ({
+      repoId,
+      metadata,
+      template,
+      visual,
+      aspect,
+    }: {
+      repoId: string;
+      metadata: BlockMetadata;
+      template: BlockTemplate;
+      visual: VisualTemplate;
+      aspect: BlockAspect;
+      theme: ProjectTheme;
+    }) => {
       const content: BlockContent = {
-        template: payload.template,
-        visual: payload.visual,
-        aspect: payload.aspect,
+        template,
+        visual,
+        aspect,
       };
-      const metadata = { ...payload.metadata };
+      const metadataCopy = { ...metadata };
       setBlock((prev) => {
         const nextDraft = cloneBlockContent(content);
         if (!prev) {
           return {
             draft: nextDraft,
-            repoId: payload.repoId,
-            repoName: metadata.name,
-            repoMetadata: metadata,
+            repoId,
+            repoName: metadataCopy.name,
+            repoMetadata: metadataCopy,
             published: cloneBlockContent(nextDraft),
           };
         }
         return {
           ...prev,
           draft: nextDraft,
-          repoId: payload.repoId ?? prev.repoId,
-          repoName: metadata.name,
-          repoMetadata: metadata,
+          repoId: repoId ?? prev.repoId,
+          repoName: metadataCopy.name,
+          repoMetadata: metadataCopy,
           published: cloneBlockContent(nextDraft),
         };
       });
@@ -1096,6 +1103,7 @@ export default function App(): JSX.Element | null {
     const content = toBlockContent(stored.data);
     const draft = cloneBlockContent(content);
     const published = cloneBlockContent(content);
+    const theme = normalizeProjectTheme(stored.data.theme);
     setBlock({
       draft,
       repoId: stored.metadata.uuid,
@@ -1112,6 +1120,7 @@ export default function App(): JSX.Element | null {
       }
       loadMallaState(null);
     }
+    setProjectThemeState(theme);
     if (shouldNavigate) {
       navigate('/block/design');
     }
@@ -1528,6 +1537,7 @@ export default function App(): JSX.Element | null {
                             template: block.draft.template,
                             visual: block.draft.visual,
                             aspect: block.draft.aspect,
+                            theme: projectThemeState,
                           }
                         : undefined
                     }
@@ -1557,6 +1567,7 @@ export default function App(): JSX.Element | null {
                         template: block.draft.template,
                         visual: block.draft.visual,
                         aspect: block.draft.aspect,
+                        theme: projectThemeState,
                       }}
                       projectId={projectId ?? undefined}
                       projectName={projectName}

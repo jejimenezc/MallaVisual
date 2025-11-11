@@ -15,6 +15,7 @@ import {
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
   normalizeProjectTheme,
+  type ProjectTheme,
 } from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
@@ -40,6 +41,7 @@ import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
 import { assignSelectOptionColors } from '../utils/selectColors.ts';
 import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
+import { useProjectTheme } from '../state/project-theme.tsx';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -87,6 +89,7 @@ interface BlockEditorScreenProps {
     template: BlockTemplate;
     visual: VisualTemplate;
     aspect: BlockAspect;
+    theme: ProjectTheme;
   }) => void;
   isBlockInUse?: boolean;
   controlsInUse?: Map<string, ReadonlySet<string>>;
@@ -136,6 +139,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     listBlocks,
     updateBlockMetadata: repoUpdateBlockMetadata,
   } = useBlocksRepo();
+  const { theme: projectTheme } = useProjectTheme();
   const savedRef = useRef<string | null>(null);
   const proceedHandlerRef = useRef<ProceedToMallaHandler | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
@@ -587,6 +591,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         visual: draftContent.visual,
         aspect: draftContent.aspect,
         metadata,
+        theme: projectTheme,
       },
     });
 
@@ -601,6 +606,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       template: savedContent.template,
       visual: savedContent.visual,
       aspect: savedContent.aspect,
+      theme: projectTheme,
     });
     alert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
     return metadata.uuid;
@@ -987,6 +993,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             selectedCoord={selectedCoord}
             onSelectCoord={setSelectedCoord}
             aspect={aspect}
+            paletteTokens={projectTheme.tokens}
           />
         }
         right={

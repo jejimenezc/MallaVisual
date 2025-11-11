@@ -4,6 +4,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
+import { createDefaultProjectTheme } from '../utils/malla-io.ts';
 
 const autoSaveMock = vi.fn();
 const flushAutoSaveMock = vi.fn();
@@ -147,6 +148,7 @@ describe('BlockEditorScreen – eliminación de control con datos', () => {
       template,
       aspect: '1/1',
       visual: {},
+      theme: createDefaultProjectTheme(),
     };
 
     const controlsInUse = new Map<string, ReadonlySet<string>>([
