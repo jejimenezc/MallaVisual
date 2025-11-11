@@ -52,6 +52,16 @@ const clampOptionCount = (value: number): number => {
   return Math.min(MAX_OPTIONS, Math.max(MIN_OPTIONS, Math.round(value)));
 };
 
+const resolvePresetId = (candidate: string | null | undefined): PalettePresetId => {
+  if (candidate) {
+    const match = PRESET_OPTIONS.find((option) => option.id === candidate);
+    if (match) {
+      return match.id;
+    }
+  }
+  return PRESET_OPTIONS[0].id;
+};
+
 const extractOptionCount = (tokens: ProjectTheme['tokens'], fallback: number): number => {
   const candidate = Object.keys(tokens ?? {})
     .map((key) => {
@@ -79,8 +89,8 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
   const hueFieldId = useId();
   const optionsFieldId = useId();
 
-  const [preset, setPreset] = useState<PalettePresetId>(
-    currentTheme.paletteId ?? PRESET_OPTIONS[0].id,
+  const [preset, setPreset] = useState<PalettePresetId>(() =>
+    resolvePresetId(currentTheme.paletteId),
   );
   const [seedHue, setSeedHue] = useState<number>(
     clampHue(typeof currentTheme.params?.seedHue === 'number' ? currentTheme.params.seedHue : DEFAULT_HUE),
@@ -93,7 +103,7 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setPreset(currentTheme.paletteId ?? PRESET_OPTIONS[0].id);
+    setPreset(resolvePresetId(currentTheme.paletteId));
     setSeedHue(
       clampHue(
         typeof currentTheme.params?.seedHue === 'number'
@@ -131,11 +141,11 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
   );
 
   const previewStyle = useMemo(() => {
-    const entries = Object.entries(tokens);
-    return entries.reduce<React.CSSProperties>((acc, [key, value]) => {
-      acc[key as keyof React.CSSProperties] = value;
-      return acc;
-    }, {} as React.CSSProperties);
+    const style: React.CSSProperties = {};
+    Object.entries(tokens).forEach(([key, value]) => {
+      (style as Record<string, string>)[key] = value;
+    });
+    return style;
   }, [tokens]);
 
   const optionTokens = useMemo(() => {
