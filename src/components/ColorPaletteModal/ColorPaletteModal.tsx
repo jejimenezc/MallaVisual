@@ -87,15 +87,13 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
   onClose,
 }) => {
   const hueFieldId = useId();
-  const optionsFieldId = useId();
-
   const [preset, setPreset] = useState<PalettePresetId>(() =>
     resolvePresetId(currentTheme.paletteId),
   );
   const [seedHue, setSeedHue] = useState<number>(
     clampHue(typeof currentTheme.params?.seedHue === 'number' ? currentTheme.params.seedHue : DEFAULT_HUE),
   );
-  const [optionCount, setOptionCount] = useState<number>(
+  const [previewOptionCount, setPreviewOptionCount] = useState<number>(
     typeof currentTheme.params?.optionCount === 'number'
       ? clampOptionCount(currentTheme.params.optionCount)
       : extractOptionCount(currentTheme.tokens, 6),
@@ -111,7 +109,7 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
           : DEFAULT_HUE,
       ),
     );
-    setOptionCount(
+    setPreviewOptionCount(
       typeof currentTheme.params?.optionCount === 'number'
         ? clampOptionCount(currentTheme.params.optionCount)
         : extractOptionCount(currentTheme.tokens, 6),
@@ -131,8 +129,8 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
   }, [isOpen, onClose]);
 
   const buildOptions: BuildPaletteOptions = useMemo(
-    () => ({ optionCount, seedHue }),
-    [optionCount, seedHue],
+    () => ({ optionCount: previewOptionCount, seedHue }),
+    [previewOptionCount, seedHue],
   );
 
   const tokens = useMemo(
@@ -150,14 +148,14 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
 
   const optionTokens = useMemo(() => {
     const list: Array<{ id: number; background: string; text: string }> = [];
-    for (let index = 1; index <= optionCount; index += 1) {
+    for (let index = 1; index <= previewOptionCount; index += 1) {
       const background = tokens[`--option-${index}`];
       const text = tokens[`--option-${index}-text`];
       if (!background || !text) continue;
       list.push({ id: index, background, text });
     }
     return list;
-  }, [optionCount, tokens]);
+  }, [previewOptionCount, tokens]);
 
   const contrastChecks = useMemo(() => {
     const pairs: Array<{ id: string; label: string; background: string; text: string; minimum: number }> = [
@@ -209,15 +207,15 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
 
   const handleApply = () => {
     const normalizedHue = clampHue(seedHue);
-    const normalizedOptions = clampOptionCount(optionCount);
+    const normalizedOptions = clampOptionCount(previewOptionCount);
     const nextTokens = buildPalettePreset(preset, {
       optionCount: normalizedOptions,
       seedHue: normalizedHue,
     });
+    const { optionCount: _ignoredOptionCount, ...restParams } = currentTheme.params ?? {};
     const nextParams = {
-      ...(currentTheme.params ?? {}),
+      ...restParams,
       seedHue: normalizedHue,
-      optionCount: normalizedOptions,
     };
     const nextTheme: ProjectTheme = {
       paletteId: preset,
@@ -287,22 +285,6 @@ export const ColorPaletteModal: React.FC<ColorPaletteModalProps> = ({
               <p className={styles.helpText}>Ajusta el matiz principal para alinear la paleta con la identidad del proyecto.</p>
             </div>
 
-            <div className={styles.controlRow}>
-              <label htmlFor={optionsFieldId}>Cantidad de opciones</label>
-              <div className={styles.sliderRow}>
-                <input
-                  id={optionsFieldId}
-                  className={styles.range}
-                  type="range"
-                  min={MIN_OPTIONS}
-                  max={MAX_OPTIONS}
-                  value={optionCount}
-                  onChange={(event) => setOptionCount(clampOptionCount(Number(event.target.value)))}
-                />
-                <span className={styles.valueBadge}>{optionCount}</span>
-              </div>
-              <p className={styles.helpText}>Controla cuántos colores de categoría se generan para condicionales y listados.</p>
-            </div>
           </section>
 
           <section className={styles.section}>

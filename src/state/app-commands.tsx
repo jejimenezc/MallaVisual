@@ -47,14 +47,18 @@ export function AppCommandsProvider({ children }: { children: React.ReactNode })
         event.preventDefault();
         event.stopImmediatePropagation();
         if (event.shiftKey) {
-          commandsRef.current.redo?.isEnabled && commandsRef.current.redo?.run();
-        } else {
-          commandsRef.current.undo?.isEnabled && commandsRef.current.undo?.run();
+          if (commandsRef.current.redo?.isEnabled) {
+            commandsRef.current.redo?.run();
+          }
+        } else if (commandsRef.current.undo?.isEnabled) {
+          commandsRef.current.undo?.run();
         }
       } else if (key === 'y') {
         event.preventDefault();
         event.stopImmediatePropagation();
-        commandsRef.current.redo?.isEnabled && commandsRef.current.redo?.run();
+        if (commandsRef.current.redo?.isEnabled) {
+          commandsRef.current.redo?.run();
+        }
       }
     };
 

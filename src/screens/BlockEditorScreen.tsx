@@ -13,7 +13,6 @@ import type { BlockExport } from '../utils/block-io.ts';
 import {
   type MallaExport,
   MALLA_SCHEMA_VERSION,
-  createDefaultProjectTheme,
   normalizeProjectTheme,
   type ProjectTheme,
 } from '../utils/malla-io.ts';
@@ -42,6 +41,7 @@ import './BlockEditorScreen.css';
 import { assignSelectOptionColors } from '../utils/selectColors.ts';
 import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
 import { useProjectTheme } from '../state/project-theme.tsx';
+import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -139,7 +139,19 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     listBlocks,
     updateBlockMetadata: repoUpdateBlockMetadata,
   } = useBlocksRepo();
-  const { theme: projectTheme } = useProjectTheme();
+  const { theme: projectTheme, isActive: themeActive } = useProjectTheme();
+  const paletteAvailable = useMemo(() => {
+    if (!themeActive) return false;
+    return Object.keys(projectTheme.tokens ?? {}).length > 0;
+  }, [projectTheme.tokens, themeActive]);
+  const palettePresetId = useMemo(
+    () => resolvePalettePresetId(projectTheme.paletteId),
+    [projectTheme.paletteId],
+  );
+  const paletteSeedHue = useMemo(
+    () => normalizePaletteHue(projectTheme.params?.seedHue),
+    [projectTheme.params?.seedHue],
+  );
   const savedRef = useRef<string | null>(null);
   const proceedHandlerRef = useRef<ProceedToMallaHandler | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
@@ -312,7 +324,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
         const options = currentOptions.get(resolvedName) ?? [];
         const existingColors = selectSource.colors ?? {};
-        const nextColors = assignSelectOptionColors(options, existingColors);
+        const paletteOptions =
+          paletteAvailable && style.paintWithPalette
+            ? paletteSeedHue !== undefined
+              ? { presetId: palettePresetId, seedHue: paletteSeedHue }
+              : { presetId: palettePresetId }
+            : undefined;
+        const baseExistingColors = paletteOptions ? {} : existingColors;
+        const nextColors = assignSelectOptionColors(options, baseExistingColors, paletteOptions);
 
         const colorsChanged =
           Object.keys(existingColors).length !== options.length ||
@@ -348,6 +367,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setVisual,
     selectOptionsEditingControlName,
     setSelectOptionsEditingControlName,
+    paletteAvailable,
+    palettePresetId,
+    paletteSeedHue,
   ]);
 
   const persistedProjectRef = useRef<MallaExport | null>(null);
