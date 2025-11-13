@@ -2,6 +2,11 @@
 import type { BlockTemplate } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
 import type { BlockMetadata } from '../types/block.ts';
+import {
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+  type ProjectTheme,
+} from './project-theme.ts';
 
 export interface BlockExport {
   version: number;
@@ -9,6 +14,7 @@ export interface BlockExport {
   visual: VisualTemplate;
   aspect: BlockAspect;
   metadata?: BlockMetadata;
+  theme: ProjectTheme;
 }
 
 export const BLOCK_SCHEMA_VERSION = 1;
@@ -18,6 +24,7 @@ export function exportBlock(
   visual: VisualTemplate,
   aspect: BlockAspect,
   metadata?: BlockMetadata,
+  theme: ProjectTheme = createDefaultProjectTheme(),
 ): string {
   const data: BlockExport = {
     version: BLOCK_SCHEMA_VERSION,
@@ -25,6 +32,7 @@ export function exportBlock(
     visual,
     aspect,
     metadata,
+    theme,
   };
   return JSON.stringify(data, null, 2);
 }
@@ -46,5 +54,13 @@ export function importBlock(json: string): BlockExport {
   if (!data.template || !data.visual || !data.aspect) {
     throw new Error('Datos incompletos');
   }
-  return data as BlockExport;
+  const theme = normalizeProjectTheme((data as { theme?: unknown }).theme);
+  return {
+    version: data.version,
+    template: data.template,
+    visual: data.visual,
+    aspect: data.aspect,
+    metadata: data.metadata,
+    theme,
+  };
 }

@@ -8,6 +8,13 @@ import {
   synchronizeMastersWithRepository,
 } from './malla-sync.ts';
 import { cloneBlockContent, toBlockContent } from './block-content.ts';
+import {
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+  type ProjectTheme,
+  type ProjectThemeParameters,
+  type ProjectThemeTokens,
+} from './project-theme.ts';
 
 export interface MallaRepositoryEntry {
   id: BlockId;
@@ -25,16 +32,29 @@ export interface MallaExport {
   values: Record<string, Record<string, string | number | boolean>>;
   floatingPieces?: string[];
   activeMasterId?: string;
+  theme: ProjectTheme;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const MALLA_SCHEMA_VERSION = 4;
+export const MALLA_SCHEMA_VERSION = 5;
+
+export { createDefaultProjectTheme, normalizeProjectTheme };
+export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
 
 function cloneBlockExport(data: BlockExport, metadata: BlockMetadata): BlockExport {
+  const theme = normalizeProjectTheme(data.theme);
+  const clonedTheme: ProjectTheme = {
+    paletteId: theme.paletteId,
+    tokens: { ...theme.tokens },
+  };
+  if (theme.params) {
+    clonedTheme.params = { ...theme.params };
+  }
   return {
     ...data,
     metadata: data.metadata ? { ...data.metadata } : { ...metadata },
+    theme: clonedTheme,
   };
 }
 
@@ -129,6 +149,7 @@ function masterToBlockExport(master: MasterBlockData): BlockExport {
     template: content.template,
     visual: content.visual,
     aspect: content.aspect,
+    theme: createDefaultProjectTheme(),
   };
 }
 
@@ -226,6 +247,7 @@ export function exportMalla(data: Omit<MallaExport, 'version'>): string {
   const payload: MallaExport = {
     ...data,
     repository: serializedRepository,
+    theme: normalizeProjectTheme(data.theme),
     version: MALLA_SCHEMA_VERSION,
   };
   return JSON.stringify(payload, null, 2);
@@ -295,5 +317,6 @@ export function importMalla(json: string): MallaExport {
     values: data.values ?? {},
     floatingPieces,
     activeMasterId,
+    theme: normalizeProjectTheme((data as { theme?: unknown }).theme),
   };
 }

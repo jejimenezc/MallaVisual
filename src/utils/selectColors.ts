@@ -1,15 +1,20 @@
-import { generatePalette } from './palette';
+import { generatePalette, type PaletteConfig } from './palette';
 
 const normalizeColorKey = (color: string) => color.trim().toLowerCase();
 
 export const assignSelectOptionColors = (
   options: string[],
-  existingColors: Record<string, string> = {}
+  existingColors: Record<string, string> = {},
+  paletteOptions?: PaletteConfig | null,
 ): Record<string, string> => {
   if (options.length === 0) return {};
 
-  const palette = generatePalette(options.length);
-  const available = palette.map((color) => ({
+  const palettePreset = paletteOptions?.presetId;
+  const buildOptions =
+    paletteOptions?.seedHue !== undefined ? { seedHue: paletteOptions.seedHue } : undefined;
+
+  const generated = generatePalette(options.length, palettePreset, buildOptions);
+  const available = generated.map((color) => ({
     raw: color,
     key: normalizeColorKey(color),
   }));

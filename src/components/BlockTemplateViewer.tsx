@@ -1,11 +1,13 @@
 // src/components/BlockTemplateViewer.tsx
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BlockTemplate } from '../types/curricular';
 import { TemplateGrid } from './TemplateGrid';
 import { VisualTemplate, BlockAspect } from '../types/visual';
 import './BlockTemplateEditor.css';
 import './BlockTemplateViewer.css';
+import type { ProjectThemeTokens } from '../utils/project-theme.ts';
+import { buildThemeStyleObject } from '../utils/theme-style.ts';
 
 interface Props {
   template: BlockTemplate;
@@ -13,6 +15,7 @@ interface Props {
   selectedCoord?: { row: number; col: number };
   onSelectCoord?: (coord: { row: number; col: number }) => void;
   aspect: BlockAspect;
+  paletteTokens?: ProjectThemeTokens;
 
 }
 
@@ -22,16 +25,18 @@ export const BlockTemplateViewer: React.FC<Props> = ({
   selectedCoord,
   onSelectCoord,
   aspect,
+  paletteTokens,
 }) => {
   const selectedCells = selectedCoord ? [selectedCoord] : [];
   const [values, setValues] = useState<Record<string, string | number | boolean>>({});
+  const paletteStyle = useMemo(() => buildThemeStyleObject(paletteTokens), [paletteTokens]);
 
   const handleValueChange = (key: string, value: string | number | boolean) => {
     setValues((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
-    <div className="block-template-viewer">
+    <div className="block-template-viewer" style={paletteStyle}>
       <div className="viewer-grid" data-aspect={aspect}>
         <TemplateGrid
           template={template}

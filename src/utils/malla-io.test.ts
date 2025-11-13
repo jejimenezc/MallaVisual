@@ -1,7 +1,12 @@
 // src/utils/malla-io.test.ts
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
-import { exportMalla, importMalla, MALLA_SCHEMA_VERSION } from './malla-io.ts';
+import {
+  exportMalla,
+  importMalla,
+  MALLA_SCHEMA_VERSION,
+  createDefaultProjectTheme,
+} from './malla-io.ts';
 import { buildBlockId } from '../types/block.ts';
 import type { BlockTemplate, CurricularPieceRef, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
@@ -48,6 +53,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
         visual,
         aspect,
         metadata,
+        theme: createDefaultProjectTheme(),
       },
     },
   };
@@ -60,6 +66,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
     values: { p1: { done: true } },
     floatingPieces: ['p1'],
     activeMasterId: 'm1',
+    theme: createDefaultProjectTheme(),
   });
 
   const result = importMalla(json);
@@ -72,6 +79,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
   assert.deepEqual(result.values, { p1: { done: true } });
   assert.deepEqual(result.floatingPieces, ['p1']);
   assert.equal(result.activeMasterId, 'm1');
+  assert.deepEqual(result.theme, createDefaultProjectTheme());
 });
 
 test('importMalla migrates legacy schema and remaps references with duplicated names', () => {
@@ -96,12 +104,14 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
       template,
       visual,
       aspect,
+      theme: createDefaultProjectTheme(),
     },
     'repo-orphan': {
       version: BLOCK_SCHEMA_VERSION,
       template,
       visual,
       aspect,
+      theme: createDefaultProjectTheme(),
     },
   };
 
@@ -182,4 +192,5 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
   assert(remappedPiece?.kind === 'ref');
   assert.equal(remappedPiece.ref.sourceId, masterEntry.metadata.uuid);
   assert.equal(result.activeMasterId, generatedEntry.metadata.uuid);
+  assert.deepEqual(result.theme, createDefaultProjectTheme());
 });

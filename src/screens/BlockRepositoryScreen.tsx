@@ -167,6 +167,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
               template={data.template}
               visualTemplate={data.visual}
               aspect={data.aspect}
+              paletteTokens={data.theme.tokens}
             />
             <div className="block-name">{metadata.name}</div>
             {/*   <div className="block-id">UUID: {metadata.uuid}</div>*/}

@@ -13,13 +13,22 @@ import { NavTabs } from './components/NavTabs';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
 import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
-import { type MallaExport, type MallaRepositoryEntry, MALLA_SCHEMA_VERSION } from './utils/malla-io.ts';
+import { ColorPaletteModal } from './components/ColorPaletteModal';
+import {
+  type MallaExport,
+  type MallaRepositoryEntry,
+  MALLA_SCHEMA_VERSION,
+  createDefaultProjectTheme,
+  normalizeProjectTheme,
+  type ProjectTheme,
+} from './utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
 import { ProceedToMallaProvider, useProceedToMalla } from './state/proceed-to-malla';
 import { useUILayout } from './state/ui-layout.tsx';
 import { AppCommandsProvider } from './state/app-commands';
+import { ProjectThemeProvider } from './state/project-theme.tsx';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -267,6 +276,7 @@ function prepareMallaProjectState(
     floatingPieces,
     activeMasterId: activeId,
     repository: repositoryEntries,
+    theme: normalizeProjectTheme(data.theme),
   };
 
   return { block, malla: mallaState };
@@ -283,6 +293,7 @@ interface AppLayoutProps {
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
   onOpenRecentProject: (id: string) => void;
   onShowIntro: () => void;
+  onOpenProjectPalette: () => void;
   locationPath: string;
   navigate: ReturnType<typeof useNavigate>;
 }
@@ -298,6 +309,7 @@ function AppLayout({
   getRecentProjects,
   onOpenRecentProject,
   onShowIntro,
+  onOpenProjectPalette,
   locationPath,
   navigate,
 }: AppLayoutProps): JSX.Element {
@@ -368,6 +380,7 @@ function AppLayout({
             getRecentProjects={getRecentProjects}
             onOpenRecentProject={onOpenRecentProject}
             onShowIntro={onShowIntro}
+            onOpenProjectPalette={onOpenProjectPalette}
           />
           <NavTabs isProjectActive={hasProject} />
         </div>
@@ -394,6 +407,10 @@ export default function App(): JSX.Element | null {
   const storedActiveProjectRef = useRef(readStoredActiveProject());
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
+  const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
+    createDefaultProjectTheme(),
+  );
+  const [isPaletteModalOpen, setPaletteModalOpen] = useState(false);
   const mallaRef = useRef<MallaExport | null>(malla);
   const pendingControlDataClearsRef = useRef<ControlDataClearRequest[]>([]);
   const previousTemplateControlsRef = useRef<Map<string, TemplateControlSnapshot>>(
@@ -418,6 +435,42 @@ export default function App(): JSX.Element | null {
     blocksToRepository(listBlocks()),
   );
   const repositorySnapshotRef = useRef(repositorySnapshot);
+
+  const updateProjectTheme = useCallback(
+    (theme: ProjectTheme) => {
+      const normalized = normalizeProjectTheme(theme);
+      setProjectThemeState(normalized);
+      setMalla((prev) => (prev ? { ...prev, theme: normalized } : prev));
+    },
+    [normalizeProjectTheme],
+  );
+
+  const loadMallaState = useCallback(
+    (next: MallaExport | null) => {
+      if (!next) {
+        setMalla(null);
+        setProjectThemeState(createDefaultProjectTheme());
+        return;
+      }
+      const normalizedTheme = normalizeProjectTheme(next.theme);
+      setProjectThemeState(normalizedTheme);
+      setMalla({ ...next, theme: normalizedTheme });
+    },
+    [createDefaultProjectTheme, normalizeProjectTheme],
+  );
+
+  const handleMallaChange = useCallback<
+    React.Dispatch<React.SetStateAction<MallaExport | null>>
+  >(
+    (next) => {
+      const value =
+        typeof next === 'function'
+          ? (next as (prev: MallaExport | null) => MallaExport | null)(mallaRef.current)
+          : next;
+      loadMallaState(value ?? null);
+    },
+    [loadMallaState],
+  );
 
   useEffect(() => {
     mallaRef.current = malla;
@@ -532,7 +585,23 @@ export default function App(): JSX.Element | null {
   const handleHideIntroOverlay = useCallback(() => {
     setIntroOverlayVisible(false);
   }, []);
-  
+
+  const handleOpenProjectPalette = useCallback(() => {
+    setPaletteModalOpen(true);
+  }, []);
+
+  const handleCloseProjectPalette = useCallback(() => {
+    setPaletteModalOpen(false);
+  }, []);
+
+  const handleApplyProjectPalette = useCallback(
+    (theme: ProjectTheme) => {
+      updateProjectTheme(theme);
+      setPaletteModalOpen(false);
+    },
+    [updateProjectTheme],
+  );
+
   const computeDirty = useCallback(
     (b: BlockState | null = block): boolean => {
       if (!b) return false;
@@ -640,7 +709,7 @@ export default function App(): JSX.Element | null {
       setProjectId(null);
       setProjectName('');
       setBlock(null);
-      setMalla(null);
+      loadMallaState(null);
       setShouldPersistProject(false);
       setIsHydrated(true);
       return;
@@ -660,7 +729,7 @@ export default function App(): JSX.Element | null {
       }
       const prepared = prepareMallaProjectState(record.data, normalizedRepo);
       setBlock(prepared.block);
-      setMalla(prepared.malla);
+      loadMallaState(prepared.malla);
     } else {
       applyRepositoryChange(
         {},
@@ -671,7 +740,7 @@ export default function App(): JSX.Element | null {
         },
       );
       setBlock(createBlockStateFromContent(toBlockContent(record.data)));
-      setMalla(null);
+      loadMallaState(null);
     }
     setProjectId(stored.id);
     setProjectName(record.meta.name ?? stored.name ?? '');
@@ -685,6 +754,7 @@ export default function App(): JSX.Element | null {
         ...malla,
         version: MALLA_SCHEMA_VERSION,
         repository: repositorySnapshot.entries,
+        theme: projectThemeState,
       };
     }
     if (block) {
@@ -703,10 +773,11 @@ export default function App(): JSX.Element | null {
         values: {},
         floatingPieces: [],
         activeMasterId: 'master',
+        theme: projectThemeState,
       };
     }
     return null;
-  }, [malla, block, repositorySnapshot]);
+  }, [malla, block, repositorySnapshot, projectThemeState]);
 
   const handleExportProject = () => {
     if (!currentProject) return;
@@ -737,7 +808,7 @@ export default function App(): JSX.Element | null {
     clearRepository();
     setRepositorySnapshot(blocksToRepository([]));
     setBlock(null);
-    setMalla(null);
+    loadMallaState(null);
     setProjectId(null);
     setProjectName('');
     setShouldPersistProject(false);
@@ -756,6 +827,7 @@ export default function App(): JSX.Element | null {
     computeDirty,
     currentProject,
     flushAutoSave,
+    loadMallaState,
     navigate,
   ]);
 
@@ -782,7 +854,7 @@ export default function App(): JSX.Element | null {
       /* ignore */
     }
     setBlock(createEmptyBlockState());
-    setMalla(null);
+    loadMallaState(null);
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id, name };
     navigate('/block/design');
@@ -799,10 +871,12 @@ export default function App(): JSX.Element | null {
     if (!normalized) return;
     const name = inferredName?.trim() || 'Importado';
     const id = crypto.randomUUID();
+    const theme = normalizeProjectTheme(data.theme);
     setProjectId(id);
     setProjectName(name);
     setBlock(createBlockStateFromContent(toBlockContent(data)));
-    setMalla(null);
+    loadMallaState(null);
+    setProjectThemeState(theme);
     clearPersistedProjectMetadata();
     navigate('/block/design');
   };
@@ -822,7 +896,7 @@ export default function App(): JSX.Element | null {
     setProjectId(id);
     setProjectName(name);
     setBlock(prepared.block);
-    setMalla(prepared.malla);
+    loadMallaState(prepared.malla);
     clearPersistedProjectMetadata();
     navigate('/malla/design');
   };
@@ -856,7 +930,7 @@ export default function App(): JSX.Element | null {
       setProjectId(id);
       setProjectName(name);
       setBlock(prepared.block);
-      setMalla(prepared.malla);
+      loadMallaState(prepared.malla);
       setShouldPersistProject(true);
       navigate('/malla/design');
     } else {
@@ -872,7 +946,7 @@ export default function App(): JSX.Element | null {
       setProjectId(id);
       setProjectName(name);
       setBlock(createBlockStateFromContent(toBlockContent(b)));
-      setMalla(null);
+      loadMallaState(null);
       setShouldPersistProject(true);
       navigate('/block/design');
     }
@@ -977,38 +1051,43 @@ export default function App(): JSX.Element | null {
   );
 
   const handleBlockPublish = useCallback(
-    (
-      payload: {
-        repoId: string;
-        metadata: BlockMetadata;
-        template: BlockTemplate;
-        visual: VisualTemplate;
-        aspect: BlockAspect;
-      },
-    ) => {
+    ({
+      repoId,
+      metadata,
+      template,
+      visual,
+      aspect,
+    }: {
+      repoId: string;
+      metadata: BlockMetadata;
+      template: BlockTemplate;
+      visual: VisualTemplate;
+      aspect: BlockAspect;
+      theme: ProjectTheme;
+    }) => {
       const content: BlockContent = {
-        template: payload.template,
-        visual: payload.visual,
-        aspect: payload.aspect,
+        template,
+        visual,
+        aspect,
       };
-      const metadata = { ...payload.metadata };
+      const metadataCopy = { ...metadata };
       setBlock((prev) => {
         const nextDraft = cloneBlockContent(content);
         if (!prev) {
           return {
             draft: nextDraft,
-            repoId: payload.repoId,
-            repoName: metadata.name,
-            repoMetadata: metadata,
+            repoId,
+            repoName: metadataCopy.name,
+            repoMetadata: metadataCopy,
             published: cloneBlockContent(nextDraft),
           };
         }
         return {
           ...prev,
           draft: nextDraft,
-          repoId: payload.repoId ?? prev.repoId,
-          repoName: metadata.name,
-          repoMetadata: metadata,
+          repoId: repoId ?? prev.repoId,
+          repoName: metadataCopy.name,
+          repoMetadata: metadataCopy,
           published: cloneBlockContent(nextDraft),
         };
       });
@@ -1024,6 +1103,7 @@ export default function App(): JSX.Element | null {
     const content = toBlockContent(stored.data);
     const draft = cloneBlockContent(content);
     const published = cloneBlockContent(content);
+    const theme = normalizeProjectTheme(stored.data.theme);
     setBlock({
       draft,
       repoId: stored.metadata.uuid,
@@ -1038,8 +1118,9 @@ export default function App(): JSX.Element | null {
       } catch {
         /* ignore */
       }
-      setMalla(null);
+      loadMallaState(null);
     }
+    setProjectThemeState(theme);
     if (shouldNavigate) {
       navigate('/block/design');
     }
@@ -1397,146 +1478,161 @@ export default function App(): JSX.Element | null {
   const hasPublishedBlock = Boolean(block?.published);
   const hasPublishedRepositoryBlock = Object.keys(repositorySnapshot.repository).length > 0;
 
+  const projectTheme = projectThemeState;
+
+  const hasProject = !!currentProject;
+
   if (!isHydrated) {
     return null;
   }
 
   return (
-    <AppCommandsProvider>
-      <ProceedToMallaProvider
-      hasDirtyBlock={hasDirtyBlock}
-      hasPublishedBlock={hasPublishedBlock}
-      hasPublishedRepositoryBlock={hasPublishedRepositoryBlock}
-    >
-      <AppLayout
-        projectName={projectName}
-        hasProject={!!currentProject}
-        onNewProject={handleNewProject}
-        onImportProjectFile={handleImportProjectFile}
-        onExportProject={handleExportProject}
-        onCloseProject={handleCloseProject}
-        getRecentProjects={getRecentProjects}
-        onOpenRecentProject={handleOpenRecentProject}
-        onShowIntro={handleShowIntroOverlay}
-        locationPath={location.pathname}
-        navigate={navigate}
-      >
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <HomeScreen
-                onNewBlock={handleNewProject}
-                onLoadBlock={handleLoadBlock}
-                onLoadMalla={handleLoadMalla}
-                onOpenProject={handleOpenProject}
-                currentProjectId={projectId ?? undefined}
-                onProjectDeleted={handleProjectRemoved}
-                onProjectRenamed={handleProjectRenamed}
-                onShowIntro={handleShowIntroOverlay}
+    <ProjectThemeProvider theme={projectTheme} active={hasProject}>
+      <AppCommandsProvider>
+        <ProceedToMallaProvider
+          hasDirtyBlock={hasDirtyBlock}
+          hasPublishedBlock={hasPublishedBlock}
+          hasPublishedRepositoryBlock={hasPublishedRepositoryBlock}
+        >
+          <AppLayout
+            projectName={projectName}
+            hasProject={hasProject}
+            onNewProject={handleNewProject}
+            onImportProjectFile={handleImportProjectFile}
+            onExportProject={handleExportProject}
+            onCloseProject={handleCloseProject}
+            getRecentProjects={getRecentProjects}
+            onOpenRecentProject={handleOpenRecentProject}
+            onShowIntro={handleShowIntroOverlay}
+            onOpenProjectPalette={handleOpenProjectPalette}
+            locationPath={location.pathname}
+            navigate={navigate}
+          >
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <HomeScreen
+                    onNewBlock={handleNewProject}
+                    onLoadBlock={handleLoadBlock}
+                    onLoadMalla={handleLoadMalla}
+                    onOpenProject={handleOpenProject}
+                    currentProjectId={projectId ?? undefined}
+                    onProjectDeleted={handleProjectRemoved}
+                    onProjectRenamed={handleProjectRenamed}
+                    onShowIntro={handleShowIntroOverlay}
+                  />
+                }
               />
-            }
-          />
-          <Route
-            path="/block/design"
-            element={
-              <BlockEditorScreen
-                onProceedToMalla={handleProceedToMalla}
-                onDraftChange={handleBlockDraftChange}
-                initialData={
-                  block
-                    ? {
+              <Route
+                path="/block/design"
+                element={
+                  <BlockEditorScreen
+                    onProceedToMalla={handleProceedToMalla}
+                    onDraftChange={handleBlockDraftChange}
+                    initialData={
+                      block
+                        ? {
+                            version: BLOCK_SCHEMA_VERSION,
+                            template: block.draft.template,
+                            visual: block.draft.visual,
+                            aspect: block.draft.aspect,
+                            theme: projectThemeState,
+                          }
+                        : undefined
+                    }
+                    projectId={projectId ?? undefined}
+                    projectName={projectName}
+                    initialMode="edit"
+                    initialRepoId={block?.repoId ?? null}
+                    initialRepoName={block?.repoName ?? null}
+                    initialRepoMetadata={block?.repoMetadata ?? null}
+                    onRepoIdChange={handleRepoIdChange}
+                    onRepoMetadataChange={handleRepoMetadataChange}
+                    onPublishBlock={handleBlockPublish}
+                    isBlockInUse={blockInUse}
+                    controlsInUse={controlsInUse}
+                    onRequestControlDataClear={handleRequestControlDataClear}
+                  />
+                }
+              />
+              <Route
+                path="/block/style"
+                element={
+                  block ? (
+                    <BlockEditorScreen
+                      onDraftChange={handleBlockDraftChange}
+                      initialData={{
                         version: BLOCK_SCHEMA_VERSION,
                         template: block.draft.template,
                         visual: block.draft.visual,
                         aspect: block.draft.aspect,
-                      }
-                    : undefined
+                        theme: projectThemeState,
+                      }}
+                      projectId={projectId ?? undefined}
+                      projectName={projectName}
+                      initialMode="view"
+                      initialRepoId={block.repoId ?? null}
+                      initialRepoName={block.repoName ?? null}
+                      initialRepoMetadata={block.repoMetadata ?? null}
+                      onRepoIdChange={handleRepoIdChange}
+                      onRepoMetadataChange={handleRepoMetadataChange}
+                      onPublishBlock={handleBlockPublish}
+                      isBlockInUse={blockInUse}
+                      controlsInUse={controlsInUse}
+                      onRequestControlDataClear={handleRequestControlDataClear}
+                    />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
                 }
-                projectId={projectId ?? undefined}
-                projectName={projectName}
-                initialMode="edit"
-                initialRepoId={block?.repoId ?? null}
-                initialRepoName={block?.repoName ?? null}
-                initialRepoMetadata={block?.repoMetadata ?? null}
-                onRepoIdChange={handleRepoIdChange}
-                onRepoMetadataChange={handleRepoMetadataChange}
-                onPublishBlock={handleBlockPublish}
-                isBlockInUse={blockInUse}
-                controlsInUse={controlsInUse}
-                onRequestControlDataClear={handleRequestControlDataClear}
               />
-            }
-          />
-          <Route
-            path="/block/style"
-            element={
-              block ? (
-                <BlockEditorScreen
-                  onDraftChange={handleBlockDraftChange}
-                  initialData={{
-                    version: BLOCK_SCHEMA_VERSION,
-                    template: block.draft.template,
-                    visual: block.draft.visual,
-                    aspect: block.draft.aspect,
-                  }}
-                  projectId={projectId ?? undefined}
-                  projectName={projectName}
-                  initialMode="view"
-                  initialRepoId={block.repoId ?? null}
-                  initialRepoName={block.repoName ?? null}
-                  initialRepoMetadata={block.repoMetadata ?? null}
-                  onRepoIdChange={handleRepoIdChange}
-                  onRepoMetadataChange={handleRepoMetadataChange}
-                  onPublishBlock={handleBlockPublish}
-                  isBlockInUse={blockInUse}
-                  controlsInUse={controlsInUse}
-                  onRequestControlDataClear={handleRequestControlDataClear}
-                />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
-          <Route
-            path="/blocks"
-            element={
-              <BlockRepositoryScreen
-                onBlockImported={handleBlockImported}
-                onOpenBlock={handleOpenRepositoryBlock}
-                activeProjectId={projectId ?? undefined}
-                blocksInUse={blocksInUse}
+              <Route
+                path="/blocks"
+                element={
+                  <BlockRepositoryScreen
+                    onBlockImported={handleBlockImported}
+                    onOpenBlock={handleOpenRepositoryBlock}
+                    activeProjectId={projectId ?? undefined}
+                    blocksInUse={blocksInUse}
+                  />
+                }
               />
-            }
+              <Route
+                path="/malla/design"
+                element={
+                  block ? (
+                    <MallaEditorScreen
+                      template={block.published?.template ?? block.draft.template}
+                      visual={block.published?.visual ?? block.draft.visual}
+                      aspect={block.published?.aspect ?? block.draft.aspect}
+                      repoId={block.repoId ?? null}
+                      onBack={() => navigate('/block/design')}
+                      onUpdateMaster={handleUpdateMaster}
+                      initialMalla={malla ?? undefined}
+                      onMallaChange={handleMallaChange}
+                      projectId={projectId ?? undefined}
+                      projectName={projectName}
+                    />
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </AppLayout>
+          <ColorPaletteModal
+            isOpen={isPaletteModalOpen}
+            currentTheme={projectTheme}
+            onClose={handleCloseProjectPalette}
+            onApply={handleApplyProjectPalette}
           />
-          <Route
-            path="/malla/design"
-            element={
-              block ? (
-                <MallaEditorScreen
-                  template={block.published?.template ?? block.draft.template}
-                  visual={block.published?.visual ?? block.draft.visual}
-                  aspect={block.published?.aspect ?? block.draft.aspect}
-                  repoId={block.repoId ?? null}
-                  onBack={() => navigate('/block/design')}
-                  onUpdateMaster={handleUpdateMaster}
-                  initialMalla={malla ?? undefined}
-                  onMallaChange={setMalla}
-                  projectId={projectId ?? undefined}
-                  projectName={projectName}
-                />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </AppLayout>
-    </ProceedToMallaProvider>
-    {isIntroOverlayVisible ? (
-      <IntroOverlay onClose={handleHideIntroOverlay} />
-    ) : null}
-  </AppCommandsProvider>
+        </ProceedToMallaProvider>
+        {isIntroOverlayVisible ? (
+          <IntroOverlay onClose={handleHideIntroOverlay} />
+        ) : null}
+      </AppCommandsProvider>
+    </ProjectThemeProvider>
   );
 }

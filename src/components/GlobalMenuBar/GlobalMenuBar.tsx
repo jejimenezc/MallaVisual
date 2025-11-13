@@ -19,6 +19,7 @@ interface GlobalMenuBarProps {
   getRecentProjects: () => RecentProject[];
   onOpenRecentProject: (id: string) => void;
   onShowIntro: () => void;
+  onOpenProjectPalette: () => void;
 }
 
 type MenuKey =
@@ -42,6 +43,7 @@ export function GlobalMenuBar({
   getRecentProjects,
   onOpenRecentProject,
   onShowIntro,
+  onOpenProjectPalette,
 }: GlobalMenuBarProps): JSX.Element {
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
   const [openSubmenu, setOpenSubmenu] = useState<SubmenuKey | null>(null);
@@ -198,6 +200,19 @@ export function GlobalMenuBar({
     [handleCloseMenu, onShowIntro],
   );
 
+  const handleOpenPaletteClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) {
+        return;
+      }
+      onOpenProjectPalette();
+    },
+    [handleCloseMenu, hasProject, onOpenProjectPalette],
+  );
+
   const renderRecentProjects = useMemo(() => {
     if (recentProjects.length === 0) {
       return (
@@ -325,8 +340,12 @@ export function GlobalMenuBar({
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Paleta de color…
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPaletteClick}
+                  disabled={!hasProject}
+                >                  Paleta de color…
                 </button>
               </li>
             </ul>

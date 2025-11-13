@@ -13,6 +13,12 @@ import type {
 import type { BlockTemplate, BlockTemplateCell } from '../types/curricular';
 import { assignSelectOptionColors } from '../utils/selectColors';
 import { collectSelectControls } from '../utils/selectControls';
+import { useProjectTheme } from '../state/project-theme.tsx';
+import {
+  normalizePaletteHue,
+  resolvePalettePresetId,
+  type PaletteConfig,
+} from '../utils/palette.ts';
 
 interface FormatStylePanelProps {
   selectedCoord?: { row: number; col: number };
@@ -61,6 +67,33 @@ const SLIDERS: Record<SliderKey, SliderConfig> = {
   },
 };
 
+interface PaletteBaseRole {
+  id: 'cell-active';
+  label: string;
+  background: string;
+  text: string;
+  normalizedBackground: string;
+  normalizedText: string;
+}
+
+interface PaletteCheckboxRole {
+  id: 'checkbox-on';
+  label: string;
+  background: string;
+  text: string;
+  normalizedBackground: string;
+  normalizedText: string;
+}
+
+interface PaletteOptionRole {
+  index: number;
+  label: string;
+  background: string;
+  text: string;
+  normalizedBackground: string;
+  normalizedText: string;
+}
+
 type AlignmentValue = NonNullable<VisualStyle['textAlign']>;
 
 const ALIGNMENT_OPTIONS: { value: AlignmentValue; icon: string; label: string }[] = [
@@ -71,6 +104,16 @@ const ALIGNMENT_OPTIONS: { value: AlignmentValue; icon: string; label: string }[
 ];
 
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
+const areColorMapsEqual = (
+  a: Record<string, string>,
+  b: Record<string, string>,
+): boolean => {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => a[key] === b[key]);
+};
 
 const expandShortHex = (hex: string) =>
   `#${hex
@@ -255,17 +298,98 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const [alignmentAnchor, setAlignmentAnchor] = useState<DOMRect | null>(null);
   const [advancedAnchor, setAdvancedAnchor] = useState<DOMRect | null>(null);
   const selectColorInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
-  const [isPaletteEnabled, setIsPaletteEnabled] = useState(false);
-  const [paintWithPalette, setPaintWithPalette] = useState(false);
-  useEffect(() => {
-    if (!isPaletteEnabled) {
-      setPaintWithPalette(false);
-    }
-  }, [isPaletteEnabled]);
+  const { theme: projectTheme, isActive: themeActive } = useProjectTheme();
+  const paletteAvailable = useMemo(() => {
+    if (!themeActive) return false;
+    return Object.keys(projectTheme.tokens ?? {}).length > 0;
+  }, [projectTheme.tokens, themeActive]);
+
+  const palettePresetId = useMemo(
+    () => resolvePalettePresetId(projectTheme.paletteId),
+    [projectTheme.paletteId],
+  );
+
+  const paletteSeedHue = useMemo(
+    () => normalizePaletteHue(projectTheme.params?.seedHue),
+    [projectTheme.params?.seedHue],
+  );
+
+  const paletteConfig = useMemo<PaletteConfig>(
+    () =>
+      paletteSeedHue !== undefined
+        ? { presetId: palettePresetId, seedHue: paletteSeedHue }
+        : { presetId: palettePresetId },
+    [palettePresetId, paletteSeedHue],
+  );
+
+  const paletteRoles = useMemo<{
+    base: PaletteBaseRole | null;
+    checkbox: PaletteCheckboxRole | null;
+    options: PaletteOptionRole[];
+  }>(() => {
+    const tokens = projectTheme.tokens ?? {};
+
+    const baseRole: PaletteBaseRole | null = tokens['--cell-active'] && tokens['--cell-active-text']
+      ? {
+          id: 'cell-active',
+          label: 'Celda activa',
+          background: tokens['--cell-active'],
+          text: tokens['--cell-active-text'],
+          normalizedBackground: normalizeHex(tokens['--cell-active']),
+          normalizedText: normalizeHex(tokens['--cell-active-text']),
+        }
+      : null;
+
+    const checkboxRole: PaletteCheckboxRole | null = tokens['--checkbox-on'] && tokens['--checkbox-on-text']
+      ? {
+          id: 'checkbox-on',
+          label: 'Checkbox activo',
+          background: tokens['--checkbox-on'],
+          text: tokens['--checkbox-on-text'],
+          normalizedBackground: normalizeHex(tokens['--checkbox-on']),
+          normalizedText: normalizeHex(tokens['--checkbox-on-text']),
+        }
+      : null;
+
+    const optionRoles: PaletteOptionRole[] = [];
+
+    Object.entries(tokens).forEach(([key, value]) => {
+      const match = key.match(/^--option-(\d+)$/);
+      if (!match) return;
+      const index = Number(match[1]);
+      if (Number.isNaN(index)) return;
+      const background = value;
+      const textKey = `--option-${index}-text`;
+      const text = tokens[textKey];
+      if (!background || !text) return;
+      optionRoles.push({
+        index,
+        label: `Opción ${index}`,
+        background,
+        text,
+        normalizedBackground: normalizeHex(background),
+        normalizedText: normalizeHex(text),
+      });
+    });
+
+    optionRoles.sort((a, b) => a.index - b.index);
+
+    return {
+      base: baseRole,
+      checkbox: checkboxRole,
+      options: optionRoles,
+    };
+  }, [projectTheme.tokens]);
 
   const k = selectedCoord ? coordKey(selectedCoord.row, selectedCoord.col) : undefined;
 
   const current: VisualStyle = useMemo(() => (k ? visualTemplate[k] ?? {} : {}), [k, visualTemplate]);
+  const paintWithPalette = Boolean(current.paintWithPalette);
+
+  const paletteOptionsForSelect = useMemo(
+    () => (paletteAvailable && paintWithPalette ? paletteConfig : undefined),
+    [paletteAvailable, paintWithPalette, paletteConfig],
+  );
 
   const selectedCell = useMemo(() => {
     if (!selectedCoord) return undefined;
@@ -307,6 +431,12 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     [current, k, onUpdateVisual, visualTemplate]
   );
 
+  useEffect(() => {
+    if (!paletteAvailable && current.paintWithPalette) {
+      patch({ paintWithPalette: false });
+    }
+  }, [paletteAvailable, current.paintWithPalette, patch]);
+
   const resetStyle = useCallback(() => {
     if (!k) return;
     const next = { ...visualTemplate };
@@ -340,6 +470,54 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     return '';
   }, [selectedSelectSource, selectControlsByCoord]);
 
+  const conditionalSourceControl = useMemo(() => {
+    if (!selectedSelectSource) return null;
+    if (selectedSelectSource.controlName) {
+      return selectControlsByName.get(selectedSelectSource.controlName) ?? null;
+    }
+    if (selectedSelectSource.coord) {
+      return selectControlsByCoord.get(selectedSelectSource.coord) ?? null;
+    }
+    return null;
+  }, [selectedSelectSource, selectControlsByCoord, selectControlsByName]);
+
+  const conditionalOptionEntries = useMemo(() => {
+    if (!selectedSelectSource) return [] as Array<{ option: string; color: string }>;
+    const colors = selectedSelectSource.colors ?? {};
+    const options = conditionalSourceControl?.options ?? [];
+    if (!options || options.length === 0) {
+      return Object.entries(colors).map(([option, color]) => ({ option, color }));
+    }
+    return options.map((option) => ({ option, color: colors[option] ?? '#ffffff' }));
+  }, [selectedSelectSource, conditionalSourceControl]);
+
+  useEffect(() => {
+    if (!conditionalSourceControl) return;
+    if (!paletteOptionsForSelect) return;
+    const options = conditionalSourceControl.options ?? [];
+    if (options.length === 0) return;
+    const existingColors = current.conditionalBg?.selectSource?.colors ?? {};
+    const nextColors = assignSelectOptionColors(options, {}, paletteOptionsForSelect);
+    if (areColorMapsEqual(existingColors, nextColors)) {
+      return;
+    }
+    updateConditionalBg((prev) => {
+      if (!prev?.selectSource) return prev;
+      return {
+        ...prev,
+        selectSource: {
+          ...prev.selectSource,
+          colors: nextColors,
+        },
+      };
+    });
+  }, [
+    conditionalSourceControl,
+    current.conditionalBg?.selectSource?.colors,
+    paletteOptionsForSelect,
+    updateConditionalBg,
+  ]);
+
   const handleSelectSourceChange = (controlName: string) => {
     if (!k) return;
     if (!controlName) {
@@ -352,7 +530,13 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       return;
     }
     const control = selectControlsByName.get(controlName);
-    const colors = assignSelectOptionColors(control?.options ?? []);
+    const existingColors = current.conditionalBg?.selectSource?.colors ?? {};
+    const baseExistingColors = paletteOptionsForSelect ? {} : existingColors;
+    const colors = assignSelectOptionColors(
+      control?.options ?? [],
+      baseExistingColors,
+      paletteOptionsForSelect,
+    );
     updateConditionalBg((prev) => ({
       ...prev,
       selectSource: {
@@ -361,6 +545,30 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
         colors,
       },
     }));
+  };
+
+  const applyPaletteBaseRole = useCallback(() => {
+    if (!paletteRoles.base) return;
+    patch({
+      backgroundColor: paletteRoles.base.normalizedBackground,
+      textColor: paletteRoles.base.normalizedText,
+    });
+  }, [paletteRoles.base, patch]);
+
+  const applyCheckboxPaletteRole = useCallback(() => {
+    if (!paletteRoles.checkbox) return;
+    const role = paletteRoles.checkbox;
+    updateConditionalBg((prev) => {
+      const base: ConditionalBg = { ...(prev ?? {}) };
+      base.checkedColor = role.normalizedBackground;
+      return base;
+    });
+  }, [paletteRoles.checkbox, updateConditionalBg]);
+
+  const handlePaletteToggleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const enabled = event.target.checked;
+    if (enabled && !paletteAvailable) return;
+    patch({ paintWithPalette: enabled });
   };
 
   const rawTextColor = current.textColor ?? selectedCell?.style?.textColor ?? '#111827';
@@ -689,14 +897,15 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                 <span aria-hidden="true">🎨</span>
                 <span>Paleta de color</span>
               </div>
-              <label className="toggle">
+              <label className={`toggle${!paletteAvailable ? ' toggle--disabled' : ''}`}>
                 <input
                   type="checkbox"
-                  checked={isPaletteEnabled}
-                  onChange={(event) => setIsPaletteEnabled(event.target.checked)}
+                  checked={paintWithPalette}
+                  onChange={handlePaletteToggleChange}
+                  disabled={!paletteAvailable}
                 />
                 <span className="toggle__indicator" aria-hidden="true" />
-                <span className="toggle__label">{isPaletteEnabled ? 'Activo' : 'Inactivo'}</span>
+                <span className="toggle__label">{paintWithPalette ? 'Activo' : 'Inactivo'}</span>
               </label>
               <p className="format-field__hint">Centraliza colores aprobados para mantener consistencia.</p>
             </div>
@@ -723,7 +932,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
         )}
         {canEditControl && (
           <div className="format-section__list">
-            {!isPaletteEnabled && (
+            {!paintWithPalette && (
               <>
                 <div className="format-field">
                   <div className="format-field__label">
@@ -799,23 +1008,41 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
               </>
             )}
 
-            {isPaletteEnabled && (
+            {paintWithPalette && (
               <div className="format-field">
                 <div className="format-field__label">
                   <span aria-hidden="true">🟩</span>
-                  <span>Color de celda</span>
+                  <span>Roles rápidos</span>
                 </div>
-                <div className="format-field__inline">
-                  <label className="toggle toggle--inline">
-                    <input
-                      type="checkbox"
-                      checked={paintWithPalette}
-                      onChange={(event) => setPaintWithPalette(event.target.checked)}
-                    />
-                    <span className="toggle__indicator" aria-hidden="true" />
-                    <span className="toggle__label">Pintar con paleta</span>
-                  </label>
-                </div>
+                {paletteRoles.base ? (
+                  <div className="palette-quick-picks" role="list">
+                    <button
+                      type="button"
+                      className={`palette-quick-pick${
+                        paletteRoles.base &&
+                        normalizedBackgroundColor === paletteRoles.base.normalizedBackground &&
+                        normalizedTextColor === paletteRoles.base.normalizedText
+                          ? ' is-active'
+                          : ''
+                      }`}
+                      onClick={applyPaletteBaseRole}
+                    >
+                      <span
+                        className="palette-quick-pick__swatch"
+                        style={{
+                          backgroundColor: paletteRoles.base.background,
+                          color: paletteRoles.base.text,
+                        }}
+                        aria-hidden="true"
+                      >
+                        Aa
+                      </span>
+                      <span className="palette-quick-pick__label">{paletteRoles.base.label}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <p className="format-field__hint">La paleta del proyecto aún no define roles de celda.</p>
+                )}
               </div>
             )}
 
@@ -886,45 +1113,77 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                   <span aria-hidden="true">✅</span>
                   <span>Color al marcar</span>
                 </div>
-                <label className="toggle toggle--inline">
-                  <input
-                    type="checkbox"
-                    checked={checkboxColorEnabled}
-                    onChange={(event) => handleCheckboxColorToggle(event.target.checked)}
-                  />
-                  <span className="toggle__indicator" aria-hidden="true" />
-                  <span className="toggle__label">Personalizar</span>
-                </label>
-                {checkboxColorEnabled && (
-                  <div className="format-field__inline">
-                    <span
-                      className="color-chip"
-                      style={{ backgroundColor: normalizedCheckboxColor }}
-                      aria-label={`Color actual ${checkboxColorLabel}`}
-                    />
-                    <input
-                      ref={checkboxColorHexInputRef}
-                      className="color-chip__value-input"
-                      type="text"
-                      value={checkboxColorText}
-                      onChange={handleCheckboxHexInputChange}
-                      onBlur={handleCheckboxHexInputBlur}
-                      maxLength={7}
-                      spellCheck={false}
-                      aria-label="Editar color del checkbox en formato hexadecimal"
-                    />
-                    <button type="button" onClick={handleCheckboxPickerOpen}>
-                      Editar
-                    </button>
-                    <input
-                      ref={checkboxColorInputRef}
-                      className="format-field__sr"
-                      type="color"
-                      value={normalizedCheckboxColor}
-                      onChange={handleCheckboxColorChange}
-                      aria-label="Seleccionar color del checkbox"
-                    />
-                  </div>
+                {paintWithPalette ? (
+                  paletteRoles.checkbox ? (
+                    <div className="palette-quick-picks" role="list">
+                      <button
+                        type="button"
+                        className={`palette-quick-pick${
+                          normalizedCheckboxColor === paletteRoles.checkbox.normalizedBackground
+                            ? ' is-active'
+                            : ''
+                        }`}
+                        onClick={applyCheckboxPaletteRole}
+                      >
+                        <span
+                          className="palette-quick-pick__swatch"
+                          style={{
+                            backgroundColor: paletteRoles.checkbox.background,
+                            color: paletteRoles.checkbox.text,
+                          }}
+                          aria-hidden="true"
+                        >
+                          ✓
+                        </span>
+                        <span className="palette-quick-pick__label">{paletteRoles.checkbox.label}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="format-field__hint">La paleta no define un color para checkboxes.</p>
+                  )
+                ) : (
+                  <>
+                    <label className="toggle toggle--inline">
+                      <input
+                        type="checkbox"
+                        checked={checkboxColorEnabled}
+                        onChange={(event) => handleCheckboxColorToggle(event.target.checked)}
+                      />
+                      <span className="toggle__indicator" aria-hidden="true" />
+                      <span className="toggle__label">Personalizar</span>
+                    </label>
+                    {checkboxColorEnabled && (
+                      <div className="format-field__inline">
+                        <span
+                          className="color-chip"
+                          style={{ backgroundColor: normalizedCheckboxColor }}
+                          aria-label={`Color actual ${checkboxColorLabel}`}
+                        />
+                        <input
+                          ref={checkboxColorHexInputRef}
+                          className="color-chip__value-input"
+                          type="text"
+                          value={checkboxColorText}
+                          onChange={handleCheckboxHexInputChange}
+                          onBlur={handleCheckboxHexInputBlur}
+                          maxLength={7}
+                          spellCheck={false}
+                          aria-label="Editar color del checkbox en formato hexadecimal"
+                        />
+                        <button type="button" onClick={handleCheckboxPickerOpen}>
+                          Editar
+                        </button>
+                        <input
+                          ref={checkboxColorInputRef}
+                          className="format-field__sr"
+                          type="color"
+                          value={normalizedCheckboxColor}
+                          onChange={handleCheckboxColorChange}
+                          aria-label="Seleccionar color del checkbox"
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -949,9 +1208,41 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                       ))}
                     </select>
                     {current.conditionalBg?.selectSource && (
-                      <div className="select-color-grid" role="list">
-                        {Object.entries(current.conditionalBg.selectSource.colors).map(
-                          ([option, color]) => {
+                      paintWithPalette ? (
+                        conditionalOptionEntries.length > 0 ? (
+                          <>
+                            <p className="format-field__hint">
+                              Los colores se asignan automáticamente según la paleta del proyecto.
+                            </p>
+                            <div className="select-color-grid select-color-grid--readonly" role="list">
+                              {conditionalOptionEntries.map(({ option, color }) => {
+                                const normalized = normalizeHex(color);
+                                return (
+                                  <div
+                                    key={option}
+                                    role="listitem"
+                                    className="select-color-grid__item select-color-grid__item--static"
+                                  >
+                                    <span
+                                      className="select-color-grid__swatch"
+                                      style={{ backgroundColor: normalized }}
+                                      aria-hidden="true"
+                                    />
+                                    <span className="select-color-grid__label">{option}</span>
+                                    <span className="select-color-grid__value">{normalized.toUpperCase()}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="format-field__hint">
+                            El select seleccionado no contiene opciones para colorear.
+                          </p>
+                        )
+                      ) : (
+                        <div className="select-color-grid" role="list">
+                          {conditionalOptionEntries.map(({ option, color }) => {
                             const normalized = normalizeHex(color);
                             const handleButtonClick = () => {
                               const input = selectColorInputsRef.current[option];
@@ -1011,9 +1302,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                                 />
                               </div>
                             );
-                          }
-                        )}
-                      </div>
+                          })}
+                        </div>
+                      )
                     )}
                   </>
                 ) : (

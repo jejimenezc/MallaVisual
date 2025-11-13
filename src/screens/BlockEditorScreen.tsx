@@ -10,8 +10,12 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { VisualTemplate, BlockAspect, VisualStyle, coordKey } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
-import type { MallaExport } from '../utils/malla-io.ts';
-import { MALLA_SCHEMA_VERSION } from '../utils/malla-io.ts';
+import {
+  type MallaExport,
+  MALLA_SCHEMA_VERSION,
+  normalizeProjectTheme,
+  type ProjectTheme,
+} from '../utils/malla-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -36,6 +40,8 @@ import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
 import { assignSelectOptionColors } from '../utils/selectColors.ts';
 import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
+import { useProjectTheme } from '../state/project-theme.tsx';
+import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -83,6 +89,7 @@ interface BlockEditorScreenProps {
     template: BlockTemplate;
     visual: VisualTemplate;
     aspect: BlockAspect;
+    theme: ProjectTheme;
   }) => void;
   isBlockInUse?: boolean;
   controlsInUse?: Map<string, ReadonlySet<string>>;
@@ -132,6 +139,19 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     listBlocks,
     updateBlockMetadata: repoUpdateBlockMetadata,
   } = useBlocksRepo();
+  const { theme: projectTheme, isActive: themeActive } = useProjectTheme();
+  const paletteAvailable = useMemo(() => {
+    if (!themeActive) return false;
+    return Object.keys(projectTheme.tokens ?? {}).length > 0;
+  }, [projectTheme.tokens, themeActive]);
+  const palettePresetId = useMemo(
+    () => resolvePalettePresetId(projectTheme.paletteId),
+    [projectTheme.paletteId],
+  );
+  const paletteSeedHue = useMemo(
+    () => normalizePaletteHue(projectTheme.params?.seedHue),
+    [projectTheme.params?.seedHue],
+  );
   const savedRef = useRef<string | null>(null);
   const proceedHandlerRef = useRef<ProceedToMallaHandler | null>(null);
   const [repoBlocks, setRepoBlocks] = useState<StoredBlock[]>(() => listBlocks());
@@ -304,7 +324,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
         const options = currentOptions.get(resolvedName) ?? [];
         const existingColors = selectSource.colors ?? {};
-        const nextColors = assignSelectOptionColors(options, existingColors);
+        const paletteOptions =
+          paletteAvailable && style.paintWithPalette
+            ? paletteSeedHue !== undefined
+              ? { presetId: palettePresetId, seedHue: paletteSeedHue }
+              : { presetId: palettePresetId }
+            : undefined;
+        const baseExistingColors = paletteOptions ? {} : existingColors;
+        const nextColors = assignSelectOptionColors(options, baseExistingColors, paletteOptions);
 
         const colorsChanged =
           Object.keys(existingColors).length !== options.length ||
@@ -340,6 +367,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     setVisual,
     selectOptionsEditingControlName,
     setSelectOptionsEditingControlName,
+    paletteAvailable,
+    palettePresetId,
+    paletteSeedHue,
   ]);
 
   const persistedProjectRef = useRef<MallaExport | null>(null);
@@ -380,6 +410,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     const snapshot = blocksToRepository(repoBlocks);
     const base = persistedProjectRef.current;
     const reuseMalla = shouldReusePersistedMalla(base);
+    const normalizedTheme = normalizeProjectTheme(base?.theme);
 
     let data: MallaExport;
     if (reuseMalla && base) {
@@ -402,6 +433,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         floatingPieces: base.floatingPieces ?? [],
         activeMasterId: base.activeMasterId ?? repoId ?? 'master',
         repository: snapshot.entries,
+        theme: normalizedTheme,
       };
     } else {
       data = {
@@ -413,6 +445,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         floatingPieces: [],
         activeMasterId: 'master',
         repository: snapshot.entries,
+        theme: normalizedTheme,
       };
     }
 
@@ -581,6 +614,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         visual: draftContent.visual,
         aspect: draftContent.aspect,
         metadata,
+        theme: projectTheme,
       },
     });
 
@@ -595,6 +629,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       template: savedContent.template,
       visual: savedContent.visual,
       aspect: savedContent.aspect,
+      theme: projectTheme,
     });
     alert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
     return metadata.uuid;
@@ -981,6 +1016,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
             selectedCoord={selectedCoord}
             onSelectCoord={setSelectedCoord}
             aspect={aspect}
+            paletteTokens={projectTheme.tokens}
           />
         }
         right={
