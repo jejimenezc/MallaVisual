@@ -53,6 +53,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
         visual,
         aspect,
         metadata,
+        theme: createDefaultProjectTheme(),
       },
     },
   };
@@ -103,12 +104,14 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
       template,
       visual,
       aspect,
+      theme: createDefaultProjectTheme(),
     },
     'repo-orphan': {
       version: BLOCK_SCHEMA_VERSION,
       template,
       visual,
       aspect,
+      theme: createDefaultProjectTheme(),
     },
   };
 
