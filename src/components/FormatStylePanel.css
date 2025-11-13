@@ -611,6 +611,19 @@
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
+.select-color-grid--readonly {
+  gap: 6px;
+}
+
+.select-color-grid__item--static {
+  cursor: default;
+  pointer-events: none;
+}
+
+.select-color-grid__item--static:hover {
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
 .select-color-grid__swatch {
   width: 18px;
   height: 18px;

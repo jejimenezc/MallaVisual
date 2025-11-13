@@ -14,6 +14,11 @@ import type { BlockTemplate, BlockTemplateCell } from '../types/curricular';
 import { assignSelectOptionColors } from '../utils/selectColors';
 import { collectSelectControls } from '../utils/selectControls';
 import { useProjectTheme } from '../state/project-theme.tsx';
+import {
+  normalizePaletteHue,
+  resolvePalettePresetId,
+  type PaletteConfig,
+} from '../utils/palette.ts';
 
 interface FormatStylePanelProps {
   selectedCoord?: { row: number; col: number };
@@ -99,6 +104,16 @@ const ALIGNMENT_OPTIONS: { value: AlignmentValue; icon: string; label: string }[
 ];
 
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
+const areColorMapsEqual = (
+  a: Record<string, string>,
+  b: Record<string, string>,
+): boolean => {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => a[key] === b[key]);
+};
 
 const expandShortHex = (hex: string) =>
   `#${hex
@@ -289,6 +304,24 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     return Object.keys(projectTheme.tokens ?? {}).length > 0;
   }, [projectTheme.tokens, themeActive]);
 
+  const palettePresetId = useMemo(
+    () => resolvePalettePresetId(projectTheme.paletteId),
+    [projectTheme.paletteId],
+  );
+
+  const paletteSeedHue = useMemo(
+    () => normalizePaletteHue(projectTheme.params?.seedHue),
+    [projectTheme.params?.seedHue],
+  );
+
+  const paletteConfig = useMemo<PaletteConfig>(
+    () =>
+      paletteSeedHue !== undefined
+        ? { presetId: palettePresetId, seedHue: paletteSeedHue }
+        : { presetId: palettePresetId },
+    [palettePresetId, paletteSeedHue],
+  );
+
   const paletteRoles = useMemo<{
     base: PaletteBaseRole | null;
     checkbox: PaletteCheckboxRole | null;
@@ -352,6 +385,11 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
   const current: VisualStyle = useMemo(() => (k ? visualTemplate[k] ?? {} : {}), [k, visualTemplate]);
   const paintWithPalette = Boolean(current.paintWithPalette);
+
+  const paletteOptionsForSelect = useMemo(
+    () => (paletteAvailable && paintWithPalette ? paletteConfig : undefined),
+    [paletteAvailable, paintWithPalette, paletteConfig],
+  );
 
   const selectedCell = useMemo(() => {
     if (!selectedCoord) return undefined;
@@ -453,6 +491,33 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     return options.map((option) => ({ option, color: colors[option] ?? '#ffffff' }));
   }, [selectedSelectSource, conditionalSourceControl]);
 
+  useEffect(() => {
+    if (!conditionalSourceControl) return;
+    if (!paletteOptionsForSelect) return;
+    const options = conditionalSourceControl.options ?? [];
+    if (options.length === 0) return;
+    const existingColors = current.conditionalBg?.selectSource?.colors ?? {};
+    const nextColors = assignSelectOptionColors(options, {}, paletteOptionsForSelect);
+    if (areColorMapsEqual(existingColors, nextColors)) {
+      return;
+    }
+    updateConditionalBg((prev) => {
+      if (!prev?.selectSource) return prev;
+      return {
+        ...prev,
+        selectSource: {
+          ...prev.selectSource,
+          colors: nextColors,
+        },
+      };
+    });
+  }, [
+    conditionalSourceControl,
+    current.conditionalBg?.selectSource?.colors,
+    paletteOptionsForSelect,
+    updateConditionalBg,
+  ]);
+
   const handleSelectSourceChange = (controlName: string) => {
     if (!k) return;
     if (!controlName) {
@@ -466,16 +531,12 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     }
     const control = selectControlsByName.get(controlName);
     const existingColors = current.conditionalBg?.selectSource?.colors ?? {};
-    let colors = assignSelectOptionColors(control?.options ?? [], existingColors);
-    if (paintWithPalette && paletteRoles.options.length > 0) {
-      const options = control?.options ?? [];
-      colors = { ...colors };
-      options.forEach((option, index) => {
-        const role = paletteRoles.options[index % paletteRoles.options.length];
-        if (!role) return;
-        colors[option] = normalizeHex(role.background);
-      });
-    }
+    const baseExistingColors = paletteOptionsForSelect ? {} : existingColors;
+    const colors = assignSelectOptionColors(
+      control?.options ?? [],
+      baseExistingColors,
+      paletteOptionsForSelect,
+    );
     updateConditionalBg((prev) => ({
       ...prev,
       selectSource: {
@@ -503,23 +564,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       return base;
     });
   }, [paletteRoles.checkbox, updateConditionalBg]);
-
-  const applyOptionPaletteRole = useCallback(
-    (optionName: string, role: PaletteOptionRole) => {
-      updateConditionalBg((prev) => {
-        if (!prev?.selectSource) return prev;
-        const nextColors = { ...prev.selectSource.colors, [optionName]: role.normalizedBackground };
-        return {
-          ...prev,
-          selectSource: {
-            ...prev.selectSource,
-            colors: nextColors,
-          },
-        };
-      });
-    },
-    [updateConditionalBg],
-  );
 
   const handlePaletteToggleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const enabled = event.target.checked;
@@ -1165,47 +1209,36 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                     </select>
                     {current.conditionalBg?.selectSource && (
                       paintWithPalette ? (
-                        paletteRoles.options.length > 0 ? (
-                          <div className="select-color-grid select-color-grid--palette" role="list">
-                            {conditionalOptionEntries.map(({ option, color }) => {
-                              const normalized = normalizeHex(color);
-                              return (
-                                <div key={option} className="select-color-grid__palette-row" role="listitem">
-                                  <div className="select-color-grid__palette-meta">
+                        conditionalOptionEntries.length > 0 ? (
+                          <>
+                            <p className="format-field__hint">
+                              Los colores se asignan automáticamente según la paleta del proyecto.
+                            </p>
+                            <div className="select-color-grid select-color-grid--readonly" role="list">
+                              {conditionalOptionEntries.map(({ option, color }) => {
+                                const normalized = normalizeHex(color);
+                                return (
+                                  <div
+                                    key={option}
+                                    role="listitem"
+                                    className="select-color-grid__item select-color-grid__item--static"
+                                  >
+                                    <span
+                                      className="select-color-grid__swatch"
+                                      style={{ backgroundColor: normalized }}
+                                      aria-hidden="true"
+                                    />
                                     <span className="select-color-grid__label">{option}</span>
                                     <span className="select-color-grid__value">{normalized.toUpperCase()}</span>
                                   </div>
-                                  <div
-                                    className="palette-quick-picks palette-quick-picks--options"
-                                    role="group"
-                                    aria-label={`Roles de color para ${option}`}
-                                  >
-                                    {paletteRoles.options.map((role) => (
-                                      <button
-                                        key={role.index}
-                                        type="button"
-                                        className={`palette-quick-pick palette-quick-pick--small${
-                                          normalized === role.normalizedBackground ? ' is-active' : ''
-                                        }`}
-                                        onClick={() => applyOptionPaletteRole(option, role)}
-                                      >
-                                        <span
-                                          className="palette-quick-pick__swatch"
-                                          style={{ backgroundColor: role.background, color: role.text }}
-                                          aria-hidden="true"
-                                        >
-                                          Aa
-                                        </span>
-                                        <span className="palette-quick-pick__label">{role.index}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                );
+                              })}
+                            </div>
+                          </>
                         ) : (
-                          <p className="format-field__hint">La paleta no define colores para opciones condicionales.</p>
+                          <p className="format-field__hint">
+                            El select seleccionado no contiene opciones para colorear.
+                          </p>
                         )
                       ) : (
                         <div className="select-color-grid" role="list">
