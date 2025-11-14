@@ -999,17 +999,84 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [template, aspect, selectedMasterId]);
 
   // --- validación de reducción de la macro-grilla
+  const insertRowAt = (targetIndex: number) => {
+    setRows((prev) => prev + 1);
+    setPieces((prev) =>
+      prev.map((piece) => (piece.y >= targetIndex ? { ...piece, y: piece.y + 1 } : piece))
+    );
+  };
+
+  const removeRowAt = (targetIndex: number) => {
+    setRows((prev) => Math.max(1, prev - 1));
+    setPieces((prev) =>
+      prev.map((piece) => (piece.y > targetIndex ? { ...piece, y: piece.y - 1 } : piece))
+    );
+  };
+
+  type RowMutationOptions = {
+    recordHistory?: boolean;
+  };
+
+  const handleInsertRow = (index: number, options?: RowMutationOptions) => {
+    const targetIndex = Math.max(0, Math.min(index, rows));
+    const task = () => insertRowAt(targetIndex);
+    if (options?.recordHistory === false) {
+      task();
+    } else {
+      runHistoryTransaction(task);
+    }
+  };
+
+  const handleRemoveRow = (index: number, options?: RowMutationOptions) => {
+    if (rows <= 1) return;
+    const targetIndex = Math.max(0, Math.min(index, rows - 1));
+    const blocker = pieces.find((p) => p.y === targetIndex);
+    if (blocker) {
+      window.alert(
+        `Para eliminar la fila mueva o borre las piezas que ocupan la fila ${targetIndex + 1}`
+      );
+      return;
+    }
+    const task = () => removeRowAt(targetIndex);
+    if (options?.recordHistory === false) {
+      task();
+    } else {
+      runHistoryTransaction(task);
+    }
+  };
+
   const handleRowsChange = (newRows: number) => {
-    if (newRows < rows) {
-      const blocker = pieces.find((p) => p.y >= newRows);
+    const numericRows = Number.isFinite(newRows) ? newRows : rows;
+    const nextRows = Math.max(1, Math.floor(numericRows));
+    if (nextRows === rows) return;
+
+    if (nextRows < rows) {
+      const blocker = pieces.find((p) => p.y >= nextRows);
       if (blocker) {
         window.alert(
           `Para reducir filas mueva o borre las piezas que ocupan la fila ${blocker.y + 1}`
         );
         return;
       }
+
+      runHistoryTransaction(() => {
+        let currentRows = rows;
+        for (let i = 0; i < rows - nextRows; i += 1) {
+          const targetIndex = currentRows - 1;
+          handleRemoveRow(targetIndex, { recordHistory: false });
+          currentRows -= 1;
+        }
+      });
+      return;
     }
-    setRows(newRows);
+
+    runHistoryTransaction(() => {
+      let currentRows = rows;
+      for (let i = 0; i < nextRows - rows; i += 1) {
+        handleInsertRow(currentRows, { recordHistory: false });
+        currentRows += 1;
+      }
+    });
   };
 
   const handleColsChange = (newCols: number) => {
