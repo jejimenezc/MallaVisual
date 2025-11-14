@@ -615,6 +615,43 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [gridAreaStyle, zoomScale],
   );
 
+  const rowControlButtons = useMemo(() => {
+    const minusButtons = rowHeights.map((height, index) => {
+      const top = (rowOffsets[index] + height / 2) * zoomScale;
+      const hasPieces = pieces.some((piece) => piece.y === index);
+      return {
+        key: `row-minus-${index}`,
+        index,
+        top,
+        disabled: rows <= 1 || hasPieces,
+        ariaLabel: hasPieces
+          ? `No se puede eliminar la fila ${index + 1} porque contiene piezas`
+          : `Eliminar fila ${index + 1}`,
+      };
+    });
+
+    const plusButtons = Array.from({ length: rows + 1 }, (_, index) => {
+      const offset = index === rows ? gridHeight : rowOffsets[index] ?? gridHeight;
+      const top = offset * zoomScale;
+      let ariaLabel: string;
+      if (index === 0) {
+        ariaLabel = 'Insertar una fila al inicio';
+      } else if (index === rows) {
+        ariaLabel = 'Insertar una fila al final';
+      } else {
+        ariaLabel = `Insertar una fila después de la fila ${index}`;
+      }
+      return {
+        key: `row-plus-${index}`,
+        index,
+        top,
+        ariaLabel,
+      };
+    });
+
+    return { minusButtons, plusButtons };
+  }, [gridHeight, pieces, rowHeights, rowOffsets, rows, zoomScale]);
+
   useEffect(() => {
     const viewportEl = viewportRef.current;
     if (!viewportEl) {
@@ -1588,8 +1625,40 @@ export const MallaEditorScreen: React.FC<Props> = ({
             <div
               className={styles.mallaViewportControlColumn}
               style={{ width: CONTROL_COLUMN_WIDTH }}
-              aria-hidden="true"
-            />
+            >
+              <div
+                className={styles.rowControls}
+                style={{ height: gridHeight * zoomScale }}
+              >
+                {rowControlButtons.plusButtons.map((button) => (
+                  <button
+                    key={button.key}
+                    type="button"
+                    className={`${styles.rowControlButton} ${styles.rowControlButtonInsert}`}
+                    style={{ top: button.top }}
+                    onClick={() => handleInsertRow(button.index)}
+                    aria-label={button.ariaLabel}
+                    title={button.ariaLabel}
+                  >
+                    +
+                  </button>
+                ))}
+                {rowControlButtons.minusButtons.map((button) => (
+                  <button
+                    key={button.key}
+                    type="button"
+                    className={`${styles.rowControlButton} ${styles.rowControlButtonRemove}`}
+                    style={{ top: button.top }}
+                    onClick={() => handleRemoveRow(button.index)}
+                    aria-label={button.ariaLabel}
+                    title={button.ariaLabel}
+                    disabled={button.disabled}
+                  >
+                    −
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className={styles.mallaViewportGridContent}>
               <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
