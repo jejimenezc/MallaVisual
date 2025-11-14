@@ -591,10 +591,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        width: gridWidth * zoomScale + CONTROL_COLUMN_WIDTH,
         height: gridHeight * zoomScale,
       }) as React.CSSProperties,
-    [gridWidth, gridHeight, zoomScale],
+    [gridHeight, zoomScale],
   );
 
   const zoomedGridWrapperStyle = useMemo(
@@ -602,7 +601,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
       ({
         width: gridWidth * zoomScale,
         height: gridHeight * zoomScale,
-        transform: `translateX(${CONTROL_COLUMN_WIDTH}px)`,
       }) as React.CSSProperties,
     [gridWidth, gridHeight, zoomScale],
   );
