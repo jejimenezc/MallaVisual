@@ -1,5 +1,5 @@
 // src/screens/BlockEditorScreen.tsx
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from 'react';
 import { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor, type ControlCleanupMode } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
@@ -123,9 +123,23 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
   );
-  const [visual, setVisual] = useState<VisualTemplate>(
+  type VisualUpdateMetadata = { historyBatchId?: string };
+
+  const [visual, setVisualState] = useState<VisualTemplate>(
     initialData?.visual ?? {}
   ); // mapa visual separado
+  const pendingVisualUpdateMetaRef = useRef<VisualUpdateMetadata | null>(null);
+  const setVisual = useCallback(
+    (update: SetStateAction<VisualTemplate>, meta?: VisualUpdateMetadata) => {
+      pendingVisualUpdateMetaRef.current = meta ?? null;
+      setVisualState((previous) =>
+        typeof update === 'function'
+          ? (update as (prev: VisualTemplate) => VisualTemplate)(previous)
+          : update,
+      );
+    },
+    [],
+  );
   const [aspect, setAspect] = useState<BlockAspect>(
     initialData?.aspect ?? '1/1'
   );
@@ -180,7 +194,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     if (!initialData) return;
     const content = cloneBlockContent(toBlockContent(initialData));
     setTemplate(content.template);
-    setVisual(content.visual);
+    setVisualState(content.visual);
     setAspect(content.aspect);
   }, [initialData, initialDataSignature]);
 
@@ -477,6 +491,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const historyRef = useRef<BlockContent[]>([]);
   const historySerializedRef = useRef<string[]>([]);
+  const historyMetadataRef = useRef<(VisualUpdateMetadata | null)[]>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
   const isRestoringRef = useRef(false);
@@ -495,22 +510,48 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       const initialEntry = cloneBlockContent(draftContent);
       historyRef.current = [initialEntry];
       historySerializedRef.current = [draftSerialized];
+      historyMetadataRef.current = [null];
+      pendingVisualUpdateMetaRef.current = null;
       setHistoryIndex(0);
       setIsHistoryInitialized(true);
       return;
     }
     if (isRestoringRef.current) {
       isRestoringRef.current = false;
+      pendingVisualUpdateMetaRef.current = null;
       return;
     }
     const currentSerialized = historySerializedRef.current[historyIndex];
-    if (currentSerialized === draftSerialized) return;
+    if (currentSerialized === draftSerialized) {
+      pendingVisualUpdateMetaRef.current = null;
+      return;
+    }
     const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
     const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
-    truncatedHistory.push(cloneBlockContent(draftContent));
+    const truncatedMetadata = historyMetadataRef.current.slice(0, historyIndex + 1);
+    const nextEntry = cloneBlockContent(draftContent);
+    const pendingMeta = pendingVisualUpdateMetaRef.current;
+    pendingVisualUpdateMetaRef.current = null;
+    if (
+      pendingMeta?.historyBatchId &&
+      truncatedHistory.length > 0 &&
+      truncatedMetadata[truncatedMetadata.length - 1]?.historyBatchId === pendingMeta.historyBatchId
+    ) {
+      truncatedHistory[truncatedHistory.length - 1] = nextEntry;
+      truncatedSerialized[truncatedSerialized.length - 1] = draftSerialized;
+      truncatedMetadata[truncatedMetadata.length - 1] = pendingMeta;
+      historyRef.current = truncatedHistory;
+      historySerializedRef.current = truncatedSerialized;
+      historyMetadataRef.current = truncatedMetadata;
+      setHistoryIndex(truncatedHistory.length - 1);
+      return;
+    }
+    truncatedHistory.push(nextEntry);
     truncatedSerialized.push(draftSerialized);
+    truncatedMetadata.push(pendingMeta ?? null);
     historyRef.current = truncatedHistory;
     historySerializedRef.current = truncatedSerialized;
+    historyMetadataRef.current = truncatedMetadata;
     setHistoryIndex(truncatedHistory.length - 1);
   }, [
     draftContent,
