@@ -41,6 +41,7 @@ const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
+const CONTROL_COLUMN_WIDTH = 56;
 
 interface MallaHistoryEntry {
   cols: number;
@@ -590,6 +591,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
+        height: gridHeight * zoomScale,
+      }) as React.CSSProperties,
+    [gridHeight, zoomScale],
+  );
+
+  const zoomedGridWrapperStyle = useMemo(
+    () =>
+      ({
         width: gridWidth * zoomScale,
         height: gridHeight * zoomScale,
       }) as React.CSSProperties,
@@ -605,6 +614,43 @@ export const MallaEditorScreen: React.FC<Props> = ({
       }) as React.CSSProperties,
     [gridAreaStyle, zoomScale],
   );
+
+  const rowControlButtons = useMemo(() => {
+    const minusButtons = rowHeights.map((height, index) => {
+      const top = (rowOffsets[index] + height / 2) * zoomScale;
+      const hasPieces = pieces.some((piece) => piece.y === index);
+      return {
+        key: `row-minus-${index}`,
+        index,
+        top,
+        disabled: rows <= 1 || hasPieces,
+        ariaLabel: hasPieces
+          ? `No se puede eliminar la fila ${index + 1} porque contiene piezas`
+          : `Eliminar fila ${index + 1}`,
+      };
+    });
+
+    const plusButtons = Array.from({ length: rows + 1 }, (_, index) => {
+      const offset = index === rows ? gridHeight : rowOffsets[index] ?? gridHeight;
+      const top = offset * zoomScale;
+      let ariaLabel: string;
+      if (index === 0) {
+        ariaLabel = 'Insertar una fila al inicio';
+      } else if (index === rows) {
+        ariaLabel = 'Insertar una fila al final';
+      } else {
+        ariaLabel = `Insertar una fila después de la fila ${index}`;
+      }
+      return {
+        key: `row-plus-${index}`,
+        index,
+        top,
+        ariaLabel,
+      };
+    });
+
+    return { minusButtons, plusButtons };
+  }, [gridHeight, pieces, rowHeights, rowOffsets, rows, zoomScale]);
 
   useEffect(() => {
     const viewportEl = viewportRef.current;
@@ -999,17 +1045,84 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [template, aspect, selectedMasterId]);
 
   // --- validación de reducción de la macro-grilla
+  const insertRowAt = (targetIndex: number) => {
+    setRows((prev) => prev + 1);
+    setPieces((prev) =>
+      prev.map((piece) => (piece.y >= targetIndex ? { ...piece, y: piece.y + 1 } : piece))
+    );
+  };
+
+  const removeRowAt = (targetIndex: number) => {
+    setRows((prev) => Math.max(1, prev - 1));
+    setPieces((prev) =>
+      prev.map((piece) => (piece.y > targetIndex ? { ...piece, y: piece.y - 1 } : piece))
+    );
+  };
+
+  type RowMutationOptions = {
+    recordHistory?: boolean;
+  };
+
+  const handleInsertRow = (index: number, options?: RowMutationOptions) => {
+    const targetIndex = Math.max(0, Math.min(index, rows));
+    const task = () => insertRowAt(targetIndex);
+    if (options?.recordHistory === false) {
+      task();
+    } else {
+      runHistoryTransaction(task);
+    }
+  };
+
+  const handleRemoveRow = (index: number, options?: RowMutationOptions) => {
+    if (rows <= 1) return;
+    const targetIndex = Math.max(0, Math.min(index, rows - 1));
+    const blocker = pieces.find((p) => p.y === targetIndex);
+    if (blocker) {
+      window.alert(
+        `Para eliminar la fila mueva o borre las piezas que ocupan la fila ${targetIndex + 1}`
+      );
+      return;
+    }
+    const task = () => removeRowAt(targetIndex);
+    if (options?.recordHistory === false) {
+      task();
+    } else {
+      runHistoryTransaction(task);
+    }
+  };
+
   const handleRowsChange = (newRows: number) => {
-    if (newRows < rows) {
-      const blocker = pieces.find((p) => p.y >= newRows);
+    const numericRows = Number.isFinite(newRows) ? newRows : rows;
+    const nextRows = Math.max(1, Math.floor(numericRows));
+    if (nextRows === rows) return;
+
+    if (nextRows < rows) {
+      const blocker = pieces.find((p) => p.y >= nextRows);
       if (blocker) {
         window.alert(
           `Para reducir filas mueva o borre las piezas que ocupan la fila ${blocker.y + 1}`
         );
         return;
       }
+
+      runHistoryTransaction(() => {
+        let currentRows = rows;
+        for (let i = 0; i < rows - nextRows; i += 1) {
+          const targetIndex = currentRows - 1;
+          handleRemoveRow(targetIndex, { recordHistory: false });
+          currentRows -= 1;
+        }
+      });
+      return;
     }
-    setRows(newRows);
+
+    runHistoryTransaction(() => {
+      let currentRows = rows;
+      for (let i = 0; i < nextRows - rows; i += 1) {
+        handleInsertRow(currentRows, { recordHistory: false });
+        currentRows += 1;
+      }
+    });
   };
 
   const handleColsChange = (newCols: number) => {
@@ -1507,138 +1620,183 @@ export const MallaEditorScreen: React.FC<Props> = ({
           style={viewportStyle}
           onMouseDown={handleViewportMouseDown}
         >
-          <div className={styles.mallaAreaWrapper} style={zoomedGridContainerStyle}>
+
+          <div className={styles.mallaViewportGrid} style={zoomedGridContainerStyle}>
             <div
-              className={mallaAreaClassName}
-              ref={gridRef}
-              style={zoomedGridAreaStyle}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
+              className={styles.mallaViewportControlColumn}
+              style={{ width: CONTROL_COLUMN_WIDTH }}
             >
-          {pieces.map((p) => {
-          // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
-            let pieceTemplate: BlockTemplate;
-            let pieceVisual: VisualTemplate;
-            let pieceAspect: BlockAspect;
-            if (p.kind === 'ref') {
-              const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
-              // Expande los bounds guardados a los merges vigentes del maestro
-              const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
-
-              pieceTemplate = cropTemplate(master.template, safeBounds);
-              pieceVisual   = cropVisualTemplate(master.visual, master.template, safeBounds);
-
-              // Las piezas referenciadas siguen el aspecto del maestro asociado
-              pieceAspect = master.aspect;
-            } else {
-              // Snapshot: usa su copia materializada tal cual
-              pieceTemplate = p.template;
-              pieceVisual   = p.visual;
-              pieceAspect   = p.aspect;
-            }
-
-            const m = computeMetrics(pieceTemplate, pieceAspect);
-
-            const left = draggingId === p.id ? dragPos.x : colOffsets[p.x];
-            const top = draggingId === p.id ? dragPos.y : rowOffsets[p.y];
-
-            const values = pieceValues[p.id] ?? {};
-            const onValueChange = (key: string, value: string | number | boolean) => {
-              setPieceValues((prev) => ({
-                ...prev,
-                [p.id]: { ...(prev[p.id] ?? {}), [key]: value },
-              }));
-            };
-
-            const canUnfreeze = p.kind === 'snapshot' && !!p.origin;
-            const toggleLabel = p.kind === 'ref' ? '🧊 Congelar' : '🔗 Descongelar';
-
-            const floating = floatingPieces.includes(p.id);
-            const blockWrapperClassName = [
-              styles.blockWrapper,
-              floating ? styles.floating : '',
-              pointerMode === 'pan' ? styles.blockWrapperPan : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
+              <div
+                className={styles.rowControls}
+                style={{ height: gridHeight * zoomScale }}
+              >
+                {rowControlButtons.plusButtons.map((button) => (
+                  <button
+                    key={button.key}
+                    type="button"
+                    className={`${styles.rowControlButton} ${styles.rowControlButtonInsert}`}
+                    style={{ top: button.top }}
+                    onClick={() => handleInsertRow(button.index)}
+                    aria-label={button.ariaLabel}
+                    title={button.ariaLabel}
+                  >
+                    +
+                  </button>
+                ))}
+                {rowControlButtons.minusButtons.map((button) => (
+                  <button
+                    key={button.key}
+                    type="button"
+                    className={`${styles.rowControlButton} ${styles.rowControlButtonRemove}`}
+                    style={{ top: button.top }}
+                    onClick={() => handleRemoveRow(button.index)}
+                    aria-label={button.ariaLabel}
+                    title={button.ariaLabel}
+                    disabled={button.disabled}
+                  >
+                    −
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className={styles.mallaViewportGridContent}>
+              <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
-                  key={p.id}
-                  className={blockWrapperClassName}
-                  style={{ left, top, width: m.outerW, height: m.outerH, position: 'absolute' }}
-                  onMouseDown={
-                    pointerMode === 'select'
-                      ? (e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)
-                      : undefined
-                  }                >
-                  {/* Toolbar por pieza */}
-                  <div
-                    className={`${styles.pieceToolbar} ${
-                      showPieceMenus ? '' : styles.toolbarHidden
-                    }`}
-                  >
-                  {/* Toggle congelar/descongelar */}
-                  <Button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (p.kind === 'snapshot' && !p.origin) return;
-                      togglePieceKind(p.id);
-                    }}
-                    title={toggleLabel}
-                    disabled={p.kind === 'snapshot' && !p.origin}
-                    style={{
-                      background: p.kind === 'ref' || canUnfreeze ? 'var(--color-surface)' : 'var(--color-bg)',
-                      color: p.kind === 'ref' || canUnfreeze ? 'inherit' : '#999',
-                      cursor: p.kind === 'ref' || canUnfreeze ? 'pointer' : 'not-allowed',
-                    }}
-                  >
-                    {toggleLabel}
-                  </Button>
+                  className={mallaAreaClassName}
+                  ref={gridRef}
+                  style={zoomedGridAreaStyle}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                >
+                  {pieces.map((p) => {
+                    // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
+                    let pieceTemplate: BlockTemplate;
+                    let pieceVisual: VisualTemplate;
+                    let pieceAspect: BlockAspect;
+                    if (p.kind === 'ref') {
+                      const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
+                      // Expande los bounds guardados a los merges vigentes del maestro
+                      const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
 
-                  {/* Duplicar */}
-                  <Button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      duplicatePiece(p);
-                    }}
-                    title="Duplicar"
-                  >
-                    ⧉
-                  </Button>
+                      pieceTemplate = cropTemplate(master.template, safeBounds);
+                      pieceVisual = cropVisualTemplate(master.visual, master.template, safeBounds);
 
-                  {/* Eliminar */}
-                  <Button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deletePiece(p.id);
-                    }}
-                    title="Eliminar"
-                  >
-                    🗑️
-                  </Button>
+                      // Las piezas referenciadas siguen el aspecto del maestro asociado
+                      pieceAspect = master.aspect;
+                    } else {
+                      // Snapshot: usa su copia materializada tal cual
+                      pieceTemplate = p.template;
+                      pieceVisual = p.visual;
+                      pieceAspect = p.aspect;
+                    }
+
+                    const m = computeMetrics(pieceTemplate, pieceAspect);
+
+                    const left = draggingId === p.id ? dragPos.x : colOffsets[p.x];
+                    const top = draggingId === p.id ? dragPos.y : rowOffsets[p.y];
+
+                    const values = pieceValues[p.id] ?? {};
+                    const onValueChange = (key: string, value: string | number | boolean) => {
+                      setPieceValues((prev) => ({
+                        ...prev,
+                        [p.id]: { ...(prev[p.id] ?? {}), [key]: value },
+                      }));
+                    };
+
+                    const canUnfreeze = p.kind === 'snapshot' && !!p.origin;
+                    const toggleLabel = p.kind === 'ref' ? '🧊 Congelar' : '🔗 Descongelar';
+
+                    const floating = floatingPieces.includes(p.id);
+                    const blockWrapperClassName = [
+                      styles.blockWrapper,
+                      floating ? styles.floating : '',
+                      pointerMode === 'pan' ? styles.blockWrapperPan : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
+                    return (
+                      <div
+                        key={p.id}
+                        className={blockWrapperClassName}
+                        style={{ left, top, width: m.outerW, height: m.outerH, position: 'absolute' }}
+                        onMouseDown={
+                          pointerMode === 'select'
+                            ? (e) => handleMouseDownPiece(e, p, m.outerW, m.outerH)
+                            : undefined
+                        }
+                      >
+                        {/* Toolbar por pieza */}
+                        <div
+                          className={`${styles.pieceToolbar} ${
+                            showPieceMenus ? '' : styles.toolbarHidden
+                          }`}
+                        >
+                          {/* Toggle congelar/descongelar */}
+                          <Button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (p.kind === 'snapshot' && !p.origin) return;
+                              togglePieceKind(p.id);
+                            }}
+                            title={toggleLabel}
+                            disabled={p.kind === 'snapshot' && !p.origin}
+                            style={{
+                              background: p.kind === 'ref' || canUnfreeze
+                                ? 'var(--color-surface)'
+                                : 'var(--color-bg)',
+                              color: p.kind === 'ref' || canUnfreeze ? 'inherit' : '#999',
+                              cursor: p.kind === 'ref' || canUnfreeze ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            {toggleLabel}
+                          </Button>
+
+                          {/* Duplicar */}
+                          <Button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicatePiece(p);
+                            }}
+                            title="Duplicar"
+                          >
+                            ⧉
+                          </Button>
+
+                          {/* Eliminar */}
+                          <Button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deletePiece(p.id);
+                            }}
+                            title="Eliminar"
+                          >
+                            🗑️
+                          </Button>
+                        </div>
+
+                        <TemplateGrid
+                          template={pieceTemplate}
+                          selectedCells={[]}
+                          onClick={() => {}}
+                          onContextMenu={() => {}}
+                          onMouseDown={() => {}}
+                          onMouseEnter={() => {}}
+                          onMouseUp={() => {}}
+                          onMouseLeave={() => {}}
+                          applyVisual={true}
+                          visualTemplate={pieceVisual}
+                          style={m.gridStyle}
+                          values={values}
+                          onValueChange={onValueChange}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <TemplateGrid
-                  template={pieceTemplate}
-                  selectedCells={[]}
-                  onClick={() => {}}
-                  onContextMenu={() => {}}
-                  onMouseDown={() => {}}
-                  onMouseEnter={() => {}}
-                  onMouseUp={() => {}}
-                  onMouseLeave={() => {}}
-                  applyVisual={true}
-                  visualTemplate={pieceVisual}
-                  style={m.gridStyle}
-                  values={values}
-                  onValueChange={onValueChange}
-                />
-                </div>
-            );
-            })}
+              </div>
             </div>
           </div>
         </div>
