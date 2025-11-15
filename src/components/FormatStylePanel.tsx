@@ -716,7 +716,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     const nextColor = normalizeHex(event.target.value);
     const id = getColorBatchId('checkbox');
     updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }), { historyBatchId: id });
-    releaseColorBatchId('checkbox');
   };
 
   const handleCheckboxColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -751,6 +750,16 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const handleCheckboxPickerClose = () => {
     releaseColorBatchId('checkbox');
   };
+
+  useEffect(() => {
+    if (!checkboxColorEnabled) {
+      releaseColorBatchId('checkbox');
+      return;
+    }
+    return () => {
+      releaseColorBatchId('checkbox');
+    };
+  }, [checkboxColorEnabled, releaseColorBatchId]);
 
   const renderAlignmentPopover = () => (
     <Popover anchorRect={alignmentAnchor} onClose={() => setAlignmentAnchor(null)} width={160}>
