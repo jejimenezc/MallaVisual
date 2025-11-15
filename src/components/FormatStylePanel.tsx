@@ -617,7 +617,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const handleBackgroundColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const id = getColorBatchId('background');
     patch({ backgroundColor: normalizeHex(event.target.value) }, { historyBatchId: id });
-    releaseColorBatchId('background');
   };
 
   const handleBackgroundColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -655,7 +654,6 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const handleTextColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const id = getColorBatchId('text');
     patch({ textColor: normalizeHex(event.target.value) }, { historyBatchId: id });
-    releaseColorBatchId('text');
   };
 
   const handleTextColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
