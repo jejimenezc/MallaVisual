@@ -1363,7 +1363,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                               applySelectColor(event.target.value);
                             };
                             const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-                              applySelectColor(event.target.value, { releaseBatchId: true });
+                              applySelectColor(event.target.value, { releaseBatchId: false });
                             };
                             const handleColorBlur = () => {
                               releaseColorBatchId(`select-${option}`);
