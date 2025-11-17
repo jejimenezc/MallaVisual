@@ -20,10 +20,16 @@ import {
   type PaletteConfig,
 } from '../utils/palette.ts';
 
+type VisualUpdateMetadata = { historyBatchId?: string };
+type UpdateVisualFn = (
+  next: React.SetStateAction<VisualTemplate>,
+  meta?: VisualUpdateMetadata,
+) => void;
+
 interface FormatStylePanelProps {
   selectedCoord?: { row: number; col: number };
   visualTemplate: VisualTemplate;
-  onUpdateVisual: (next: VisualTemplate) => void;
+  onUpdateVisual: UpdateVisualFn;
   template: BlockTemplate;
   blockAspect: BlockAspect;
   onUpdateAspect: (a: BlockAspect) => void;
@@ -396,8 +402,22 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     return template[selectedCoord.row]?.[selectedCoord.col];
   }, [selectedCoord, template]);
 
+  const colorBatchIdsRef = useRef<Map<string, string>>(new Map());
+
+  const getColorBatchId = useCallback((key: string) => {
+    const existing = colorBatchIdsRef.current.get(key);
+    if (existing) return existing;
+    const generated = `color-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    colorBatchIdsRef.current.set(key, generated);
+    return generated;
+  }, []);
+
+  const releaseColorBatchId = useCallback((key: string) => {
+    colorBatchIdsRef.current.delete(key);
+  }, []);
+  
   const patch = useCallback(
-    (partial: Partial<VisualStyle>) => {
+    (partial: Partial<VisualStyle>, meta?: VisualUpdateMetadata) => {
       if (!k) return;
       const base: VisualStyle = { ...current, ...partial };
       if ('conditionalBg' in partial) {
@@ -411,13 +431,16 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
         }
       }
       const next = { ...visualTemplate, [k]: base };
-      onUpdateVisual(next);
+      onUpdateVisual(next, meta);
     },
     [current, k, onUpdateVisual, visualTemplate]
   );
 
   const updateConditionalBg = useCallback(
-    (updater: (prev: ConditionalBg | undefined) => ConditionalBg | undefined) => {
+    (
+      updater: (prev: ConditionalBg | undefined) => ConditionalBg | undefined,
+      meta?: VisualUpdateMetadata,
+    ) => {
       if (!k) return;
       const nextValue = sanitizeConditionalBg(updater(current.conditionalBg));
       const base: VisualStyle = { ...current };
@@ -426,7 +449,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
       } else {
         delete base.conditionalBg;
       }
-      onUpdateVisual({ ...visualTemplate, [k]: base });
+      onUpdateVisual({ ...visualTemplate, [k]: base }, meta);
     },
     [current, k, onUpdateVisual, visualTemplate]
   );
@@ -490,6 +513,16 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     }
     return options.map((option) => ({ option, color: colors[option] ?? '#ffffff' }));
   }, [selectedSelectSource, conditionalSourceControl]);
+
+  const [selectColorDrafts, setSelectColorDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (paintWithPalette) {
+      setSelectColorDrafts({});
+      return;
+    }
+    setSelectColorDrafts(selectedSelectSource?.colors ?? {});
+  }, [paintWithPalette, selectedSelectSource?.colors]);
 
   useEffect(() => {
     if (!conditionalSourceControl) return;
@@ -592,7 +625,13 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
   const checkboxColorEnabled = Boolean(current.conditionalBg?.checkedColor);
 
   const handleBackgroundColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    patch({ backgroundColor: normalizeHex(event.target.value) });
+    const id = getColorBatchId('background');
+    patch({ backgroundColor: normalizeHex(event.target.value) }, { historyBatchId: id });
+  };
+
+  const handleBackgroundColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const id = getColorBatchId('background');
+    patch({ backgroundColor: normalizeHex(event.target.value) }, { historyBatchId: id });
   };
 
   const handleBackgroundHexInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -618,8 +657,18 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     input.click();
   };
 
+  const handleBackgroundPickerClose = () => {
+    releaseColorBatchId('background');
+  };
+
   const handleTextColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    patch({ textColor: normalizeHex(event.target.value) });
+    const id = getColorBatchId('text');
+    patch({ textColor: normalizeHex(event.target.value) }, { historyBatchId: id });
+  };
+
+  const handleTextColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const id = getColorBatchId('text');
+    patch({ textColor: normalizeHex(event.target.value) }, { historyBatchId: id });
   };
 
   const handleTextHexInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -643,6 +692,10 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     const input = textColorInputRef.current;
     if (!input) return;
     input.click();
+  };
+
+  const handleTextColorPickerClose = () => {
+    releaseColorBatchId('text');
   };
 
   const handleCheckboxColorToggle = (checked: boolean) => {
@@ -671,7 +724,14 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
 
   const handleCheckboxColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextColor = normalizeHex(event.target.value);
-    updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }));
+    const id = getColorBatchId('checkbox');
+    updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }), { historyBatchId: id });
+  };
+
+  const handleCheckboxColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextColor = normalizeHex(event.target.value);
+    const id = getColorBatchId('checkbox');
+    updateConditionalBg((prev) => ({ ...prev, checkedColor: nextColor }), { historyBatchId: id });
   };
 
   const handleCheckboxHexInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -696,6 +756,20 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     if (!input) return;
     input.click();
   };
+
+  const handleCheckboxPickerClose = () => {
+    releaseColorBatchId('checkbox');
+  };
+
+  useEffect(() => {
+    if (!checkboxColorEnabled) {
+      releaseColorBatchId('checkbox');
+      return;
+    }
+    return () => {
+      releaseColorBatchId('checkbox');
+    };
+  }, [checkboxColorEnabled, releaseColorBatchId]);
 
   const renderAlignmentPopover = () => (
     <Popover anchorRect={alignmentAnchor} onClose={() => setAlignmentAnchor(null)} width={160}>
@@ -964,7 +1038,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                       className="format-field__sr"
                       type="color"
                       value={normalizedBackgroundColor}
+                      onInput={handleBackgroundColorInput}
                       onChange={handleBackgroundColorChange}
+                      onBlur={handleBackgroundPickerClose}
                       aria-label="Seleccionar color de fondo"
                     />
                   </div>
@@ -1000,7 +1076,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                       className="format-field__sr"
                       type="color"
                       value={normalizedTextColor}
+                      onInput={handleTextColorInput}
                       onChange={handleTextColorChange}
+                      onBlur={handleTextColorPickerClose}
                       aria-label="Seleccionar color de texto"
                     />
                   </div>
@@ -1178,7 +1256,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                           className="format-field__sr"
                           type="color"
                           value={normalizedCheckboxColor}
+                          onInput={handleCheckboxColorInput}
                           onChange={handleCheckboxColorChange}
+                          onBlur={handleCheckboxPickerClose}
                           aria-label="Seleccionar color del checkbox"
                         />
                       </div>
@@ -1243,25 +1323,50 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                       ) : (
                         <div className="select-color-grid" role="list">
                           {conditionalOptionEntries.map(({ option, color }) => {
-                            const normalized = normalizeHex(color);
+                            const draftColor = selectColorDrafts[option] ?? color;
+                            const normalized = normalizeHex(draftColor);
                             const handleButtonClick = () => {
                               const input = selectColorInputsRef.current[option];
                               input?.click();
                             };
+                            const applySelectColor = (
+                              value: string,
+                              { releaseBatchId = false }: { releaseBatchId?: boolean } = {},
+                            ) => {
+                              const normalized = normalizeHex(value);
+                              setSelectColorDrafts((prev) => ({
+                                ...prev,
+                                [option]: normalized,
+                              }));
+                              updateConditionalBg(
+                                (prev) => {
+                                  if (!prev?.selectSource) return prev;
+                                  const nextColors = {
+                                    ...(prev.selectSource.colors ?? {}),
+                                    [option]: normalized,
+                                  };
+                                  return {
+                                    ...prev,
+                                    selectSource: {
+                                      ...prev.selectSource,
+                                      colors: nextColors,
+                                    },
+                                  };
+                                },
+                                { historyBatchId: getColorBatchId(`select-${option}`) },
+                              );
+                              if (releaseBatchId) {
+                                releaseColorBatchId(`select-${option}`);
+                              }
+                            };
+                            const handleColorInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+                              applySelectColor(event.target.value);
+                            };
                             const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-                              if (!k) return;
-                              const nextColor = normalizeHex(event.target.value);
-                              updateConditionalBg((prev) => {
-                                if (!prev?.selectSource) return prev;
-                                const nextColors = { ...prev.selectSource.colors, [option]: nextColor };
-                                return {
-                                  ...prev,
-                                  selectSource: {
-                                    ...prev.selectSource,
-                                    colors: nextColors,
-                                  },
-                                };
-                              });
+                              applySelectColor(event.target.value, { releaseBatchId: false });
+                            };
+                            const handleColorBlur = () => {
+                              releaseColorBatchId(`select-${option}`);
                             };
                             return (
                               <div key={option} role="listitem" style={{ position: 'relative' }}>
@@ -1289,7 +1394,9 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                                   }}
                                   type="color"
                                   value={normalized}
+                                  onInput={handleColorInput}
                                   onChange={handleColorChange}
+                                  onBlur={handleColorBlur}
                                   tabIndex={-1}
                                   aria-hidden="true"
                                   style={{
