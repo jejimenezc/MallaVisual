@@ -514,6 +514,16 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
     return options.map((option) => ({ option, color: colors[option] ?? '#ffffff' }));
   }, [selectedSelectSource, conditionalSourceControl]);
 
+  const [selectColorDrafts, setSelectColorDrafts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (paintWithPalette) {
+      setSelectColorDrafts({});
+      return;
+    }
+    setSelectColorDrafts(selectedSelectSource?.colors ?? {});
+  }, [paintWithPalette, selectedSelectSource?.colors]);
+
   useEffect(() => {
     if (!conditionalSourceControl) return;
     if (!paletteOptionsForSelect) return;
@@ -1313,28 +1323,50 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                       ) : (
                         <div className="select-color-grid" role="list">
                           {conditionalOptionEntries.map(({ option, color }) => {
-                            const normalized = normalizeHex(color);
+                            const draftColor = selectColorDrafts[option] ?? color;
+                            const normalized = normalizeHex(draftColor);
                             const handleButtonClick = () => {
                               const input = selectColorInputsRef.current[option];
                               input?.click();
                             };
                             const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+                              setSelectColorDrafts((prev) => ({
+                                ...prev,
+                                [option]: normalizeHex(event.target.value),
+                              }));
+                            };
+                            const handleColorBlur = () => {
                               if (!k) return;
-                              const nextColor = normalizeHex(event.target.value);
-                              updateConditionalBg((prev) => {
-                                if (!prev?.selectSource) return prev;
-                                const nextColors = {
-                                  ...prev.selectSource.colors,
-                                  [option]: nextColor,
-                                };
-                                return {
-                                  ...prev,
-                                  selectSource: {
-                                    ...prev.selectSource,
-                                    colors: nextColors,
-                                  },
-                                };
-                              });
+                              const nextColor = normalizeHex(
+                                selectColorDrafts[option] ??
+                                  current.conditionalBg?.selectSource?.colors?.[option] ??
+                                  '#ffffff',
+                              );
+                              const existingColor = normalizeHex(
+                                current.conditionalBg?.selectSource?.colors?.[option] ?? '#ffffff',
+                              );
+                              if (existingColor === nextColor) {
+                                releaseColorBatchId(`select-${option}`);
+                                return;
+                              }
+                              updateConditionalBg(
+                                (prev) => {
+                                  if (!prev?.selectSource) return prev;
+                                  const nextColors = {
+                                    ...(prev.selectSource.colors ?? {}),
+                                    [option]: nextColor,
+                                  };
+                                  return {
+                                    ...prev,
+                                    selectSource: {
+                                      ...prev.selectSource,
+                                      colors: nextColors,
+                                    },
+                                  };
+                                },
+                                { historyBatchId: getColorBatchId(`select-${option}`) },
+                              );
+                              releaseColorBatchId(`select-${option}`);
                             };
                             return (
                               <div key={option} role="listitem" style={{ position: 'relative' }}>
@@ -1363,6 +1395,7 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                                   type="color"
                                   value={normalized}
                                   onChange={handleColorChange}
+                                  onBlur={handleColorBlur}
                                   tabIndex={-1}
                                   aria-hidden="true"
                                   style={{
