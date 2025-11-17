@@ -1318,41 +1318,23 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                               const input = selectColorInputsRef.current[option];
                               input?.click();
                             };
-                            const batchKey = `select:${option}`;
-                            const applySelectColor = (
-                              event: React.ChangeEvent<HTMLInputElement>,
-                              finalize: boolean,
-                            ) => {
+                            const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                               if (!k) return;
                               const nextColor = normalizeHex(event.target.value);
-                              const id = getColorBatchId(batchKey);
-                              updateConditionalBg(
-                                (prev) => {
-                                  if (!prev?.selectSource) return prev;
-                                  const nextColors = {
-                                    ...prev.selectSource.colors,
-                                    [option]: nextColor,
-                                  };
-                                  return {
-                                    ...prev,
-                                    selectSource: {
-                                      ...prev.selectSource,
-                                      colors: nextColors,
-                                    },
-                                  };
-                                },
-                                { historyBatchId: id },
-                              );
-                              if (finalize) {
-                                releaseColorBatchId(batchKey);
-                              }
-                            };
-                            const handleColorInput = (event: React.ChangeEvent<HTMLInputElement>) =>
-                              applySelectColor(event, false);
-                            const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-                              applySelectColor(event, true);
-                            const handleColorBlur = () => {
-                              releaseColorBatchId(batchKey);
+                              updateConditionalBg((prev) => {
+                                if (!prev?.selectSource) return prev;
+                                const nextColors = {
+                                  ...prev.selectSource.colors,
+                                  [option]: nextColor,
+                                };
+                                return {
+                                  ...prev,
+                                  selectSource: {
+                                    ...prev.selectSource,
+                                    colors: nextColors,
+                                  },
+                                };
+                              });
                             };
                             return (
                               <div key={option} role="listitem" style={{ position: 'relative' }}>
@@ -1376,14 +1358,11 @@ export const FormatStylePanel: React.FC<FormatStylePanelProps> = ({
                                       selectColorInputsRef.current[option] = element;
                                     } else {
                                       delete selectColorInputsRef.current[option];
-                                      releaseColorBatchId(batchKey);
                                     }
                                   }}
                                   type="color"
                                   value={normalized}
-                                  onInput={handleColorInput}
                                   onChange={handleColorChange}
-                                  onBlur={handleColorBlur}
                                   tabIndex={-1}
                                   aria-hidden="true"
                                   style={{
