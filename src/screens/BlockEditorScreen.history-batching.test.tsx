@@ -12,6 +12,8 @@ import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import type { BlockContent } from '../utils/block-content.ts';
 import type { AppCommandDescriptor, AppCommandId } from '../state/app-commands.tsx';
 import { AppCommandsProvider, useAppCommands } from '../state/app-commands.tsx';
+import { ToastProvider } from '../components/ui/ToastContext.tsx';
+import { ConfirmProvider } from '../components/ui/ConfirmContext.tsx';
 
 const autoSaveMock = vi.fn();
 const flushAutoSaveMock = vi.fn();
@@ -76,10 +78,12 @@ vi.mock('../layout/TwoPaneLayout', () => ({
   ),
 }));
 
-const formatPanelUpdateRef: { current: ((
-  next: React.SetStateAction<VisualTemplate>,
-  meta?: { historyBatchId?: string },
-) => void) | null } = { current: null };
+const formatPanelUpdateRef: {
+  current: ((
+    next: React.SetStateAction<VisualTemplate>,
+    meta?: { historyBatchId?: string },
+  ) => void) | null
+} = { current: null };
 
 vi.mock('../components/FormatStylePanel', () => ({
   FormatStylePanel: ({ onUpdateVisual }: { onUpdateVisual: (next: any, meta?: any) => void }) => {
@@ -178,22 +182,26 @@ describe('BlockEditorScreen – batching de historial para color pickers', () =>
           backgroundColor: initialVisualColor,
         },
       },
-      theme: createDefaultProjectTheme(),
     };
 
     await act(async () => {
       root.render(
         <AppCommandsProvider>
           <CommandsObserver />
-          <BlockEditorScreen
-            initialData={initialData}
-            initialMode="view"
-            onDraftChange={(draft) => {
-              recordedDrafts.push(draft);
-            }}
-          />
+          <ToastProvider>
+            <ConfirmProvider>
+              <BlockEditorScreen
+                initialData={initialData}
+                initialMode="view"
+                onDraftChange={(draft) => {
+                  recordedDrafts.push(draft);
+                }}
+              />
+            </ConfirmProvider>
+          </ToastProvider>
         </AppCommandsProvider>,
       );
+      await Promise.resolve();
     });
 
     await flushEffects();

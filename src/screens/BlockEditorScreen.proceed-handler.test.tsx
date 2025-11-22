@@ -1,10 +1,17 @@
-
 import React, { useEffect } from 'react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import { createDefaultProjectTheme } from '../utils/malla-io.ts';
+import { BlockEditorScreen } from './BlockEditorScreen.tsx';
+import type { BlockTemplate } from '../types/curricular.ts';
+import type { BlockExport } from '../utils/block-io.ts';
+import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
+import { coordKey } from '../types/visual.ts';
+import { AppCommandsProvider } from '../state/app-commands.tsx';
+import { ToastProvider } from '../components/ui/ToastContext.tsx';
+import { ConfirmProvider } from '../components/ui/ConfirmContext.tsx';
 
 const autoSaveMock = vi.fn();
 const flushAutoSaveMock = vi.fn();
@@ -89,13 +96,6 @@ vi.mock('../components/BlockTemplateEditor', () => ({
   },
 }));
 
-import { BlockEditorScreen } from './BlockEditorScreen.tsx';
-import type { BlockTemplate } from '../types/curricular.ts';
-import type { BlockExport } from '../utils/block-io.ts';
-import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
-import { coordKey } from '../types/visual.ts';
-import { AppCommandsProvider } from '../state/app-commands.tsx';
-
 describe('BlockEditorScreen – eliminación de control con datos', () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
@@ -151,6 +151,7 @@ describe('BlockEditorScreen – eliminación de control con datos', () => {
       theme: createDefaultProjectTheme(),
     };
 
+
     const controlsInUse = new Map<string, ReadonlySet<string>>([
       ['repo-1', new Set([coordKey(0, 0)])],
     ]);
@@ -158,22 +159,23 @@ describe('BlockEditorScreen – eliminación de control con datos', () => {
     await act(async () => {
       root.render(
         <AppCommandsProvider>
-          <BlockEditorScreen
-            initialData={initialData}
-            initialRepoId="repo-1"
-            onRequestControlDataClear={onRequestControlDataClear}
-            controlsInUse={controlsInUse}
-          />
+          <ToastProvider>
+            <ConfirmProvider>
+              <BlockEditorScreen
+                initialData={initialData}
+                initialRepoId="repo-1"
+                onRequestControlDataClear={onRequestControlDataClear}
+                controlsInUse={controlsInUse}
+              />
+            </ConfirmProvider>
+          </ToastProvider>
         </AppCommandsProvider>,
       );
       await Promise.resolve();
     });
 
     const handlerRegistrations = setProceedHandlerMock.mock.calls.length;
-
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await Promise.resolve();
 
     expect(deleteControlSpy).toHaveBeenCalledTimes(1);
     expect(onRequestControlDataClear).toHaveBeenCalledWith('r0c0');
