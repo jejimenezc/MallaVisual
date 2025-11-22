@@ -1,5 +1,6 @@
 // src/screens/HomeScreen.tsx
 import React, { useRef, useState, useEffect } from 'react';
+import { useToast } from '../components/ui/ToastContext';
 import type { BlockExport } from '../utils/block-io.ts';
 import type { MallaExport } from '../utils/malla-io.ts';
 import { useProject } from '../core/persistence/hooks.ts';
@@ -33,6 +34,7 @@ export const HomeScreen: React.FC<Props> = ({
   onProjectRenamed,
   onShowIntro,
 }) => {
+  const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { listProjects, loadProject, removeProject, renameProject } = useProject();
   const [projects, setProjects] = useState(() => listProjects());
@@ -61,7 +63,7 @@ export const HomeScreen: React.FC<Props> = ({
       onMalla: onLoadMalla,
     })
       .catch(() => {
-        window.alert('Archivo inválido');
+        toast.error('Archivo inválido');
       })
       .finally(() => {
         e.target.value = '';

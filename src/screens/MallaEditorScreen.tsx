@@ -1,5 +1,7 @@
 // src/screens/MallaEditorScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useToast } from '../components/ui/ToastContext';
+import { useConfirm } from '../components/ui/ConfirmContext';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -36,6 +38,8 @@ import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
+import { useMallaHistory } from './useMallaHistory';
+import type { MallaAction } from './malla-reducer';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
@@ -43,23 +47,7 @@ const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
 
-interface MallaHistoryEntry {
-  cols: number;
-  rows: number;
-  pieces: CurricularPiece[];
-  pieceValues: Record<string, Record<string, string | number | boolean>>;
-  floatingPieces: string[];
-  mastersById: Record<string, MasterBlockData>;
-  selectedMasterId: string;
-  theme: ProjectTheme;
-}
 
-const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(entry);
-  }
-  return JSON.parse(JSON.stringify(entry)) as MallaHistoryEntry;
-};
 
 function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
   const friendlyName = metadata.name?.trim();
@@ -152,6 +140,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   projectId,
   projectName,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
     return JSON.stringify(initialMalla);
@@ -163,28 +153,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const baseMetrics = useMemo(() => computeMetrics(subTemplate, aspect), [subTemplate, aspect]);
 
   // --- malla y piezas
-  const [cols, setCols] = useState(initialMalla?.grid?.cols ?? 5);
-  const [rows, setRows] = useState(initialMalla?.grid?.rows ?? 5);
-  const [pieces, setPieces] = useState<CurricularPiece[]>(initialMalla?.pieces ?? []);
-  const [pieceValues, setPieceValues] = useState<
-    Record<string, Record<string, string | number | boolean>>
-  >(initialMalla?.values ?? {});
-  const [floatingPieces, setFloatingPieces] = useState<string[]>(
-    initialMalla?.floatingPieces ?? []);
-  const [theme, setTheme] = useState<ProjectTheme>(
-    initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
-  );
-  const [showPieceMenus, setShowPieceMenus] = useState(true);
-  const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const { autoSave, flushAutoSave, loadDraft } = useProject({
-    storageKey: STORAGE_KEY,
-    projectId,
-    projectName,
-  });
-  const { listBlocks } = useBlocksRepo();
-  
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
   const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
@@ -204,6 +172,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
     return masters;
   }, [initialMalla, repoId, template, visual, aspect]);
+
   const initialMasterId = useMemo(() => {
     if (repoId) {
       return repoId;
@@ -217,127 +186,50 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
     return '';
   }, [initialMalla, initialMasters, repoId]);
-  const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
-  const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
+
+  const initialState = useMemo(() => ({
+    cols: initialMalla?.grid?.cols ?? 5,
+    rows: initialMalla?.grid?.rows ?? 5,
+    pieces: initialMalla?.pieces ?? [],
+    pieceValues: initialMalla?.values ?? {},
+    floatingPieces: initialMalla?.floatingPieces ?? [],
+    mastersById: initialMasters,
+    selectedMasterId: initialMasterId,
+    theme: initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
+  }), [initialMalla, initialMasters, initialMasterId]);
+
+  const { state, dispatch, undo, redo, canUndo, canRedo } = useMallaHistory(initialState);
+  const { cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, theme } = state;
+
+  // UI State
+  const [showPieceMenus, setShowPieceMenus] = useState(true);
+  const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const { autoSave, flushAutoSave, loadDraft } = useProject({
+    storageKey: STORAGE_KEY,
+    projectId,
+    projectName,
+  });
+  const { listBlocks } = useBlocksRepo();
+
+  // Refs for interaction
   const selectedMasterIdRef = useRef(selectedMasterId);
-
-  const historyRef = useRef<MallaHistoryEntry[]>([]);
-  const historySerializedRef = useRef<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
-  const isRestoringRef = useRef(false);
-  const ignoreNextInitialMallaRef = useRef(false);
-  const skipNextMasterSyncRef = useRef(false);
-  const skipNextHistoryForMasterChangeRef = useRef(false);
-  const historyTransactionDepthRef = useRef(0);
-  const historyShouldMergeRef = useRef(false);
-
-  const runHistoryTransaction = useCallback(<T,>(task: () => T | Promise<T>): T | Promise<T> => {
-    historyTransactionDepthRef.current += 1;
-    historyShouldMergeRef.current = true;
-
-    const scheduleClose = () => {
-      setTimeout(() => {
-        historyTransactionDepthRef.current -= 1;
-        if (historyTransactionDepthRef.current <= 0) {
-          historyTransactionDepthRef.current = 0;
-          historyShouldMergeRef.current = false;
-        }
-      }, 0);
-    };
-
-    try {
-      const result = task();
-      if (result && typeof (result as PromiseLike<T>).then === 'function') {
-        return (result as Promise<T>).finally(scheduleClose);
-      }
-      scheduleClose();
-      return result;
-    } catch (error) {
-      scheduleClose();
-      throw error;
-    }
-  }, []);
-
-  const historySnapshot = useMemo<MallaHistoryEntry>(
-    () => ({
-      cols,
-      rows,
-      pieces,
-      pieceValues,
-      floatingPieces,
-      mastersById,
-      selectedMasterId,
-      theme,
-    }),
-    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, theme],
-  );
-
-  const historySnapshotSerialized = useMemo(
-    () => JSON.stringify(historySnapshot),
-    [historySnapshot],
-  );
-
   useEffect(() => {
-    if (!isHistoryInitialized) {
-      const entry = cloneMallaHistoryEntry(historySnapshot);
-      historyRef.current = [entry];
-      historySerializedRef.current = [historySnapshotSerialized];
-      setHistoryIndex(0);
-      setIsHistoryInitialized(true);
-      return;
-    }
-    if (isRestoringRef.current) {
-      isRestoringRef.current = false;
-      return;
-    }
-    if (skipNextHistoryForMasterChangeRef.current) {
-      skipNextHistoryForMasterChangeRef.current = false;
-      const currentHistory = historyRef.current.slice();
-      const currentSerialized = historySerializedRef.current.slice();
-      currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
-      currentSerialized[historyIndex] = historySnapshotSerialized;
-      historyRef.current = currentHistory;
-      historySerializedRef.current = currentSerialized;
-      return;
-    }
-    if (historyShouldMergeRef.current) {
-      const currentHistory = historyRef.current.slice();
-      const currentSerialized = historySerializedRef.current.slice();
-      currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
-      currentSerialized[historyIndex] = historySnapshotSerialized;
-      historyRef.current = currentHistory;
-      historySerializedRef.current = currentSerialized;
-      return;
-    }
-    const currentSerialized = historySerializedRef.current[historyIndex];
-    if (currentSerialized === historySnapshotSerialized) return;
-    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
-    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
-    truncatedHistory.push(cloneMallaHistoryEntry(historySnapshot));
-    truncatedSerialized.push(historySnapshotSerialized);
-    historyRef.current = truncatedHistory;
-    historySerializedRef.current = truncatedSerialized;
-    setHistoryIndex(truncatedHistory.length - 1);
-  }, [
-    historySnapshot,
-    historySnapshotSerialized,
-    historyIndex,
-    isHistoryInitialized,
-  ]);
+    selectedMasterIdRef.current = selectedMasterId;
+  }, [selectedMasterId]);
 
-  useEffect(() => {
-    if (ignoreNextInitialMallaRef.current) {
-      ignoreNextInitialMallaRef.current = false;
-      return;
-    }
-    setIsHistoryInitialized(false);
-  }, [initialMallaSignature]);
+  // Legacy refs removal (historyRef, etc.) - handled by replacement
+
+
+
+
+
 
   useEffect(() => {
     if (!repoId) return;
-    setSelectedMasterId((prevId) => (prevId === repoId ? prevId : repoId));
-  }, [repoId]);
+    dispatch({ type: 'SELECT_MASTER', id: repoId }, false);
+  }, [repoId, dispatch]);
 
   useEffect(() => {
     setAvailableMasters(listBlocks());
@@ -352,49 +244,51 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
   const repositoryEntries = repositorySnapshot.entries;
 
-  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < historyRef.current.length - 1;
 
+
+  // Refresca los maestros almacenados cuando el repositorio cambia
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
     if (availableMasters.length === 0) return;
-    setMastersById((prev) => {
-      let updated = false;
-      let next = prev;
-      for (const { metadata, data } of availableMasters) {
-        const key = metadata.uuid;
-        const incoming: MasterBlockData = {
-          template: data.template,
-          visual: data.visual,
-          aspect: data.aspect,
-        };
-        if (!blockContentEquals(prev[key], incoming)) {
-          if (!updated) {
-            next = { ...prev };
-            updated = true;
-          }
-          next[key] = incoming;
-        }
-      }
-      return updated ? next : prev;
-    });
-  }, [availableMasters]);
 
+    let updated = false;
+    let next = mastersById;
+    for (const { metadata, data } of availableMasters) {
+      const key = metadata.uuid;
+      const incoming: MasterBlockData = {
+        template: data.template,
+        visual: data.visual,
+        aspect: data.aspect,
+      };
+      if (!blockContentEquals(mastersById[key], incoming)) {
+        if (!updated) {
+          next = { ...mastersById };
+          updated = true;
+        }
+        next[key] = incoming;
+      }
+    }
+    if (updated) {
+      dispatch({ type: 'SET_MASTERS', masters: next }, false);
+    }
+  }, [availableMasters, mastersById, dispatch]);
+
+  // Sincroniza el maestro activo con el mapa local
   // Sincroniza el maestro activo con el mapa local
   useEffect(() => {
     if (!selectedMasterId) return;
-    if (skipNextMasterSyncRef.current) {
-      skipNextMasterSyncRef.current = false;
-      return;
-    }
+    // Note: skipNextMasterSyncRef logic removed as it was for history management
+
     const data: MasterBlockData = { template, visual, aspect };
-    runHistoryTransaction(() => {
-      setMastersById((prev) => ({
-        ...prev,
+    // Update if different? For now just update.
+    dispatch({
+      type: 'SET_MASTERS',
+      masters: {
+        ...mastersById,
         [selectedMasterId]: data,
-      }));
-    });
-  }, [selectedMasterId, template, visual, aspect, runHistoryTransaction]);
+      }
+    }, false);
+  }, [selectedMasterId, template, visual, aspect, dispatch]); // mastersById omitted to avoid loop, relying on closure or next render
 
   // --- drag & drop
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -420,75 +314,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
     selectedMasterIdRef.current = selectedMasterId;
   }, [selectedMasterId]);
 
-  const applyHistorySnapshot = useCallback(
-    (entry: MallaHistoryEntry) => {
-      const clone = cloneMallaHistoryEntry(entry);
-      const nextMasters = clone.mastersById;
-      const preferredMasterId = selectedMasterIdRef.current;
-      const fallbackMasterId = clone.selectedMasterId;
-      const nextSelectedId =
-        preferredMasterId && nextMasters[preferredMasterId]
-          ? preferredMasterId
-          : fallbackMasterId;
-
-      setCols(clone.cols);
-      setRows(clone.rows);
-      setPieces(clone.pieces);
-      setPieceValues(clone.pieceValues);
-      setFloatingPieces(clone.floatingPieces);
-      skipNextMasterSyncRef.current = true;
-      setMastersById(nextMasters);
-      setSelectedMasterId(nextSelectedId);
-      setDraggingId(null);
-      setDragPos({ x: 0, y: 0 });
-      setTheme(clone.theme);
-      const restoredMaster = nextSelectedId ? nextMasters[nextSelectedId] : undefined;
-      if (restoredMaster) {
-        onUpdateMaster?.({
-          template: restoredMaster.template,
-          visual: restoredMaster.visual,
-          aspect: restoredMaster.aspect,
-          repoId: nextSelectedId,
-        });
-      }
-    },
-    [
-      setCols,
-      setRows,
-      setPieces,
-      setPieceValues,
-      setFloatingPieces,
-      setMastersById,
-      setSelectedMasterId,
-      setDraggingId,
-      setDragPos,
-      setTheme,
-      onUpdateMaster,
-    ],
-  );
-
-  const handleUndo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
-    const entry = historyRef.current[newIndex];
-    if (!entry) return;
-    isRestoringRef.current = true;
-    applyHistorySnapshot(entry);
-    setHistoryIndex(newIndex);
-  }, [historyIndex, applyHistorySnapshot]);
-
-  const handleRedo = useCallback(() => {
-    if (historyIndex >= historyRef.current.length - 1) return;
-    const newIndex = historyIndex + 1;
-    const entry = historyRef.current[newIndex];
-    if (!entry) return;
-    isRestoringRef.current = true;
-    applyHistorySnapshot(entry);
-    setHistoryIndex(newIndex);
-  }, [historyIndex, applyHistorySnapshot]);
-
-  useAppCommand('undo', handleUndo, canUndo);
-  useAppCommand('redo', handleRedo, canRedo);
+  useAppCommand('undo', undo, canUndo);
+  useAppCommand('redo', redo, canRedo);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -498,18 +325,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
       if (key === 'z') {
         event.preventDefault();
         if (event.shiftKey) {
-          handleRedo();
+          redo();
         } else {
-          handleUndo();
+          undo();
         }
       } else if (key === 'y') {
         event.preventDefault();
-        handleRedo();
+        redo();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [undo, redo]);
   const {
     colWidths,
     rowHeights,
@@ -773,41 +600,38 @@ export const MallaEditorScreen: React.FC<Props> = ({
   ]
     .filter(Boolean)
     .join(' ');
-  
+
   const handleSelectMaster = (id: string) => {
-    runHistoryTransaction(() => {
-      if (id !== selectedMasterId) {
-        skipNextNormalizedInitialRef.current = true;
-        skipNextHistoryForMasterChangeRef.current = true;
-      }
-      setSelectedMasterId(id);
-      if (!id) {
-        return;
-      }
+    if (id !== selectedMasterId) {
+      skipNextNormalizedInitialRef.current = true;
+    }
+    dispatch({ type: 'SELECT_MASTER', id });
+    if (!id) {
+      return;
+    }
 
-      const stored = mastersById[id];
-      if (stored) {
-        onUpdateMaster?.({
-          template: stored.template,
-          visual: stored.visual,
-          aspect: stored.aspect,
-          repoId: id,
-        });
-        return;
-      }
+    const stored = mastersById[id];
+    if (stored) {
+      onUpdateMaster?.({
+        template: stored.template,
+        visual: stored.visual,
+        aspect: stored.aspect,
+        repoId: id,
+      });
+      return;
+    }
 
-      const rec = listBlocks().find((b) => b.metadata.uuid === id);
-      if (rec) {
-        const data = rec.data;
-        setMastersById((prev) => ({ ...prev, [id]: data }));
-        onUpdateMaster?.({
-          template: data.template,
-          visual: data.visual,
-          aspect: data.aspect,
-          repoId: id,
-        });
-      }
-    });
+    const rec = listBlocks().find((b) => b.metadata.uuid === id);
+    if (rec) {
+      const data = rec.data;
+      dispatch({ type: 'SET_MASTERS', masters: { ...mastersById, [id]: data } });
+      onUpdateMaster?.({
+        template: data.template,
+        visual: data.visual,
+        aspect: data.aspect,
+        repoId: id,
+      });
+    }
   };
 
   const normalizedInitial = useMemo(() => {
@@ -888,16 +712,21 @@ export const MallaEditorScreen: React.FC<Props> = ({
     skipNextSyncRef.current = true;
     initialPersistenceSignatureRef.current = serialized;
     savedRef.current = serialized;
-    setMastersById(masters);
-    setCols(grid.cols);
-    setRows(grid.rows);
-    setPieces(nextPieces);
-    setPieceValues(values);
-    setFloatingPieces(nextFloating);
-    setSelectedMasterId(activeMasterId);
-    setTheme(nextTheme);
-    setIsHistoryInitialized(false);
-  }, [normalizedInitial]);
+
+    dispatch({
+      type: 'LOAD_STATE',
+      state: {
+        mastersById: masters,
+        cols: grid.cols,
+        rows: grid.rows,
+        pieces: nextPieces,
+        pieceValues: values,
+        floatingPieces: nextFloating,
+        selectedMasterId: activeMasterId,
+        theme: nextTheme,
+      }
+    });
+  }, [normalizedInitial, dispatch]);
 
   useEffect(() => {
     const project: MallaExport = {
@@ -928,7 +757,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
     savedRef.current = serialized;
     if (!shouldSkipMallaChange && onMallaChange) {
-      ignoreNextInitialMallaRef.current = true;
+
       onMallaChange(project);
     }
     autoSave(project);
@@ -948,9 +777,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     autoSave,
     onMallaChange,
   ]);
-  
+
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
-  
+
   useEffect(() => {
     if (initialMalla) {
       return;
@@ -989,15 +818,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
       });
     }
 
-    setSelectedMasterId(nextActiveId);
-    setMastersById(nextMasters);
-    setCols(data?.grid?.cols ?? 5);
-    setRows(data?.grid?.rows ?? 5);
-    setPieces(data?.pieces ?? []);
-    setPieceValues(data?.values ?? {});
-    setFloatingPieces(data?.floatingPieces ?? []);
-    setTheme(normalizeProjectTheme(data?.theme));
-    setIsHistoryInitialized(false);
+    dispatch({
+      type: 'LOAD_STATE',
+      state: {
+        mastersById: nextMasters,
+        cols: data?.grid?.cols ?? 5,
+        rows: data?.grid?.rows ?? 5,
+        pieces: data?.pieces ?? [],
+        pieceValues: data?.values ?? {},
+        floatingPieces: data?.floatingPieces ?? [],
+        selectedMasterId: nextActiveId,
+        theme: normalizeProjectTheme(data?.theme),
+      }
+    });
   }, [
     aspect,
     initialMalla,
@@ -1006,58 +839,49 @@ export const MallaEditorScreen: React.FC<Props> = ({
     repoId,
     template,
     visual,
+    dispatch
   ]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
-    setPieces((prev) => {
-      let changed = false;
-      const next = prev.map((p) => {
-        if (p.kind === 'ref' && p.ref.sourceId === selectedMasterId) {
-          const needsBounds = !boundsEqual(p.ref.bounds, nextBounds);
-          const needsAspect = p.ref.aspect !== aspect;
-          if (!needsBounds && !needsAspect) return p;
-          changed = true;
-          return {
-            ...p,
-            ref: { ...p.ref, bounds: needsBounds ? nextBounds : p.ref.bounds, aspect },
-          };
-        }
-        if (p.kind === 'snapshot' && p.origin?.sourceId === selectedMasterId) {
-          const origin = p.origin!;
-          const needsBounds = !boundsEqual(origin.bounds, nextBounds);
-          const needsAspect = origin.aspect !== aspect;
-          if (!needsBounds && !needsAspect) return p;
-          changed = true;
-          return {
-            ...p,
-            origin: {
-              ...origin,
-              bounds: needsBounds ? nextBounds : origin.bounds,
-              aspect,
-            },
-          };
-        }
-        return p;
-      });
-      return changed ? next : prev;
+    let changed = false;
+    const nextPieces = pieces.map((p) => {
+      if (p.kind === 'ref' && p.ref.sourceId === selectedMasterId) {
+        const needsBounds = !boundsEqual(p.ref.bounds, nextBounds);
+        const needsAspect = p.ref.aspect !== aspect;
+        if (!needsBounds && !needsAspect) return p;
+        changed = true;
+        return {
+          ...p,
+          ref: { ...p.ref, bounds: needsBounds ? nextBounds : p.ref.bounds, aspect },
+        };
+      }
+      if (p.kind === 'snapshot' && p.origin?.sourceId === selectedMasterId) {
+        const origin = p.origin!;
+        const needsBounds = !boundsEqual(origin.bounds, nextBounds);
+        const needsAspect = origin.aspect !== aspect;
+        if (!needsBounds && !needsAspect) return p;
+        changed = true;
+        return {
+          ...p,
+          origin: {
+            ...origin,
+            bounds: needsBounds ? nextBounds : origin.bounds,
+            aspect,
+          },
+        };
+      }
+      return p;
     });
-  }, [template, aspect, selectedMasterId]);
+
+    if (changed) {
+      dispatch({ type: 'SET_PIECES', pieces: nextPieces }, false);
+    }
+  }, [template, aspect, selectedMasterId, pieces, dispatch]);
 
   // --- validación de reducción de la macro-grilla
-  const insertRowAt = (targetIndex: number) => {
-    setRows((prev) => prev + 1);
-    setPieces((prev) =>
-      prev.map((piece) => (piece.y >= targetIndex ? { ...piece, y: piece.y + 1 } : piece))
-    );
-  };
-
-  const removeRowAt = (targetIndex: number) => {
-    setRows((prev) => Math.max(1, prev - 1));
-    setPieces((prev) =>
-      prev.map((piece) => (piece.y > targetIndex ? { ...piece, y: piece.y - 1 } : piece))
-    );
-  };
+  // --- validación de reducción de la macro-grilla
+  // insertRowAt and removeRowAt helper functions removed as they are now actions
 
   type RowMutationOptions = {
     recordHistory?: boolean;
@@ -1065,12 +889,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   const handleInsertRow = (index: number, options?: RowMutationOptions) => {
     const targetIndex = Math.max(0, Math.min(index, rows));
-    const task = () => insertRowAt(targetIndex);
-    if (options?.recordHistory === false) {
-      task();
-    } else {
-      runHistoryTransaction(task);
-    }
+    dispatch({ type: 'INSERT_ROW', index: targetIndex });
   };
 
   const handleRemoveRow = (index: number, options?: RowMutationOptions) => {
@@ -1078,17 +897,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const targetIndex = Math.max(0, Math.min(index, rows - 1));
     const blocker = pieces.find((p) => p.y === targetIndex);
     if (blocker) {
-      window.alert(
+      toast.error(
         `Para eliminar la fila mueva o borre las piezas que ocupan la fila ${targetIndex + 1}`
       );
       return;
     }
-    const task = () => removeRowAt(targetIndex);
-    if (options?.recordHistory === false) {
-      task();
-    } else {
-      runHistoryTransaction(task);
-    }
+    dispatch({ type: 'REMOVE_ROW', index: targetIndex });
   };
 
   const handleRowsChange = (newRows: number) => {
@@ -1099,43 +913,26 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (nextRows < rows) {
       const blocker = pieces.find((p) => p.y >= nextRows);
       if (blocker) {
-        window.alert(
+        toast.error(
           `Para reducir filas mueva o borre las piezas que ocupan la fila ${blocker.y + 1}`
         );
         return;
       }
-
-      runHistoryTransaction(() => {
-        let currentRows = rows;
-        for (let i = 0; i < rows - nextRows; i += 1) {
-          const targetIndex = currentRows - 1;
-          handleRemoveRow(targetIndex, { recordHistory: false });
-          currentRows -= 1;
-        }
-      });
-      return;
     }
-
-    runHistoryTransaction(() => {
-      let currentRows = rows;
-      for (let i = 0; i < nextRows - rows; i += 1) {
-        handleInsertRow(currentRows, { recordHistory: false });
-        currentRows += 1;
-      }
-    });
+    dispatch({ type: 'SET_GRID_SIZE', rows: nextRows });
   };
 
   const handleColsChange = (newCols: number) => {
     if (newCols < cols) {
       const blocker = pieces.find((p) => p.x >= newCols);
       if (blocker) {
-        window.alert(
+        toast.error(
           `Para reducir columnas mueva o borre las piezas que ocupan la columna ${blocker.x + 1}`
         );
         return;
       }
     }
-    setCols(newCols);
+    dispatch({ type: 'SET_GRID_SIZE', cols: newCols });
   };
 
   // --- agregar piezas
@@ -1153,7 +950,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const handleAddReferenced = () => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
+      toast.error(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       return;
@@ -1167,53 +964,51 @@ export const MallaEditorScreen: React.FC<Props> = ({
       x: pos.x,
       y: pos.y,
     };
-    setPieces((prev) => [...prev, piece]);
-    setFloatingPieces((prev) => [...prev, id]);
+    dispatch({ type: 'ADD_PIECE', piece });
   };
 
   // --- TOGGLE: congelar ↔ descongelar
   const togglePieceKind = (id: string) => {
-    setPieces((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
+    const piece = pieces.find((p) => p.id === id);
+    if (!piece) return;
 
-        if (p.kind === 'ref') {
-          // ref -> snapshot (congelar)
-          const master = mastersById[p.ref.sourceId] ?? { template, visual, aspect };
-          const safeBounds = expandBoundsToMerges(master.template, p.ref.bounds);
-          const tpl = cropTemplate(master.template, safeBounds);
-          const vis = cropVisualTemplate(master.visual, master.template, safeBounds);
-          const origin: BlockSourceRef = { ...p.ref };
-          return {
-            kind: 'snapshot',
-            id: p.id,
-            template: tpl,
-            visual: vis,
-            aspect: master.aspect,
-            x: p.x,
-            y: p.y,
-            origin,
-          } as CurricularPieceSnapshot;
-        } else {
-          // snapshot -> ref (descongelar) solo si hay origen
-          if (!p.origin) return p;
-          return {
-            kind: 'ref',
-            id: p.id,
-            ref: { ...p.origin },
-            x: p.x,
-            y: p.y,
-          } as CurricularPieceRef;
-        }
-      })
-    );
+    let newPiece: CurricularPiece | null = null;
+    if (piece.kind === 'ref') {
+      const master = mastersById[piece.ref.sourceId] ?? { template, visual, aspect };
+      const safeBounds = expandBoundsToMerges(master.template, piece.ref.bounds);
+      const tpl = cropTemplate(master.template, safeBounds);
+      const vis = cropVisualTemplate(master.visual, master.template, safeBounds);
+      const origin: BlockSourceRef = { ...piece.ref };
+      newPiece = {
+        kind: 'snapshot',
+        id: piece.id,
+        template: tpl,
+        visual: vis,
+        aspect: master.aspect,
+        x: piece.x,
+        y: piece.y,
+        origin,
+      };
+    } else {
+      if (!piece.origin) return;
+      newPiece = {
+        kind: 'ref',
+        id: piece.id,
+        ref: { ...piece.origin },
+        x: piece.x,
+        y: piece.y,
+      };
+    }
+
+    if (newPiece) {
+      dispatch({ type: 'UPDATE_PIECE', piece: newPiece });
+    }
   };
 
-  // --- Duplicar pieza (mantiene kind y valores del usuario)
   const duplicatePiece = (src: CurricularPiece) => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
+      toast.error(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       return;
@@ -1242,69 +1037,69 @@ export const MallaEditorScreen: React.FC<Props> = ({
         origin: src.origin ? { ...src.origin } : undefined,
       };
     }
-    setPieces((prev) => [...prev, clone]);
-    setFloatingPieces((prev) => [...prev, newId]);
-
     // Duplicar también los valores de usuario de la pieza
-    setPieceValues((prev) => {
-      const oldVals = prev[src.id] ?? {};
-      return { ...prev, [newId]: { ...oldVals } };
+    const oldVals = pieceValues[src.id] ?? {};
+    const nextValues = { ...pieceValues, [newId]: { ...oldVals } };
+
+    dispatch({
+      type: 'BATCH',
+      actions: [
+        { type: 'ADD_PIECE', piece: clone },
+        { type: 'SET_PIECE_VALUES', values: nextValues }
+      ]
     });
   };
 
   // --- Eliminar pieza (y sus valores)
+  // --- Eliminar pieza (y sus valores)
   const deletePiece = (id: string) => {
-    setPieces((prev) => prev.filter((p) => p.id !== id));
-    setPieceValues((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
+    dispatch({ type: 'REMOVE_PIECE', id });
   };
 
-    // --- completar o limpiar la macro-grilla
+  // --- completar o limpiar la macro-grilla
+  // --- completar o limpiar la macro-grilla
   const handleFillGrid = () => {
-    setPieces((prev) => {
-      const occupied = new Set(prev.map((p) => `${p.x}-${p.y}`));
-      const additions: CurricularPiece[] = [];
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          if (!occupied.has(`${c}-${r}`)) {
-            additions.push({
-              kind: 'ref',
-              id: crypto.randomUUID(),
-              ref: { sourceId: selectedMasterId, bounds, aspect },
-              x: c,
-              y: r,
-            });
-          }
+    const occupied = new Set(pieces.map((p) => `${p.x}-${p.y}`));
+    const additions: CurricularPiece[] = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!occupied.has(`${c}-${r}`)) {
+          additions.push({
+            kind: 'ref',
+            id: crypto.randomUUID(),
+            ref: { sourceId: selectedMasterId, bounds, aspect },
+            x: c,
+            y: r,
+          });
         }
       }
-      return [...prev, ...additions];
-    });
+    }
+    if (additions.length > 0) {
+      dispatch({ type: 'SET_PIECES', pieces: [...pieces, ...additions] });
+    }
   };
 
-  const handleClearGrid = () => {
+  const handleClearGrid = async () => {
     const isEmpty =
       pieces.length === 0 &&
       floatingPieces.length === 0 &&
       Object.keys(pieceValues).length === 0;
 
-    const shouldClear =
-      isEmpty ||
-      (typeof window === 'undefined'
-        ? true
-        : window.confirm(
-            'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
-          ));
+    if (isEmpty) return;
+
+    const shouldClear = await confirm({
+      title: 'Borrar todo',
+      message: 'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?',
+      confirmText: 'Borrar todo',
+      cancelText: 'Cancelar',
+      isDanger: true,
+    });
 
     if (!shouldClear) {
       return;
     }
 
-    setPieces([]);
-    setPieceValues({});
-    setFloatingPieces([]);
+    dispatch({ type: 'CLEAR_GRID' });
   };
 
   // --- drag handlers
@@ -1320,7 +1115,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     dragPieceOuter.current = { w: pieceOuterW, h: pieceOuterH };
     setDragPos({ x: colOffsets[piece.x], y: rowOffsets[piece.y] });
-    setFloatingPieces((prev) => prev.filter((id) => id !== piece.id));
+    const nextFloating = floatingPieces.filter((id) => id !== piece.id);
+    if (nextFloating.length !== floatingPieces.length) {
+      dispatch({ type: 'SET_FLOATING_PIECES', ids: nextFloating });
+    }
     e.stopPropagation();
   };
 
@@ -1354,12 +1152,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
       accY += rowHeights[i];
     }
     let placed = true;
-    setPieces((prev) => {
-      const occupied = new Set(
-        prev.filter((p) => p.id !== draggingId).map((p) => `${p.x}-${p.y}`)
-      );
-      const piece = prev.find((p) => p.id === draggingId);
-      if (!piece) return prev;
+
+    const occupied = new Set(
+      pieces.filter((p) => p.id !== draggingId).map((p) => `${p.x}-${p.y}`)
+    );
+    const piece = pieces.find((p) => p.id === draggingId);
+
+    let nextPieces = pieces;
+    if (piece) {
       let targetCol = desiredCol;
       let targetRow = desiredRow;
       if (occupied.has(`${targetCol}-${targetRow}`)) {
@@ -1377,29 +1177,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
         }
         if (!best) {
           placed = false;
-          return prev;
+        } else {
+          targetCol = best.col;
+          targetRow = best.row;
         }
-        targetCol = best.col;
-        targetRow = best.row;
       }
-      return prev.map((p) =>
-        p.id === draggingId ? { ...p, x: targetCol, y: targetRow } : p
-      );
-    });
-    if (!placed) {
-      window.alert(
+
+      if (placed) {
+        nextPieces = pieces.map((p) =>
+          p.id === draggingId ? { ...p, x: targetCol, y: targetRow } : p
+        );
+      }
+    }
+
+    if (placed) {
+      dispatch({ type: 'SET_PIECES', pieces: nextPieces });
+    } else {
+      toast.error(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
-      setFloatingPieces((prev) => [...prev, draggingId]);
+      dispatch({ type: 'SET_FLOATING_PIECES', ids: [...floatingPieces, draggingId] });
     }
     setDraggingId(null);
   };
 
   return (
     <div
-      className={`${styles.mallaScreen} ${
-        isRepositoryCollapsed ? styles.repositoryCollapsed : ''
-      }`}
+      className={`${styles.mallaScreen} ${isRepositoryCollapsed ? styles.repositoryCollapsed : ''
+        }`}
     >
       {isRepositoryCollapsed && (
         <Button
@@ -1448,25 +1253,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
           />
         </div>
         <div className={styles.repoActions}>
-        {onBack && (
-          <ActionPillButton onClick={onBack} title="Ir a editor de bloque">
-            ⬅️ Editar bloque activo
-          </ActionPillButton>
-        )}
+          {onBack && (
+            <ActionPillButton onClick={onBack} title="Ir a editor de bloque">
+              ⬅️ Editar bloque activo
+            </ActionPillButton>
+          )}
           <ActionPillButton
             onClick={handleAddReferenced}
             title="Agregar bloque sincronizado con el maestro"
           >
-          <img
-            src={addRefIcon}
-            alt=""
-            style={{
-              width: '2em',
-              height: '2em',
-              marginRight: '0.5em',
-              verticalAlign: 'middle',
-            }}
-          />
+            <img
+              src={addRefIcon}
+              alt=""
+              style={{
+                width: '2em',
+                height: '2em',
+                marginRight: '0.5em',
+                verticalAlign: 'middle',
+              }}
+            />
             Agregar a la malla
           </ActionPillButton>
           <div className={styles.collapseToggleRow}>
@@ -1508,93 +1313,91 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
-            <>
-              <Button
-                type="button"
-                onClick={handleFillGrid}
-                title="Completar todas las posiciones vacías"
-              >
-                Autocompletar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleClearGrid}
-                title="Eliminar todas las piezas de la malla"
-              >
-                Borrar todo
-              </Button>
-          </>
+              <>
+                <Button
+                  type="button"
+                  onClick={handleFillGrid}
+                  title="Completar todas las posiciones vacías"
+                >
+                  Autocompletar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleClearGrid}
+                  title="Eliminar todas las piezas de la malla"
+                >
+                  Borrar todo
+                </Button>
+              </>
             </div>
           }
           center={
-              <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
-                <div className={styles.zoomControlGroup}>
-                  <button
-                    type="button"
-                    className={styles.zoomButton}
-                    onClick={() => handleZoomStep(-1)}
-                    disabled={!canZoomOut}
-                    aria-label="Reducir zoom"
-                  >
-                    −
-                  </button>
-                  <input
-                    className={styles.zoomSlider}
-                    type="range"
-                    min={sliderMin}
-                    max={sliderMax}
-                    step={sliderStep}
-                    value={zoomPercent}
-                    onChange={(e) => handleZoomChange(Number(e.target.value) / 100)}
-                    aria-label="Nivel de zoom de la malla"
-                  />
-                  <button
-                    type="button"
-                    className={styles.zoomButton}
-                    onClick={() => handleZoomStep(1)}
-                    disabled={!canZoomIn}
-                    aria-label="Aumentar zoom"
-                  >
-                    +
-                  </button>
-                  <span className={styles.zoomValue}>{zoomPercent}%</span>
-                </div>
-                  <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
-                    <button
-                      type="button"
-                      className={`${styles.pointerToggleButton} ${
-                        pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
-                      }`}
-                      onClick={() => setPointerMode('select')}
-                      aria-pressed={pointerMode === 'select'}
-                      title="Seleccionar y mover piezas"
-                    >
-                      👆🏻
-                    </button>
-                    <button
-                      type="button"
-                      className={`${styles.pointerToggleButton} ${
-                        pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
-                      }`}
-                      onClick={() => setPointerMode('pan')}
-                      aria-pressed={pointerMode === 'pan'}
-                      title="Desplazar la malla"
-                    >
-                      🤚🏻
-                    </button>
-                  </div>
-                  <div className={styles.historyButtons}>
-                    <Button type="button" onClick={handleUndo} disabled={!canUndo} title="Deshacer">
-                      ↻ 
-                    </Button>
-                    <Button type="button" onClick={handleRedo} disabled={!canRedo} title="Rehacer">
-                      ↺ 
-                    </Button>
-                  </div>
-              </label>
-              }
+            <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
+              <div className={styles.zoomControlGroup}>
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={() => handleZoomStep(-1)}
+                  disabled={!canZoomOut}
+                  aria-label="Reducir zoom"
+                >
+                  −
+                </button>
+                <input
+                  className={styles.zoomSlider}
+                  type="range"
+                  min={sliderMin}
+                  max={sliderMax}
+                  step={sliderStep}
+                  value={zoomPercent}
+                  onChange={(e) => handleZoomChange(Number(e.target.value) / 100)}
+                  aria-label="Nivel de zoom de la malla"
+                />
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={() => handleZoomStep(1)}
+                  disabled={!canZoomIn}
+                  aria-label="Aumentar zoom"
+                >
+                  +
+                </button>
+                <span className={styles.zoomValue}>{zoomPercent}%</span>
+              </div>
+              <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+                <button
+                  type="button"
+                  className={`${styles.pointerToggleButton} ${pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
+                    }`}
+                  onClick={() => setPointerMode('select')}
+                  aria-pressed={pointerMode === 'select'}
+                  title="Seleccionar y mover piezas"
+                >
+                  👆🏻
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.pointerToggleButton} ${pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
+                    }`}
+                  onClick={() => setPointerMode('pan')}
+                  aria-pressed={pointerMode === 'pan'}
+                  title="Desplazar la malla"
+                >
+                  🤚🏻
+                </button>
+              </div>
+              <div className={styles.historyButtons}>
+                <Button type="button" onClick={undo} disabled={!canUndo} title="Deshacer">
+                  ↻
+                </Button>
+                <Button type="button" onClick={redo} disabled={!canRedo} title="Rehacer">
+                  ↺
+                </Button>
+              </div>
+            </label>
+          }
           right={
-            <>              
+            <>
 
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
@@ -1610,7 +1413,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   </span>
                 </span>
               </label>
-          </>
+            </>
           }
         />
 
@@ -1697,10 +1500,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
                     const values = pieceValues[p.id] ?? {};
                     const onValueChange = (key: string, value: string | number | boolean) => {
-                      setPieceValues((prev) => ({
-                        ...prev,
-                        [p.id]: { ...(prev[p.id] ?? {}), [key]: value },
-                      }));
+                      dispatch({ type: 'UPDATE_PIECE_VALUE', pieceId: p.id, key, value });
                     };
 
                     const canUnfreeze = p.kind === 'snapshot' && !!p.origin;
@@ -1727,9 +1527,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       >
                         {/* Toolbar por pieza */}
                         <div
-                          className={`${styles.pieceToolbar} ${
-                            showPieceMenus ? '' : styles.toolbarHidden
-                          }`}
+                          className={`${styles.pieceToolbar} ${showPieceMenus ? '' : styles.toolbarHidden
+                            }`}
                         >
                           {/* Toggle congelar/descongelar */}
                           <Button
@@ -1780,12 +1579,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
                         <TemplateGrid
                           template={pieceTemplate}
                           selectedCells={[]}
-                          onClick={() => {}}
-                          onContextMenu={() => {}}
-                          onMouseDown={() => {}}
-                          onMouseEnter={() => {}}
-                          onMouseUp={() => {}}
-                          onMouseLeave={() => {}}
+                          onClick={() => { }}
+                          onContextMenu={() => { }}
+                          onMouseDown={() => { }}
+                          onMouseEnter={() => { }}
+                          onMouseUp={() => { }}
+                          onMouseLeave={() => { }}
                           applyVisual={true}
                           visualTemplate={pieceVisual}
                           style={m.gridStyle}

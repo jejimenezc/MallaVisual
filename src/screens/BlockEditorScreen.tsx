@@ -1,5 +1,7 @@
 // src/screens/BlockEditorScreen.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from 'react';
+import { useToast } from '../components/ui/ToastContext';
+import { useConfirm } from '../components/ui/ConfirmContext';
 import { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor, type ControlCleanupMode } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
@@ -59,7 +61,7 @@ const EMPTY_BLOCK_ALERT_MESSAGE =
   'Para pasar a la malla, diseña un bloque y publícalo en el repositorio.';
 
 
-  const generateEmptyTemplate = (): BlockTemplate =>
+const generateEmptyTemplate = (): BlockTemplate =>
   Array.from({ length: 10 }, () =>
     Array.from({ length: 10 }, () => ({ active: false, label: '', type: undefined }))
   );
@@ -113,6 +115,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   controlsInUse,
   onRequestControlDataClear,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const {
     setHandler,
     resetHandler,
@@ -189,7 +193,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     if (!initialData) return null;
     return JSON.stringify(toBlockContent(initialData));
   }, [initialData]);
-  
+
   useEffect(() => {
     if (!initialData) return;
     const content = cloneBlockContent(toBlockContent(initialData));
@@ -234,7 +238,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [controlsInUse, repoId]);
 
   const handleConfirmDeleteControl = useCallback(
-    (coord: string, mode: ControlCleanupMode) => {
+    async (coord: string, mode: ControlCleanupMode) => {
       if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
         console.info('[ControlDeletion] No diff cleanup confirmation required before deleting control', {
           coord,
@@ -252,7 +256,15 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         mode === 'replace'
           ? 'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?'
           : 'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?';
-      const shouldDelete = window.confirm(message);
+
+      const shouldDelete = await confirm({
+        title: 'Confirmar eliminación de control',
+        message,
+        confirmText: 'Continuar',
+        cancelText: 'Cancelar',
+        isDanger: true
+      });
+
       console.info('[ControlDeletion] Diff cleanup confirmation result', {
         coord,
         repoId,
@@ -261,7 +273,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       });
       return shouldDelete;
     },
-    [controlsInUseForRepo, repoId],
+    [controlsInUseForRepo, repoId, confirm],
   );
 
   const handleControlDeleted = useCallback(
@@ -595,14 +607,18 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     [repoId, repoContent, draftContent],
   );
 
-  const handleSaveToRepo = useCallback((): string | null => {
+  const handleSaveToRepo = useCallback(async (): Promise<string | null> => {
     const currentName = repoName.trim();
     const wasNew = !repoId;
     const blockLabel = currentName || 'el bloque';
     if (repoId && isBlockInUse) {
-      const confirmed = window.confirm(
-        `Se publicará la actualización de "${blockLabel}" que está en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?`,
-      );
+      const confirmed = await confirm({
+        title: 'Actualizar bloque en uso',
+        message: `Se publicará la actualización de "${blockLabel}" que está en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?`,
+        confirmText: 'Actualizar',
+        cancelText: 'Cancelar',
+        isDanger: false
+      });
       if (!confirmed) return null;
     }
     let name = currentName;
@@ -612,7 +628,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (input === null) return null;
       name = input.trim();
       if (!name) {
-        alert('Debes ingresar un nombre para el bloque.');
+        toast.error('Debes ingresar un nombre para el bloque.');
         return null;
       }
       setRepoName(name);
@@ -672,7 +688,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       aspect: savedContent.aspect,
       theme: projectTheme,
     });
-    alert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
+    toast.success(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
     return metadata.uuid;
   }, [
     repoId,
@@ -687,6 +703,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     onRepoMetadataChange,
     onPublishBlock,
     isBlockInUse,
+    confirm,
+    toast
   ]);
 
   const handleRename = useCallback(() => {
@@ -696,7 +714,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
-      alert('Debes ingresar un nombre para el bloque.');
+      toast.error('Debes ingresar un nombre para el bloque.');
       return;
     }
     setRepoName(trimmed);
@@ -726,26 +744,35 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     projectId,
     repoUpdateBlockMetadata,
     onRepoMetadataChange,
+    toast
   ]);
 
   const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
-    (targetPath) => {
+    async (targetPath) => {
       const destination = targetPath ?? '/malla/design';
       if (!onProceedToMalla) {
         return defaultProceedToMalla(destination);
       }
       if (destination === '/malla/design' && isDraftDirty) {
         if (!hasDraftDesign) {
-          window.alert(EMPTY_BLOCK_ALERT_MESSAGE);
+          toast.info(EMPTY_BLOCK_ALERT_MESSAGE);
           return true;
         }
         const blockLabel = repoName.trim() || 'el bloque';
         const message = repoId
           ? `Para pasar al diseño de malla, actualiza la publicación de "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`
           : `Para pasar al diseño de malla, publica "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`;
-        const confirmed = window.confirm(message);
+
+        const confirmed = await confirm({
+          title: 'Publicar bloque',
+          message,
+          confirmText: 'Publicar y continuar',
+          cancelText: 'Cancelar',
+          isDanger: false
+        });
+
         if (!confirmed) return true;
-        const savedId = handleSaveToRepo();
+        const savedId = await handleSaveToRepo();
         if (!savedId) return true;
         onProceedToMalla(
           draftContent.template,
@@ -786,6 +813,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       handleSaveToRepo,
       draftContent,
       repoContent,
+      toast,
+      confirm,
+      skipNextDirtyBlockCheck
     ],
   );
 
@@ -835,7 +865,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < historyRef.current.length - 1;
-  
+
   const handleUndo = useCallback(() => {
     if (historyIndex <= 0) return;
     const newIndex = historyIndex - 1;
@@ -1025,8 +1055,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               selectedCount={editorSidebar?.selectedCount ?? 0}
               canCombine={editorSidebar?.canCombine ?? false}
               canSeparate={editorSidebar?.canSeparate ?? false}
-              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+              onCombine={editorSidebar?.handlers.onCombine ?? (() => { })}
+              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => { })}
               selectedCell={editorSidebar?.selectedCell ?? null}
               selectedCoord={editorSidebar?.selectedCoord}
               onUpdateCell={(updated, coord) => {

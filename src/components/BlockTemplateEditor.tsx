@@ -1,6 +1,7 @@
 // src/components/BlockTemplateEditor.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useToast } from './ui/ToastContext';
 import { BlockTemplate, BlockTemplateCell, InputType } from '../types/curricular.ts';
 import { CellContextMenu } from './CellContextMenu';
 import { TemplateGrid } from './TemplateGrid';
@@ -59,7 +60,7 @@ interface Props {
   onSidebarStateChange?: (state: EditorSidebarState) => void;
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
   controlsInUse?: ReadonlySet<string>;
-  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => boolean;
+  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => Promise<boolean> | boolean;
   onControlDeleted?: (coord: string) => void;
 }
 
@@ -108,6 +109,8 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     setStartCell(null);
   };
 
+  const toast = useToast();
+
   // Combinar (reglas que ya venimos usando)
   const onCombine = () => {
     if (selectedCells.length < 2) return;
@@ -115,7 +118,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     // Máximo 1 celda configurada (type definido)
     const configuredCount = selectedCells.reduce((acc, { row, col }) => acc + (template[row][col].type ? 1 : 0), 0);
     if (configuredCount > 1) {
-      window.alert('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.');
+      toast.error('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.');
       return;
     }
 
@@ -189,15 +192,15 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   };
 
   // Menú contextual: asignar tipo / borrar tipo
-  const handleSetInputType = (type: InputType | undefined) => {
+  const handleSetInputType = async (type: InputType | undefined) => {
     if (!contextMenu) return;
     const { row, col } = contextMenu;
     const k = coordKey(row, col);
 
-    const confirmCleanupIfNeeded = (mode: ControlCleanupMode) => {
+    const confirmCleanupIfNeeded = async (mode: ControlCleanupMode) => {
       const isControlInUse = controlsInUse?.has(k) ?? false;
       if (!isControlInUse) return true;
-      const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k, mode) : true;
+      const confirmed = onConfirmDeleteControl ? await onConfirmDeleteControl(k, mode) : true;
       if (!confirmed) {
         setContextMenu(null);
       }
@@ -233,7 +236,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     };
 
     if (type === undefined) {
-      if (!confirmCleanupIfNeeded('delete')) {
+      if (!(await confirmCleanupIfNeeded('delete'))) {
         return;
       }
       const release = performCleanup();
@@ -243,7 +246,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       const isReplacement = currentType && currentType !== type;
 
       if (isReplacement) {
-        if (!confirmCleanupIfNeeded('replace')) {
+        if (!(await confirmCleanupIfNeeded('replace'))) {
           return;
         }
         const release = performCleanup();

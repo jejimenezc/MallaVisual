@@ -7,8 +7,10 @@ import React, {
 } from 'react';
 import type { JSX } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../components/ui/ToastContext';
+import { useConfirm } from '../components/ui/ConfirmContext';
 
-export type ProceedToMallaHandler = (targetPath?: string) => boolean;
+export type ProceedToMallaHandler = (targetPath?: string) => Promise<boolean>;
 
 interface ProceedToMallaContextValue {
   /** Handler disponible para los consumidores (pestañas) */
@@ -46,13 +48,16 @@ export function ProceedToMallaProvider({
   hasPublishedRepositoryBlock,
 }: ProceedToMallaProviderProps): JSX.Element {
   const navigate = useNavigate();
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const skipNextDirtyBlockCheckRef = React.useRef(false);
+
   const defaultProceedToMalla = useCallback<ProceedToMallaHandler>(
-    (targetPath) => {
+    async (targetPath) => {
       const destination = targetPath ?? '/malla/design';
       if (destination === '/malla/design') {
         if (!hasPublishedRepositoryBlock) {
-          window.alert(NO_PUBLISHED_BLOCK_ALERT_MESSAGE);
+          toast.info(NO_PUBLISHED_BLOCK_ALERT_MESSAGE);
           return true;
         }
         const shouldSkipDirtyCheck = skipNextDirtyBlockCheckRef.current;
@@ -64,7 +69,15 @@ export function ProceedToMallaProvider({
             const message = hasPublishedBlock
               ? UPDATE_BLOCK_CONFIRM_MESSAGE
               : PUBLISH_BLOCK_CONFIRM_MESSAGE;
-            const confirmed = window.confirm(message);
+
+            const confirmed = await confirm({
+              title: 'Publicar bloque',
+              message,
+              confirmText: 'Ir al editor',
+              cancelText: 'Cancelar',
+              isDanger: false
+            });
+
             if (confirmed) {
               navigate('/block/design');
             }
@@ -76,16 +89,16 @@ export function ProceedToMallaProvider({
       navigate(destination);
       return true;
     },
-    [hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, navigate],
+    [hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, navigate, toast, confirm],
   );
 
   const [overrideHandler, setOverrideHandler] =
     useState<ProceedToMallaHandler | null>(null);
 
   const handler = useCallback<ProceedToMallaHandler>(
-    (targetPath) => {
+    async (targetPath) => {
       const fn = overrideHandler ?? defaultProceedToMalla;
-      const result = fn(targetPath);
+      const result = await fn(targetPath);
       return result !== false;
     },
     [overrideHandler, defaultProceedToMalla],

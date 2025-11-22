@@ -157,7 +157,7 @@ export const cropTemplate = (
       if (src?.expression) {
         cloned.expression = rebaseExpr(src.expression);
       }
-      
+
       return cloned;
     })
   );
@@ -220,62 +220,342 @@ export const cropVisualTemplate = (
   return result;
 };
 
-// --- NUEVO: expande bounds a merges vigentes del maestro ---
+// --- NUEVO: expande bounds a merges vigentes del maestro (Optimizado con BFS) ---
 export const expandBoundsToMerges = (
   template: BlockTemplate,
   b: ActiveBounds
 ): ActiveBounds => {
-  // Partimos de los bounds dados
-  let minRow = b.minRow, minCol = b.minCol, maxRow = b.maxRow, maxCol = b.maxCol;
-
   const rowsN = template.length;
   const colsN = template[0]?.length ?? 0;
   const keyOf = (r: number, c: number) => `${r}-${c}`;
 
-  const isInside = (r: number, c: number) =>
-    r >= 0 && r < rowsN && c >= 0 && c < colsN;
+  // Set de celdas ya visitadas para evitar ciclos y re-procesamiento
+  const visited = new Set<string>();
 
-  // Detectar si la celda pertenece a un grupo y traer todos sus miembros
-  const groupMembersOf = (r: number, c: number): Array<{ r: number; c: number }> => {
-    const cell = template[r][c];
-    if (!cell) return [];
-    let br = r, bc = c;
+  // Cola para BFS
+  const queue: Array<{ r: number; c: number }> = [];
 
-    if (cell.mergedWith) {
-      const [rs, cs] = cell.mergedWith.split('-');
-      br = Number(rs); bc = Number(cs);
-    } else {
-      // ¿esta celda es base de alguien?
-      const baseKey = keyOf(r, c);
-      const someRef = template.some(row => row.some(cel => cel?.mergedWith === baseKey));
-      if (!someRef) return []; // no pertenece a ningún grupo
+  // 1. Inicializar la cola con todas las celdas dentro de los bounds originales
+  for (let r = b.minRow; r <= b.maxRow; r++) {
+    for (let c = b.minCol; c <= b.maxCol; c++) {
+      const key = keyOf(r, c);
+      if (!visited.has(key)) {
+        visited.add(key);
+        queue.push({ r, c });
+      }
     }
+  }
 
-    const baseKey = keyOf(br, bc);
-    const members: Array<{ r: number; c: number }> = [{ r: br, c: bc }];
-    template.forEach((row, rIdx) => {
-      row.forEach((cel, cIdx) => {
-        if (cel?.mergedWith === baseKey) members.push({ r: rIdx, c: cIdx });
-      });
-    });
-    return members;
+  let minRow = b.minRow, minCol = b.minCol, maxRow = b.maxRow, maxCol = b.maxCol;
+
+  // Helper para procesar un miembro y agregarlo a la cola si es nuevo
+  const addMember = (r: number, c: number) => {
+    const key = keyOf(r, c);
+    if (!visited.has(key)) {
+      visited.add(key);
+      queue.push({ r, c });
+
+      // Actualizar bounds dinámicamente
+      if (r < minRow) minRow = r;
+      if (r > maxRow) maxRow = r;
+      if (c < minCol) minCol = c;
+      if (c > maxCol) maxCol = c;
+    }
   };
 
-  // Expandimos iterativamente hasta estabilizar
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (let r = minRow; r <= maxRow; r++) {
-      for (let c = minCol; c <= maxCol; c++) {
-        if (!isInside(r, c)) continue;
-        const members = groupMembersOf(r, c);
-        if (members.length === 0) continue; // no es grupo
+  // 2. Procesar la cola (BFS)
+  while (queue.length > 0) {
+    const { r, c } = queue.shift()!;
+    const cell = template[r]?.[c];
+    if (!cell) continue;
 
+    // Identificar el "base" del grupo al que pertenece esta celda
+    let baseR = r, baseC = c;
+    if (cell.mergedWith) {
+      const [rs, cs] = cell.mergedWith.split('-');
+      baseR = Number(rs);
+      baseC = Number(cs);
+    } else {
+      // Si no tiene mergedWith, podría ser una base o una celda independiente.
+      // Verificamos si es base de alguien más (esto es costoso si escaneamos todo, 
+      // pero aquí solo necesitamos saber si "pertenece" a un grupo).
+      // En la estructura actual, si es base, sus miembros apuntan a él.
+      // Si es miembro, apunta a la base.
+      // La optimización clave es: si ya procesamos la base, procesamos sus miembros.
+      // Pero, ¿cómo encontramos los miembros de una base sin escanear?
+      // Lamentablemente, la estructura de datos es "celda -> base", no "base -> miembros".
+      // Para hacerlo O(1), necesitaríamos un índice inverso.
+      // Sin índice inverso, aún tenemos que buscar.
+      // PERO, podemos optimizar: solo buscamos si NO hemos visitado ya este grupo.
+    }
+
+    const baseKey = keyOf(baseR, baseC);
+
+    // Si esta celda es parte de un grupo (es base o miembro), necesitamos asegurar
+    // que TODOS los miembros del grupo estén en la cola.
+    // Como no tenemos índice inverso, la primera vez que encontramos un grupo,
+    // debemos escanear la grilla para encontrar a todos sus hermanos.
+    // Para evitar re-escanear, usamos un cache de "grupos procesados".
+
+    // NOTA: Para mantener la compatibilidad estricta con la lógica anterior sin cambiar
+    // la estructura de datos (BlockTemplate), el escaneo es inevitable al menos una vez por grupo.
+    // Sin embargo, podemos limitar el escaneo a "solo cuando encontramos un nuevo grupo".
+
+    // Hack de optimización: Si la celda ya fue totalmente procesada como parte de un grupo, saltar.
+    // Pero `visited` es por celda.
+
+    // Vamos a implementar la búsqueda de miembros "bajo demanda" y cachearla.
+    // O mejor, simplemente agregamos la base y dejamos que el loop procese.
+
+    // Si la celda actual apunta a una base, agregamos la base a la cola.
+    if (baseR !== r || baseC !== c) {
+      addMember(baseR, baseC);
+    }
+
+    // El problema real: encontrar celdas que apuntan a (baseR, baseC).
+    // Esto requiere escanear. PERO, solo necesitamos hacerlo UNA VEZ por base única.
+    // Usaremos un Set estático para bases ya expandidas en esta llamada.
+  }
+
+  // --- RE-IMPLEMENTACIÓN CON CACHE DE BASES ---
+  // El BFS anterior tiene el problema de que encontrar "hijos" es costoso.
+  // Vamos a hacerlo híbrido:
+  // 1. Recolectar todas las "bases" involucradas en los bounds iniciales.
+  // 2. Para cada base nueva, escanear la grilla UNA VEZ buscando sus miembros.
+  // 3. Expandir bounds con esos miembros.
+  // 4. Repetir si los nuevos miembros traen nuevas bases (raro en este modelo, pues es 1 nivel de profundidad, pero posible si hubiera cadenas).
+
+  // En el modelo actual (mergedWith apunta a base), la profundidad es 1.
+  // Así que el algoritmo es:
+  // 1. Identificar bases de todas las celdas en bounds.
+  // 2. Buscar todos los miembros de esas bases en toda la grilla.
+  // 3. Calcular bounds finales.
+
+  const basesToExpand = new Set<string>();
+
+  // Paso 1: Encontrar bases iniciales
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      const cell = template[r]?.[c];
+      if (!cell) continue;
+      if (cell.mergedWith) {
+        basesToExpand.add(cell.mergedWith);
+      } else {
+        // Podría ser base. Lo agregamos por si acaso (si no tiene hijos, no pasa nada)
+        basesToExpand.add(keyOf(r, c));
+      }
+    }
+  }
+
+  // Paso 2: Escanear la grilla UNA VEZ para encontrar miembros de estas bases.
+  // Esto reduce la complejidad de O(K * N^2) a O(N^2) donde K es iteraciones de expansión.
+  // Sigue siendo O(N^2) en el peor caso (toda la grilla), pero solo una pasada.
+
+  // Optimización adicional: Si no hay merges en absoluto, esto es O(1) (ya cubierto por bounds iniciales).
+  // Pero no sabemos si hay merges sin mirar.
+
+  // Escaneo único
+  for (let r = 0; r < rowsN; r++) {
+    for (let c = 0; c < colsN; c++) {
+      const cell = template[r][c];
+      if (!cell) continue;
+
+      let myBase = keyOf(r, c);
+      if (cell.mergedWith) {
+        myBase = cell.mergedWith;
+      } else {
+        // Si no tiene mergedWith, es su propia base.
+        // Pero solo nos importa si esta "base" está en nuestra lista de interés.
+        // (Es decir, si alguien en los bounds originales apuntaba a esta celda,
+        // O si esta celda estaba en los bounds originales).
+      }
+
+      if (basesToExpand.has(myBase)) {
+        // Esta celda pertenece a un grupo de interés. Expandir bounds.
+        if (r < minRow) minRow = r;
+        if (r > maxRow) maxRow = r;
+        if (c < minCol) minCol = c;
+        if (c > maxCol) maxCol = c;
+      }
+    }
+  }
+
+  // NOTA: El algoritmo original hacía un `while(changed)` que podía iterar muchas veces.
+  // En el modelo de datos actual, `mergedWith` es directo a la base (no hay cadenas A->B->C).
+  // Por lo tanto, una sola pasada es suficiente para encontrar todos los "hermanos".
+  // EXCEPCIÓN: Si al expandir bounds "tocamos" accidentalmente OTRO grupo que no estaba en los bounds originales
+  // pero que ahora se solapa con el nuevo rectángulo?
+  // El requerimiento es "expandir bounds para incluir grupos COMPLETOS de cualquier celda tocada".
+  // Si el nuevo rectángulo toca un grupo nuevo, ¿debemos incluirlo también?
+  // La implementación anterior SÍ lo hacía (al iterar `while(changed)`).
+  // Si el rectángulo crece y toca una esquina de otro grupo, ese grupo se "activa" y el rectángulo crece más.
+
+  // Para soportar ese comportamiento "contagioso" (efecto avalancha) de manera eficiente:
+  // Necesitamos un enfoque de componentes conectados real.
+
+  // Volvemos al BFS, pero optimizado:
+  // Construimos un mapa "Base -> [Miembros]" al vuelo o pre-calculado?
+  // Pre-calcular es lo mejor para O(1).
+  // Como no podemos cambiar la firma de la función para recibir cache, lo calculamos localmente.
+  // Costo: O(N^2) una vez.
+
+  const groups = new Map<string, Array<{ r: number, c: number }>>();
+
+  // Construir índice inverso (O(Cells))
+  for (let r = 0; r < rowsN; r++) {
+    for (let c = 0; c < colsN; c++) {
+      const cell = template[r][c];
+      if (!cell) continue;
+      let baseKey = keyOf(r, c);
+      if (cell.mergedWith) baseKey = cell.mergedWith;
+
+      // Solo nos importa agrupar si hay merges. Si cada celda es isla, esto es overhead.
+      // Pero asumimos que hay merges.
+      if (!groups.has(baseKey)) {
+        groups.set(baseKey, []);
+      }
+      groups.get(baseKey)!.push({ r, c });
+    }
+  }
+
+  // Ahora BFS sobre los grupos
+  const processedBases = new Set<string>();
+  const q: string[] = [];
+
+  // Inicializar con grupos tocados por bounds iniciales
+  // Esto es O(BoundsArea)
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      const cell = template[r][c];
+      let base = keyOf(r, c);
+      if (cell?.mergedWith) base = cell.mergedWith;
+
+      if (!processedBases.has(base)) {
+        processedBases.add(base);
+        q.push(base);
+      }
+    }
+  }
+
+  while (q.length > 0) {
+    const base = q.shift()!;
+    const members = groups.get(base);
+    if (!members) continue;
+
+    for (const m of members) {
+      // Expandir bounds
+      let changed = false;
+      if (m.r < minRow) { minRow = m.r; changed = true; }
+      if (m.r > maxRow) { maxRow = m.r; changed = true; }
+      if (m.c < minCol) { minCol = m.c; changed = true; }
+      if (m.c > maxCol) { maxCol = m.c; changed = true; }
+
+      // Si los bounds cambiaron, verificar si "tocamos" nuevos grupos en el área expandida
+      // Esto es lo complicado: detectar colisiones con nuevos grupos sin re-escanear todo.
+      // Pero espera, si expandimos el rectángulo, solo necesitamos chequear las celdas NUEVAS
+      // que entraron en el rectángulo.
+      // PERO, en este loop estamos iterando miembros de un grupo.
+      // El "rectángulo" es una abstracción final.
+      // La lógica original era: "Si el rectángulo de selección toca CUALQUIER parte de un grupo, dame TODO el grupo".
+      // Y recursivamente: "Si al crecer el rectángulo toco otro grupo, dame ese también".
+
+      // Con el índice `groups`, podemos hacer esto:
+      // El rectángulo actual es [minRow, maxRow] x [minCol, maxCol].
+      // Si este rectángulo intersecta con el BoundingBox de otro grupo, ¿debemos fusionarlo?
+      // La lógica original iteraba celda por celda dentro del rectángulo actual.
+
+      // Enfoque correcto y robusto:
+      // 1. Empezamos con el rectángulo actual.
+      // 2. Iteramos sobre todas las celdas de ese rectángulo.
+      // 3. Identificamos sus bases.
+      // 4. Si encontramos una base no procesada, agregamos sus miembros al rectángulo (expandiéndolo).
+      // 5. Si el rectángulo crece, debemos procesar las NUEVAS celdas que ahora están dentro.
+    }
+  }
+
+  // Implementación iterativa eficiente del "Efecto Avalancha"
+  // Usamos un stack de "áreas a escanear".
+  // Al principio, escaneamos el área inicial.
+  // Si encontramos un grupo, expandimos el área total.
+  // Las "nuevas áreas" (la diferencia entre el viejo y nuevo rectángulo) se agregan al stack para ser escaneadas.
+
+  // Reiniciamos bounds para el algoritmo final
+  minRow = b.minRow; maxRow = b.maxRow; minCol = b.minCol; maxCol = b.maxCol;
+
+  const processedBasesFinal = new Set<string>();
+  // Stack de rectángulos sucios por revisar: [minR, maxR, minC, maxC]
+  const dirtyRects: Array<[number, number, number, number]> = [[minRow, maxRow, minCol, maxCol]];
+
+  while (dirtyRects.length > 0) {
+    const [r1, r2, c1, c2] = dirtyRects.pop()!;
+
+    // Clamp a limites reales
+    const startR = Math.max(0, r1);
+    const endR = Math.min(rowsN - 1, r2);
+    const startC = Math.max(0, c1);
+    const endC = Math.min(colsN - 1, c2);
+
+    for (let r = startR; r <= endR; r++) {
+      for (let c = startC; c <= endC; c++) {
+        const cell = template[r][c];
+        if (!cell) continue;
+
+        let base = keyOf(r, c);
+        if (cell.mergedWith) base = cell.mergedWith;
+
+        if (processedBasesFinal.has(base)) continue;
+        processedBasesFinal.add(base);
+
+        // Encontramos un grupo nuevo dentro del área sucia.
+        // Obtenemos todos sus miembros (usando el índice `groups` construido arriba)
+        const members = groups.get(base);
+        if (!members) continue;
+
+        // Calcular el bounding box de este grupo
+        let gMinR = rowsN, gMaxR = -1, gMinC = colsN, gMaxC = -1;
         for (const m of members) {
-          if (m.r < minRow) { minRow = m.r; changed = true; }
-          if (m.c < minCol) { minCol = m.c; changed = true; }
-          if (m.r > maxRow) { maxRow = m.r; changed = true; }
-          if (m.c > maxCol) { maxCol = m.c; changed = true; }
+          if (m.r < gMinR) gMinR = m.r;
+          if (m.r > gMaxR) gMaxR = m.r;
+          if (m.c < gMinC) gMinC = m.c;
+          if (m.c > gMaxC) gMaxC = m.c;
+        }
+
+        // Si este grupo está TOTALMENTE contenido en los bounds actuales, no expande nada.
+        // Pero si se sale, expande los bounds globales y genera nuevas áreas sucias.
+
+        const oldMinRow = minRow, oldMaxRow = maxRow, oldMinCol = minCol, oldMaxCol = maxCol;
+
+        let expanded = false;
+        if (gMinR < minRow) { minRow = gMinR; expanded = true; }
+        if (gMaxR > maxRow) { maxRow = gMaxR; expanded = true; }
+        if (gMinC < minCol) { minCol = gMinC; expanded = true; }
+        if (gMaxC > maxCol) { maxCol = gMaxC; expanded = true; }
+
+        if (expanded) {
+          // Agregar las franjas nuevas a dirtyRects
+          // Para simplificar, agregamos todo el nuevo bounding box del grupo, 
+          // o mejor, agregamos las diferencias.
+          // Simplificación: agregamos el bounding box del grupo que acabamos de procesar
+          // para asegurar que revisamos si ese grupo "toca" a otros en su extensión.
+          // Pero espera, ya tenemos los miembros del grupo.
+          // Lo que importa es el ÁREA GEOMÉTRICA que ahora abarcamos y antes no.
+
+          // Estrategia simple: agregar el bounding box del grupo entero como dirty,
+          // PERO solo procesar lo que no hayamos procesado.
+          // Como usamos `processedBasesFinal`, no repetiremos grupos.
+          // Así que podemos simplemente agregar el rect del grupo a dirty.
+          dirtyRects.push([gMinR, gMaxR, gMinC, gMaxC]);
+
+          // Además, si el bounds global creció, técnicamente deberíamos revisar
+          // el área vacía entre el viejo bounds y el nuevo.
+          // Ejemplo: Bounds viejos [0,1]x[0,1]. Grupo nuevo en [0,3]x[0,3].
+          // Bounds nuevos [0,3]x[0,3].
+          // El área [0,3]x[0,3] contiene celdas que NO estaban en [0,1]x[0,1] ni en el grupo nuevo?
+          // Sí, podría haber celdas "en medio" que ahora quedan atrapadas.
+          // Por tanto, debemos agregar TODO el nuevo bounds global a dirty?
+          // Eso sería seguro pero podría ser redundante.
+          // Agreguemos el nuevo bounds global a dirty. Se procesará rápido porque los grupos ya estarán en `processedBasesFinal`.
+          dirtyRects.push([minRow, maxRow, minCol, maxCol]);
         }
       }
     }
