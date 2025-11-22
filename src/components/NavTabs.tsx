@@ -28,10 +28,8 @@ export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
       return;
     }
     if (shouldBypassCustomNavigation(event)) return;
-    const shouldPreventDefault = handler('/malla/design');
-    if (shouldPreventDefault !== false) {
-      event.preventDefault();
-    }
+    event.preventDefault();
+    void handler('/malla/design');
   };
 
   const handleRepoClick = (
@@ -42,10 +40,8 @@ export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
       return;
     }
     if (shouldBypassCustomNavigation(event)) return;
-    const shouldPreventDefault = handler('/blocks');
-    if (shouldPreventDefault !== false) {
-      event.preventDefault();
-    }
+    event.preventDefault();
+    void handler('/blocks');
   };
 
   const handleBlockClick = (
