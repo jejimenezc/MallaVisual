@@ -182,6 +182,7 @@ describe('BlockEditorScreen – batching de historial para color pickers', () =>
           backgroundColor: initialVisualColor,
         },
       },
+      theme: createDefaultProjectTheme(),
     };
 
     await act(async () => {
