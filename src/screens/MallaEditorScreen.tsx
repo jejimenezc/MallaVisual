@@ -1,5 +1,7 @@
 // src/screens/MallaEditorScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useToast } from '../components/ui/ToastContext';
+import { useConfirm } from '../components/ui/ConfirmContext';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -138,6 +140,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   projectId,
   projectName,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
     return JSON.stringify(initialMalla);
@@ -893,7 +897,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const targetIndex = Math.max(0, Math.min(index, rows - 1));
     const blocker = pieces.find((p) => p.y === targetIndex);
     if (blocker) {
-      window.alert(
+      toast.error(
         `Para eliminar la fila mueva o borre las piezas que ocupan la fila ${targetIndex + 1}`
       );
       return;
@@ -909,7 +913,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (nextRows < rows) {
       const blocker = pieces.find((p) => p.y >= nextRows);
       if (blocker) {
-        window.alert(
+        toast.error(
           `Para reducir filas mueva o borre las piezas que ocupan la fila ${blocker.y + 1}`
         );
         return;
@@ -922,7 +926,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (newCols < cols) {
       const blocker = pieces.find((p) => p.x >= newCols);
       if (blocker) {
-        window.alert(
+        toast.error(
           `Para reducir columnas mueva o borre las piezas que ocupan la columna ${blocker.x + 1}`
         );
         return;
@@ -946,7 +950,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const handleAddReferenced = () => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
+      toast.error(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       return;
@@ -1001,11 +1005,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   };
 
-  // --- Duplicar pieza (mantiene kind y valores del usuario)
   const duplicatePiece = (src: CurricularPiece) => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
+      toast.error(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       return;
@@ -1076,19 +1079,21 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   };
 
-  const handleClearGrid = () => {
+  const handleClearGrid = async () => {
     const isEmpty =
       pieces.length === 0 &&
       floatingPieces.length === 0 &&
       Object.keys(pieceValues).length === 0;
 
-    const shouldClear =
-      isEmpty ||
-      (typeof window === 'undefined'
-        ? true
-        : window.confirm(
-          'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
-        ));
+    if (isEmpty) return;
+
+    const shouldClear = await confirm({
+      title: 'Borrar todo',
+      message: 'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?',
+      confirmText: 'Borrar todo',
+      cancelText: 'Cancelar',
+      isDanger: true,
+    });
 
     if (!shouldClear) {
       return;
@@ -1188,7 +1193,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (placed) {
       dispatch({ type: 'SET_PIECES', pieces: nextPieces });
     } else {
-      window.alert(
+      toast.error(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       dispatch({ type: 'SET_FLOATING_PIECES', ids: [...floatingPieces, draggingId] });
