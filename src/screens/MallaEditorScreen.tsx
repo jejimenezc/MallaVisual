@@ -61,6 +61,85 @@ const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => 
   return JSON.parse(JSON.stringify(entry)) as MallaHistoryEntry;
 };
 
+const createThemeSignature = (theme: ProjectTheme, version?: number) => {
+  if (typeof version === 'number') return `theme:v${version}`;
+  const tokens = Object.entries(theme.tokens ?? {})
+    .map(([key, value]) => `${key}:${value}`)
+    .sort()
+    .join(',');
+  const params = theme.params
+    ? Object.entries(theme.params)
+        .map(([key, value]) => `${key}:${value}`)
+        .sort()
+        .join(',')
+    : 'none';
+  return `theme:${theme.paletteId ?? 'default'}|tokens:${tokens}|params:${params}`;
+};
+
+const createPiecesSignature = (pieces: CurricularPiece[], version?: number) => {
+  if (typeof version === 'number') return `pieces:v${version}`;
+  return pieces
+    .map((piece) => `${piece.id}:${piece.kind}:${piece.x},${piece.y}`)
+    .sort()
+    .join('|');
+};
+
+const createValuesSignature = (
+  values: Record<string, Record<string, string | number | boolean>>,
+  version?: number,
+) => {
+  if (typeof version === 'number') return `values:v${version}`;
+  return Object.keys(values)
+    .sort()
+    .join(',');
+};
+
+const createMastersSignature = (masters: Record<string, MasterBlockData>, version?: number) => {
+  if (typeof version === 'number') return `masters:v${version}`;
+  return Object.keys(masters)
+    .sort()
+    .join(',');
+};
+
+const createFloatingSignature = (floating: string[], version?: number) => {
+  if (typeof version === 'number') return `floating:v${version}`;
+  return floating.slice().sort().join(',');
+};
+
+const createRepositorySignature = (
+  repository: Record<string, MallaExport['repository'][string]>,
+  version?: number,
+) => {
+  if (typeof version === 'number') return `repo:v${version}`;
+  return Object.keys(repository)
+    .sort()
+    .join(',');
+};
+
+const buildProjectSignature = (
+  project: MallaExport,
+  versions?: {
+    pieces?: number;
+    pieceValues?: number;
+    floatingPieces?: number;
+    masters?: number;
+    repository?: number;
+    theme?: number;
+  },
+) => {
+  const parts = [
+    `grid:${project.grid?.cols ?? 0}x${project.grid?.rows ?? 0}`,
+    createPiecesSignature(project.pieces, versions?.pieces),
+    createValuesSignature(project.values, versions?.pieceValues),
+    createFloatingSignature(project.floatingPieces ?? [], versions?.floatingPieces),
+    createMastersSignature(project.masters, versions?.masters),
+    `active:${project.activeMasterId ?? ''}`,
+    createRepositorySignature(project.repository, versions?.repository),
+    createThemeSignature(project.theme, versions?.theme),
+  ];
+  return parts.join('|');
+};
+
 function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
   const friendlyName = metadata.name?.trim();
   if (friendlyName) {
@@ -154,7 +233,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
 }) => {
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
-    return JSON.stringify(initialMalla);
+    return buildProjectSignature({
+      version: initialMalla.version,
+      masters: initialMalla.masters ?? {},
+      grid: initialMalla.grid,
+      pieces: initialMalla.pieces,
+      values: initialMalla.values,
+      floatingPieces: initialMalla.floatingPieces ?? [],
+      activeMasterId: initialMalla.activeMasterId,
+      repository: initialMalla.repository ?? {},
+      theme: normalizeProjectTheme(initialMalla.theme),
+    });
   }, [initialMalla]);
 
   // --- maestro + recorte activo
@@ -222,7 +311,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const selectedMasterIdRef = useRef(selectedMasterId);
 
   const historyRef = useRef<MallaHistoryEntry[]>([]);
-  const historySerializedRef = useRef<string[]>([]);
+  const historySignatureRef = useRef<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
   const isRestoringRef = useRef(false);
@@ -259,6 +348,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
   }, []);
 
+  const piecesSignature = useMemo(() => createPiecesSignature(pieces), [pieces]);
+  const pieceValuesSignature = useMemo(() => createValuesSignature(pieceValues), [pieceValues]);
+  const floatingPiecesSignature = useMemo(
+    () => createFloatingSignature(floatingPieces),
+    [floatingPieces],
+  );
+  const mastersSignature = useMemo(() => createMastersSignature(mastersById), [mastersById]);
+  const themeSignature = useMemo(() => createThemeSignature(theme), [theme]);
+
   const historySnapshot = useMemo<MallaHistoryEntry>(
     () => ({
       cols,
@@ -273,16 +371,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, theme],
   );
 
-  const historySnapshotSerialized = useMemo(
-    () => JSON.stringify(historySnapshot),
-    [historySnapshot],
-  );
+    const historySnapshotSignature = useMemo(
+      () =>
+        [
+          `grid:${historySnapshot.cols}x${historySnapshot.rows}`,
+          `active:${historySnapshot.selectedMasterId}`,
+          piecesSignature,
+          pieceValuesSignature,
+          floatingPiecesSignature,
+          mastersSignature,
+          themeSignature,
+        ].join('|'),
+      [
+        historySnapshot.cols,
+        historySnapshot.rows,
+        historySnapshot.selectedMasterId,
+        piecesSignature,
+        pieceValuesSignature,
+        floatingPiecesSignature,
+        mastersSignature,
+        themeSignature,
+      ],
+    );
 
   useEffect(() => {
     if (!isHistoryInitialized) {
       const entry = cloneMallaHistoryEntry(historySnapshot);
       historyRef.current = [entry];
-      historySerializedRef.current = [historySnapshotSerialized];
+      historySignatureRef.current = [historySnapshotSignature];
       setHistoryIndex(0);
       setIsHistoryInitialized(true);
       return;
@@ -294,34 +410,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (skipNextHistoryForMasterChangeRef.current) {
       skipNextHistoryForMasterChangeRef.current = false;
       const currentHistory = historyRef.current.slice();
-      const currentSerialized = historySerializedRef.current.slice();
+      const currentSignatures = historySignatureRef.current.slice();
       currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
-      currentSerialized[historyIndex] = historySnapshotSerialized;
+      currentSignatures[historyIndex] = historySnapshotSignature;
       historyRef.current = currentHistory;
-      historySerializedRef.current = currentSerialized;
+      historySignatureRef.current = currentSignatures;
       return;
     }
     if (historyShouldMergeRef.current) {
       const currentHistory = historyRef.current.slice();
-      const currentSerialized = historySerializedRef.current.slice();
+      const currentSignatures = historySignatureRef.current.slice();
       currentHistory[historyIndex] = cloneMallaHistoryEntry(historySnapshot);
-      currentSerialized[historyIndex] = historySnapshotSerialized;
+      currentSignatures[historyIndex] = historySnapshotSignature;
       historyRef.current = currentHistory;
-      historySerializedRef.current = currentSerialized;
+      historySignatureRef.current = currentSignatures;
       return;
     }
-    const currentSerialized = historySerializedRef.current[historyIndex];
-    if (currentSerialized === historySnapshotSerialized) return;
+    const currentSignature = historySignatureRef.current[historyIndex];
+    if (currentSignature === historySnapshotSignature) return;
     const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
-    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
+    const truncatedSignature = historySignatureRef.current.slice(0, historyIndex + 1);
     truncatedHistory.push(cloneMallaHistoryEntry(historySnapshot));
-    truncatedSerialized.push(historySnapshotSerialized);
+    truncatedSignature.push(historySnapshotSignature);
     historyRef.current = truncatedHistory;
-    historySerializedRef.current = truncatedSerialized;
+    historySignatureRef.current = truncatedSignature;
     setHistoryIndex(truncatedHistory.length - 1);
   }, [
     historySnapshot,
-    historySnapshotSerialized,
+    historySnapshotSignature,
     historyIndex,
     isHistoryInitialized,
   ]);
@@ -351,9 +467,56 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [availableMasters],
   );
   const repositoryEntries = repositorySnapshot.entries;
+  const repositorySignature = useMemo(
+    () => createRepositorySignature(repositoryEntries),
+    [repositoryEntries],
+  );
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < historyRef.current.length - 1;
+
+  const projectSnapshot = useMemo(() => {
+    const project: MallaExport = {
+      version: MALLA_SCHEMA_VERSION,
+      masters: mastersById,
+      grid: { cols, rows },
+      pieces,
+      values: pieceValues,
+      floatingPieces,
+      activeMasterId: selectedMasterId,
+      repository: repositoryEntries,
+      theme,
+    };
+
+    const signature = [
+      `grid:${cols}x${rows}`,
+      `active:${selectedMasterId}`,
+      piecesSignature,
+      pieceValuesSignature,
+      floatingPiecesSignature,
+      mastersSignature,
+      repositorySignature,
+      themeSignature,
+    ].join('|');
+
+    return { project, signature };
+  }, [
+    mastersById,
+    cols,
+    rows,
+    pieces,
+    pieceValues,
+    floatingPieces,
+    selectedMasterId,
+    repositoryEntries,
+    theme,
+    piecesSignature,
+    pieceValuesSignature,
+    floatingPiecesSignature,
+    mastersSignature,
+    repositorySignature,
+    themeSignature,
+  ]);
 
   // Refresca los maestros almacenados cuando el repositorio cambia
   useEffect(() => {
@@ -846,6 +1009,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
       theme: nextTheme,
     };
 
+    const signature = buildProjectSignature(project);
+
     return {
       project,
       masters: nextMasters,
@@ -855,6 +1020,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces: nextFloating,
       activeMasterId: nextActiveId,
       theme: nextTheme,
+      signature,
     };
   }, [initialMalla, repoId, template, visual, aspect]);
 
@@ -880,14 +1046,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces: nextFloating,
       activeMasterId,
       theme: nextTheme,
+      signature,
     } = normalizedInitial;
 
-    const serialized = JSON.stringify(project);
-    if (savedRef.current === serialized) return;
+    if (savedRef.current === signature) return;
 
     skipNextSyncRef.current = true;
-    initialPersistenceSignatureRef.current = serialized;
-    savedRef.current = serialized;
+    initialPersistenceSignatureRef.current = signature;
+    savedRef.current = signature;
     setMastersById(masters);
     setCols(grid.cols);
     setRows(grid.rows);
@@ -900,25 +1066,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [normalizedInitial]);
 
   useEffect(() => {
-    const project: MallaExport = {
-      version: MALLA_SCHEMA_VERSION,
-      masters: mastersById,
-      grid: { cols, rows },
-      pieces,
-      values: pieceValues,
-      floatingPieces,
-      activeMasterId: selectedMasterId,
-      repository: repositoryEntries,
-      theme,
-    };
-    const serialized = JSON.stringify(project);
-    const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
+    const { project, signature } = projectSnapshot;
+    const shouldRunInitialPersist = initialPersistenceSignatureRef.current === signature;
     const shouldSkipMallaChange = skipNextSyncRef.current;
     if (skipNextSyncRef.current) {
       skipNextSyncRef.current = false;
     }
 
-    if (savedRef.current === serialized) {
+    if (savedRef.current === signature) {
       if (shouldRunInitialPersist) {
         autoSave(project);
         initialPersistenceSignatureRef.current = null;
@@ -926,7 +1081,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       return;
     }
 
-    savedRef.current = serialized;
+    savedRef.current = signature;
     if (!shouldSkipMallaChange && onMallaChange) {
       ignoreNextInitialMallaRef.current = true;
       onMallaChange(project);
@@ -936,15 +1091,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       initialPersistenceSignatureRef.current = null;
     }
   }, [
-    mastersById,
-    cols,
-    rows,
-    pieces,
-    pieceValues,
-    floatingPieces,
-    selectedMasterId,
-    repositoryEntries,
-    theme,
+    projectSnapshot,
     autoSave,
     onMallaChange,
   ]);
