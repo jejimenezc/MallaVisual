@@ -1481,6 +1481,7 @@ export default function App(): JSX.Element | null {
   const projectTheme = projectThemeState;
 
   const hasProject = !!currentProject;
+  const mallaEditorKey = projectId ?? 'no-project';
 
   if (!isHydrated) {
     return null;
@@ -1603,6 +1604,7 @@ export default function App(): JSX.Element | null {
                 element={
                   block ? (
                     <MallaEditorScreen
+                      key={mallaEditorKey}
                       template={block.published?.template ?? block.draft.template}
                       visual={block.published?.visual ?? block.draft.visual}
                       aspect={block.published?.aspect ?? block.draft.aspect}
