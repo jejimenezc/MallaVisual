@@ -267,8 +267,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const storageKey = projectId ? `${STORAGE_KEY}:${projectId}` : STORAGE_KEY;
   const { autoSave, flushAutoSave, loadDraft } = useProject({
-    storageKey: STORAGE_KEY,
+    storageKey,
     projectId,
     projectName,
   });
