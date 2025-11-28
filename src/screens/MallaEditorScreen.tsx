@@ -36,6 +36,7 @@ import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
+import { computeSignature, deepClone } from '../utils/comparators.ts';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
@@ -55,10 +56,7 @@ interface MallaHistoryEntry {
 }
 
 const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(entry);
-  }
-  return JSON.parse(JSON.stringify(entry)) as MallaHistoryEntry;
+  return deepClone(entry);
 };
 
 function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
@@ -154,7 +152,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
 }) => {
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
-    return JSON.stringify(initialMalla);
+    return computeSignature(initialMalla);
   }, [initialMalla]);
 
   // --- maestro + recorte activo
@@ -184,7 +182,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     projectName,
   });
   const { listBlocks } = useBlocksRepo();
-  
+
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
   const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
@@ -274,7 +272,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
 
   const historySnapshotSerialized = useMemo(
-    () => JSON.stringify(historySnapshot),
+    () => computeSignature(historySnapshot),
     [historySnapshot],
   );
 
@@ -773,7 +771,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   ]
     .filter(Boolean)
     .join(' ');
-  
+
   const handleSelectMaster = (id: string) => {
     runHistoryTransaction(() => {
       if (id !== selectedMasterId) {
@@ -948,9 +946,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     autoSave,
     onMallaChange,
   ]);
-  
+
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
-  
+
   useEffect(() => {
     if (initialMalla) {
       return;
@@ -1262,7 +1260,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     });
   };
 
-    // --- completar o limpiar la macro-grilla
+  // --- completar o limpiar la macro-grilla
   const handleFillGrid = () => {
     setPieces((prev) => {
       const occupied = new Set(prev.map((p) => `${p.x}-${p.y}`));
@@ -1295,8 +1293,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
       (typeof window === 'undefined'
         ? true
         : window.confirm(
-            'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
-          ));
+          'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
+        ));
 
     if (!shouldClear) {
       return;
@@ -1397,9 +1395,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   return (
     <div
-      className={`${styles.mallaScreen} ${
-        isRepositoryCollapsed ? styles.repositoryCollapsed : ''
-      }`}
+      className={`${styles.mallaScreen} ${isRepositoryCollapsed ? styles.repositoryCollapsed : ''
+        }`}
     >
       {isRepositoryCollapsed && (
         <Button
@@ -1448,25 +1445,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
           />
         </div>
         <div className={styles.repoActions}>
-        {onBack && (
-          <ActionPillButton onClick={onBack} title="Ir a editor de bloque">
-            ⬅️ Editar bloque activo
-          </ActionPillButton>
-        )}
+          {onBack && (
+            <ActionPillButton onClick={onBack} title="Ir a editor de bloque">
+              ⬅️ Editar bloque activo
+            </ActionPillButton>
+          )}
           <ActionPillButton
             onClick={handleAddReferenced}
             title="Agregar bloque sincronizado con el maestro"
           >
-          <img
-            src={addRefIcon}
-            alt=""
-            style={{
-              width: '2em',
-              height: '2em',
-              marginRight: '0.5em',
-              verticalAlign: 'middle',
-            }}
-          />
+            <img
+              src={addRefIcon}
+              alt=""
+              style={{
+                width: '2em',
+                height: '2em',
+                marginRight: '0.5em',
+                verticalAlign: 'middle',
+              }}
+            />
             Agregar a la malla
           </ActionPillButton>
           <div className={styles.collapseToggleRow}>
@@ -1508,93 +1505,91 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onChange={(e) => handleColsChange(Number(e.target.value))}
                 />
               </label>
-            <>
-              <Button
-                type="button"
-                onClick={handleFillGrid}
-                title="Completar todas las posiciones vacías"
-              >
-                Autocompletar
-              </Button>
-              <Button
-                type="button"
-                onClick={handleClearGrid}
-                title="Eliminar todas las piezas de la malla"
-              >
-                Borrar todo
-              </Button>
-          </>
+              <>
+                <Button
+                  type="button"
+                  onClick={handleFillGrid}
+                  title="Completar todas las posiciones vacías"
+                >
+                  Autocompletar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleClearGrid}
+                  title="Eliminar todas las piezas de la malla"
+                >
+                  Borrar todo
+                </Button>
+              </>
             </div>
           }
           center={
-              <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
-                <div className={styles.zoomControlGroup}>
-                  <button
-                    type="button"
-                    className={styles.zoomButton}
-                    onClick={() => handleZoomStep(-1)}
-                    disabled={!canZoomOut}
-                    aria-label="Reducir zoom"
-                  >
-                    −
-                  </button>
-                  <input
-                    className={styles.zoomSlider}
-                    type="range"
-                    min={sliderMin}
-                    max={sliderMax}
-                    step={sliderStep}
-                    value={zoomPercent}
-                    onChange={(e) => handleZoomChange(Number(e.target.value) / 100)}
-                    aria-label="Nivel de zoom de la malla"
-                  />
-                  <button
-                    type="button"
-                    className={styles.zoomButton}
-                    onClick={() => handleZoomStep(1)}
-                    disabled={!canZoomIn}
-                    aria-label="Aumentar zoom"
-                  >
-                    +
-                  </button>
-                  <span className={styles.zoomValue}>{zoomPercent}%</span>
-                </div>
-                  <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
-                    <button
-                      type="button"
-                      className={`${styles.pointerToggleButton} ${
-                        pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
-                      }`}
-                      onClick={() => setPointerMode('select')}
-                      aria-pressed={pointerMode === 'select'}
-                      title="Seleccionar y mover piezas"
-                    >
-                      👆🏻
-                    </button>
-                    <button
-                      type="button"
-                      className={`${styles.pointerToggleButton} ${
-                        pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
-                      }`}
-                      onClick={() => setPointerMode('pan')}
-                      aria-pressed={pointerMode === 'pan'}
-                      title="Desplazar la malla"
-                    >
-                      🤚🏻
-                    </button>
-                  </div>
-                  <div className={styles.historyButtons}>
-                    <Button type="button" onClick={handleUndo} disabled={!canUndo} title="Deshacer">
-                      ↻ 
-                    </Button>
-                    <Button type="button" onClick={handleRedo} disabled={!canRedo} title="Rehacer">
-                      ↺ 
-                    </Button>
-                  </div>
-              </label>
-              }
+            <label className={`${styles.gridSizeControl} ${styles.zoomControl}`}>
+              <div className={styles.zoomControlGroup}>
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={() => handleZoomStep(-1)}
+                  disabled={!canZoomOut}
+                  aria-label="Reducir zoom"
+                >
+                  −
+                </button>
+                <input
+                  className={styles.zoomSlider}
+                  type="range"
+                  min={sliderMin}
+                  max={sliderMax}
+                  step={sliderStep}
+                  value={zoomPercent}
+                  onChange={(e) => handleZoomChange(Number(e.target.value) / 100)}
+                  aria-label="Nivel de zoom de la malla"
+                />
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={() => handleZoomStep(1)}
+                  disabled={!canZoomIn}
+                  aria-label="Aumentar zoom"
+                >
+                  +
+                </button>
+                <span className={styles.zoomValue}>{zoomPercent}%</span>
+              </div>
+              <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+                <button
+                  type="button"
+                  className={`${styles.pointerToggleButton} ${pointerMode === 'select' ? styles.pointerToggleButtonActive : ''
+                    }`}
+                  onClick={() => setPointerMode('select')}
+                  aria-pressed={pointerMode === 'select'}
+                  title="Seleccionar y mover piezas"
+                >
+                  👆🏻
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.pointerToggleButton} ${pointerMode === 'pan' ? styles.pointerToggleButtonActive : ''
+                    }`}
+                  onClick={() => setPointerMode('pan')}
+                  aria-pressed={pointerMode === 'pan'}
+                  title="Desplazar la malla"
+                >
+                  🤚🏻
+                </button>
+              </div>
+              <div className={styles.historyButtons}>
+                <Button type="button" onClick={handleUndo} disabled={!canUndo} title="Deshacer">
+                  ↻
+                </Button>
+                <Button type="button" onClick={handleRedo} disabled={!canRedo} title="Rehacer">
+                  ↺
+                </Button>
+              </div>
+            </label>
+          }
           right={
-            <>              
+            <>
 
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
@@ -1610,7 +1605,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   </span>
                 </span>
               </label>
-          </>
+            </>
           }
         />
 
@@ -1727,9 +1722,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       >
                         {/* Toolbar por pieza */}
                         <div
-                          className={`${styles.pieceToolbar} ${
-                            showPieceMenus ? '' : styles.toolbarHidden
-                          }`}
+                          className={`${styles.pieceToolbar} ${showPieceMenus ? '' : styles.toolbarHidden
+                            }`}
                         >
                           {/* Toggle congelar/descongelar */}
                           <Button
@@ -1780,12 +1774,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
                         <TemplateGrid
                           template={pieceTemplate}
                           selectedCells={[]}
-                          onClick={() => {}}
-                          onContextMenu={() => {}}
-                          onMouseDown={() => {}}
-                          onMouseEnter={() => {}}
-                          onMouseUp={() => {}}
-                          onMouseLeave={() => {}}
+                          onClick={() => { }}
+                          onContextMenu={() => { }}
+                          onMouseDown={() => { }}
+                          onMouseEnter={() => { }}
+                          onMouseUp={() => { }}
+                          onMouseLeave={() => { }}
                           applyVisual={true}
                           visualTemplate={pieceVisual}
                           style={m.gridStyle}

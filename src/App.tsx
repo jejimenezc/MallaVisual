@@ -38,6 +38,7 @@ import {
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
+import { areContentsEqual } from './utils/comparators.ts';
 import { blocksToRepository, type RepositorySnapshot } from './utils/repository-snapshot.ts';
 import {
   remapPiecesWithMapping,
@@ -577,7 +578,7 @@ export default function App(): JSX.Element | null {
     clearStoredActiveProject();
     setShouldPersistProject(false);
   }, []);
-  
+
   const handleShowIntroOverlay = useCallback(() => {
     setIntroOverlayVisible(true);
   }, []);
@@ -659,7 +660,7 @@ export default function App(): JSX.Element | null {
       };
 
       const { storedBlocks, snapshot } = convertRepository();
-      const sameAsCurrent = JSON.stringify(repositorySnapshot) === JSON.stringify(snapshot);
+      const sameAsCurrent = areContentsEqual(repositorySnapshot, snapshot);
       if (!sameAsCurrent) {
         const hasCurrentData = Object.keys(repositorySnapshot.repository).length > 0;
         if (hasCurrentData && !options.skipConfirmation) {
@@ -1408,7 +1409,7 @@ export default function App(): JSX.Element | null {
     updatedControls.set(repoId, { active: currentControls, cleaned: nextCleaned });
     previousTemplateControlsRef.current = updatedControls;
   }, [block?.draft.template, block?.repoId, handleRequestControlDataClear]);
-  
+
   useEffect(() => {
     setBlock((prev) => {
       if (!prev?.repoId) return prev;
@@ -1436,14 +1437,14 @@ export default function App(): JSX.Element | null {
       setBlock((prev) => {
         const prevState = prev
           ? (() => {
-              const prevContent = cloneBlockContent(prev.draft);
-              return {
-                template: prevContent.template,
-                visual: prevContent.visual,
-                aspect: prevContent.aspect,
-                repoId: prev.repoId,
-              };
-            })()
+            const prevContent = cloneBlockContent(prev.draft);
+            return {
+              template: prevContent.template,
+              visual: prevContent.visual,
+              aspect: prevContent.aspect,
+              repoId: prev.repoId,
+            };
+          })()
           : null;
         const nextState =
           typeof update === 'function' ? update(prevState) : update;
@@ -1533,12 +1534,12 @@ export default function App(): JSX.Element | null {
                     initialData={
                       block
                         ? {
-                            version: BLOCK_SCHEMA_VERSION,
-                            template: block.draft.template,
-                            visual: block.draft.visual,
-                            aspect: block.draft.aspect,
-                            theme: projectThemeState,
-                          }
+                          version: BLOCK_SCHEMA_VERSION,
+                          template: block.draft.template,
+                          visual: block.draft.visual,
+                          aspect: block.draft.aspect,
+                          theme: projectThemeState,
+                        }
                         : undefined
                     }
                     projectId={projectId ?? undefined}

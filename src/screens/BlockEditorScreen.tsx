@@ -36,6 +36,7 @@ import {
   toBlockContent,
   type BlockContent,
 } from '../utils/block-content.ts';
+import { computeSignature } from '../utils/comparators.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import './BlockEditorScreen.css';
 import { assignSelectOptionColors } from '../utils/selectColors.ts';
@@ -59,7 +60,7 @@ const EMPTY_BLOCK_ALERT_MESSAGE =
   'Para pasar a la malla, diseña un bloque y publícalo en el repositorio.';
 
 
-  const generateEmptyTemplate = (): BlockTemplate =>
+const generateEmptyTemplate = (): BlockTemplate =>
   Array.from({ length: 10 }, () =>
     Array.from({ length: 10 }, () => ({ active: false, label: '', type: undefined }))
   );
@@ -187,9 +188,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const initialDataSignature = useMemo(() => {
     if (!initialData) return null;
-    return JSON.stringify(toBlockContent(initialData));
+    return computeSignature(toBlockContent(initialData));
   }, [initialData]);
-  
+
   useEffect(() => {
     if (!initialData) return;
     const content = cloneBlockContent(toBlockContent(initialData));
@@ -463,7 +464,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       };
     }
 
-    const serialized = JSON.stringify(data);
+    const serialized = computeSignature(data);
     if (savedRef.current === serialized) return;
     savedRef.current = serialized;
     persistedProjectRef.current = data;
@@ -486,7 +487,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => ({ template, visual, aspect }),
     [template, visual, aspect],
   );
-  const draftSerialized = useMemo(() => JSON.stringify(draftContent), [draftContent]);
+  const draftSerialized = useMemo(() => computeSignature(draftContent), [draftContent]);
   const hasDraftDesign = useMemo(() => hasBlockDesign(draftContent), [draftContent]);
 
   const historyRef = useRef<BlockContent[]>([]);
@@ -835,7 +836,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < historyRef.current.length - 1;
-  
+
   const handleUndo = useCallback(() => {
     if (historyIndex <= 0) return;
     const newIndex = historyIndex - 1;
@@ -1025,8 +1026,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
               selectedCount={editorSidebar?.selectedCount ?? 0}
               canCombine={editorSidebar?.canCombine ?? false}
               canSeparate={editorSidebar?.canSeparate ?? false}
-              onCombine={editorSidebar?.handlers.onCombine ?? (() => {})}
-              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => {})}
+              onCombine={editorSidebar?.handlers.onCombine ?? (() => { })}
+              onSeparate={editorSidebar?.handlers.onSeparate ?? (() => { })}
               selectedCell={editorSidebar?.selectedCell ?? null}
               selectedCoord={editorSidebar?.selectedCoord}
               onUpdateCell={(updated, coord) => {

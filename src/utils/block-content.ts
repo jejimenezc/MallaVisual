@@ -2,6 +2,7 @@
 import type { BlockTemplate, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
 import type { BlockExport } from './block-io.ts';
+import { areContentsEqual, deepClone } from './comparators.ts';
 
 export interface BlockContent {
   template: BlockTemplate;
@@ -20,14 +21,7 @@ export function toBlockContent(source: BlockSource): BlockContent {
 }
 
 export function cloneBlockContent(content: BlockContent): BlockContent {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(content);
-  }
-  return {
-    template: JSON.parse(JSON.stringify(content.template)) as BlockTemplate,
-    visual: JSON.parse(JSON.stringify(content.visual)) as VisualTemplate,
-    aspect: content.aspect,
-  };
+  return deepClone(content);
 }
 
 export function blockContentEquals(
@@ -38,8 +32,8 @@ export function blockContentEquals(
   if (!a || !b) return false;
   if (a.aspect !== b.aspect) return false;
   return (
-    JSON.stringify(a.template) === JSON.stringify(b.template) &&
-    JSON.stringify(a.visual) === JSON.stringify(b.visual)
+    areContentsEqual(a.template, b.template) &&
+    areContentsEqual(a.visual, b.visual)
   );
 }
 
