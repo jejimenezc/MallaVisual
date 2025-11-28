@@ -880,7 +880,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       theme: nextTheme,
     } = normalizedInitial;
 
-    const serialized = JSON.stringify(project);
+    const serialized = computeSignature(project);
     if (savedRef.current === serialized) return;
 
     skipNextSyncRef.current = true;
@@ -909,7 +909,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       repository: repositoryEntries,
       theme,
     };
-    const serialized = JSON.stringify(project);
+    const serialized = computeSignature(project);
     const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
     const shouldSkipMallaChange = skipNextSyncRef.current;
     if (skipNextSyncRef.current) {
