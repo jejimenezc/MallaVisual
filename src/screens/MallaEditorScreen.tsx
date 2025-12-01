@@ -172,11 +172,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [theme, setTheme] = useState<ProjectTheme>(
     initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
   );
+  const [isResetting, setIsResetting] = useState(false);
   const [showPieceMenus, setShowPieceMenus] = useState(true);
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const { autoSave, flushAutoSave, loadDraft } = useProject({
+  const { autoSave, clearDraft, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
     projectName,
@@ -225,6 +226,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
   const isRestoringRef = useRef(false);
   const ignoreNextInitialMallaRef = useRef(false);
+  const initialProjectIdRef = useRef<string | null | undefined>(projectId);
   const skipNextMasterSyncRef = useRef(false);
   const skipNextHistoryForMasterChangeRef = useRef(false);
   const historyTransactionDepthRef = useRef(0);
@@ -898,6 +900,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [normalizedInitial]);
 
   useEffect(() => {
+    if (isResetting) return;
+
     const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
       masters: mastersById,
@@ -945,6 +949,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     theme,
     autoSave,
     onMallaChange,
+    isResetting,
   ]);
 
   useEffect(() => () => flushAutoSave(), [flushAutoSave]);
@@ -1004,6 +1009,63 @@ export const MallaEditorScreen: React.FC<Props> = ({
     repoId,
     template,
     visual,
+  ]);
+
+  useEffect(() => {
+    if (initialProjectIdRef.current === undefined) {
+      initialProjectIdRef.current = projectId;
+      return;
+    }
+
+    if (initialProjectIdRef.current === projectId) {
+      return;
+    }
+
+    initialProjectIdRef.current = projectId;
+    setIsResetting(true);
+    clearDraft(STORAGE_KEY);
+    flushAutoSave();
+
+    historyRef.current = [];
+    historySerializedRef.current = [];
+    setHistoryIndex(0);
+
+    const nextMasters = initialMasters;
+    const nextSelectedMasterId = initialMasterId;
+    const nextCols = initialMalla?.grid?.cols ?? 5;
+    const nextRows = initialMalla?.grid?.rows ?? 5;
+    const nextPieces = initialMalla?.pieces ?? [];
+    const nextValues = initialMalla?.values ?? {};
+    const nextFloatingPieces = initialMalla?.floatingPieces ?? [];
+    const nextTheme = initialMalla
+      ? normalizeProjectTheme(initialMalla.theme)
+      : createDefaultProjectTheme();
+
+    setMastersById(nextMasters);
+    setSelectedMasterId(() => {
+      selectedMasterIdRef.current = nextSelectedMasterId;
+      return nextSelectedMasterId;
+    });
+    setCols(nextCols);
+    setRows(nextRows);
+    setPieces(nextPieces);
+    setPieceValues(nextValues);
+    setFloatingPieces(nextFloatingPieces);
+    setTheme(nextTheme);
+    setIsHistoryInitialized(false);
+
+    const timeout = setTimeout(() => {
+      setIsResetting(false);
+    }, 0);
+
+    return () => clearTimeout(timeout);
+  }, [
+    clearDraft,
+    flushAutoSave,
+    initialMalla,
+    initialMasterId,
+    initialMasters,
+    projectId,
   ]);
 
   useEffect(() => {
