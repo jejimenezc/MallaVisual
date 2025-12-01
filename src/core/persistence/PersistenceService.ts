@@ -29,6 +29,7 @@ export class PersistenceService {
   private status: AutosaveStatus = 'idle';
   private listeners = new Set<() => void>();
   private saveTimer: number | null = null;
+  private clearedDraftKeys = new Set<string>();
   private pendingSave:
     | {
         storageKey?: string;
@@ -98,6 +99,9 @@ export class PersistenceService {
     data: MallaExport,
     delay = 300,
   ): void {
+    if (storageKey) {
+      this.clearedDraftKeys.delete(storageKey);
+    }
     if (this.saveTimer !== null) window.clearTimeout(this.saveTimer);
     this.setStatus('saving');
     this.pendingSave = { storageKey, projectId, projectName, data };
@@ -112,6 +116,8 @@ export class PersistenceService {
 
   clearDraft(storageKey?: string): void {
     if (!storageKey) return;
+
+    this.clearedDraftKeys.add(storageKey);
 
     if (this.saveTimer !== null && this.pendingSave?.storageKey === storageKey) {
       window.clearTimeout(this.saveTimer);
@@ -139,7 +145,11 @@ export class PersistenceService {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    if (this.pendingSave) {
+    const pendingKey = this.pendingSave?.storageKey;
+    if (pendingKey && this.clearedDraftKeys.has(pendingKey)) {
+      this.pendingSave = null;
+      this.setStatus('idle');
+    } else if (this.pendingSave) {
       this.performSave(this.pendingSave);
       this.pendingSave = null;
     } else if (this.status === 'saving') {
@@ -148,6 +158,8 @@ export class PersistenceService {
   }
 
   loadDraft(storageKey: string): MallaExport | null {
+    if (this.clearedDraftKeys.has(storageKey)) return null;
+
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (!raw) return null;
