@@ -227,6 +227,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const isRestoringRef = useRef(false);
   const ignoreNextInitialMallaRef = useRef(false);
   const initialProjectIdRef = useRef<string | null | undefined>(projectId);
+  const ignoreDraftForProjectChangeRef = useRef(false);
   const skipNextMasterSyncRef = useRef(false);
   const skipNextHistoryForMasterChangeRef = useRef(false);
   const historyTransactionDepthRef = useRef(0);
@@ -900,7 +901,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, [normalizedInitial]);
 
   useEffect(() => {
-    if (isResetting) return;
+    if (isResetting && ignoreDraftForProjectChangeRef.current) return;
 
     const project: MallaExport = {
       version: MALLA_SCHEMA_VERSION,
@@ -956,6 +957,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
   useEffect(() => {
     if (initialMalla) {
+      return;
+    }
+
+    if (ignoreDraftForProjectChangeRef.current) {
       return;
     }
 
@@ -1022,6 +1027,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
 
     initialProjectIdRef.current = projectId;
+    ignoreDraftForProjectChangeRef.current = true;
     setIsResetting(true);
     clearDraft(STORAGE_KEY);
     flushAutoSave();
@@ -1067,6 +1073,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     initialMasters,
     projectId,
   ]);
+
+  useEffect(() => {
+    if (ignoreDraftForProjectChangeRef.current && !isResetting) {
+      ignoreDraftForProjectChangeRef.current = false;
+    }
+  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
