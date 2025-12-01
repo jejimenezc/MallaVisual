@@ -110,6 +110,30 @@ export class PersistenceService {
     }, delay);
   }
 
+  clearDraft(storageKey?: string): void {
+    if (!storageKey) return;
+
+    if (this.saveTimer !== null && this.pendingSave?.storageKey === storageKey) {
+      window.clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+      this.pendingSave = null;
+    }
+
+    if (this.pendingSave?.storageKey === storageKey) {
+      this.pendingSave = null;
+    }
+
+    if (this.status === 'saving') {
+      this.setStatus('idle');
+    }
+
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      /* ignore */
+    }
+  }
+
   flushAutoSave(): void {
     if (this.saveTimer !== null) {
       window.clearTimeout(this.saveTimer);

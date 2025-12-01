@@ -29,6 +29,7 @@ export function useProject(options: UseProjectOptions = {}) {
   return {
     autoSave,
     loadDraft,
+    clearDraft: (key?: string) => persistenceService.clearDraft(key ?? storageKey),
     flushAutoSave: () => persistenceService.flushAutoSave(),
     exportProject: persistenceService.exportProject,
     importProject: persistenceService.importProject,

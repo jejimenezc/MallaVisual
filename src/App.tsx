@@ -51,6 +51,7 @@ import { handleProjectFile } from './utils/project-file.ts';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
+const MALLA_AUTOSAVE_STORAGE_KEY = 'malla-editor-state';
 
 interface TemplateControlSnapshot {
   active: Set<string>;
@@ -427,10 +428,11 @@ export default function App(): JSX.Element | null {
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
-  const { autoSave, exportProject, loadProject, flushAutoSave, listProjects } = useProject({
-    projectId: projectId ?? undefined,
-    projectName,
-  });
+  const { autoSave, exportProject, loadProject, flushAutoSave, listProjects, clearDraft } =
+    useProject({
+      projectId: projectId ?? undefined,
+      projectName,
+    });
   const { listBlocks, replaceRepository, clearRepository } = useBlocksRepo();
   const [repositorySnapshot, setRepositorySnapshot] = useState<RepositorySnapshot>(() =>
     blocksToRepository(listBlocks()),
@@ -815,11 +817,7 @@ export default function App(): JSX.Element | null {
     setShouldPersistProject(false);
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id: null, name: '' };
-    try {
-      window.localStorage.removeItem('malla-editor-state');
-    } catch {
-      /* ignore */
-    }
+    clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
     navigate('/');
   }, [
     autoSave,
@@ -849,11 +847,9 @@ export default function App(): JSX.Element | null {
     const id = crypto.randomUUID();
     setProjectId(id);
     setProjectName(name);
-    try {
-      window.localStorage.removeItem('malla-editor-state');
-    } catch {
-      /* ignore */
-    }
+    // Evita que el flushAutoSave del MallaEditorScreen rehidrate el borrador del proyecto anterior
+    // cuando desmonta tras crear un proyecto nuevo desde la propia malla.
+    clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
     setBlock(createEmptyBlockState());
     loadMallaState(null);
     clearPersistedProjectMetadata();
@@ -978,11 +974,7 @@ export default function App(): JSX.Element | null {
     ) => {
       const destination = targetPath ?? '/malla/design';
       if (!mallaRef.current && destination === '/malla/design') {
-        try {
-          window.localStorage.removeItem('malla-editor-state');
-        } catch {
-          /* ignore */
-        }
+        clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
       }
       const content: BlockContent = { template, visual, aspect };
       setBlock((prev) => {
@@ -1114,11 +1106,7 @@ export default function App(): JSX.Element | null {
     });
     clearPersistedProjectMetadata();
     if (malla && !projectId) {
-      try {
-        window.localStorage.removeItem('malla-editor-state');
-      } catch {
-        /* ignore */
-      }
+      clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
       loadMallaState(null);
     }
     setProjectThemeState(theme);
