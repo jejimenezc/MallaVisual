@@ -136,6 +136,7 @@ interface Props {
   onMallaChange?: React.Dispatch<React.SetStateAction<MallaExport | null>>;
   projectId?: string;
   projectName?: string;
+  suspendAutosave?: boolean;
 }
 
 export const MallaEditorScreen: React.FC<Props> = ({
@@ -149,6 +150,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   onMallaChange,
   projectId,
   projectName,
+  suspendAutosave = false,
 }) => {
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
@@ -923,7 +925,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
 
     if (savedRef.current === serialized) {
       if (shouldRunInitialPersist) {
-        autoSave(project);
+        if (!suspendAutosave) {
+          autoSave(project);
+        }
         initialPersistenceSignatureRef.current = null;
       }
       return;
@@ -933,6 +937,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (!shouldSkipMallaChange && onMallaChange) {
       ignoreNextInitialMallaRef.current = true;
       onMallaChange(project);
+    }
+    if (suspendAutosave) {
+      if (shouldRunInitialPersist) {
+        initialPersistenceSignatureRef.current = null;
+      }
+      return;
     }
     autoSave(project);
     if (shouldRunInitialPersist) {
@@ -951,9 +961,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
     autoSave,
     onMallaChange,
     isResetting,
+    suspendAutosave,
   ]);
 
-  useEffect(() => () => flushAutoSave(), [flushAutoSave]);
+  useEffect(() => {
+    if (suspendAutosave) {
+      return undefined;
+    }
+
+    return () => flushAutoSave();
+  }, [flushAutoSave, suspendAutosave]);
 
   useEffect(() => {
     if (initialMalla) {

@@ -427,6 +427,7 @@ export default function App(): JSX.Element | null {
   );
   const [isHydrated, setIsHydrated] = useState(false);
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
+  const [suspendMallaAutosave, setSuspendMallaAutosave] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
   const { autoSave, exportProject, loadProject, flushAutoSave, listProjects, clearDraft } =
     useProject({
@@ -478,6 +479,16 @@ export default function App(): JSX.Element | null {
   useEffect(() => {
     mallaRef.current = malla;
   }, [malla]);
+
+  useEffect(() => {
+    if (!suspendMallaAutosave) {
+      return;
+    }
+
+    if (!malla && location.pathname !== '/malla/design') {
+      setSuspendMallaAutosave(false);
+    }
+  }, [location.pathname, malla, suspendMallaAutosave]);
 
   useEffect(() => {
     repositorySnapshotRef.current = repositorySnapshot;
@@ -845,6 +856,7 @@ export default function App(): JSX.Element | null {
     if (!normalized) return;
     const name = rawName.trim() || 'Sin nombre';
     const id = crypto.randomUUID();
+    setSuspendMallaAutosave(true);
     setProjectId(id);
     setProjectName(name);
     // Evita que el flushAutoSave del MallaEditorScreen rehidrate el borrador del proyecto anterior
@@ -1602,6 +1614,7 @@ export default function App(): JSX.Element | null {
                       onMallaChange={handleMallaChange}
                       projectId={projectId ?? undefined}
                       projectName={projectName}
+                      suspendAutosave={suspendMallaAutosave}
                     />
                   ) : (
                     <Navigate to="/" replace />
