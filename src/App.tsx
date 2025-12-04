@@ -429,6 +429,8 @@ export default function App(): JSX.Element | null {
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const [suspendMallaAutosave, setSuspendMallaAutosave] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
+  const previousProjectIdRef = useRef<string | null>(projectId);
+  const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
   const { autoSave, exportProject, loadProject, flushAutoSave, listProjects, clearDraft } =
     useProject({
       projectId: projectId ?? undefined,
@@ -481,14 +483,25 @@ export default function App(): JSX.Element | null {
   }, [malla]);
 
   useEffect(() => {
-    if (!suspendMallaAutosave) {
-      return;
-    }
+    const projectChanged = projectId !== previousProjectIdRef.current;
+    const hasInitializedMalla =
+      !!malla && (!previousMallaSnapshotRef.current || !areContentsEqual(malla, previousMallaSnapshotRef.current));
 
-    if (!malla && location.pathname !== '/malla/design') {
+    if (
+      suspendMallaAutosave &&
+      ((!malla && location.pathname !== '/malla/design') || (projectChanged && !!malla) || hasInitializedMalla)
+    ) {
       setSuspendMallaAutosave(false);
     }
-  }, [location.pathname, malla, suspendMallaAutosave]);
+
+    if (projectChanged) {
+      previousProjectIdRef.current = projectId;
+    }
+
+    if (projectChanged || hasInitializedMalla || (!malla && previousMallaSnapshotRef.current)) {
+      previousMallaSnapshotRef.current = malla ?? null;
+    }
+  }, [location.pathname, malla, projectId, suspendMallaAutosave]);
 
   useEffect(() => {
     repositorySnapshotRef.current = repositorySnapshot;
