@@ -38,7 +38,7 @@ import {
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
-import { areContentsEqual } from './utils/comparators.ts';
+import { areContentsEqual, computeSignature } from './utils/comparators.ts';
 import { blocksToRepository, type RepositorySnapshot } from './utils/repository-snapshot.ts';
 import {
   remapPiecesWithMapping,
@@ -431,6 +431,7 @@ export default function App(): JSX.Element | null {
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
   const previousProjectIdRef = useRef<string | null>(projectId);
   const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
+  const passiveAutosaveSignatureRef = useRef<string | null>(null);
   const { autoSave, exportProject, loadProject, flushAutoSave, listProjects, clearDraft } =
     useProject({
       projectId: projectId ?? undefined,
@@ -775,6 +776,10 @@ export default function App(): JSX.Element | null {
     setIsHydrated(true);
   }, [applyRepositoryChange, isHydrated, loadProject]);
 
+  useEffect(() => {
+    passiveAutosaveSignatureRef.current = null;
+  }, [projectId]);
+
   const currentProject: MallaExport | null = useMemo(() => {
     if (malla) {
       return {
@@ -805,6 +810,18 @@ export default function App(): JSX.Element | null {
     }
     return null;
   }, [malla, block, repositorySnapshot, projectThemeState]);
+
+  useEffect(() => {
+    if (!projectId || !currentProject) return;
+    const isEditorRoute =
+      location.pathname === '/block/design' || location.pathname === '/malla/design';
+    if (isEditorRoute) return;
+
+    const serialized = computeSignature(currentProject);
+    if (passiveAutosaveSignatureRef.current === serialized) return;
+    passiveAutosaveSignatureRef.current = serialized;
+    autoSave(currentProject);
+  }, [autoSave, currentProject, location.pathname, projectId]);
 
   const handleExportProject = () => {
     if (!currentProject) return;
