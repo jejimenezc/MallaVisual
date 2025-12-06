@@ -43,7 +43,7 @@ describe('block-content', () => {
         it('should return false if aspect differs', () => {
             const a = createSampleContent();
             const b = createSampleContent();
-            b.aspect = '16/9';
+            b.aspect = '1/2'; // o '2/1', algo distinto de a.aspect
             expect(blockContentEquals(a, b)).toBe(false);
         });
 
