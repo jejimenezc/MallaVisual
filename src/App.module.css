@@ -84,3 +84,46 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+.devTools {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: #ffffff;
+  border: 1px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.14);
+  z-index: 1400;
+  min-width: 240px;
+}
+
+.devToolsTitle {
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #4b5563;
+  margin: 0 0 0.5rem;
+}
+
+.devToolsButtons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.devToolsButton {
+  border: 1px solid #e5e8eb;
+  background: #0ea5e9;
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.devToolsButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(14, 165, 233, 0.28);
+}

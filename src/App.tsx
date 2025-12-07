@@ -49,6 +49,8 @@ import {
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 import { askConfirm, showAlert } from './ui/alerts';
+import { useToast } from './ui/toast/ToastContext.tsx';
+import { useConfirm } from './ui/confirm/ConfirmContext.tsx';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -443,6 +445,9 @@ export default function App(): JSX.Element | null {
     blocksToRepository(listBlocks()),
   );
   const repositorySnapshotRef = useRef(repositorySnapshot);
+  const pushToast = useToast();
+  const confirmAsync = useConfirm();
+  const showDevTools = import.meta.env.DEV;
 
   const updateProjectTheme = useCallback(
     (theme: ProjectTheme) => {
@@ -1514,6 +1519,38 @@ export default function App(): JSX.Element | null {
 
   const hasProject = !!currentProject;
 
+  const handleShowDevToast = useCallback(() => {
+    pushToast('Toast de prueba: este mensaje se cierra automáticamente.', 'info');
+  }, [pushToast]);
+
+  const handleDevConfirm = useCallback(async () => {
+    const confirmed = await confirmAsync({
+      title: 'Confirmación de prueba',
+      message: 'Confirma o cancela para validar el modal global.',
+      confirmLabel: 'Confirmar',
+      cancelLabel: 'Cancelar',
+    });
+    pushToast(
+      confirmed ? 'Confirmación aceptada desde el modal.' : 'Confirmación cancelada desde el modal.',
+      confirmed ? 'success' : 'error',
+    );
+  }, [confirmAsync, pushToast]);
+
+  const devControls =
+    showDevTools && isHydrated ? (
+      <div className={styles.devTools}>
+        <div className={styles.devToolsTitle}>Dev: feedback UI</div>
+        <div className={styles.devToolsButtons}>
+          <button type="button" className={styles.devToolsButton} onClick={handleShowDevToast}>
+            Mostrar toast
+          </button>
+          <button type="button" className={styles.devToolsButton} onClick={handleDevConfirm}>
+            Abrir confirm modal
+          </button>
+        </div>
+      </div>
+    ) : null;
+
   if (!isHydrated) {
     return null;
   }
@@ -1666,6 +1703,7 @@ export default function App(): JSX.Element | null {
           <IntroOverlay onClose={handleHideIntroOverlay} />
         ) : null}
       </AppCommandsProvider>
+      {devControls}
     </ProjectThemeProvider>
   );
 }
