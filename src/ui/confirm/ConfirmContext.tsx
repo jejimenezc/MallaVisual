@@ -24,6 +24,7 @@ const ConfirmContext = createContext<ConfirmContextValue | undefined>(undefined)
 export function ConfirmProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [request, setRequest] = useState<ConfirmState | null>(null);
   const resolverRef = useRef<((value: boolean) => void) | null>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const cleanup = useCallback(() => {
     setRequest(null);
@@ -53,15 +54,24 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }): JS
     if (!request) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
         resolve(false);
       }
       if (event.key === 'Enter') {
+        event.preventDefault();
+        event.stopPropagation();
         resolve(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [request, resolve]);
+
+  useEffect(() => {
+    if (!request) return;
+    confirmButtonRef.current?.focus();
+  }, [request]);
 
   const value = useMemo(() => ({ confirm }), [confirm]);
 
@@ -90,7 +100,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }): JS
               <button type="button" className="confirm-button ghost" onClick={() => resolve(false)}>
                 {request.cancelLabel}
               </button>
-              <button type="button" className="confirm-button" onClick={() => resolve(true)}>
+              <button
+                ref={confirmButtonRef}
+                type="button"
+                className="confirm-button"
+                onClick={() => resolve(true)}
+              >
                 {request.confirmLabel}
               </button>
             </div>
