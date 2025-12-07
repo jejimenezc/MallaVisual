@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import type { JSX } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { askConfirm, showAlert } from '../ui/alerts';
 
 export type ProceedToMallaHandler = (targetPath?: string) => boolean;
 
@@ -52,7 +53,7 @@ export function ProceedToMallaProvider({
       const destination = targetPath ?? '/malla/design';
       if (destination === '/malla/design') {
         if (!hasPublishedRepositoryBlock) {
-          window.alert(NO_PUBLISHED_BLOCK_ALERT_MESSAGE);
+          showAlert(NO_PUBLISHED_BLOCK_ALERT_MESSAGE);
           return true;
         }
         const shouldSkipDirtyCheck = skipNextDirtyBlockCheckRef.current;
@@ -64,7 +65,7 @@ export function ProceedToMallaProvider({
             const message = hasPublishedBlock
               ? UPDATE_BLOCK_CONFIRM_MESSAGE
               : PUBLISH_BLOCK_CONFIRM_MESSAGE;
-            const confirmed = window.confirm(message);
+            const confirmed = askConfirm(message);
             if (confirmed) {
               navigate('/block/design');
             }

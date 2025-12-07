@@ -37,6 +37,7 @@ import { ActionPillButton } from '../components/ActionPillButton/ActionPillButto
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature, deepClone } from '../utils/comparators.ts';
+import { askConfirm, showAlert } from '../ui/alerts';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
@@ -1167,7 +1168,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const targetIndex = Math.max(0, Math.min(index, rows - 1));
     const blocker = pieces.find((p) => p.y === targetIndex);
     if (blocker) {
-      window.alert(
+      showAlert(
         `Para eliminar la fila mueva o borre las piezas que ocupan la fila ${targetIndex + 1}`
       );
       return;
@@ -1188,7 +1189,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (nextRows < rows) {
       const blocker = pieces.find((p) => p.y >= nextRows);
       if (blocker) {
-        window.alert(
+        showAlert(
           `Para reducir filas mueva o borre las piezas que ocupan la fila ${blocker.y + 1}`
         );
         return;
@@ -1218,7 +1219,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (newCols < cols) {
       const blocker = pieces.find((p) => p.x >= newCols);
       if (blocker) {
-        window.alert(
+        showAlert(
           `Para reducir columnas mueva o borre las piezas que ocupan la columna ${blocker.x + 1}`
         );
         return;
@@ -1242,7 +1243,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const handleAddReferenced = () => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
+      showAlert(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       return;
@@ -1302,7 +1303,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const duplicatePiece = (src: CurricularPiece) => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
+      showAlert(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       return;
@@ -1383,7 +1384,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       isEmpty ||
       (typeof window === 'undefined'
         ? true
-        : window.confirm(
+        : askConfirm(
           'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
         ));
 
@@ -1476,7 +1477,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       );
     });
     if (!placed) {
-      window.alert(
+      showAlert(
         'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
       );
       setFloatingPieces((prev) => [...prev, draggingId]);

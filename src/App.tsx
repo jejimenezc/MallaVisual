@@ -48,6 +48,7 @@ import {
 } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
+import { askConfirm, showAlert } from './ui/alerts';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -695,7 +696,7 @@ export default function App(): JSX.Element | null {
             Object.keys(snapshot.repository).length === 0
               ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
               : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
-          if (!window.confirm(message)) {
+          if (!askConfirm(message)) {
             return null;
           }
         }
@@ -838,7 +839,7 @@ export default function App(): JSX.Element | null {
   const handleCloseProject = useCallback(() => {
     const hasUnsavedBlock = computeDirty();
     if (hasUnsavedBlock) {
-      const confirmed = window.confirm(
+      const confirmed = askConfirm(
         'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
       );
       if (!confirmed) {
@@ -948,7 +949,7 @@ export default function App(): JSX.Element | null {
           onMalla: handleLoadMalla,
         });
       } catch {
-        window.alert('Archivo inválido');
+        showAlert('Archivo inválido');
       }
     },
     [handleLoadBlock, handleLoadMalla],
@@ -1184,7 +1185,7 @@ export default function App(): JSX.Element | null {
     if (hasUnsavedChanges) {
       const message =
         'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
-      if (!window.confirm(message)) {
+      if (!askConfirm(message)) {
         return;
       }
     }

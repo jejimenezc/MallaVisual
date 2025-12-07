@@ -7,6 +7,7 @@ import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { handleProjectFile } from '../utils/project-file.ts';
 import './HomeScreen.css';
+import { showAlert } from '../ui/alerts';
 
 interface Props {
   onNewBlock: () => void;
@@ -61,7 +62,7 @@ export const HomeScreen: React.FC<Props> = ({
       onMalla: onLoadMalla,
     })
       .catch(() => {
-        window.alert('Archivo inválido');
+        showAlert('Archivo inválido');
       })
       .finally(() => {
         e.target.value = '';

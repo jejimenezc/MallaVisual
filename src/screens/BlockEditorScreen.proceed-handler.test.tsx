@@ -95,12 +95,13 @@ import type { BlockExport } from '../utils/block-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { coordKey } from '../types/visual.ts';
 import { AppCommandsProvider } from '../state/app-commands.tsx';
+import * as alerts from '../ui/alerts';
 
 describe('BlockEditorScreen – eliminación de control con datos', () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   const onRequestControlDataClear = vi.fn();
-  let confirmSpy: MockInstance<typeof window.confirm>;
+  let confirmSpy: MockInstance<typeof alerts.askConfirm>;
 
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,7 +127,7 @@ describe('BlockEditorScreen – eliminación de control con datos', () => {
 
     listBlocksMock.mockReturnValue([]);
     loadProjectMock.mockReturnValue(null);
-    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmSpy = vi.spyOn(alerts, 'askConfirm').mockReturnValue(true);
   });
 
   afterEach(async () => {

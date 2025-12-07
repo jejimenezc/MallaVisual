@@ -43,6 +43,7 @@ import { assignSelectOptionColors } from '../utils/selectColors.ts';
 import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
 import { useProjectTheme } from '../state/project-theme.tsx';
 import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
+import { askConfirm, showAlert } from '../ui/alerts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -253,7 +254,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         mode === 'replace'
           ? 'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?'
           : 'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?';
-      const shouldDelete = window.confirm(message);
+      const shouldDelete = askConfirm(message);
       console.info('[ControlDeletion] Diff cleanup confirmation result', {
         coord,
         repoId,
@@ -601,7 +602,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     const wasNew = !repoId;
     const blockLabel = currentName || 'el bloque';
     if (repoId && isBlockInUse) {
-      const confirmed = window.confirm(
+      const confirmed = askConfirm(
         `Se publicará la actualización de "${blockLabel}" que está en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?`,
       );
       if (!confirmed) return null;
@@ -613,7 +614,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (input === null) return null;
       name = input.trim();
       if (!name) {
-        alert('Debes ingresar un nombre para el bloque.');
+        showAlert('Debes ingresar un nombre para el bloque.');
         return null;
       }
       setRepoName(name);
@@ -673,7 +674,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       aspect: savedContent.aspect,
       theme: projectTheme,
     });
-    alert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
+    showAlert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
     return metadata.uuid;
   }, [
     repoId,
@@ -697,7 +698,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
-      alert('Debes ingresar un nombre para el bloque.');
+      showAlert('Debes ingresar un nombre para el bloque.');
       return;
     }
     setRepoName(trimmed);
@@ -737,14 +738,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       }
       if (destination === '/malla/design' && isDraftDirty) {
         if (!hasDraftDesign) {
-          window.alert(EMPTY_BLOCK_ALERT_MESSAGE);
+          showAlert(EMPTY_BLOCK_ALERT_MESSAGE);
           return true;
         }
         const blockLabel = repoName.trim() || 'el bloque';
         const message = repoId
           ? `Para pasar al diseño de malla, actualiza la publicación de "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`
           : `Para pasar al diseño de malla, publica "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`;
-        const confirmed = window.confirm(message);
+        const confirmed = askConfirm(message);
         if (!confirmed) return true;
         const savedId = handleSaveToRepo();
         if (!savedId) return true;

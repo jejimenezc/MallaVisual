@@ -7,6 +7,7 @@ import { TemplateGrid } from './TemplateGrid';
 import './BlockTemplateEditor.css';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { findSelectControlNameAt } from '../utils/selectControls.ts';
+import { showAlert } from '../ui/alerts';
 
 export type ControlCleanupMode = 'delete' | 'replace';
 
@@ -115,7 +116,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     // Máximo 1 celda configurada (type definido)
     const configuredCount = selectedCells.reduce((acc, { row, col }) => acc + (template[row][col].type ? 1 : 0), 0);
     if (configuredCount > 1) {
-      window.alert('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.');
+      showAlert('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.');
       return;
     }
 

@@ -8,6 +8,7 @@ import type { StoredBlock } from '../utils/block-repo.ts';
 import { buildBlockId, createBlockId, parseBlockId } from '../types/block.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
+import { askConfirm, showAlert } from '../ui/alerts';
 
 interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
@@ -91,7 +92,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
         onBlockImported?.(block);
         setSelectedUuid(block.metadata.uuid);
       } catch (err) {
-        alert((err as Error).message);
+        showAlert((err as Error).message);
       }
     });
     e.target.value = '';
@@ -115,10 +116,10 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     if (!rec) return;
     const blockLabel = rec.metadata.name?.trim() || rec.metadata.uuid || 'el bloque';
     if (blocksInUse?.has(rec.metadata.uuid)) {
-      alert(`No es posible eliminar "${blockLabel}" porque está en uso en la malla.`);
+      showAlert(`No es posible eliminar "${blockLabel}" porque está en uso en la malla.`);
       return;
     }
-    const confirmed = window.confirm(
+    const confirmed = askConfirm(
       `Se eliminará "${blockLabel}" del repositorio. Esta acción no se puede deshacer. ¿Deseas continuar?`,
     );
     if (!confirmed) return;
@@ -142,7 +143,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
-      alert('Debes ingresar un nombre para el bloque.');
+      showAlert('Debes ingresar un nombre para el bloque.');
       return;
     }
     updateBlockMetadata(block.id, {
