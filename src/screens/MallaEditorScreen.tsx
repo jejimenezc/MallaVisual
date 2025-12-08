@@ -1387,6 +1387,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
         }
       }
+      if (additions.length === 0) {
+        showToast(
+          'La malla ya está completa. Amplía filas/columnas o libera una celda antes de autocompletar.',
+          'error',
+        );
+        return prev;
+      }
       return [...prev, ...additions];
     });
   };
