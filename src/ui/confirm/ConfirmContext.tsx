@@ -2,17 +2,21 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import type { JSX } from 'react';
 import './ConfirmModal.css';
 
-interface ConfirmOptions {
+export type ConfirmVariant = 'default' | 'destructive' | 'info';
+
+export interface ConfirmOptions {
   title?: string;
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: ConfirmVariant;
 }
 
 interface ConfirmState extends Required<Pick<ConfirmOptions, 'message'>> {
   title?: string;
   confirmLabel: string;
   cancelLabel: string;
+  variant?: ConfirmVariant;
 }
 
 interface ConfirmContextValue {
@@ -20,6 +24,11 @@ interface ConfirmContextValue {
 }
 
 const ConfirmContext = createContext<ConfirmContextValue | undefined>(undefined);
+let externalConfirm: ConfirmContextValue['confirm'] | null = null;
+
+export function getConfirmFromContext(): ConfirmContextValue['confirm'] | null {
+  return externalConfirm;
+}
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [request, setRequest] = useState<ConfirmState | null>(null);
@@ -51,6 +60,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }): JS
   }, []);
 
   useEffect(() => {
+    externalConfirm = confirm;
+    return () => {
+      externalConfirm = null;
+    };
+  }, [confirm]);
+
+  useEffect(() => {
     if (!request) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -74,6 +90,9 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }): JS
   }, [request]);
 
   const value = useMemo(() => ({ confirm }), [confirm]);
+  const modalClassName = request?.variant
+    ? `confirm-modal confirm-modal-${request.variant}`
+    : 'confirm-modal';
 
   return (
     <ConfirmContext.Provider value={value}>
@@ -81,7 +100,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }): JS
       {request ? (
         <div className="confirm-backdrop" role="presentation" onClick={() => resolve(false)}>
           <div
-            className="confirm-modal"
+            className={modalClassName}
             role="dialog"
             aria-modal="true"
             aria-labelledby="confirm-title"

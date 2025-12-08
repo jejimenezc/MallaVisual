@@ -68,3 +68,13 @@
 .confirm-button.ghost:hover {
   background: #f5f7fa;
 }
+
+.confirm-modal-destructive .confirm-button {
+  background: linear-gradient(135deg, #f43f5e, #e11d48);
+  box-shadow: 0 10px 20px rgba(225, 29, 72, 0.28);
+}
+
+.confirm-modal-info .confirm-button {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  box-shadow: 0 10px 20px rgba(67, 56, 202, 0.28);
+}
