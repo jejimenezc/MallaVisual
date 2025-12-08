@@ -7,7 +7,7 @@ import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { handleProjectFile } from '../utils/project-file.ts';
 import './HomeScreen.css';
-import { showAlert } from '../ui/alerts';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 interface Props {
   onNewBlock: () => void;
@@ -37,6 +37,7 @@ export const HomeScreen: React.FC<Props> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { listProjects, loadProject, removeProject, renameProject } = useProject();
   const [projects, setProjects] = useState(() => listProjects());
+  const pushToast = useToast();
 
   useEffect(() => {
     setProjects(listProjects());
@@ -62,7 +63,7 @@ export const HomeScreen: React.FC<Props> = ({
       onMalla: onLoadMalla,
     })
       .catch(() => {
-        showAlert('Archivo inválido');
+        pushToast('Archivo inválido', 'error');
       })
       .finally(() => {
         e.target.value = '';
