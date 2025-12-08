@@ -48,7 +48,7 @@ import {
 } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
-import { askConfirm, showAlert } from './ui/alerts';
+import { askConfirm } from './ui/alerts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm } from './ui/confirm/ConfirmContext.tsx';
 
@@ -954,10 +954,10 @@ export default function App(): JSX.Element | null {
           onMalla: handleLoadMalla,
         });
       } catch {
-        showAlert('Archivo inválido');
+        pushToast('Archivo inválido', 'error');
       }
     },
-    [handleLoadBlock, handleLoadMalla],
+    [handleLoadBlock, handleLoadMalla, pushToast],
   );
 
   const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
