@@ -14,6 +14,10 @@ import type { AppCommandDescriptor, AppCommandId } from '../state/app-commands.t
 import { AppCommandsProvider, useAppCommands } from '../state/app-commands.tsx';
 import * as alerts from '../ui/alerts';
 
+vi.mock('../ui/toast/ToastContext.tsx', () => ({
+  useToast: () => vi.fn(),
+}));
+
 const autoSaveMock = vi.fn();
 const flushAutoSaveMock = vi.fn();
 const loadProjectMock = vi.fn();
@@ -119,7 +123,7 @@ describe('BlockEditorScreen – batching de historial para color pickers', () =>
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   const recordedDrafts: BlockContent[] = [];
-  let confirmSpy: MockInstance<typeof alerts.askConfirm>;
+  let confirmSpy: MockInstance<typeof alerts.confirmAsync>;
 
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -149,7 +153,7 @@ describe('BlockEditorScreen – batching de historial para color pickers', () =>
     listBlocksMock.mockReturnValue([]);
     loadProjectMock.mockReturnValue(null);
 
-    confirmSpy = vi.spyOn(alerts, 'askConfirm').mockReturnValue(true);
+    confirmSpy = vi.spyOn(alerts, 'confirmAsync').mockResolvedValue(true);
   });
 
   afterEach(async () => {

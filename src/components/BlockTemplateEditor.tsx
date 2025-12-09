@@ -60,7 +60,7 @@ interface Props {
   onSidebarStateChange?: (state: EditorSidebarState) => void;
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
   controlsInUse?: ReadonlySet<string>;
-  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => boolean;
+  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => Promise<boolean>;
   onControlDeleted?: (coord: string) => void;
 }
 
@@ -195,10 +195,10 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     const { row, col } = contextMenu;
     const k = coordKey(row, col);
 
-    const confirmCleanupIfNeeded = (mode: ControlCleanupMode) => {
+    const confirmCleanupIfNeeded = async (mode: ControlCleanupMode) => {
       const isControlInUse = controlsInUse?.has(k) ?? false;
       if (!isControlInUse) return true;
-      const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k, mode) : true;
+      const confirmed = onConfirmDeleteControl ? await onConfirmDeleteControl(k, mode) : true;
       if (!confirmed) {
         setContextMenu(null);
       }
@@ -234,17 +234,23 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     };
 
     if (type === undefined) {
-      if (!confirmCleanupIfNeeded('delete')) {
-        return;
-      }
-      const release = performCleanup();
-      release();
-    } else {
-      const currentType = template[row][col].type;
-      const isReplacement = currentType && currentType !== type;
+      void (async () => {
+        if (!(await confirmCleanupIfNeeded('delete'))) {
+          return;
+        }
+        const release = performCleanup();
+        release();
+        setContextMenu(null);
+      })();
+      return;
+    }
 
+    const currentType = template[row][col].type;
+    const isReplacement = currentType && currentType !== type;
+
+    void (async () => {
       if (isReplacement) {
-        if (!confirmCleanupIfNeeded('replace')) {
+        if (!(await confirmCleanupIfNeeded('replace'))) {
           return;
         }
         const release = performCleanup();
@@ -287,7 +293,9 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       setTimeout(() => {
         setSelectedCells([{ row, col }]);
       }, 0);
-    }
+
+      setContextMenu(null);
+    })();
 
     setContextMenu(null);
   };

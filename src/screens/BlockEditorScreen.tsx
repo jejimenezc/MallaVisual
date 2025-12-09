@@ -43,7 +43,8 @@ import { assignSelectOptionColors } from '../utils/selectColors.ts';
 import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
 import { useProjectTheme } from '../state/project-theme.tsx';
 import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
-import { askConfirm, showAlert } from '../ui/alerts';
+import { confirmAsync } from '../ui/alerts';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -156,6 +157,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     updateBlockMetadata: repoUpdateBlockMetadata,
   } = useBlocksRepo();
   const { theme: projectTheme, isActive: themeActive } = useProjectTheme();
+  const pushToast = useToast();
   const paletteAvailable = useMemo(() => {
     if (!themeActive) return false;
     return Object.keys(projectTheme.tokens ?? {}).length > 0;
@@ -236,7 +238,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [controlsInUse, repoId]);
 
   const handleConfirmDeleteControl = useCallback(
-    (coord: string, mode: ControlCleanupMode) => {
+    async (coord: string, mode: ControlCleanupMode) => {
       if (!controlsInUseForRepo || !controlsInUseForRepo.has(coord)) {
         console.info('[ControlDeletion] No diff cleanup confirmation required before deleting control', {
           coord,
@@ -250,11 +252,18 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         repoId,
         mode,
       });
+      const title = mode === 'replace' ? 'Reemplazar control con datos' : 'Eliminar control con datos';
       const message =
         mode === 'replace'
-          ? 'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?'
-          : 'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?';
-      const shouldDelete = askConfirm(message);
+          ? 'Se perderán los datos capturados en la malla al reemplazar este control. Esta acción no se puede deshacer.'
+          : 'Se eliminarán los datos capturados en la malla para este control. Esta acción no se puede deshacer.';
+      const shouldDelete = await confirmAsync({
+        title,
+        message,
+        confirmLabel: mode === 'replace' ? 'Sí, reemplazar' : 'Sí, eliminar',
+        cancelLabel: 'Seguir editando',
+        variant: 'destructive',
+      });
       console.info('[ControlDeletion] Diff cleanup confirmation result', {
         coord,
         repoId,
@@ -263,7 +272,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       });
       return shouldDelete;
     },
-    [controlsInUseForRepo, repoId],
+    [confirmAsync, controlsInUseForRepo, repoId],
   );
 
   const handleControlDeleted = useCallback(
@@ -597,14 +606,20 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     [repoId, repoContent, draftContent],
   );
 
-  const handleSaveToRepo = useCallback((): string | null => {
+  const handleSaveToRepo = useCallback(async (): Promise<string | null> => {
     const currentName = repoName.trim();
     const wasNew = !repoId;
     const blockLabel = currentName || 'el bloque';
     if (repoId && isBlockInUse) {
-      const confirmed = askConfirm(
-        `Se publicará la actualización de "${blockLabel}" que está en uso. Esto actualizará todas las piezas referenciadas de la malla. ¿Deseas continuar?`,
-      );
+      const confirmed = await confirmAsync({
+        title: 'Publicar actualización en uso',
+        message:
+          `Se actualizará la publicación de "${blockLabel}" en la malla y se reemplazarán las piezas que lo usan. ` +
+          'Confirma para aplicar los cambios o sigue editando si necesitas revisar.',
+        confirmLabel: 'Sí, publicar cambios',
+        cancelLabel: 'Seguir editando',
+        variant: 'destructive',
+      });
       if (!confirmed) return null;
     }
     let name = currentName;
@@ -614,7 +629,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (input === null) return null;
       name = input.trim();
       if (!name) {
-        showAlert('Debes ingresar un nombre para el bloque.');
+        pushToast('Debes ingresar un nombre para el bloque.', 'error');
         return null;
       }
       setRepoName(name);
@@ -674,7 +689,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       aspect: savedContent.aspect,
       theme: projectTheme,
     });
-    showAlert(wasNew ? `Bloque "${metadata.name}" guardado` : `Bloque "${metadata.name}" actualizado`);
+    pushToast(
+      wasNew
+        ? `Bloque "${metadata.name}" publicado en el repositorio`
+        : `Bloque "${metadata.name}" actualizado en el repositorio`,
+      'success',
+    );
     return metadata.uuid;
   }, [
     repoId,
@@ -689,6 +709,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     onRepoMetadataChange,
     onPublishBlock,
     isBlockInUse,
+    pushToast,
   ]);
 
   const handleRename = useCallback(() => {
@@ -698,7 +719,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
-      showAlert('Debes ingresar un nombre para el bloque.');
+      pushToast('Debes ingresar un nombre para el bloque.', 'error');
       return;
     }
     setRepoName(trimmed);
@@ -736,47 +757,58 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (!onProceedToMalla) {
         return defaultProceedToMalla(destination);
       }
-      if (destination === '/malla/design' && isDraftDirty) {
-        if (!hasDraftDesign) {
-          showAlert(EMPTY_BLOCK_ALERT_MESSAGE);
-          return true;
+      void (async () => {
+        if (destination === '/malla/design' && isDraftDirty) {
+          if (!hasDraftDesign) {
+            pushToast(EMPTY_BLOCK_ALERT_MESSAGE, 'info');
+            return;
+          }
+          const blockLabel = repoName.trim() || 'el bloque';
+          const confirmed = await confirmAsync({
+            title: repoId
+              ? 'Actualizar bloque antes de ir a la malla'
+              : 'Publicar bloque antes de ir a la malla',
+            message: repoId
+              ? `Se actualizará la publicación de "${blockLabel}" y los cambios se reflejarán en la malla. ¿Deseas continuar?`
+              : `Para usar "${blockLabel}" en la malla debes publicarlo en el repositorio. ¿Quieres publicarlo ahora?`,
+            confirmLabel: repoId ? 'Actualizar y continuar' : 'Publicar y continuar',
+            cancelLabel: 'Seguir editando',
+            variant: repoId ? 'default' : 'info',
+          });
+          if (!confirmed) return;
+          const savedId = await handleSaveToRepo();
+          if (!savedId) return;
+          onProceedToMalla(
+            draftContent.template,
+            draftContent.visual,
+            draftContent.aspect,
+            destination,
+            savedId,
+            draftContent,
+          );
+          skipNextDirtyBlockCheck();
+          defaultProceedToMalla(destination);
+          return;
         }
-        const blockLabel = repoName.trim() || 'el bloque';
-        const message = repoId
-          ? `Para pasar al diseño de malla, actualiza la publicación de "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`
-          : `Para pasar al diseño de malla, publica "${blockLabel}" en el repositorio. ¿Deseas hacerlo ahora?`;
-        const confirmed = askConfirm(message);
-        if (!confirmed) return true;
-        const savedId = handleSaveToRepo();
-        if (!savedId) return true;
+        const publishedContent =
+          destination === '/blocks'
+            ? repoContent ?? undefined
+            : repoId && repoContent && !isDraftDirty
+              ? repoContent
+              : repoId
+                ? draftContent
+                : null;
         onProceedToMalla(
           draftContent.template,
           draftContent.visual,
           draftContent.aspect,
           destination,
-          savedId,
-          draftContent,
+          repoId ?? null,
+          publishedContent,
         );
-        skipNextDirtyBlockCheck();
-        return defaultProceedToMalla(destination);
-      }
-      const publishedContent =
-        destination === '/blocks'
-          ? repoContent ?? undefined
-          : repoId && repoContent && !isDraftDirty
-            ? repoContent
-            : repoId
-              ? draftContent
-              : null;
-      onProceedToMalla(
-        draftContent.template,
-        draftContent.visual,
-        draftContent.aspect,
-        destination,
-        repoId ?? null,
-        publishedContent,
-      );
-      return defaultProceedToMalla(destination);
+        defaultProceedToMalla(destination);
+      })();
+      return true;
     },
     [
       onProceedToMalla,
@@ -788,6 +820,9 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       handleSaveToRepo,
       draftContent,
       repoContent,
+      pushToast,
+      skipNextDirtyBlockCheck,
+      confirmAsync,
     ],
   );
 
@@ -924,12 +959,16 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
           </Button>
         </div>
       }
-      right={
-        <div className="block-editor-header-toolbar">
-          <Button onClick={() => handleSaveToRepo()}>
-            {repoId ? 'Actualizar en repositorio' : 'Guardar en repositorio'}
-          </Button>
-        </div>
+          right={
+            <div className="block-editor-header-toolbar">
+              <Button
+                onClick={() => {
+                  void handleSaveToRepo();
+                }}
+              >
+                {repoId ? 'Actualizar en repositorio' : 'Guardar en repositorio'}
+              </Button>
+            </div>
       }
     />
   );

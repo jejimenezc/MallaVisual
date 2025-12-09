@@ -88,6 +88,10 @@ import { AppCommandsProvider, useAppCommands } from '../state/app-commands.tsx';
 import { coordKey } from '../types/visual.ts';
 import * as alerts from '../ui/alerts';
 
+vi.mock('../ui/toast/ToastContext.tsx', () => ({
+  useToast: () => vi.fn(),
+}));
+
 const onRequestControlDataClear = vi.fn();
 
 describe('BlockEditorScreen – borrar select con conditionalBg', () => {
@@ -95,7 +99,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
   let root: ReturnType<typeof createRoot>;
   const recordedDrafts: BlockContent[] = [];
   const commandsHistory: Partial<Record<AppCommandId, AppCommandDescriptor>>[] = [];
-  let confirmSpy: MockInstance<typeof alerts.askConfirm>;
+  let confirmSpy: MockInstance<typeof alerts.confirmAsync>;
 
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -123,7 +127,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     recordedDrafts.length = 0;
     commandsHistory.length = 0;
 
-    confirmSpy = vi.spyOn(alerts, 'askConfirm').mockReturnValue(true);
+    confirmSpy = vi.spyOn(alerts, 'confirmAsync').mockResolvedValue(true);
   });
 
   afterEach(async () => {
