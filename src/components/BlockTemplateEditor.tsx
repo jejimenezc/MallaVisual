@@ -7,7 +7,7 @@ import { TemplateGrid } from './TemplateGrid';
 import './BlockTemplateEditor.css';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { findSelectControlNameAt } from '../utils/selectControls.ts';
-import { showAlert } from '../ui/alerts';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 export type ControlCleanupMode = 'delete' | 'replace';
 
@@ -77,6 +77,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   const [isSelecting, setIsSelecting] = useState(false);
   const [startCell, setStartCell] = useState<{ row: number; col: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: number; col: number } | null>(null);
+  const pushToast = useToast();
 
   // ↪️ Durante "borrar tipo" debemos ignorar escrituras de forms (p.ej. cleanup de SelectConfigForm)
   const ignoreUpdatesRef = useRef<Set<string>>(new Set());
@@ -116,8 +117,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     // Máximo 1 celda configurada (type definido)
     const configuredCount = selectedCells.reduce((acc, { row, col }) => acc + (template[row][col].type ? 1 : 0), 0);
     if (configuredCount > 1) {
-      showAlert('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.');
-      return;
+      pushToast('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.', 'error');      return;
     }
 
     // base: esquina superior izquierda

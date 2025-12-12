@@ -17,3 +17,9 @@
 | `src/App.tsx` | Al cerrar proyecto con cambios sin guardar en el bloque actual solicita confirmación para evitar pérdida. | Acción destructiva | Integrar aviso de cambios sin guardar en UI (banner) con opción de guardar antes de cerrar. |
 | `src/App.tsx` | Al abrir bloque del repositorio con cambios locales pendientes confirma descarte de cambios. | Acción destructiva | Usar modal de "Descartar cambios" con posibilidad de guardar borrador antes de cargar otro bloque. |
 | `src/App.tsx` y `src/screens/HomeScreen.tsx` | Alertas que indican que el archivo importado es inválido. | Información | Reemplazar por mensaje de error en la interfaz (toast o sección de errores) con detalle del problema si es posible. |
+
+## Progreso de migración (fase 4)
+
+- `src/components/BlockTemplateEditor.tsx`: validación de combinación ahora usa toast (`useToast`) en lugar de `window.alert`.
+- `src/state/proceed-to-malla.tsx`: bloquea navegación con confirm modal (`confirmAsync` desde provider) y toast informativo cuando no hay bloques publicados.
+- `src/App.tsx`: confirmaciones de repositorio, cierre de proyecto y apertura desde repositorio migradas a `confirmAsync`; flujo de importación espera manejadores async para evitar confirmaciones sincrónicas.

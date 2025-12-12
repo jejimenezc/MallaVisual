@@ -238,7 +238,13 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     await flushEffects();
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
+      expect.objectContaining({
+        title: 'Eliminar control con datos',
+        message:
+          'Se eliminarán los datos capturados en la malla para este control. Esta acción no se puede deshacer.',
+        confirmLabel: 'Sí, eliminar',
+        cancelLabel: 'Seguir editando',
+      }),
     );
 
     const finalDraft = recordedDrafts.at(-1);
@@ -334,7 +340,13 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     await flushEffects();
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?',
+      expect.objectContaining({
+        title: 'Reemplazar control con datos',
+        message:
+          'Se perderán los datos capturados en la malla al reemplazar este control. Esta acción no se puede deshacer.',
+        confirmLabel: 'Sí, reemplazar',
+        cancelLabel: 'Seguir editando',
+      }),
     );
 
     const textKey = coordKey(textCoord.row, textCoord.col);

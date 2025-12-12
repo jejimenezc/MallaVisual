@@ -48,7 +48,6 @@ import {
 } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
-import { askConfirm } from './ui/alerts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm } from './ui/confirm/ConfirmContext.tsx';
 
@@ -658,10 +657,10 @@ export default function App(): JSX.Element | null {
   }, [listBlocks]);
 
   const applyRepositoryChange = useCallback(
-    (
+    async (
       repoEntries: Record<string, MallaRepositoryEntry>,
       options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
-    ): RepositorySnapshot | null => {
+    ): Promise<RepositorySnapshot | null> => {
       const convertRepository = () => {
         const now = new Date().toISOString();
         const fallbackProjectId = projectId ?? 'repository';
@@ -701,7 +700,14 @@ export default function App(): JSX.Element | null {
             Object.keys(snapshot.repository).length === 0
               ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
               : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
-          if (!askConfirm(message)) {
+          const confirmed = await confirmAsync({
+            title: 'Confirmar reemplazo del repositorio de bloques',
+            message,
+            confirmLabel: 'Sí, continuar',
+            cancelLabel: 'Cancelar',
+            variant: 'destructive',
+          });
+          if (!confirmed) {
             return null;
           }
         }
@@ -714,7 +720,7 @@ export default function App(): JSX.Element | null {
       setRepositorySnapshot(snapshot);
       return snapshot;
     },
-    [clearRepository, replaceRepository, repositorySnapshot, projectId],
+    [clearRepository, confirmAsync, projectId, replaceRepository, repositorySnapshot],
   );
 
   useEffect(() => {
@@ -728,58 +734,60 @@ export default function App(): JSX.Element | null {
 
   useEffect(() => {
     if (isHydrated) return;
-    if (typeof window === 'undefined') {
-      setIsHydrated(true);
-      return;
-    }
-    const stored = readStoredActiveProject();
-    if (!stored.id) {
-      setIsHydrated(true);
-      return;
-    }
-    const record = loadProject(stored.id);
-    if (!record) {
-      clearStoredActiveProject();
-      setProjectId(null);
-      setProjectName('');
-      setBlock(null);
-      loadMallaState(null);
-      setShouldPersistProject(false);
-      setIsHydrated(true);
-      return;
-    }
-    if ('masters' in record.data) {
-      const normalizedRepo = applyRepositoryChange(
-        record.data.repository ?? {},
-        {
-          reason: 'abrir el proyecto almacenado',
-          targetDescription: 'el proyecto almacenado',
-          skipConfirmation: true,
-        },
-      );
-      if (!normalizedRepo) {
+    void (async () => {
+      if (typeof window === 'undefined') {
         setIsHydrated(true);
         return;
       }
-      const prepared = prepareMallaProjectState(record.data, normalizedRepo);
-      setBlock(prepared.block);
-      loadMallaState(prepared.malla);
-    } else {
-      applyRepositoryChange(
-        {},
-        {
-          reason: 'abrir el proyecto almacenado',
-          targetDescription: 'el proyecto almacenado',
-          skipConfirmation: true,
-        },
-      );
-      setBlock(createBlockStateFromContent(toBlockContent(record.data)));
-      loadMallaState(null);
-    }
-    setProjectId(stored.id);
-    setProjectName(record.meta.name ?? stored.name ?? '');
-    setShouldPersistProject(true);
-    setIsHydrated(true);
+      const stored = readStoredActiveProject();
+      if (!stored.id) {
+        setIsHydrated(true);
+        return;
+      }
+      const record = loadProject(stored.id);
+      if (!record) {
+        clearStoredActiveProject();
+        setProjectId(null);
+        setProjectName('');
+        setBlock(null);
+        loadMallaState(null);
+        setShouldPersistProject(false);
+        setIsHydrated(true);
+        return;
+      }
+      if ('masters' in record.data) {
+        const normalizedRepo = await applyRepositoryChange(
+          record.data.repository ?? {},
+          {
+            reason: 'abrir el proyecto almacenado',
+            targetDescription: 'el proyecto almacenado',
+            skipConfirmation: true,
+          },
+        );
+        if (!normalizedRepo) {
+          setIsHydrated(true);
+          return;
+        }
+        const prepared = prepareMallaProjectState(record.data, normalizedRepo);
+        setBlock(prepared.block);
+        loadMallaState(prepared.malla);
+      } else {
+        await applyRepositoryChange(
+          {},
+          {
+            reason: 'abrir el proyecto almacenado',
+            targetDescription: 'el proyecto almacenado',
+            skipConfirmation: true,
+          },
+        );
+        setBlock(createBlockStateFromContent(toBlockContent(record.data)));
+        loadMallaState(null);
+      }
+      setProjectId(stored.id);
+      setProjectName(record.meta.name ?? stored.name ?? '');
+      setShouldPersistProject(true);
+      setIsHydrated(true);
+    })();
   }, [applyRepositoryChange, isHydrated, loadProject]);
 
   useEffect(() => {
@@ -841,12 +849,17 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   };
 
-  const handleCloseProject = useCallback(() => {
+  const handleCloseProject = useCallback(async () => {
     const hasUnsavedBlock = computeDirty();
     if (hasUnsavedBlock) {
-      const confirmed = askConfirm(
-        'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
-      );
+      const confirmed = await confirmAsync({
+        title: 'Cerrar proyecto sin guardar',
+        message:
+          'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
+        confirmLabel: 'Cerrar sin guardar',
+        cancelLabel: 'Seguir editando',
+        variant: 'destructive',
+      });
       if (!confirmed) {
         return;
       }
@@ -871,18 +884,19 @@ export default function App(): JSX.Element | null {
     clearPersistedProjectMetadata,
     clearRepository,
     computeDirty,
+    confirmAsync,
     currentProject,
     flushAutoSave,
     loadMallaState,
     navigate,
   ]);
 
-  const handleNewProject = () => {
+  const handleNewProject = async () => {
     const rawName = window.prompt('Nombre del proyecto');
     if (rawName === null) {
       return;
     }
-    const normalized = applyRepositoryChange(
+    const normalized = await applyRepositoryChange(
       {},
       {
         reason: 'crear un proyecto nuevo',
@@ -905,8 +919,8 @@ export default function App(): JSX.Element | null {
     navigate('/block/design');
   };
 
-  const handleLoadBlock = (data: BlockExport, inferredName?: string) => {
-    const normalized = applyRepositoryChange(
+  const handleLoadBlock = async (data: BlockExport, inferredName?: string) => {
+    const normalized = await applyRepositoryChange(
       {},
       {
         reason: 'importar el bloque seleccionado',
@@ -926,8 +940,8 @@ export default function App(): JSX.Element | null {
     navigate('/block/design');
   };
 
-  const handleLoadMalla = (data: MallaExport, inferredName?: string) => {
-    const normalizedRepo = applyRepositoryChange(
+  const handleLoadMalla = async (data: MallaExport, inferredName?: string) => {
+    const normalizedRepo = await applyRepositoryChange(
       data.repository ?? {},
       {
         reason: 'importar el proyecto',
@@ -960,10 +974,10 @@ export default function App(): JSX.Element | null {
     [handleLoadBlock, handleLoadMalla, pushToast],
   );
 
-  const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
+  const handleOpenProject = async (id: string, data: BlockExport | MallaExport, name: string) => {
     if ('masters' in data) {
       const m = data as MallaExport;
-      const normalizedRepo = applyRepositoryChange(
+      const normalizedRepo = await applyRepositoryChange(
         m.repository ?? {},
         {
           reason: 'abrir el proyecto seleccionado',
@@ -980,7 +994,7 @@ export default function App(): JSX.Element | null {
       navigate('/malla/design');
     } else {
       const b = data as BlockExport;
-      const normalizedRepo = applyRepositoryChange(
+      const normalizedRepo = await applyRepositoryChange(
         {},
         {
           reason: 'abrir el proyecto seleccionado',
@@ -1003,10 +1017,10 @@ export default function App(): JSX.Element | null {
   );
 
   const handleOpenRecentProject = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const record = loadProject(id);
       if (!record) return;
-      handleOpenProject(id, record.data, record.meta.name);
+      await handleOpenProject(id, record.data, record.meta.name);
     },
     [loadProject, handleOpenProject],
   );
@@ -1185,12 +1199,19 @@ export default function App(): JSX.Element | null {
     });
   }, []);
 
-  const handleOpenRepositoryBlock = (stored: StoredBlock) => {
+  const handleOpenRepositoryBlock = async (stored: StoredBlock) => {
     const hasUnsavedChanges = computeDirty();
     if (hasUnsavedChanges) {
       const message =
         'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
-      if (!askConfirm(message)) {
+      const confirmed = await confirmAsync({
+        title: 'Descartar cambios sin guardar',
+        message,
+        confirmLabel: 'Descartar y abrir',
+        cancelLabel: 'Seguir editando',
+        variant: 'destructive',
+      });
+      if (!confirmed) {
         return;
       }
     }
