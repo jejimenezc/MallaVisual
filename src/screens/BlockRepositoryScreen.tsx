@@ -8,7 +8,7 @@ import type { StoredBlock } from '../utils/block-repo.ts';
 import { buildBlockId, createBlockId, parseBlockId } from '../types/block.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
-import { confirmAsync } from '../ui/alerts';
+import { confirmAsync, promptAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 
 interface BlockRepositoryScreenProps {
@@ -141,11 +141,19 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     onOpenBlock?.(block);
   };
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (!selectedUuid) return;
     const block = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!block) return;
-    const input = prompt('Nuevo nombre del bloque', block.metadata.name);
+    const input = await promptAsync({
+      title: 'Renombrar bloque',
+      message: 'Ingresa el nuevo nombre para el bloque seleccionado.',
+      defaultValue: block.metadata.name,
+      placeholder: 'Nombre del bloque',
+      confirmLabel: 'Guardar',
+      cancelLabel: 'Cancelar',
+      normalize: (value) => value.trim(),
+    });
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
@@ -157,6 +165,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
       updatedAt: new Date().toISOString(),
     });
     refresh();
+    pushToast('Nombre del bloque actualizado.', 'success');
   };
 
   const gallery = (
