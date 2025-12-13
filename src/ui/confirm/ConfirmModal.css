@@ -31,6 +31,34 @@
   line-height: 1.5;
 }
 
+.confirm-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+}
+
+.confirm-input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e5e8eb;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.confirm-input:focus {
+  outline: none;
+  border-color: #1fb6ff;
+  box-shadow: 0 0 0 3px rgba(31, 182, 255, 0.12);
+}
+
+.confirm-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
 .confirm-actions {
   display: flex;
   justify-content: flex-end;

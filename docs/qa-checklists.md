@@ -13,3 +13,4 @@
 - Renombrado de proyecto con propagación a la lista.
 - Eliminación de proyecto distinto al actual.
 - Apertura de proyecto existente desde la tabla de recientes.
+- Creación de proyecto nuevo mediante modal propio validando nombre no vacío.

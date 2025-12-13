@@ -49,7 +49,7 @@ import {
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 import { useToast } from './ui/toast/ToastContext.tsx';
-import { useConfirm } from './ui/confirm/ConfirmContext.tsx';
+import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -446,6 +446,7 @@ export default function App(): JSX.Element | null {
   const repositorySnapshotRef = useRef(repositorySnapshot);
   const pushToast = useToast();
   const confirmAsync = useConfirm();
+  const promptAsync = usePrompt();
   const showDevTools = import.meta.env.DEV;
 
   const updateProjectTheme = useCallback(
@@ -892,8 +893,14 @@ export default function App(): JSX.Element | null {
   ]);
 
   const handleNewProject = async () => {
-    const rawName = window.prompt('Nombre del proyecto');
-    if (rawName === null) {
+    const normalizedName = await promptAsync({
+      title: 'Nuevo proyecto',
+      message: 'Ingresa el nombre del proyecto',
+      placeholder: 'Nombre del proyecto',
+      confirmLabel: 'Crear',
+      cancelLabel: 'Cancelar',
+    });
+    if (normalizedName === null) {
       return;
     }
     const normalized = await applyRepositoryChange(
@@ -904,18 +911,17 @@ export default function App(): JSX.Element | null {
       },
     );
     if (!normalized) return;
-    const name = rawName.trim() || 'Sin nombre';
     const id = crypto.randomUUID();
     setSuspendMallaAutosave(true);
     setProjectId(id);
-    setProjectName(name);
+    setProjectName(normalizedName);
     // Evita que el flushAutoSave del MallaEditorScreen rehidrate el borrador del proyecto anterior
     // cuando desmonta tras crear un proyecto nuevo desde la propia malla.
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
     setBlock(createEmptyBlockState());
     loadMallaState(null);
     clearPersistedProjectMetadata();
-    storedActiveProjectRef.current = { id, name };
+    storedActiveProjectRef.current = { id, name: normalizedName };
     navigate('/block/design');
   };
 
