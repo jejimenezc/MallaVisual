@@ -43,7 +43,7 @@ import { assignSelectOptionColors } from '../utils/selectColors.ts';
 import { collectSelectControls, findSelectControlNameAt } from '../utils/selectControls.ts';
 import { useProjectTheme } from '../state/project-theme.tsx';
 import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
-import { confirmAsync } from '../ui/alerts';
+import { confirmAsync, promptAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
@@ -625,13 +625,17 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     let name = currentName;
     if (!name) {
       const defaultName = projectName ?? repoMetadata?.name ?? '';
-      const input = prompt('Nombre del bloque', defaultName);
+      const input = await promptAsync({
+        title: 'Publicar bloque',
+        message: 'Ingresa un nombre para el bloque antes de publicarlo en el repositorio.',
+        defaultValue: defaultName,
+        placeholder: 'Nombre del bloque',
+        confirmLabel: 'Publicar',
+        cancelLabel: 'Cancelar',
+        normalize: (value) => value.trim(),
+      });
       if (input === null) return null;
       name = input.trim();
-      if (!name) {
-        pushToast('Debes ingresar un nombre para el bloque.', 'error');
-        return null;
-      }
       setRepoName(name);
     }
     const now = new Date().toISOString();
@@ -710,18 +714,23 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     onPublishBlock,
     isBlockInUse,
     pushToast,
+    promptAsync,
   ]);
 
-  const handleRename = useCallback(() => {
+  const handleRename = useCallback(async () => {
     const current = repoName.trim();
     const defaultName = current || (projectName ?? '');
-    const input = prompt('Nuevo nombre del bloque', defaultName);
+    const input = await promptAsync({
+      title: 'Renombrar bloque',
+      message: 'Ingresa el nuevo nombre para este bloque.',
+      defaultValue: defaultName,
+      placeholder: 'Nombre del bloque',
+      confirmLabel: 'Guardar',
+      cancelLabel: 'Cancelar',
+      normalize: (value) => value.trim(),
+    });
     if (input === null) return;
     const trimmed = input.trim();
-    if (!trimmed) {
-      pushToast('Debes ingresar un nombre para el bloque.', 'error');
-      return;
-    }
     setRepoName(trimmed);
     if (!repoId) {
       return;
@@ -749,6 +758,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     projectId,
     repoUpdateBlockMetadata,
     onRepoMetadataChange,
+    promptAsync,
   ]);
 
   const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
