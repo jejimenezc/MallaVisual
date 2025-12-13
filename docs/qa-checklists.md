@@ -1,5 +1,11 @@
 # Checklist QA por Screen
 
+## Regresión global (alertas/confirmaciones)
+- ConfirmProvider renderiza el modal de confirmación ante cualquier llamada a `confirmAsync` sin recurrir a APIs nativas.
+- `promptAsync` abre el prompt modal y normaliza valores vacíos como cancelación.
+- Uso de `useToast` sigue mostrando feedback informativo sin bloquear la interacción.
+- No se registran advertencias en consola sobre confirmaciones fuera del provider.
+
 ## BlockRepositoryScreen
 - Importación de bloque desde archivo JSON con nombre inferido.
 - Prevención de eliminación cuando el bloque está en uso en la malla (mensaje de error).

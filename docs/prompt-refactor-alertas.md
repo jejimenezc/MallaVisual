@@ -29,7 +29,7 @@ Migrar completamente las alertas/confirmaciones nativas hacia:
 
 2. **Sistema global de Confirmación**:
    - Modal centralizado.
-   - API basada en `Promise<boolean>`: `confirm(options)`.
+   - API basada en `Promise<boolean>`: `confirm` recibe opciones.
 
 La migración debe ser **progresiva** y apoyarse en una **capa de compatibilidad**.
 
@@ -49,25 +49,9 @@ La migración debe ser **progresiva** y apoyarse en una **capa de compatibilidad
 ## Arquitectura propuesta
 
 ### 1. Capa de compatibilidad
-Crear `src/ui/alerts.ts`:
+Crear `src/ui/alerts.ts` como fachada única hacia los nuevos providers. La capa inicial puede exponer `showAlert`/`askConfirm` para mantener firmas, pero deben delegar en toasts o el modal global, nunca en APIs nativas. Más adelante se agrega `confirmAsync(options): Promise<boolean>` y `promptAsync(options): Promise<string | null>` como contratos definitivos.
 
-```ts
-export function showAlert(message: string): void {
-  window.alert(message);
-}
-
-export function askConfirm(message: string): boolean {
-  return window.confirm(message);
-}
-```
-
-Más adelante se agregará la API asincrónica:
-
-```ts
-export async function confirmAsync(options): Promise<boolean> { ... }
-```
-
-**Ninguna parte de la App debe seguir llamando directo a `window.alert` / `window.confirm`.**
+**Ninguna parte de la App debe seguir llamando directo a `window.alert` / `window.confirm`; los wrappers deben encapsular la transición.**
 
 ---
 
