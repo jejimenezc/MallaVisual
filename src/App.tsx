@@ -670,10 +670,11 @@ export default function App(): JSX.Element | null {
     async (
       repoEntries: Record<string, MallaRepositoryEntry>,
       options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
+      targetProjectId?: string,
     ): Promise<RepositorySnapshot | null> => {
       const convertRepository = () => {
         const now = new Date().toISOString();
-        const fallbackProjectId = projectId ?? 'repository';
+        const fallbackProjectId = targetProjectId ?? projectId ?? 'repository';
         const storedBlocks: StoredBlock[] = Object.values(repoEntries ?? {}).map((entry) => {
           const projectIdValue =
             entry.metadata.projectId && entry.metadata.projectId.trim().length > 0
@@ -736,6 +737,7 @@ export default function App(): JSX.Element | null {
   useEffect(() => {
     if (!isHydrated) return;
     if (shouldPersistProject && projectId) {
+      storedActiveProjectRef.current = { id: projectId, name: projectName };
       persistActiveProject(projectId, projectName);
     } else {
       clearStoredActiveProject();
@@ -912,6 +914,7 @@ export default function App(): JSX.Element | null {
     if (normalizedName === null) {
       return;
     }
+    const id = crypto.randomUUID();
     resetWorkspaceState();
     const normalized = await applyRepositoryChange(
       {},
@@ -919,9 +922,9 @@ export default function App(): JSX.Element | null {
         reason: 'crear un proyecto nuevo',
         targetDescription: 'el nuevo proyecto',
       },
+      id,
     );
     if (!normalized) return;
-    const id = crypto.randomUUID();
     setSuspendMallaAutosave(true);
     setProjectId(id);
     setProjectName(normalizedName);
@@ -937,16 +940,17 @@ export default function App(): JSX.Element | null {
 
   const handleLoadBlock = async (data: BlockExport, inferredName?: string) => {
     resetWorkspaceState();
+    const name = inferredName?.trim() || 'Importado';
+    const id = crypto.randomUUID();
     const normalized = await applyRepositoryChange(
       {},
       {
         reason: 'importar el bloque seleccionado',
         targetDescription: 'el bloque importado',
       },
+      id,
     );
     if (!normalized) return;
-    const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
     const theme = normalizeProjectTheme(data.theme);
     setProjectId(id);
     setProjectName(name);
@@ -959,16 +963,17 @@ export default function App(): JSX.Element | null {
 
   const handleLoadMalla = async (data: MallaExport, inferredName?: string) => {
     resetWorkspaceState();
+    const name = inferredName?.trim() || 'Importado';
+    const id = crypto.randomUUID();
     const normalizedRepo = await applyRepositoryChange(
       data.repository ?? {},
       {
         reason: 'importar el proyecto',
         targetDescription: 'el proyecto importado',
       },
+      id,
     );
     if (!normalizedRepo) return;
-    const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
     const prepared = prepareMallaProjectState(data, normalizedRepo);
     setProjectId(id);
     setProjectName(name);
@@ -1002,6 +1007,7 @@ export default function App(): JSX.Element | null {
           reason: 'abrir el proyecto seleccionado',
           targetDescription: 'el proyecto seleccionado',
         },
+        id,
       );
       if (!normalizedRepo) return;
       const prepared = prepareMallaProjectState(m, normalizedRepo);
@@ -1019,6 +1025,7 @@ export default function App(): JSX.Element | null {
           reason: 'abrir el proyecto seleccionado',
           targetDescription: 'el proyecto seleccionado',
         },
+        id,
       );
       if (!normalizedRepo) return;
       setProjectId(id);
