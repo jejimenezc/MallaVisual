@@ -1056,12 +1056,11 @@ export default function App(): JSX.Element | null {
 
   const handleOpenRecentProject = useCallback(
     async (id: string) => {
-      resetWorkspaceState();
       const record = loadProject(id);
       if (!record) return;
       await handleOpenProject(id, record.data, record.meta.name);
     },
-    [handleOpenProject, loadProject, resetWorkspaceState],
+    [handleOpenProject, loadProject],
   );
 
   const handleProceedToMalla = useCallback(
