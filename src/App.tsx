@@ -611,6 +611,16 @@ export default function App(): JSX.Element | null {
     setShouldPersistProject(false);
   }, []);
 
+  const resetWorkspaceState = useCallback(() => {
+    setBlock(null);
+    loadMallaState(null);
+    pendingControlDataClearsRef.current = [];
+    previousTemplateControlsRef.current = new Map<string, TemplateControlSnapshot>();
+    clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
+    clearPersistedProjectMetadata();
+    setSuspendMallaAutosave(false);
+  }, [clearDraft, clearPersistedProjectMetadata, loadMallaState]);
+
   const handleShowIntroOverlay = useCallback(() => {
     setIntroOverlayVisible(true);
   }, []);
@@ -902,6 +912,7 @@ export default function App(): JSX.Element | null {
     if (normalizedName === null) {
       return;
     }
+    resetWorkspaceState();
     const normalized = await applyRepositoryChange(
       {},
       {
@@ -925,6 +936,7 @@ export default function App(): JSX.Element | null {
   };
 
   const handleLoadBlock = async (data: BlockExport, inferredName?: string) => {
+    resetWorkspaceState();
     const normalized = await applyRepositoryChange(
       {},
       {
@@ -946,6 +958,7 @@ export default function App(): JSX.Element | null {
   };
 
   const handleLoadMalla = async (data: MallaExport, inferredName?: string) => {
+    resetWorkspaceState();
     const normalizedRepo = await applyRepositoryChange(
       data.repository ?? {},
       {
@@ -980,6 +993,7 @@ export default function App(): JSX.Element | null {
   );
 
   const handleOpenProject = async (id: string, data: BlockExport | MallaExport, name: string) => {
+    resetWorkspaceState();
     if ('masters' in data) {
       const m = data as MallaExport;
       const normalizedRepo = await applyRepositoryChange(
@@ -1023,11 +1037,12 @@ export default function App(): JSX.Element | null {
 
   const handleOpenRecentProject = useCallback(
     async (id: string) => {
+      resetWorkspaceState();
       const record = loadProject(id);
       if (!record) return;
       await handleOpenProject(id, record.data, record.meta.name);
     },
-    [loadProject, handleOpenProject],
+    [handleOpenProject, loadProject, resetWorkspaceState],
   );
 
   const handleProceedToMalla = useCallback(
