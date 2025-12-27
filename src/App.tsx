@@ -703,9 +703,10 @@ export default function App(): JSX.Element | null {
       };
 
       const { storedBlocks, snapshot } = convertRepository();
-      const sameAsCurrent = areContentsEqual(repositorySnapshot, snapshot);
+      const currentSnapshot = blocksToRepository(listBlocks());
+      const sameAsCurrent = areContentsEqual(currentSnapshot, snapshot);
       if (!sameAsCurrent) {
-        const hasCurrentData = Object.keys(repositorySnapshot.repository).length > 0;
+        const hasCurrentData = Object.keys(currentSnapshot.repository).length > 0;
         if (hasCurrentData && !options.skipConfirmation) {
           const message =
             Object.keys(snapshot.repository).length === 0
@@ -731,8 +732,7 @@ export default function App(): JSX.Element | null {
       setRepositorySnapshot(snapshot);
       return snapshot;
     },
-    [clearRepository, confirmAsync, projectId, replaceRepository, repositorySnapshot],
-  );
+    [clearRepository, confirmAsync, listBlocks, projectId, replaceRepository],  );
 
   useEffect(() => {
     if (!isHydrated) return;
