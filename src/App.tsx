@@ -614,12 +614,24 @@ export default function App(): JSX.Element | null {
   const resetWorkspaceState = useCallback(() => {
     setBlock(null);
     loadMallaState(null);
+    setProjectId(null);
+    setProjectName('');
     pendingControlDataClearsRef.current = [];
     previousTemplateControlsRef.current = new Map<string, TemplateControlSnapshot>();
+    const emptySnapshot = blocksToRepository([]);
+    setRepositorySnapshot(emptySnapshot);
+    repositorySnapshotRef.current = emptySnapshot;
+    clearRepository();
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
     clearPersistedProjectMetadata();
     setSuspendMallaAutosave(false);
-  }, [clearDraft, clearPersistedProjectMetadata, loadMallaState]);
+  }, [
+    clearDraft,
+    clearPersistedProjectMetadata,
+    clearRepository,
+    loadMallaState,
+    setRepositorySnapshot,
+  ]);
 
   const handleShowIntroOverlay = useCallback(() => {
     setIntroOverlayVisible(true);
