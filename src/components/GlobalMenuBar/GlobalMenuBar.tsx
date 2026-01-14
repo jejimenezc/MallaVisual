@@ -17,7 +17,7 @@ interface GlobalMenuBarProps {
   onExportProject: () => void;
   onCloseProject: () => void;
   getRecentProjects: () => RecentProject[];
-  onOpenRecentProject: (id: string) => void;
+  onOpenProjectById: (id: string) => void;
   onShowIntro: () => void;
   onOpenProjectPalette: () => void;
 }
@@ -41,7 +41,7 @@ export function GlobalMenuBar({
   onExportProject,
   onCloseProject,
   getRecentProjects,
-  onOpenRecentProject,
+  onOpenProjectById,
   onShowIntro,
   onOpenProjectPalette,
 }: GlobalMenuBarProps): JSX.Element {
@@ -161,9 +161,9 @@ export function GlobalMenuBar({
       event.preventDefault();
       event.stopPropagation();
       handleCloseMenu();
-      onOpenRecentProject(projectId);
+      onOpenProjectById(projectId);
     },
-    [handleCloseMenu, onOpenRecentProject],
+    [handleCloseMenu, onOpenProjectById],
   );
 
   const handleUndoClick = useCallback(

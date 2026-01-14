@@ -295,7 +295,7 @@ interface AppLayoutProps {
   onExportProject: () => void;
   onCloseProject: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
-  onOpenRecentProject: (id: string) => void;
+  onOpenProjectById: (id: string) => void;
   onShowIntro: () => void;
   onOpenProjectPalette: () => void;
   locationPath: string;
@@ -311,7 +311,7 @@ function AppLayout({
   onExportProject,
   onCloseProject,
   getRecentProjects,
-  onOpenRecentProject,
+  onOpenProjectById,
   onShowIntro,
   onOpenProjectPalette,
   locationPath,
@@ -382,7 +382,7 @@ function AppLayout({
             onExportProject={onExportProject}
             onCloseProject={onCloseProject}
             getRecentProjects={getRecentProjects}
-            onOpenRecentProject={onOpenRecentProject}
+            onOpenProjectById={onOpenProjectById}
             onShowIntro={onShowIntro}
             onOpenProjectPalette={onOpenProjectPalette}
           />
@@ -1071,61 +1071,77 @@ export default function App(): JSX.Element | null {
     [beginProjectSwitch, handleLoadBlock, handleLoadMalla, isProjectSwitchTokenCurrent, pushToast],
   );
 
-  const handleOpenProject = async (
-    id: string,
-    data: BlockExport | MallaExport,
-    name: string,
-    switchToken = beginProjectSwitch(),
-  ) => {
-    resetWorkspaceState();
-    if ('masters' in data) {
-      const m = data as MallaExport;
-      const normalizedRepo = await applyRepositoryChange(
-        m.repository ?? {},
-        {
-          reason: 'abrir el proyecto seleccionado',
-          targetDescription: 'el proyecto seleccionado',
-        },
-        id,
-        switchToken,
-      );
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
-      if (!normalizedRepo) return;
-      const prepared = prepareMallaProjectState(m, normalizedRepo);
-      setProjectId(id);
-      setProjectName(name);
-      setBlock(prepared.block);
-      loadMallaState(prepared.malla);
-      setShouldPersistProject(true);
-      navigate('/malla/design');
-    } else {
-      const b = data as BlockExport;
-      const normalizedRepo = await applyRepositoryChange(
-        {},
-        {
-          reason: 'abrir el proyecto seleccionado',
-          targetDescription: 'el proyecto seleccionado',
-        },
-        id,
-        switchToken,
-      );
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
-      if (!normalizedRepo) return;
-      setProjectId(id);
-      setProjectName(name);
-      setBlock(createBlockStateFromContent(toBlockContent(b)));
-      loadMallaState(null);
-      setShouldPersistProject(true);
-      navigate('/block/design');
-    }
-  };
+  const handleOpenProject = useCallback(
+    async (
+      id: string,
+      data: BlockExport | MallaExport,
+      name: string,
+      switchToken = beginProjectSwitch(),
+    ) => {
+      resetWorkspaceState();
+      if ('masters' in data) {
+        const m = data as MallaExport;
+        const normalizedRepo = await applyRepositoryChange(
+          m.repository ?? {},
+          {
+            reason: 'abrir el proyecto seleccionado',
+            targetDescription: 'el proyecto seleccionado',
+          },
+          id,
+          switchToken,
+        );
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+        if (!normalizedRepo) return;
+        const prepared = prepareMallaProjectState(m, normalizedRepo);
+        setProjectId(id);
+        setProjectName(name);
+        setBlock(prepared.block);
+        loadMallaState(prepared.malla);
+        setShouldPersistProject(true);
+        navigate('/malla/design');
+      } else {
+        const b = data as BlockExport;
+        const normalizedRepo = await applyRepositoryChange(
+          {},
+          {
+            reason: 'abrir el proyecto seleccionado',
+            targetDescription: 'el proyecto seleccionado',
+          },
+          id,
+          switchToken,
+        );
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+        if (!normalizedRepo) return;
+        setProjectId(id);
+        setProjectName(name);
+        setBlock(createBlockStateFromContent(toBlockContent(b)));
+        loadMallaState(null);
+        setShouldPersistProject(true);
+        navigate('/block/design');
+      }
+    },
+    [
+      applyRepositoryChange,
+      beginProjectSwitch,
+      createBlockStateFromContent,
+      isProjectSwitchTokenCurrent,
+      loadMallaState,
+      navigate,
+      resetWorkspaceState,
+      setBlock,
+      setProjectId,
+      setProjectName,
+      setShouldPersistProject,
+      toBlockContent,
+    ],
+  );
 
   const getRecentProjects = useCallback(
     () => listProjects().slice(0, 10),
     [listProjects],
   );
 
-  const handleOpenRecentProject = useCallback(
+  const openProjectById = useCallback(
     async (id: string) => {
       const switchToken = beginProjectSwitch();
       const record = loadProject(id);
@@ -1671,7 +1687,7 @@ export default function App(): JSX.Element | null {
             onExportProject={handleExportProject}
             onCloseProject={handleCloseProject}
             getRecentProjects={getRecentProjects}
-            onOpenRecentProject={handleOpenRecentProject}
+            onOpenProjectById={openProjectById}
             onShowIntro={handleShowIntroOverlay}
             onOpenProjectPalette={handleOpenProjectPalette}
             locationPath={location.pathname}
@@ -1685,7 +1701,7 @@ export default function App(): JSX.Element | null {
                     onNewBlock={handleNewProject}
                     onLoadBlock={handleLoadBlock}
                     onLoadMalla={handleLoadMalla}
-                    onOpenProject={handleOpenProject}
+                    onOpenProjectById={openProjectById}
                     currentProjectId={projectId ?? undefined}
                     onProjectDeleted={handleProjectRemoved}
                     onProjectRenamed={handleProjectRenamed}
