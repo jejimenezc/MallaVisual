@@ -7,6 +7,8 @@ import React, {
 } from 'react';
 import type { JSX } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConfirm } from '../ui/confirm/ConfirmContext.tsx';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 export type ProceedToMallaHandler = (targetPath?: string) => boolean;
 
@@ -46,37 +48,45 @@ export function ProceedToMallaProvider({
   hasPublishedRepositoryBlock,
 }: ProceedToMallaProviderProps): JSX.Element {
   const navigate = useNavigate();
+  const confirmAsync = useConfirm();
+  const pushToast = useToast();
   const skipNextDirtyBlockCheckRef = React.useRef(false);
   const defaultProceedToMalla = useCallback<ProceedToMallaHandler>(
     (targetPath) => {
-      const destination = targetPath ?? '/malla/design';
-      if (destination === '/malla/design') {
-        if (!hasPublishedRepositoryBlock) {
-          window.alert(NO_PUBLISHED_BLOCK_ALERT_MESSAGE);
-          return true;
-        }
-        const shouldSkipDirtyCheck = skipNextDirtyBlockCheckRef.current;
-        if (shouldSkipDirtyCheck) {
-          skipNextDirtyBlockCheckRef.current = false;
-        }
-        if (hasDirtyBlock) {
-          if (!shouldSkipDirtyCheck) {
+      void (async () => {
+        const destination = targetPath ?? '/malla/design';
+        if (destination === '/malla/design') {
+          if (!hasPublishedRepositoryBlock) {
+            pushToast(NO_PUBLISHED_BLOCK_ALERT_MESSAGE, 'info');
+            return;
+          }
+          const shouldSkipDirtyCheck = skipNextDirtyBlockCheckRef.current;
+          if (shouldSkipDirtyCheck) {
+            skipNextDirtyBlockCheckRef.current = false;
+          }
+          if (hasDirtyBlock && !shouldSkipDirtyCheck) {
             const message = hasPublishedBlock
               ? UPDATE_BLOCK_CONFIRM_MESSAGE
               : PUBLISH_BLOCK_CONFIRM_MESSAGE;
-            const confirmed = window.confirm(message);
+            const confirmed = await confirmAsync({
+              title: 'Publicar bloque antes de continuar',
+              message,
+              confirmLabel: 'Ir al editor de bloque',
+              cancelLabel: 'Seguir en la malla',
+              variant: 'info',
+            });
             if (confirmed) {
               navigate('/block/design');
             }
-            return true;
+            return;
           }
         }
-      }
-      skipNextDirtyBlockCheckRef.current = false;
-      navigate(destination);
+        skipNextDirtyBlockCheckRef.current = false;
+        navigate(destination);
+      })();
       return true;
     },
-    [hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, navigate],
+    [confirmAsync, hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, navigate, pushToast],
   );
 
   const [overrideHandler, setOverrideHandler] =

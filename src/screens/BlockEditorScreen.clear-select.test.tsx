@@ -86,6 +86,11 @@ import type { BlockTemplate } from '../types/curricular.ts';
 import type { AppCommandDescriptor, AppCommandId } from '../state/app-commands.tsx';
 import { AppCommandsProvider, useAppCommands } from '../state/app-commands.tsx';
 import { coordKey } from '../types/visual.ts';
+import * as alerts from '../ui/alerts';
+
+vi.mock('../ui/toast/ToastContext.tsx', () => ({
+  useToast: () => vi.fn(),
+}));
 
 const onRequestControlDataClear = vi.fn();
 
@@ -94,7 +99,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
   let root: ReturnType<typeof createRoot>;
   const recordedDrafts: BlockContent[] = [];
   const commandsHistory: Partial<Record<AppCommandId, AppCommandDescriptor>>[] = [];
-  let confirmSpy: MockInstance<typeof window.confirm>;
+  let confirmSpy: MockInstance<typeof alerts.confirmAsync>;
 
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -122,8 +127,8 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     recordedDrafts.length = 0;
     commandsHistory.length = 0;
 
-    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-});
+    confirmSpy = vi.spyOn(alerts, 'confirmAsync').mockResolvedValue(true);
+  });
 
   afterEach(async () => {
     confirmSpy.mockRestore();
@@ -233,7 +238,13 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     await flushEffects();
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      'Este control tiene datos ingresados en la malla. Si lo eliminas, se perderán. ¿Deseas continuar?',
+      expect.objectContaining({
+        title: 'Eliminar control con datos',
+        message:
+          'Se eliminarán los datos capturados en la malla para este control. Esta acción no se puede deshacer.',
+        confirmLabel: 'Sí, eliminar',
+        cancelLabel: 'Seguir editando',
+      }),
     );
 
     const finalDraft = recordedDrafts.at(-1);
@@ -329,7 +340,13 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     await flushEffects();
 
     expect(confirmSpy).toHaveBeenCalledWith(
-      'Este control tiene datos ingresados en la malla. Si lo reemplazas, se perderán. ¿Deseas continuar?',
+      expect.objectContaining({
+        title: 'Reemplazar control con datos',
+        message:
+          'Se perderán los datos capturados en la malla al reemplazar este control. Esta acción no se puede deshacer.',
+        confirmLabel: 'Sí, reemplazar',
+        cancelLabel: 'Seguir editando',
+      }),
     );
 
     const textKey = coordKey(textCoord.row, textCoord.col);

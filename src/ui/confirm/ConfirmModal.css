@@ -1,0 +1,108 @@
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1250;
+  padding: 1.5rem;
+}
+
+.confirm-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.75rem;
+  max-width: 520px;
+  width: min(520px, 100%);
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.18);
+  border: 1px solid #e5e8eb;
+}
+
+.confirm-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.confirm-message {
+  margin: 0 0 1.25rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.confirm-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+}
+
+.confirm-input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e5e8eb;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.confirm-input:focus {
+  outline: none;
+  border-color: #1fb6ff;
+  box-shadow: 0 0 0 3px rgba(31, 182, 255, 0.12);
+}
+
+.confirm-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.confirm-button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.65rem 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: linear-gradient(135deg, #1fb6ff, #009eeb);
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(0, 158, 235, 0.28);
+}
+
+.confirm-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(0, 158, 235, 0.34);
+}
+
+.confirm-button:active {
+  transform: translateY(0);
+}
+
+.confirm-button.ghost {
+  background: transparent;
+  color: #111827;
+  border: 1px solid #e5e8eb;
+  box-shadow: none;
+}
+
+.confirm-button.ghost:hover {
+  background: #f5f7fa;
+}
+
+.confirm-modal-destructive .confirm-button {
+  background: linear-gradient(135deg, #f43f5e, #e11d48);
+  box-shadow: 0 10px 20px rgba(225, 29, 72, 0.28);
+}
+
+.confirm-modal-info .confirm-button {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  box-shadow: 0 10px 20px rgba(67, 56, 202, 0.28);
+}

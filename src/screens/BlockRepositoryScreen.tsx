@@ -8,6 +8,8 @@ import type { StoredBlock } from '../utils/block-repo.ts';
 import { buildBlockId, createBlockId, parseBlockId } from '../types/block.ts';
 import './BlockRepositoryScreen.css';
 import { getFileNameWithoutExtension } from '../utils/file-name.ts';
+import { confirmAsync, promptAsync } from '../ui/alerts';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 interface BlockRepositoryScreenProps {
   onBlockImported?: (block: StoredBlock) => void;
@@ -33,6 +35,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   const [blocks, setBlocks] = useState<StoredBlock[]>([]);
   const [selectedUuid, setSelectedUuid] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pushToast = useToast();
 
   const refresh = () => setBlocks(listBlocks());
 
@@ -91,7 +94,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
         onBlockImported?.(block);
         setSelectedUuid(block.metadata.uuid);
       } catch (err) {
-        alert((err as Error).message);
+        pushToast((err as Error).message, 'error');
       }
     });
     e.target.value = '';
@@ -109,18 +112,22 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     URL.revokeObjectURL(a.href);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedUuid) return;
     const rec = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!rec) return;
     const blockLabel = rec.metadata.name?.trim() || rec.metadata.uuid || 'el bloque';
     if (blocksInUse?.has(rec.metadata.uuid)) {
-      alert(`No es posible eliminar "${blockLabel}" porque está en uso en la malla.`);
+      pushToast(`No es posible eliminar "${blockLabel}" porque está en uso en la malla.`, 'error');
       return;
     }
-    const confirmed = window.confirm(
-      `Se eliminará "${blockLabel}" del repositorio. Esta acción no se puede deshacer. ¿Deseas continuar?`,
-    );
+    const confirmed = await confirmAsync({
+      title: 'Eliminar del repositorio',
+      message: `Se eliminará "${blockLabel}" del repositorio. Esta acción no se puede deshacer. ¿Deseas continuar?`,
+      confirmLabel: 'Sí, eliminar',
+      cancelLabel: 'Cancelar',
+      variant: 'destructive',
+    });
     if (!confirmed) return;
     removeBlock(rec.id);
     refresh();
@@ -134,15 +141,23 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
     onOpenBlock?.(block);
   };
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (!selectedUuid) return;
     const block = blocks.find((b) => b.metadata.uuid === selectedUuid);
     if (!block) return;
-    const input = prompt('Nuevo nombre del bloque', block.metadata.name);
+    const input = await promptAsync({
+      title: 'Renombrar bloque',
+      message: 'Ingresa el nuevo nombre para el bloque seleccionado.',
+      defaultValue: block.metadata.name,
+      placeholder: 'Nombre del bloque',
+      confirmLabel: 'Guardar',
+      cancelLabel: 'Cancelar',
+      normalize: (value) => value.trim(),
+    });
     if (input === null) return;
     const trimmed = input.trim();
     if (!trimmed) {
-      alert('Debes ingresar un nombre para el bloque.');
+      pushToast('Debes ingresar un nombre para el bloque.', 'error');
       return;
     }
     updateBlockMetadata(block.id, {
@@ -150,6 +165,7 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
       updatedAt: new Date().toISOString(),
     });
     refresh();
+    pushToast('Nombre del bloque actualizado.', 'success');
   };
 
   const gallery = (

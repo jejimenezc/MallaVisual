@@ -7,16 +7,13 @@ import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { handleProjectFile } from '../utils/project-file.ts';
 import './HomeScreen.css';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 interface Props {
   onNewBlock: () => void;
   onLoadBlock: (data: BlockExport, inferredName?: string) => void;
   onLoadMalla: (data: MallaExport, inferredName?: string) => void;
-  onOpenProject: (
-    id: string,
-    data: BlockExport | MallaExport,
-    name: string,
-  ) => void;
+  onOpenProjectById: (id: string) => void;
   currentProjectId?: string;
   onProjectDeleted?: (id: string) => void;
   onProjectRenamed?: (id: string, name: string) => void;
@@ -27,15 +24,16 @@ export const HomeScreen: React.FC<Props> = ({
   onNewBlock,
   onLoadBlock,
   onLoadMalla,
-  onOpenProject,
+  onOpenProjectById,
   currentProjectId,
   onProjectDeleted,
   onProjectRenamed,
   onShowIntro,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { listProjects, loadProject, removeProject, renameProject } = useProject();
+  const { listProjects, removeProject, renameProject } = useProject();
   const [projects, setProjects] = useState(() => listProjects());
+  const pushToast = useToast();
 
   useEffect(() => {
     setProjects(listProjects());
@@ -61,7 +59,7 @@ export const HomeScreen: React.FC<Props> = ({
       onMalla: onLoadMalla,
     })
       .catch(() => {
-        window.alert('Archivo inválido');
+        pushToast('Archivo inválido', 'error');
       })
       .finally(() => {
         e.target.value = '';
@@ -86,12 +84,6 @@ export const HomeScreen: React.FC<Props> = ({
     onProjectRenamed?.(id, trimmed);
   };
 
-  const handleOpenProject = (id: string) => {
-    const proj = loadProject(id);
-    if (!proj) return;
-    onOpenProject(id, proj.data, proj.meta.name);
-  };
-
   const left = (
     <div className="project-list-section">
       <h3 className="project-list-heading">Proyectos recientes</h3>
@@ -111,7 +103,7 @@ export const HomeScreen: React.FC<Props> = ({
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
-                          handleOpenProject(p.id);
+                          onOpenProjectById(p.id);
                         }}
                       >
                         {p.name}

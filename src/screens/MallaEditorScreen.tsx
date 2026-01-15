@@ -37,6 +37,8 @@ import { ActionPillButton } from '../components/ActionPillButton/ActionPillButto
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature, deepClone } from '../utils/comparators.ts';
+import { confirmAsync } from '../ui/alerts';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
@@ -117,6 +119,9 @@ function isInteractive(target: HTMLElement) {
   return !!target.closest('input,select,textarea,button,[contenteditable="true"]');
 }
 
+const describePieceLocation = (piece: CurricularPiece) =>
+  `fila ${piece.y + 1}, columna ${piece.x + 1}`;
+
 interface Props {
   /** Maestro actual (10x10) */
   template: BlockTemplate;
@@ -185,6 +190,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     projectName,
   });
   const { listBlocks } = useBlocksRepo();
+  const showToast = useToast();
 
   // --- repositorio y estado de maestros
   const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
@@ -1167,8 +1173,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const targetIndex = Math.max(0, Math.min(index, rows - 1));
     const blocker = pieces.find((p) => p.y === targetIndex);
     if (blocker) {
-      window.alert(
-        `Para eliminar la fila mueva o borre las piezas que ocupan la fila ${targetIndex + 1}`
+      const location = describePieceLocation(blocker);
+      showToast(
+        `No se puede eliminar la fila ${targetIndex + 1} porque la pieza en ${location} la está usando. ` +
+        'Mueve o elimina esa pieza antes de quitar la fila.',
+        'error'
       );
       return;
     }
@@ -1188,8 +1197,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (nextRows < rows) {
       const blocker = pieces.find((p) => p.y >= nextRows);
       if (blocker) {
-        window.alert(
-          `Para reducir filas mueva o borre las piezas que ocupan la fila ${blocker.y + 1}`
+        const location = describePieceLocation(blocker);
+        showToast(
+          `No se puede reducir la malla a ${nextRows} filas porque la pieza en ${location} quedaría fuera. ` +
+          'Mueve o elimina la pieza antes de ajustar el tamaño.',
+          'error'
         );
         return;
       }
@@ -1218,8 +1230,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (newCols < cols) {
       const blocker = pieces.find((p) => p.x >= newCols);
       if (blocker) {
-        window.alert(
-          `Para reducir columnas mueva o borre las piezas que ocupan la columna ${blocker.x + 1}`
+        const location = describePieceLocation(blocker);
+        showToast(
+          `No se puede reducir la malla a ${newCols} columnas porque la pieza en ${location} quedaría fuera. ` +
+          'Mueve o elimina la pieza para continuar.',
+          'error'
         );
         return;
       }
@@ -1242,8 +1257,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const handleAddReferenced = () => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
-        'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
+      showToast(
+        'No hay espacio libre en la malla para agregar otra pieza. Agrega filas/columnas o libera una celda antes de continuar.',
+        'error'
       );
       return;
     }
@@ -1302,8 +1318,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const duplicatePiece = (src: CurricularPiece) => {
     const pos = findFreeCell();
     if (!pos) {
-      window.alert(
-        'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
+      const location = describePieceLocation(src);
+      showToast(
+        `No hay espacio para duplicar la pieza ubicada en ${location}. Amplía la malla o libera un espacio disponible.`,
+        'error'
       );
       return;
     }
@@ -1369,26 +1387,48 @@ export const MallaEditorScreen: React.FC<Props> = ({
           }
         }
       }
+      if (additions.length === 0) {
+        showToast(
+          'La malla ya está completa. Amplía filas/columnas o libera una celda antes de autocompletar.',
+          'error',
+        );
+        return prev;
+      }
       return [...prev, ...additions];
     });
   };
 
-  const handleClearGrid = () => {
+  const handleClearGrid = async () => {
     const isEmpty =
       pieces.length === 0 &&
       floatingPieces.length === 0 &&
       Object.keys(pieceValues).length === 0;
 
-    const shouldClear =
-      isEmpty ||
-      (typeof window === 'undefined'
-        ? true
-        : window.confirm(
-          'Esta acción eliminará todas las piezas de la malla y sus datos asociados. ¿Deseas continuar?'
-        ));
+    if (!isEmpty) {
+      const pieceCount = pieces.length;
+      const floatingCount = floatingPieces.length;
+      const valueCount = Object.keys(pieceValues).length;
+      const impactSummary = [
+        pieceCount ? `${pieceCount} piezas en la malla` : null,
+        floatingCount ? `${floatingCount} piezas flotantes` : null,
+        valueCount ? `${valueCount} conjuntos de datos` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
 
-    if (!shouldClear) {
-      return;
+      const confirmed = await confirmAsync({
+        title: 'Borrar malla y datos',
+        message:
+          `Se eliminarán ${impactSummary || 'las piezas y datos actuales de la malla'}. ` +
+          'Podrás cancelar si necesitas hacer un respaldo antes de continuar.',
+        confirmLabel: 'Sí, borrar todo',
+        cancelLabel: 'Cancelar',
+        variant: 'destructive',
+      });
+
+      if (!confirmed) {
+        return;
+      }
     }
 
     setPieces([]);
@@ -1476,9 +1516,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
       );
     });
     if (!placed) {
-      window.alert(
-        'No hay posiciones disponibles en la malla. Agregue filas/columnas o borre una pieza curricular.'
-      );
+      const draggedPiece = pieces.find((p) => p.id === draggingId);
+      const location = draggedPiece ? describePieceLocation(draggedPiece) : null;
+      const message = location
+        ? `No hay posiciones libres para reubicar la pieza que estaba en ${location}. Amplía la malla o libera una celda para continuar.`
+        : 'No hay posiciones libres para ubicar la pieza arrastrada. Amplía la malla o libera una celda para continuar.';
+      showToast(message, 'error');
       setFloatingPieces((prev) => [...prev, draggingId]);
     }
     setDraggingId(null);

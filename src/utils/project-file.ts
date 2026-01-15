@@ -6,8 +6,8 @@ import { importMalla } from './malla-io.ts';
 import { getFileNameWithoutExtension } from './file-name.ts';
 
 interface ProjectFileHandlers {
-  onBlock: (data: BlockExport, inferredName?: string) => void;
-  onMalla: (data: MallaExport, inferredName?: string) => void;
+  onBlock: (data: BlockExport, inferredName?: string) => void | Promise<void>;
+  onMalla: (data: MallaExport, inferredName?: string) => void | Promise<void>;
 }
 
 export async function handleProjectFile(
@@ -18,14 +18,14 @@ export async function handleProjectFile(
   const text = await file.text();
   try {
     const malla = importMalla(text);
-    handlers.onMalla(malla, inferredName);
+    await handlers.onMalla(malla, inferredName);
     return;
   } catch {
     // continue
   }
   try {
     const block = importBlock(text);
-    handlers.onBlock(block, inferredName);
+    await handlers.onBlock(block, inferredName);
     return;
   } catch {
     // continue

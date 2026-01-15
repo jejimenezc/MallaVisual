@@ -48,6 +48,8 @@ import {
 } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
+import { useToast } from './ui/toast/ToastContext.tsx';
+import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
 
 const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -293,7 +295,7 @@ interface AppLayoutProps {
   onExportProject: () => void;
   onCloseProject: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
-  onOpenRecentProject: (id: string) => void;
+  onOpenProjectById: (id: string) => void;
   onShowIntro: () => void;
   onOpenProjectPalette: () => void;
   locationPath: string;
@@ -309,7 +311,7 @@ function AppLayout({
   onExportProject,
   onCloseProject,
   getRecentProjects,
-  onOpenRecentProject,
+  onOpenProjectById,
   onShowIntro,
   onOpenProjectPalette,
   locationPath,
@@ -380,7 +382,7 @@ function AppLayout({
             onExportProject={onExportProject}
             onCloseProject={onCloseProject}
             getRecentProjects={getRecentProjects}
-            onOpenRecentProject={onOpenRecentProject}
+            onOpenProjectById={onOpenProjectById}
             onShowIntro={onShowIntro}
             onOpenProjectPalette={onOpenProjectPalette}
           />
@@ -429,6 +431,7 @@ export default function App(): JSX.Element | null {
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const [suspendMallaAutosave, setSuspendMallaAutosave] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
+  const projectSwitchTokenRef = useRef(0);
   const previousProjectIdRef = useRef<string | null>(projectId);
   const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
   const passiveAutosaveSignatureRef = useRef<string | null>(null);
@@ -442,6 +445,16 @@ export default function App(): JSX.Element | null {
     blocksToRepository(listBlocks()),
   );
   const repositorySnapshotRef = useRef(repositorySnapshot);
+  const pushToast = useToast();
+  const confirmAsync = useConfirm();
+  const promptAsync = usePrompt();
+
+  const beginProjectSwitch = useCallback(() => ++projectSwitchTokenRef.current, []);
+
+  const isProjectSwitchTokenCurrent = useCallback(
+    (token: number) => projectSwitchTokenRef.current === token,
+    [],
+  );
 
   const updateProjectTheme = useCallback(
     (theme: ProjectTheme) => {
@@ -606,6 +619,28 @@ export default function App(): JSX.Element | null {
     setShouldPersistProject(false);
   }, []);
 
+  const resetWorkspaceState = useCallback(() => {
+    setBlock(null);
+    loadMallaState(null);
+    setProjectId(null);
+    setProjectName('');
+    pendingControlDataClearsRef.current = [];
+    previousTemplateControlsRef.current = new Map<string, TemplateControlSnapshot>();
+    const emptySnapshot = blocksToRepository([]);
+    setRepositorySnapshot(emptySnapshot);
+    repositorySnapshotRef.current = emptySnapshot;
+    clearRepository();
+    clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
+    clearPersistedProjectMetadata();
+    setSuspendMallaAutosave(false);
+  }, [
+    clearDraft,
+    clearPersistedProjectMetadata,
+    clearRepository,
+    loadMallaState,
+    setRepositorySnapshot,
+  ]);
+
   const handleShowIntroOverlay = useCallback(() => {
     setIntroOverlayVisible(true);
   }, []);
@@ -652,13 +687,15 @@ export default function App(): JSX.Element | null {
   }, [listBlocks]);
 
   const applyRepositoryChange = useCallback(
-    (
+    async (
       repoEntries: Record<string, MallaRepositoryEntry>,
       options: { reason: string; targetDescription: string; skipConfirmation?: boolean },
-    ): RepositorySnapshot | null => {
+      targetProjectId?: string,
+      switchToken?: number,
+    ): Promise<RepositorySnapshot | null> => {
       const convertRepository = () => {
         const now = new Date().toISOString();
-        const fallbackProjectId = projectId ?? 'repository';
+        const fallbackProjectId = targetProjectId ?? projectId ?? 'repository';
         const storedBlocks: StoredBlock[] = Object.values(repoEntries ?? {}).map((entry) => {
           const projectIdValue =
             entry.metadata.projectId && entry.metadata.projectId.trim().length > 0
@@ -687,15 +724,26 @@ export default function App(): JSX.Element | null {
       };
 
       const { storedBlocks, snapshot } = convertRepository();
-      const sameAsCurrent = areContentsEqual(repositorySnapshot, snapshot);
+      const currentSnapshot = blocksToRepository(listBlocks());
+      const sameAsCurrent = areContentsEqual(currentSnapshot, snapshot);
       if (!sameAsCurrent) {
-        const hasCurrentData = Object.keys(repositorySnapshot.repository).length > 0;
+        const hasCurrentData = Object.keys(currentSnapshot.repository).length > 0;
         if (hasCurrentData && !options.skipConfirmation) {
           const message =
             Object.keys(snapshot.repository).length === 0
               ? `Se reiniciará el repositorio de bloques para ${options.reason}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`
               : `Se reemplazará el repositorio de bloques actual por el incluido en ${options.targetDescription}. Esto eliminará los bloques publicados actualmente. ¿Deseas continuar?`;
-          if (!window.confirm(message)) {
+          const confirmed = await confirmAsync({
+            title: 'Confirmar reemplazo del repositorio de bloques',
+            message,
+            confirmLabel: 'Sí, continuar',
+            cancelLabel: 'Cancelar',
+            variant: 'destructive',
+          });
+          if (!confirmed) {
+            return null;
+          }
+          if (switchToken !== undefined && !isProjectSwitchTokenCurrent(switchToken)) {
             return null;
           }
         }
@@ -708,12 +756,20 @@ export default function App(): JSX.Element | null {
       setRepositorySnapshot(snapshot);
       return snapshot;
     },
-    [clearRepository, replaceRepository, repositorySnapshot, projectId],
+    [
+      clearRepository,
+      confirmAsync,
+      isProjectSwitchTokenCurrent,
+      listBlocks,
+      projectId,
+      replaceRepository,
+    ],
   );
 
   useEffect(() => {
     if (!isHydrated) return;
     if (shouldPersistProject && projectId) {
+      storedActiveProjectRef.current = { id: projectId, name: projectName };
       persistActiveProject(projectId, projectName);
     } else {
       clearStoredActiveProject();
@@ -722,59 +778,77 @@ export default function App(): JSX.Element | null {
 
   useEffect(() => {
     if (isHydrated) return;
-    if (typeof window === 'undefined') {
-      setIsHydrated(true);
-      return;
-    }
-    const stored = readStoredActiveProject();
-    if (!stored.id) {
-      setIsHydrated(true);
-      return;
-    }
-    const record = loadProject(stored.id);
-    if (!record) {
-      clearStoredActiveProject();
-      setProjectId(null);
-      setProjectName('');
-      setBlock(null);
-      loadMallaState(null);
-      setShouldPersistProject(false);
-      setIsHydrated(true);
-      return;
-    }
-    if ('masters' in record.data) {
-      const normalizedRepo = applyRepositoryChange(
-        record.data.repository ?? {},
-        {
-          reason: 'abrir el proyecto almacenado',
-          targetDescription: 'el proyecto almacenado',
-          skipConfirmation: true,
-        },
-      );
-      if (!normalizedRepo) {
+    void (async () => {
+      const switchToken = beginProjectSwitch();
+      if (typeof window === 'undefined') {
         setIsHydrated(true);
         return;
       }
-      const prepared = prepareMallaProjectState(record.data, normalizedRepo);
-      setBlock(prepared.block);
-      loadMallaState(prepared.malla);
-    } else {
-      applyRepositoryChange(
-        {},
-        {
-          reason: 'abrir el proyecto almacenado',
-          targetDescription: 'el proyecto almacenado',
-          skipConfirmation: true,
-        },
-      );
-      setBlock(createBlockStateFromContent(toBlockContent(record.data)));
-      loadMallaState(null);
-    }
-    setProjectId(stored.id);
-    setProjectName(record.meta.name ?? stored.name ?? '');
-    setShouldPersistProject(true);
-    setIsHydrated(true);
-  }, [applyRepositoryChange, isHydrated, loadProject]);
+      const stored = readStoredActiveProject();
+      if (!stored.id) {
+        setIsHydrated(true);
+        return;
+      }
+      const record = loadProject(stored.id);
+      if (!isProjectSwitchTokenCurrent(switchToken)) {
+        return;
+      }
+      if (!record) {
+        clearStoredActiveProject();
+        setProjectId(null);
+        setProjectName('');
+        setBlock(null);
+        loadMallaState(null);
+        setShouldPersistProject(false);
+        setIsHydrated(true);
+        return;
+      }
+      if ('masters' in record.data) {
+        const normalizedRepo = await applyRepositoryChange(
+          record.data.repository ?? {},
+          {
+            reason: 'abrir el proyecto almacenado',
+            targetDescription: 'el proyecto almacenado',
+            skipConfirmation: true,
+          },
+          undefined,
+          switchToken,
+        );
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+        if (!normalizedRepo) {
+          setIsHydrated(true);
+          return;
+        }
+        const prepared = prepareMallaProjectState(record.data, normalizedRepo);
+        setBlock(prepared.block);
+        loadMallaState(prepared.malla);
+      } else {
+        await applyRepositoryChange(
+          {},
+          {
+            reason: 'abrir el proyecto almacenado',
+            targetDescription: 'el proyecto almacenado',
+            skipConfirmation: true,
+          },
+          undefined,
+          switchToken,
+        );
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+        setBlock(createBlockStateFromContent(toBlockContent(record.data)));
+        loadMallaState(null);
+      }
+      setProjectId(stored.id);
+      setProjectName(record.meta.name ?? stored.name ?? '');
+      setShouldPersistProject(true);
+      setIsHydrated(true);
+    })();
+  }, [
+    applyRepositoryChange,
+    beginProjectSwitch,
+    isHydrated,
+    isProjectSwitchTokenCurrent,
+    loadProject,
+  ]);
 
   useEffect(() => {
     passiveAutosaveSignatureRef.current = null;
@@ -835,12 +909,21 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   };
 
-  const handleCloseProject = useCallback(() => {
+  const handleCloseProject = useCallback(async () => {
+    const switchToken = beginProjectSwitch();
     const hasUnsavedBlock = computeDirty();
     if (hasUnsavedBlock) {
-      const confirmed = window.confirm(
-        'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
-      );
+      const confirmed = await confirmAsync({
+        title: 'Cerrar proyecto sin guardar',
+        message:
+          'Hay cambios no guardados en el bloque actual. Se perderán si cierras el proyecto. ¿Deseas continuar?',
+        confirmLabel: 'Cerrar sin guardar',
+        cancelLabel: 'Seguir editando',
+        variant: 'destructive',
+      });
+      if (!isProjectSwitchTokenCurrent(switchToken)) {
+        return;
+      }
       if (!confirmed) {
         return;
       }
@@ -864,52 +947,76 @@ export default function App(): JSX.Element | null {
     autoSave,
     clearPersistedProjectMetadata,
     clearRepository,
+    beginProjectSwitch,
     computeDirty,
+    confirmAsync,
     currentProject,
     flushAutoSave,
+    isProjectSwitchTokenCurrent,
     loadMallaState,
     navigate,
   ]);
 
-  const handleNewProject = () => {
-    const rawName = window.prompt('Nombre del proyecto');
-    if (rawName === null) {
+  const handleNewProject = async () => {
+    const switchToken = beginProjectSwitch();
+    const normalizedName = await promptAsync({
+      title: 'Nuevo proyecto',
+      message: 'Ingresa el nombre del proyecto',
+      placeholder: 'Nombre del proyecto',
+      confirmLabel: 'Crear',
+      cancelLabel: 'Cancelar',
+    });
+    if (!isProjectSwitchTokenCurrent(switchToken)) {
       return;
     }
-    const normalized = applyRepositoryChange(
+    if (normalizedName === null) {
+      return;
+    }
+    const id = crypto.randomUUID();
+    resetWorkspaceState();
+    const normalized = await applyRepositoryChange(
       {},
       {
         reason: 'crear un proyecto nuevo',
         targetDescription: 'el nuevo proyecto',
       },
+      id,
+      switchToken,
     );
+    if (!isProjectSwitchTokenCurrent(switchToken)) return;
     if (!normalized) return;
-    const name = rawName.trim() || 'Sin nombre';
-    const id = crypto.randomUUID();
     setSuspendMallaAutosave(true);
     setProjectId(id);
-    setProjectName(name);
+    setProjectName(normalizedName);
     // Evita que el flushAutoSave del MallaEditorScreen rehidrate el borrador del proyecto anterior
     // cuando desmonta tras crear un proyecto nuevo desde la propia malla.
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
     setBlock(createEmptyBlockState());
     loadMallaState(null);
     clearPersistedProjectMetadata();
-    storedActiveProjectRef.current = { id, name };
+    storedActiveProjectRef.current = { id, name: normalizedName };
     navigate('/block/design');
   };
 
-  const handleLoadBlock = (data: BlockExport, inferredName?: string) => {
-    const normalized = applyRepositoryChange(
+  const handleLoadBlock = async (
+    data: BlockExport,
+    inferredName?: string,
+    switchToken = beginProjectSwitch(),
+  ) => {
+    resetWorkspaceState();
+    const name = inferredName?.trim() || 'Importado';
+    const id = crypto.randomUUID();
+    const normalized = await applyRepositoryChange(
       {},
       {
         reason: 'importar el bloque seleccionado',
         targetDescription: 'el bloque importado',
       },
+      id,
+      switchToken,
     );
+    if (!isProjectSwitchTokenCurrent(switchToken)) return;
     if (!normalized) return;
-    const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
     const theme = normalizeProjectTheme(data.theme);
     setProjectId(id);
     setProjectName(name);
@@ -920,17 +1027,25 @@ export default function App(): JSX.Element | null {
     navigate('/block/design');
   };
 
-  const handleLoadMalla = (data: MallaExport, inferredName?: string) => {
-    const normalizedRepo = applyRepositoryChange(
+  const handleLoadMalla = async (
+    data: MallaExport,
+    inferredName?: string,
+    switchToken = beginProjectSwitch(),
+  ) => {
+    resetWorkspaceState();
+    const name = inferredName?.trim() || 'Importado';
+    const id = crypto.randomUUID();
+    const normalizedRepo = await applyRepositoryChange(
       data.repository ?? {},
       {
         reason: 'importar el proyecto',
         targetDescription: 'el proyecto importado',
       },
+      id,
+      switchToken,
     );
+    if (!isProjectSwitchTokenCurrent(switchToken)) return;
     if (!normalizedRepo) return;
-    const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
     const prepared = prepareMallaProjectState(data, normalizedRepo);
     setProjectId(id);
     setProjectName(name);
@@ -942,67 +1057,100 @@ export default function App(): JSX.Element | null {
 
   const handleImportProjectFile = useCallback(
     async (file: File) => {
+      const switchToken = beginProjectSwitch();
       try {
         await handleProjectFile(file, {
-          onBlock: handleLoadBlock,
-          onMalla: handleLoadMalla,
+          onBlock: (data, name) => handleLoadBlock(data, name, switchToken),
+          onMalla: (data, name) => handleLoadMalla(data, name, switchToken),
         });
       } catch {
-        window.alert('Archivo inválido');
+        pushToast('Archivo inválido', 'error');
       }
+      if (!isProjectSwitchTokenCurrent(switchToken)) return;
     },
-    [handleLoadBlock, handleLoadMalla],
+    [beginProjectSwitch, handleLoadBlock, handleLoadMalla, isProjectSwitchTokenCurrent, pushToast],
   );
 
-  const handleOpenProject = (id: string, data: BlockExport | MallaExport, name: string) => {
-    if ('masters' in data) {
-      const m = data as MallaExport;
-      const normalizedRepo = applyRepositoryChange(
-        m.repository ?? {},
-        {
-          reason: 'abrir el proyecto seleccionado',
-          targetDescription: 'el proyecto seleccionado',
-        },
-      );
-      if (!normalizedRepo) return;
-      const prepared = prepareMallaProjectState(m, normalizedRepo);
-      setProjectId(id);
-      setProjectName(name);
-      setBlock(prepared.block);
-      loadMallaState(prepared.malla);
-      setShouldPersistProject(true);
-      navigate('/malla/design');
-    } else {
-      const b = data as BlockExport;
-      const normalizedRepo = applyRepositoryChange(
-        {},
-        {
-          reason: 'abrir el proyecto seleccionado',
-          targetDescription: 'el proyecto seleccionado',
-        },
-      );
-      if (!normalizedRepo) return;
-      setProjectId(id);
-      setProjectName(name);
-      setBlock(createBlockStateFromContent(toBlockContent(b)));
-      loadMallaState(null);
-      setShouldPersistProject(true);
-      navigate('/block/design');
-    }
-  };
+  const handleOpenProject = useCallback(
+    async (
+      id: string,
+      data: BlockExport | MallaExport,
+      name: string,
+      switchToken = beginProjectSwitch(),
+    ) => {
+      resetWorkspaceState();
+      if (!isProjectSwitchTokenCurrent(switchToken)) return;
+      if ('masters' in data) {
+        const m = data as MallaExport;
+        const normalizedRepo = await applyRepositoryChange(
+          m.repository ?? {},
+          {
+            reason: 'abrir el proyecto seleccionado',
+            targetDescription: 'el proyecto seleccionado',
+          },
+          id,
+          switchToken,
+        );
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+        if (!normalizedRepo) return;
+        const prepared = prepareMallaProjectState(m, normalizedRepo);
+        setProjectId(id);
+        setProjectName(name);
+        setBlock(prepared.block);
+        loadMallaState(prepared.malla);
+        setShouldPersistProject(true);
+        navigate('/malla/design');
+      } else {
+        const b = data as BlockExport;
+        const normalizedRepo = await applyRepositoryChange(
+          {},
+          {
+            reason: 'abrir el proyecto seleccionado',
+            targetDescription: 'el proyecto seleccionado',
+          },
+          id,
+          switchToken,
+        );
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+        if (!normalizedRepo) return;
+        setProjectId(id);
+        setProjectName(name);
+        setBlock(createBlockStateFromContent(toBlockContent(b)));
+        loadMallaState(null);
+        setShouldPersistProject(true);
+        navigate('/block/design');
+      }
+    },
+    [
+      applyRepositoryChange,
+      beginProjectSwitch,
+      createBlockStateFromContent,
+      isProjectSwitchTokenCurrent,
+      loadMallaState,
+      navigate,
+      resetWorkspaceState,
+      setBlock,
+      setProjectId,
+      setProjectName,
+      setShouldPersistProject,
+      toBlockContent,
+    ],
+  );
 
   const getRecentProjects = useCallback(
     () => listProjects().slice(0, 10),
     [listProjects],
   );
 
-  const handleOpenRecentProject = useCallback(
-    (id: string) => {
+  const openProjectById = useCallback(
+    async (id: string) => {
+      const switchToken = beginProjectSwitch();
       const record = loadProject(id);
       if (!record) return;
-      handleOpenProject(id, record.data, record.meta.name);
+      await handleOpenProject(id, record.data, record.meta.name, switchToken);
+      if (!isProjectSwitchTokenCurrent(switchToken)) return;
     },
-    [loadProject, handleOpenProject],
+    [beginProjectSwitch, handleOpenProject, isProjectSwitchTokenCurrent, loadProject],
   );
 
   const handleProceedToMalla = useCallback(
@@ -1179,12 +1327,19 @@ export default function App(): JSX.Element | null {
     });
   }, []);
 
-  const handleOpenRepositoryBlock = (stored: StoredBlock) => {
+  const handleOpenRepositoryBlock = async (stored: StoredBlock) => {
     const hasUnsavedChanges = computeDirty();
     if (hasUnsavedChanges) {
       const message =
         'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
-      if (!window.confirm(message)) {
+      const confirmed = await confirmAsync({
+        title: 'Descartar cambios sin guardar',
+        message,
+        confirmLabel: 'Descartar y abrir',
+        cancelLabel: 'Seguir editando',
+        variant: 'destructive',
+      });
+      if (!confirmed) {
         return;
       }
     }
@@ -1533,7 +1688,7 @@ export default function App(): JSX.Element | null {
             onExportProject={handleExportProject}
             onCloseProject={handleCloseProject}
             getRecentProjects={getRecentProjects}
-            onOpenRecentProject={handleOpenRecentProject}
+            onOpenProjectById={openProjectById}
             onShowIntro={handleShowIntroOverlay}
             onOpenProjectPalette={handleOpenProjectPalette}
             locationPath={location.pathname}
@@ -1547,7 +1702,7 @@ export default function App(): JSX.Element | null {
                     onNewBlock={handleNewProject}
                     onLoadBlock={handleLoadBlock}
                     onLoadMalla={handleLoadMalla}
-                    onOpenProject={handleOpenProject}
+                    onOpenProjectById={openProjectById}
                     currentProjectId={projectId ?? undefined}
                     onProjectDeleted={handleProjectRemoved}
                     onProjectRenamed={handleProjectRenamed}

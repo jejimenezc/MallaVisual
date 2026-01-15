@@ -70,20 +70,26 @@ vi.mock('../layout/TwoPaneLayout', () => ({
 
 const deleteControlSpy = vi.fn();
 
+vi.mock('../ui/toast/ToastContext.tsx', () => ({
+  useToast: () => vi.fn(),
+}));
+
 vi.mock('../components/BlockTemplateEditor', () => ({
   BlockTemplateEditor: ({
     onConfirmDeleteControl,
     onControlDeleted,
   }: {
-    onConfirmDeleteControl: (coord: string, mode: 'delete' | 'replace') => boolean;
+    onConfirmDeleteControl: (coord: string, mode: 'delete' | 'replace') => Promise<boolean>;
     onControlDeleted: (coord: string) => void;
   }) => {
     useEffect(() => {
       const coord = 'r0c0';
       deleteControlSpy();
-      if (onConfirmDeleteControl(coord, 'delete')) {
-        onControlDeleted(coord);
-      }
+      onConfirmDeleteControl(coord, 'delete').then((confirmed) => {
+        if (confirmed) {
+          onControlDeleted(coord);
+        }
+      });
     }, [onConfirmDeleteControl, onControlDeleted]);
     return null;
   },
@@ -95,12 +101,13 @@ import type { BlockExport } from '../utils/block-io.ts';
 import { BLOCK_SCHEMA_VERSION } from '../utils/block-io.ts';
 import { coordKey } from '../types/visual.ts';
 import { AppCommandsProvider } from '../state/app-commands.tsx';
+import * as alerts from '../ui/alerts';
 
 describe('BlockEditorScreen – eliminación de control con datos', () => {
   let container: HTMLDivElement;
   let root: ReturnType<typeof createRoot>;
   const onRequestControlDataClear = vi.fn();
-  let confirmSpy: MockInstance<typeof window.confirm>;
+  let confirmSpy: MockInstance<typeof alerts.confirmAsync>;
 
   beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,7 +133,7 @@ describe('BlockEditorScreen – eliminación de control con datos', () => {
 
     listBlocksMock.mockReturnValue([]);
     loadProjectMock.mockReturnValue(null);
-    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmSpy = vi.spyOn(alerts, 'confirmAsync').mockResolvedValue(true);
   });
 
   afterEach(async () => {

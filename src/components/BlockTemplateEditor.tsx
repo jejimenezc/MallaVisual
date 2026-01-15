@@ -7,6 +7,7 @@ import { TemplateGrid } from './TemplateGrid';
 import './BlockTemplateEditor.css';
 import type { EditorSidebarState } from '../types/panel.ts';
 import { findSelectControlNameAt } from '../utils/selectControls.ts';
+import { useToast } from '../ui/toast/ToastContext.tsx';
 
 export type ControlCleanupMode = 'delete' | 'replace';
 
@@ -59,7 +60,7 @@ interface Props {
   onSidebarStateChange?: (state: EditorSidebarState) => void;
   onClearSelectVisual?: (payload: { row: number; col: number; controlName?: string }) => void;
   controlsInUse?: ReadonlySet<string>;
-  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => boolean;
+  onConfirmDeleteControl?: (coord: string, mode: ControlCleanupMode) => Promise<boolean>;
   onControlDeleted?: (coord: string) => void;
 }
 
@@ -76,6 +77,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   const [isSelecting, setIsSelecting] = useState(false);
   const [startCell, setStartCell] = useState<{ row: number; col: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: number; col: number } | null>(null);
+  const pushToast = useToast();
 
   // ↪️ Durante "borrar tipo" debemos ignorar escrituras de forms (p.ej. cleanup de SelectConfigForm)
   const ignoreUpdatesRef = useRef<Set<string>>(new Set());
@@ -115,8 +117,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     // Máximo 1 celda configurada (type definido)
     const configuredCount = selectedCells.reduce((acc, { row, col }) => acc + (template[row][col].type ? 1 : 0), 0);
     if (configuredCount > 1) {
-      window.alert('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.');
-      return;
+      pushToast('No se puede combinar: la selección contiene 2 o más celdas ya configuradas.', 'error');      return;
     }
 
     // base: esquina superior izquierda
@@ -194,10 +195,10 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     const { row, col } = contextMenu;
     const k = coordKey(row, col);
 
-    const confirmCleanupIfNeeded = (mode: ControlCleanupMode) => {
+    const confirmCleanupIfNeeded = async (mode: ControlCleanupMode) => {
       const isControlInUse = controlsInUse?.has(k) ?? false;
       if (!isControlInUse) return true;
-      const confirmed = onConfirmDeleteControl ? onConfirmDeleteControl(k, mode) : true;
+      const confirmed = onConfirmDeleteControl ? await onConfirmDeleteControl(k, mode) : true;
       if (!confirmed) {
         setContextMenu(null);
       }
@@ -233,17 +234,23 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     };
 
     if (type === undefined) {
-      if (!confirmCleanupIfNeeded('delete')) {
-        return;
-      }
-      const release = performCleanup();
-      release();
-    } else {
-      const currentType = template[row][col].type;
-      const isReplacement = currentType && currentType !== type;
+      void (async () => {
+        if (!(await confirmCleanupIfNeeded('delete'))) {
+          return;
+        }
+        const release = performCleanup();
+        release();
+        setContextMenu(null);
+      })();
+      return;
+    }
 
+    const currentType = template[row][col].type;
+    const isReplacement = currentType && currentType !== type;
+
+    void (async () => {
       if (isReplacement) {
-        if (!confirmCleanupIfNeeded('replace')) {
+        if (!(await confirmCleanupIfNeeded('replace'))) {
           return;
         }
         const release = performCleanup();
@@ -286,7 +293,9 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       setTimeout(() => {
         setSelectedCells([{ row, col }]);
       }, 0);
-    }
+
+      setContextMenu(null);
+    })();
 
     setContextMenu(null);
   };
