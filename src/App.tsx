@@ -1079,6 +1079,7 @@ export default function App(): JSX.Element | null {
       switchToken = beginProjectSwitch(),
     ) => {
       resetWorkspaceState();
+      if (!isProjectSwitchTokenCurrent(switchToken)) return;
       if ('masters' in data) {
         const m = data as MallaExport;
         const normalizedRepo = await applyRepositoryChange(
