@@ -37,6 +37,7 @@ import { ActionPillButton } from '../components/ActionPillButton/ActionPillButto
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature, deepClone } from '../utils/comparators.ts';
+import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 
@@ -321,13 +322,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
     const currentSerialized = historySerializedRef.current[historyIndex];
     if (currentSerialized === historySnapshotSerialized) return;
-    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
-    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
-    truncatedHistory.push(cloneMallaHistoryEntry(historySnapshot));
-    truncatedSerialized.push(historySnapshotSerialized);
-    historyRef.current = truncatedHistory;
-    historySerializedRef.current = truncatedSerialized;
-    setHistoryIndex(truncatedHistory.length - 1);
+    const result = pushHistoryEntry({
+      entries: historyRef.current,
+      serialized: historySerializedRef.current,
+      index: historyIndex,
+      newEntry: cloneMallaHistoryEntry(historySnapshot),
+      newSerialized: historySnapshotSerialized,
+    });
+    historyRef.current = result.entries;
+    historySerializedRef.current = result.serialized;
+    setHistoryIndex(result.index);
   }, [
     historySnapshot,
     historySnapshotSerialized,

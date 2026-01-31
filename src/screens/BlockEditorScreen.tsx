@@ -45,6 +45,7 @@ import { useProjectTheme } from '../state/project-theme.tsx';
 import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
 import { confirmAsync, promptAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
+import { pushHistoryEntry } from '../utils/history.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -557,13 +558,19 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       setHistoryIndex(truncatedHistory.length - 1);
       return;
     }
-    truncatedHistory.push(nextEntry);
-    truncatedSerialized.push(draftSerialized);
-    truncatedMetadata.push(pendingMeta ?? null);
-    historyRef.current = truncatedHistory;
-    historySerializedRef.current = truncatedSerialized;
-    historyMetadataRef.current = truncatedMetadata;
-    setHistoryIndex(truncatedHistory.length - 1);
+    const result = pushHistoryEntry({
+      entries: historyRef.current,
+      serialized: historySerializedRef.current,
+      index: historyIndex,
+      newEntry: nextEntry,
+      newSerialized: draftSerialized,
+      metadata: historyMetadataRef.current,
+      newMetadata: pendingMeta ?? null,
+    });
+    historyRef.current = result.entries;
+    historySerializedRef.current = result.serialized;
+    historyMetadataRef.current = result.metadata ?? [];
+    setHistoryIndex(result.index);
   }, [
     draftContent,
     draftSerialized,
