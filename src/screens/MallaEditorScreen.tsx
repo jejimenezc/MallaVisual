@@ -29,6 +29,7 @@ import {
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
+import { getCellAt } from '../utils/malla-queries.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
@@ -1250,7 +1251,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const findFreeCell = () => {
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        if (!pieces.some((p) => p.x === x && p.y === y)) {
+        if (!getCellAt({ grid: { cols, rows }, pieces }, { rowIndex: y, colIndex: x })) {
           return { x, y };
         }
       }
