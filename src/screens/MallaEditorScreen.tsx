@@ -29,6 +29,7 @@ import {
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
+import { getCellAt } from '../utils/malla-queries.ts';
 import styles from './MallaEditorScreen.module.css';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
@@ -37,6 +38,7 @@ import { ActionPillButton } from '../components/ActionPillButton/ActionPillButto
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature, deepClone } from '../utils/comparators.ts';
+import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 
@@ -321,13 +323,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
     const currentSerialized = historySerializedRef.current[historyIndex];
     if (currentSerialized === historySnapshotSerialized) return;
-    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
-    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
-    truncatedHistory.push(cloneMallaHistoryEntry(historySnapshot));
-    truncatedSerialized.push(historySnapshotSerialized);
-    historyRef.current = truncatedHistory;
-    historySerializedRef.current = truncatedSerialized;
-    setHistoryIndex(truncatedHistory.length - 1);
+    const result = pushHistoryEntry({
+      entries: historyRef.current,
+      serialized: historySerializedRef.current,
+      index: historyIndex,
+      newEntry: cloneMallaHistoryEntry(historySnapshot),
+      newSerialized: historySnapshotSerialized,
+    });
+    historyRef.current = result.entries;
+    historySerializedRef.current = result.serialized;
+    setHistoryIndex(result.index);
   }, [
     historySnapshot,
     historySnapshotSerialized,
@@ -1246,7 +1251,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const findFreeCell = () => {
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        if (!pieces.some((p) => p.x === x && p.y === y)) {
+        if (!getCellAt({ grid: { cols, rows }, pieces }, { rowIndex: y, colIndex: x })) {
           return { x, y };
         }
       }
