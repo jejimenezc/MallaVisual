@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import type { BlockTemplate, MasterBlockData } from './types/curricular.ts';
+import type { BlockTemplate } from './types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { coordKey } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
@@ -40,25 +40,25 @@ import {
 } from './utils/block-content.ts';
 import { areContentsEqual, computeSignature } from './utils/comparators.ts';
 import { blocksToRepository, type RepositorySnapshot } from './utils/repository-snapshot.ts';
-import {
-  remapPiecesWithMapping,
-  synchronizeMastersWithRepository,
-  remapIds,
-  clearControlValues,
-} from './utils/malla-sync.ts';
+import { clearControlValues } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
-
-const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
-const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
-const MALLA_AUTOSAVE_STORAGE_KEY = 'malla-editor-state';
-
-interface TemplateControlSnapshot {
-  active: Set<string>;
-  cleaned: Set<string>;
-}
+import {
+  type BlockState,
+  type ControlDataClearRequest,
+  type TemplateControlSnapshot,
+  MALLA_AUTOSAVE_STORAGE_KEY,
+  clearStoredActiveProject,
+  createBlockStateFromContent,
+  createEmptyBlockState,
+  diffPieceValues,
+  persistActiveProject,
+  prepareMallaProjectState,
+  readStoredActiveProject,
+  summarizePieceValues,
+} from './utils/app-helpers.ts';
 
 function getSafeLocalStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -67,223 +67,6 @@ function getSafeLocalStorage(): Storage | null {
   } catch {
     return null;
   }
-}
-
-function readStoredActiveProject(): { id: string | null; name: string } {
-  const ls = getSafeLocalStorage();
-  if (!ls) return { id: null, name: '' };
-  try {
-    const id = ls.getItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
-    const name = ls.getItem(ACTIVE_PROJECT_NAME_STORAGE_KEY) ?? '';
-    return { id, name };
-  } catch {
-    return { id: null, name: '' };
-  }
-}
-
-function persistActiveProject(id: string, name: string): void {
-  const ls = getSafeLocalStorage();
-  if (!ls) return;
-  try {
-    ls.setItem(ACTIVE_PROJECT_ID_STORAGE_KEY, id);
-    ls.setItem(ACTIVE_PROJECT_NAME_STORAGE_KEY, name);
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearStoredActiveProject(): void {
-  const ls = getSafeLocalStorage();
-  if (!ls) return;
-  try {
-    ls.removeItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
-    ls.removeItem(ACTIVE_PROJECT_NAME_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-interface BlockState {
-  draft: BlockContent;
-  repoId: string | null;
-  repoName: string | null;
-  repoMetadata: BlockMetadata | null;
-  published: BlockContent | null;
-}
-
-function createBlockStateFromContent(content: BlockContent): BlockState {
-  return {
-    draft: cloneBlockContent(content),
-    repoId: null,
-    repoName: null,
-    repoMetadata: null,
-    published: null,
-  };
-}
-
-function createEmptyBlockState(): BlockState {
-  const emptyMaster = createEmptyMaster();
-  const emptyContent: BlockContent = {
-    template: emptyMaster.template,
-    visual: emptyMaster.visual,
-    aspect: emptyMaster.aspect,
-  };
-  return createBlockStateFromContent(emptyContent);
-}
-
-function createEmptyMaster(): MasterBlockData {
-  return {
-    template: Array.from({ length: 10 }, () =>
-      Array.from({ length: 10 }, () => ({ active: false, label: '', type: undefined })),
-    ),
-    visual: {},
-    aspect: '1/1',
-  };
-}
-
-interface ControlDataClearRequest {
-  repoId: string;
-  coord: string;
-}
-
-type PieceValueMap = Record<string, Record<string, string | number | boolean>>;
-
-function summarizePieceValues(values: PieceValueMap) {
-  const pieceIds = Object.keys(values);
-  let entryCount = 0;
-  let nonEmptyPieceCount = 0;
-
-  for (const pieceId of pieceIds) {
-    const entryKeys = Object.keys(values[pieceId] ?? {});
-    if (entryKeys.length > 0) {
-      nonEmptyPieceCount += 1;
-      entryCount += entryKeys.length;
-    }
-  }
-
-  return {
-    pieceCount: pieceIds.length,
-    nonEmptyPieceCount,
-    entryCount,
-    hasValues: entryCount > 0,
-  };
-}
-
-function diffPieceValues(prevValues: PieceValueMap, nextValues: PieceValueMap) {
-  const removedPieceIds: string[] = [];
-  const clearedValueKeysByPiece: Record<string, string[]> = {};
-
-  for (const pieceId of Object.keys(prevValues)) {
-    const prevForPiece = prevValues[pieceId];
-    const nextForPiece = nextValues[pieceId];
-    if (!nextForPiece) {
-      removedPieceIds.push(pieceId);
-      continue;
-    }
-    if (prevForPiece === nextForPiece) continue;
-    const removedKeys = Object.keys(prevForPiece).filter((key) => !(key in nextForPiece));
-    if (removedKeys.length > 0) {
-      clearedValueKeysByPiece[pieceId] = removedKeys;
-    }
-  }
-
-  return { removedPieceIds, clearedValueKeysByPiece };
-}
-
-function prepareMallaProjectState(
-  data: MallaExport,
-  repositorySnapshot: RepositorySnapshot,
-): { block: BlockState; malla: MallaExport } {
-  const repository = repositorySnapshot.repository;
-  const repositoryEntries = repositorySnapshot.entries;
-  const repositoryMetadata = repositorySnapshot.metadata;
-  const sourceMasters = data.masters ?? {};
-  const { masters: normalizedMasters, mapping } = synchronizeMastersWithRepository(
-    sourceMasters,
-    repository,
-  );
-  const remappedPieces = remapPiecesWithMapping(data.pieces ?? [], mapping);
-  const floatingPieces = remapIds(data.floatingPieces ?? [], mapping);
-  const values = { ...(data.values ?? {}) };
-
-  let desiredActiveId = data.activeMasterId ?? '';
-  if (desiredActiveId) {
-    const mapped = mapping.get(desiredActiveId);
-    if (mapped) {
-      desiredActiveId = mapped;
-    }
-  }
-
-  const repoIds = Object.keys(repository);
-  const normalizedIds = Object.keys(normalizedMasters);
-  const mappedRepoIds = new Set<string>(mapping.values());
-
-  let activeId = desiredActiveId;
-  if (activeId && !normalizedMasters[activeId]) {
-    const mapped = mapping.get(activeId);
-    if (mapped && normalizedMasters[mapped]) {
-      activeId = mapped;
-    }
-  }
-
-  if (!activeId || !normalizedMasters[activeId] || !repository[activeId]) {
-    const candidate = repoIds.find((id) => mappedRepoIds.has(id) && normalizedMasters[id]);
-    if (candidate) {
-      activeId = candidate;
-    }
-  }
-
-  if ((!activeId || !normalizedMasters[activeId]) && repoIds.length > 0) {
-    const candidate = repoIds.find((id) => normalizedMasters[id]);
-    activeId = candidate ?? repoIds[0];
-  }
-
-  if (!activeId || !normalizedMasters[activeId]) {
-    activeId = normalizedIds[0] ?? '';
-  }
-
-  if (!activeId) {
-    activeId = 'master';
-  }
-
-  if (!normalizedMasters[activeId]) {
-    if (repository[activeId]) {
-      normalizedMasters[activeId] = cloneBlockContent(
-        toBlockContent(repository[activeId]),
-      ) as MasterBlockData;
-    } else {
-      normalizedMasters[activeId] = createEmptyMaster();
-    }
-    mapping.set(activeId, activeId);
-  }
-
-  const activeMaster = normalizedMasters[activeId];
-  const draft = cloneBlockContent(toBlockContent(activeMaster));
-  const repoEntry = repository[activeId];
-  const repoMeta = repositoryMetadata[activeId] ?? null;
-  const published = repoEntry ? cloneBlockContent(toBlockContent(repoEntry)) : null;
-
-  const block: BlockState = {
-    draft,
-    repoId: repoEntry ? activeId : null,
-    repoName: repoMeta ? repoMeta.name : repoEntry ? activeId : null,
-    repoMetadata: repoMeta,
-    published,
-  };
-
-  const mallaState: MallaExport = {
-    ...data,
-    version: MALLA_SCHEMA_VERSION,
-    masters: normalizedMasters,
-    pieces: remappedPieces,
-    values,
-    floatingPieces,
-    activeMasterId: activeId,
-    repository: repositoryEntries,
-    theme: normalizeProjectTheme(data.theme),
-  };
-
-  return { block, malla: mallaState };
 }
 
 interface AppLayoutProps {
@@ -408,7 +191,7 @@ function AppLayout({
 export default function App(): JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
-  const storedActiveProjectRef = useRef(readStoredActiveProject());
+  const storedActiveProjectRef = useRef(readStoredActiveProject(getSafeLocalStorage()));
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
@@ -615,7 +398,7 @@ export default function App(): JSX.Element | null {
   }, [pendingControlDataClearTick]);
 
   const clearPersistedProjectMetadata = useCallback(() => {
-    clearStoredActiveProject();
+    clearStoredActiveProject(getSafeLocalStorage());
     setShouldPersistProject(false);
   }, []);
 
@@ -770,9 +553,9 @@ export default function App(): JSX.Element | null {
     if (!isHydrated) return;
     if (shouldPersistProject && projectId) {
       storedActiveProjectRef.current = { id: projectId, name: projectName };
-      persistActiveProject(projectId, projectName);
+      persistActiveProject(getSafeLocalStorage(), projectId, projectName);
     } else {
-      clearStoredActiveProject();
+      clearStoredActiveProject(getSafeLocalStorage());
     }
   }, [isHydrated, shouldPersistProject, projectId, projectName]);
 
@@ -784,7 +567,7 @@ export default function App(): JSX.Element | null {
         setIsHydrated(true);
         return;
       }
-      const stored = readStoredActiveProject();
+      const stored = readStoredActiveProject(getSafeLocalStorage());
       if (!stored.id) {
         setIsHydrated(true);
         return;
@@ -794,7 +577,7 @@ export default function App(): JSX.Element | null {
         return;
       }
       if (!record) {
-        clearStoredActiveProject();
+        clearStoredActiveProject(getSafeLocalStorage());
         setProjectId(null);
         setProjectName('');
         setBlock(null);
