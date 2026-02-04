@@ -15,9 +15,8 @@ import {
   cropVisualTemplate,
   getActiveBounds,
   expandBoundsToMerges,
-  type ActiveBounds,
 } from '../utils/block-active.ts';
-import { BlockSnapshot, getCellSizeByAspect } from '../components/BlockSnapshot';
+import { BlockSnapshot } from '../components/BlockSnapshot';
 import { blockContentEquals } from '../utils/block-content.ts';
 import {
   type MallaExport,
@@ -29,100 +28,33 @@ import {
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
-import { getCellAt } from '../utils/malla-queries.ts';
 import styles from './MallaEditorScreen.module.css';
-import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
-import { computeSignature, deepClone } from '../utils/comparators.ts';
+import { computeSignature } from '../utils/comparators.ts';
 import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
+import {
+  type MallaHistoryEntry,
+  boundsEqual,
+  buildNormalizedInitialMalla,
+  cloneMallaHistoryEntry,
+  computeMetrics,
+  describePieceLocation,
+  findFirstFreeCell,
+  formatMasterDisplayName,
+  isInteractive,
+} from '../utils/malla-editor-helpers.ts';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
-
-interface MallaHistoryEntry {
-  cols: number;
-  rows: number;
-  pieces: CurricularPiece[];
-  pieceValues: Record<string, Record<string, string | number | boolean>>;
-  floatingPieces: string[];
-  mastersById: Record<string, MasterBlockData>;
-  selectedMasterId: string;
-  theme: ProjectTheme;
-}
-
-const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
-  return deepClone(entry);
-};
-
-function formatMasterDisplayName(metadata: StoredBlock['metadata'], fallbackId: string) {
-  const friendlyName = metadata.name?.trim();
-  if (friendlyName) {
-    return friendlyName;
-  }
-
-  if (fallbackId.length <= 10) {
-    return fallbackId;
-  }
-
-  const prefix = fallbackId.slice(0, 4);
-  const suffix = fallbackId.slice(-3);
-  const maskedWithSpace = `${prefix}... ${suffix}`;
-  if (maskedWithSpace.length <= 10) {
-    return maskedWithSpace;
-  }
-  return `${prefix}...${suffix}`;
-}
-/** Cálculo unificado de métricas de una pieza (recorte) */
-function computeMetrics(tpl: BlockTemplate, aspect: BlockAspect) {
-  const { cellW, cellH } = getCellSizeByAspect(aspect);
-  const cols = tpl[0]?.length ?? 0;
-  const rows = tpl.length;
-
-  const contentW = cols * cellW + Math.max(0, cols - 1) * GRID_GAP;
-  const contentH = rows * cellH + Math.max(0, rows - 1) * GRID_GAP;
-  const outerW = contentW + GRID_PAD * 2;
-  const outerH = contentH + GRID_PAD * 2;
-
-  const gridStyle: React.CSSProperties = {
-    width: contentW,
-    height: contentH,
-    gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
-    gridTemplateRows: `repeat(${rows}, ${cellH}px)`,
-    padding: 'var(--grid-pad)',
-    gap: 'var(--grid-gap)',
-  };
-
-  return { cellW, cellH, cols, rows, contentW, contentH, outerW, outerH, gridStyle };
-}
-
-function boundsEqual(a: ActiveBounds, b: ActiveBounds) {
-  return (
-    a.minRow === b.minRow &&
-    a.maxRow === b.maxRow &&
-    a.minCol === b.minCol &&
-    a.maxCol === b.maxCol &&
-    a.rows === b.rows &&
-    a.cols === b.cols
-  );
-}
-
-function isInteractive(target: HTMLElement) {
-  const tag = target.tagName.toLowerCase();
-  if (['input', 'select', 'textarea', 'button'].includes(tag)) return true;
-  return !!target.closest('input,select,textarea,button,[contenteditable="true"]');
-}
-
-const describePieceLocation = (piece: CurricularPiece) =>
-  `fila ${piece.y + 1}, columna ${piece.x + 1}`;
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -824,53 +756,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
     });
   };
 
-  const normalizedInitial = useMemo(() => {
-    if (!initialMalla) {
-      return null;
-    }
-
-    const nextGrid = {
-      cols: initialMalla.grid?.cols ?? 5,
-      rows: initialMalla.grid?.rows ?? 5,
-    };
-    const sourceMasters = initialMalla.masters ?? {};
-    let nextMasters = { ...sourceMasters };
-    if (repoId && !nextMasters[repoId]) {
-      nextMasters = {
-        ...nextMasters,
-        [repoId]: { template, visual, aspect },
-      };
-    }
-    const nextPieces = (initialMalla.pieces ?? []).slice();
-    const nextValues = { ...(initialMalla.values ?? {}) };
-    const nextFloating = (initialMalla.floatingPieces ?? []).slice();
-    const fallbackActiveId = initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
-    const nextActiveId = repoId ?? fallbackActiveId;
-    const nextTheme = normalizeProjectTheme(initialMalla.theme);
-
-    const project: MallaExport = {
-      version: MALLA_SCHEMA_VERSION,
-      masters: nextMasters,
-      grid: nextGrid,
-      pieces: nextPieces,
-      values: nextValues,
-      floatingPieces: nextFloating,
-      activeMasterId: nextActiveId,
-      repository: initialMalla.repository ?? {},
-      theme: nextTheme,
-    };
-
-    return {
-      project,
-      masters: nextMasters,
-      grid: nextGrid,
-      pieces: nextPieces,
-      values: nextValues,
-      floatingPieces: nextFloating,
-      activeMasterId: nextActiveId,
-      theme: nextTheme,
-    };
-  }, [initialMalla, repoId, template, visual, aspect]);
+  const normalizedInitial = useMemo(
+    () =>
+      buildNormalizedInitialMalla({
+        initialMalla,
+        repoId,
+        template,
+        visual,
+        aspect,
+      }),
+    [initialMalla, repoId, template, visual, aspect],
+  );
 
   useEffect(() => {
     if (!normalizedInitial) {
@@ -1248,16 +1144,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   };
 
   // --- agregar piezas
-  const findFreeCell = () => {
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        if (!getCellAt({ grid: { cols, rows }, pieces }, { rowIndex: y, colIndex: x })) {
-          return { x, y };
-        }
-      }
-    }
-    return null;
-  };
+  const findFreeCell = () => findFirstFreeCell(cols, rows, pieces);
 
   const handleAddReferenced = () => {
     const pos = findFreeCell();
