@@ -1382,6 +1382,28 @@ export default function App(): JSX.Element | null {
     setBlock((prev) => {
       if (!prev?.repoId) return prev;
       const repoData = repositorySnapshot.repository[prev.repoId];
+      if (!repoData) {
+        const fallbackRepoId = Object.keys(repositorySnapshot.repository)[0] ?? null;
+        if (!fallbackRepoId) {
+          return null;
+        }
+        const fallbackData = repositorySnapshot.repository[fallbackRepoId];
+        const fallbackMetadata = repositorySnapshot.metadata[fallbackRepoId] ?? null;
+        if (fallbackData) {
+          const fallbackTheme = normalizeProjectTheme(fallbackData.theme);
+          setProjectThemeState(fallbackTheme);
+          const content = toBlockContent(fallbackData);
+          const draft = cloneBlockContent(content);
+          return {
+            draft,
+            repoId: fallbackRepoId,
+            repoName: fallbackMetadata?.name ?? fallbackRepoId,
+            repoMetadata: fallbackMetadata,
+            published: cloneBlockContent(content),
+          };
+        }
+        return null;
+      }
       const content = repoData ? toBlockContent(repoData) : null;
       if (blockContentEquals(prev.published, content)) return prev;
       return {
