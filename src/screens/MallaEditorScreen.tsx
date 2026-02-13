@@ -39,6 +39,7 @@ import { computeSignature } from '../utils/comparators.ts';
 import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
+import { getColumnCells } from '../utils/malla-queries.ts';
 import {
   type MallaHistoryEntry,
   boundsEqual,
@@ -550,6 +551,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
         width: gridWidth * zoomScale,
       }) as React.CSSProperties,
     [gridWidth, zoomScale],
+  );
+
+  const metaCalcValuesByColumn = useMemo(
+    () =>
+      Array.from({ length: cols }, (_, colIndex) =>
+        getColumnCells(
+          {
+            grid: { cols, rows },
+            pieces,
+          },
+          colIndex,
+        ).length,
+      ),
+    [cols, rows, pieces],
   );
 
   const zoomedGridWrapperStyle = useMemo(
@@ -1692,7 +1707,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
             </div>
             <div className={styles.mallaViewportGridContent}>
               <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
-                <MetaCalcHeader columnCount={cols} className={styles.metaCalcHeader} />
+                <MetaCalcHeader
+                  columnCount={cols}
+                  valuesByColumn={metaCalcValuesByColumn}
+                  className={styles.metaCalcHeader}
+                />
               </div>
               <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
