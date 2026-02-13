@@ -23,8 +23,10 @@ import {
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
   getActiveMetaPanelRow,
+  getOrCreateMetaCellConfig,
   normalizeMetaPanelConfig,
   normalizeProjectTheme,
+  type MetaCellConfig,
   type MetaPanelConfig,
   type MetaPanelRowConfig,
   type ProjectTheme,
@@ -37,6 +39,7 @@ import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import { MetaCalcHeader } from '../components/MetaCalcHeader';
+import { MetaCalcCellEditor } from '../components/MetaCalcCellEditor';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature } from '../utils/comparators.ts';
@@ -45,6 +48,10 @@ import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 import type { MallaQuerySource } from '../utils/malla-queries.ts';
 import type { MetaCalcDeps } from '../utils/meta-calc.ts';
+import {
+  buildMetaPanelCatalogForColumn,
+  type MetaPanelCatalog,
+} from '../utils/meta-panel-catalog.ts';
 import {
   type MallaHistoryEntry,
   boundsEqual,
@@ -129,6 +136,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [editingMetaColumn, setEditingMetaColumn] = useState<number | null>(null);
   const { autoSave, clearDraft, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -222,9 +230,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       mastersById,
       selectedMasterId,
+      metaPanel,
       theme,
     }),
-    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, theme],
+    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, metaPanel, theme],
   );
 
   const historySnapshotSerialized = useMemo(
@@ -398,6 +407,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId(nextSelectedId);
       setDraggingId(null);
       setDragPos({ x: 0, y: 0 });
+      setMetaPanel(clone.metaPanel);
       setTheme(clone.theme);
       const restoredMaster = nextSelectedId ? nextMasters[nextSelectedId] : undefined;
       if (restoredMaster) {
@@ -419,6 +429,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId,
       setDraggingId,
       setDragPos,
+      setMetaPanel,
       setTheme,
       onUpdateMaster,
     ],
@@ -593,6 +604,67 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }),
     [pieceValues, resolveTemplateForPiece],
   );
+
+  const templateLabelById = useMemo<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        availableMasters
+          .map((entry) => [entry.metadata.uuid, formatMasterDisplayName(entry.metadata, entry.metadata.uuid)]),
+      ),
+    [availableMasters],
+  );
+
+  const activeMetaCellConfig = useMemo(() => {
+    if (editingMetaColumn == null) {
+      return null;
+    }
+    return getOrCreateMetaCellConfig(activeMetaRow, editingMetaColumn);
+  }, [activeMetaRow, editingMetaColumn]);
+
+  const metaEditorCatalog = useMemo<MetaPanelCatalog>(() => {
+    if (editingMetaColumn == null) {
+      return { templates: [], controlsByTemplateId: {} };
+    }
+    return buildMetaPanelCatalogForColumn({
+      malla: mallaForMetaCalc,
+      colIndex: editingMetaColumn,
+      resolveTemplateForPiece,
+      resolveTemplateLabel: (templateId) => templateLabelById[templateId] ?? templateId,
+    });
+  }, [editingMetaColumn, mallaForMetaCalc, resolveTemplateForPiece, templateLabelById]);
+
+  const handleMetaCellClick = useCallback((colIndex: number) => {
+    setEditingMetaColumn(colIndex);
+  }, []);
+
+  const handleMetaEditorCancel = useCallback(() => {
+    setEditingMetaColumn(null);
+  }, []);
+
+  const handleMetaEditorSave = useCallback((nextCellConfig: MetaCellConfig) => {
+    if (editingMetaColumn == null) {
+      return;
+    }
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        const nextRows = normalized.rows.slice();
+        const currentRow = nextRows[0];
+        if (!currentRow) {
+          return normalized;
+        }
+        nextRows[0] = {
+          ...currentRow,
+          columns: {
+            ...currentRow.columns,
+            [editingMetaColumn]: nextCellConfig,
+          },
+        };
+        return { ...normalized, rows: nextRows };
+      });
+    });
+    setEditingMetaColumn(null);
+  }, [editingMetaColumn, runHistoryTransaction]);
 
   const zoomedGridWrapperStyle = useMemo(
     () =>
@@ -1746,6 +1818,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   rowConfig={activeMetaRow}
                   malla={mallaForMetaCalc}
                   deps={metaCalcDeps}
+                  onCellClick={handleMetaCellClick}
                   className={styles.metaCalcHeader}
                 />
               </div>
@@ -1889,6 +1962,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
           </div>
         </div>
       </div>
+      <MetaCalcCellEditor
+        isOpen={editingMetaColumn != null && activeMetaCellConfig != null}
+        colIndex={editingMetaColumn ?? 0}
+        initialCellConfig={activeMetaCellConfig ?? getOrCreateMetaCellConfig(activeMetaRow, 0)}
+        catalog={metaEditorCatalog}
+        onSave={handleMetaEditorSave}
+        onCancel={handleMetaEditorCancel}
+      />
     </div>
   );
 };
