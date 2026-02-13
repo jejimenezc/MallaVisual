@@ -32,6 +32,7 @@ import styles from './MallaEditorScreen.module.css';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
+import { MetaCalcHeader } from '../components/MetaCalcHeader';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature } from '../utils/comparators.ts';
@@ -55,6 +56,7 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
+const META_CALC_HEADER_HEIGHT = 30;
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -537,9 +539,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        height: gridHeight * zoomScale,
+        height: gridHeight * zoomScale + META_CALC_HEADER_HEIGHT,
       }) as React.CSSProperties,
     [gridHeight, zoomScale],
+  );
+
+  const zoomedMetaCalcHeaderWrapperStyle = useMemo(
+    () =>
+      ({
+        width: gridWidth * zoomScale,
+      }) as React.CSSProperties,
+    [gridWidth, zoomScale],
   );
 
   const zoomedGridWrapperStyle = useMemo(
@@ -1649,7 +1659,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             >
               <div
                 className={styles.rowControls}
-                style={{ height: gridHeight * zoomScale }}
+                style={{ height: gridHeight * zoomScale, marginTop: META_CALC_HEADER_HEIGHT }}
               >
                 {rowControlButtons.plusButtons.map((button) => (
                   <button
@@ -1681,6 +1691,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
               </div>
             </div>
             <div className={styles.mallaViewportGridContent}>
+              <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
+                <MetaCalcHeader columnCount={cols} className={styles.metaCalcHeader} />
+              </div>
               <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
                   className={mallaAreaClassName}
