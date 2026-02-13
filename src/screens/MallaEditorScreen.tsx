@@ -22,7 +22,12 @@ import {
   type MallaExport,
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
+  getActiveMetaPanelRow,
+  getOrCreateMetaCellConfig,
+  normalizeMetaPanelConfig,
   normalizeProjectTheme,
+  type MetaPanelConfig,
+  type MetaPanelRowConfig,
   type ProjectTheme,
 } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -113,6 +118,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
+  const [metaPanel, setMetaPanel] = useState<MetaPanelConfig>(
+    normalizeMetaPanelConfig(initialMalla?.metaPanel),
+  );
   const [theme, setTheme] = useState<ProjectTheme>(
     initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
   );
@@ -553,18 +561,27 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [gridWidth, zoomScale],
   );
 
+  const activeMetaRow = useMemo<MetaPanelRowConfig>(
+    () => getActiveMetaPanelRow(metaPanel),
+    [metaPanel],
+  );
+
   const metaCalcValuesByColumn = useMemo(
     () =>
-      Array.from({ length: cols }, (_, colIndex) =>
-        getColumnCells(
+      Array.from({ length: cols }, (_, colIndex) => {
+        const cellConfig = getOrCreateMetaCellConfig(activeMetaRow, colIndex);
+        if (cellConfig.mode && cellConfig.mode !== 'count') {
+          return null;
+        }
+        return getColumnCells(
           {
             grid: { cols, rows },
             pieces,
           },
           colIndex,
-        ).length,
-      ),
-    [cols, rows, pieces],
+        ).length;
+      }),
+    [cols, rows, pieces, activeMetaRow],
   );
 
   const zoomedGridWrapperStyle = useMemo(
@@ -814,6 +831,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values,
       floatingPieces: nextFloating,
       activeMasterId,
+      metaPanel: nextMetaPanel,
       theme: nextTheme,
     } = normalizedInitial;
 
@@ -829,6 +847,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(nextPieces);
     setPieceValues(values);
     setFloatingPieces(nextFloating);
+    setMetaPanel(nextMetaPanel);
     setSelectedMasterId(activeMasterId);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
@@ -847,6 +866,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       activeMasterId: selectedMasterId,
       repository: repositoryEntries,
       theme,
+      metaPanel,
     };
     const serialized = computeSignature(project);
     const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
@@ -887,6 +907,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     pieces,
     pieceValues,
     floatingPieces,
+    metaPanel,
     selectedMasterId,
     repositoryEntries,
     theme,
@@ -953,6 +974,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(data?.pieces ?? []);
     setPieceValues(data?.values ?? {});
     setFloatingPieces(data?.floatingPieces ?? []);
+    setMetaPanel(normalizeMetaPanelConfig(data?.metaPanel));
     setTheme(normalizeProjectTheme(data?.theme));
     setIsHistoryInitialized(false);
   }, [
@@ -992,6 +1014,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const nextPieces = initialMalla?.pieces ?? [];
     const nextValues = initialMalla?.values ?? {};
     const nextFloatingPieces = initialMalla?.floatingPieces ?? [];
+    const nextMetaPanel = normalizeMetaPanelConfig(initialMalla?.metaPanel);
     const nextTheme = initialMalla
       ? normalizeProjectTheme(initialMalla.theme)
       : createDefaultProjectTheme();
@@ -1006,6 +1029,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(nextPieces);
     setPieceValues(nextValues);
     setFloatingPieces(nextFloatingPieces);
+    setMetaPanel(nextMetaPanel);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
 
@@ -1027,7 +1051,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (ignoreDraftForProjectChangeRef.current && !isResetting) {
       ignoreDraftForProjectChangeRef.current = false;
     }
-  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces]);
+  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces, metaPanel]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
@@ -1710,6 +1734,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 <MetaCalcHeader
                   columnCount={cols}
                   valuesByColumn={metaCalcValuesByColumn}
+                  rowConfig={activeMetaRow}
                   className={styles.metaCalcHeader}
                 />
               </div>
