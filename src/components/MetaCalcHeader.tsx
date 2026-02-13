@@ -2,11 +2,19 @@ import React from 'react';
 
 interface Props {
   columnCount: number;
+  valuesByColumn?: Array<string | number | null>;
+  placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export const MetaCalcHeader: React.FC<Props> = ({ columnCount, className, style }) => {
+export const MetaCalcHeader: React.FC<Props> = ({
+  columnCount,
+  valuesByColumn = [],
+  placeholder = '-',
+  className,
+  style,
+}) => {
   const cells = Array.from({ length: Math.max(0, columnCount) }, (_, index) => (
     <div
       key={`meta-calc-header-cell-${index}`}
@@ -21,7 +29,7 @@ export const MetaCalcHeader: React.FC<Props> = ({ columnCount, className, style 
         background: 'var(--color-surface)',
       }}
     >
-      Σ
+      {valuesByColumn[index] == null ? placeholder : `#${valuesByColumn[index]}`}
     </div>
   ));
 
