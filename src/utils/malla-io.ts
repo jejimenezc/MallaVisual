@@ -1,5 +1,6 @@
 // src/utils/malla-io.ts
 import type { CurricularPiece, MasterBlockData } from '../types/curricular';
+import type { MetaCellConfig, MetaPanelConfig, MetaPanelRowConfig } from '../types/meta-panel.ts';
 import { buildBlockId, parseBlockId, type BlockId, type BlockMetadata } from '../types/block.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './block-io.ts';
 import {
@@ -33,14 +34,105 @@ export interface MallaExport {
   floatingPieces?: string[];
   activeMasterId?: string;
   theme: ProjectTheme;
+  metaPanel?: MetaPanelConfig;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const MALLA_SCHEMA_VERSION = 5;
+export const MALLA_SCHEMA_VERSION = 6;
 
 export { createDefaultProjectTheme, normalizeProjectTheme };
 export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
+export type { MetaPanelConfig, MetaPanelRowConfig, MetaCellConfig };
+
+const DEFAULT_META_PANEL_ROW_ID = 'meta-row-main';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+const buildDefaultMetaCellId = (rowId: string, colIndex: number) => `${rowId}-col-${colIndex}`;
+
+const createDefaultMetaPanelRow = (id = DEFAULT_META_PANEL_ROW_ID): MetaPanelRowConfig => ({
+  id,
+  columns: {},
+});
+
+export const createDefaultMetaPanel = (): MetaPanelConfig => ({
+  rows: [createDefaultMetaPanelRow()],
+});
+
+const normalizeMetaCellConfig = (
+  value: unknown,
+  rowId: string,
+  colIndex: number,
+): MetaCellConfig => {
+  const fallbackId = buildDefaultMetaCellId(rowId, colIndex);
+  if (!isRecord(value)) {
+    return { id: fallbackId, mode: 'count' };
+  }
+  const rawId = typeof value.id === 'string' ? value.id.trim() : '';
+  const rawMode = value.mode === 'count' ? 'count' : undefined;
+  return {
+    id: rawId.length > 0 ? rawId : fallbackId,
+    mode: rawMode,
+  };
+};
+
+const normalizeMetaPanelRowConfig = (
+  value: unknown,
+  fallbackId: string,
+): MetaPanelRowConfig => {
+  if (!isRecord(value)) {
+    return createDefaultMetaPanelRow(fallbackId);
+  }
+
+  const rawId = typeof value.id === 'string' ? value.id.trim() : '';
+  const id = rawId.length > 0 ? rawId : fallbackId;
+  const label = typeof value.label === 'string' && value.label.trim().length > 0
+    ? value.label.trim()
+    : undefined;
+  const normalizedColumns: Record<number, MetaCellConfig> = {};
+  const rawColumns = isRecord(value.columns) ? value.columns : {};
+  for (const [rawColIndex, rawCellConfig] of Object.entries(rawColumns)) {
+    const colIndex = Number(rawColIndex);
+    if (!Number.isInteger(colIndex) || colIndex < 0) continue;
+    normalizedColumns[colIndex] = normalizeMetaCellConfig(rawCellConfig, id, colIndex);
+  }
+  return {
+    id,
+    columns: normalizedColumns,
+    ...(label ? { label } : {}),
+  };
+};
+
+export const normalizeMetaPanelConfig = (value: unknown): MetaPanelConfig => {
+  if (!isRecord(value)) {
+    return createDefaultMetaPanel();
+  }
+  const rawRows = Array.isArray(value.rows) ? value.rows : [];
+  const rows = rawRows.map((row, index) => {
+    const fallbackId = index === 0 ? DEFAULT_META_PANEL_ROW_ID : `meta-row-${index + 1}`;
+    return normalizeMetaPanelRowConfig(row, fallbackId);
+  });
+  if (rows.length === 0) {
+    return createDefaultMetaPanel();
+  }
+  return { rows };
+};
+
+export const getActiveMetaPanelRow = (metaPanel: MetaPanelConfig | undefined): MetaPanelRowConfig =>
+  normalizeMetaPanelConfig(metaPanel).rows[0]!;
+
+export const getOrCreateMetaCellConfig = (
+  row: MetaPanelRowConfig | undefined,
+  colIndex: number,
+): MetaCellConfig => {
+  const safeRow = row ?? createDefaultMetaPanelRow();
+  if (!Number.isInteger(colIndex) || colIndex < 0) {
+    return { id: buildDefaultMetaCellId(safeRow.id, 0), mode: 'count' };
+  }
+  return safeRow.columns[colIndex] ?? { id: buildDefaultMetaCellId(safeRow.id, colIndex), mode: 'count' };
+};
 
 function cloneBlockExport(data: BlockExport, metadata: BlockMetadata): BlockExport {
   const theme = normalizeProjectTheme(data.theme);
@@ -248,6 +340,7 @@ export function exportMalla(data: Omit<MallaExport, 'version'>): string {
     ...data,
     repository: serializedRepository,
     theme: normalizeProjectTheme(data.theme),
+    metaPanel: normalizeMetaPanelConfig(data.metaPanel),
     version: MALLA_SCHEMA_VERSION,
   };
   return JSON.stringify(payload, null, 2);
@@ -318,5 +411,6 @@ export function importMalla(json: string): MallaExport {
     floatingPieces,
     activeMasterId,
     theme: normalizeProjectTheme((data as { theme?: unknown }).theme),
+    metaPanel: normalizeMetaPanelConfig((data as { metaPanel?: unknown }).metaPanel),
   };
 }
