@@ -74,7 +74,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
         {
           id: 'row-main',
           columns: {
-            0: { id: 'row-main-col-0', mode: 'count' },
+            0: { id: 'row-main-col-0', mode: 'count', terms: [] },
           },
         },
       ],
@@ -97,7 +97,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
       {
         id: 'row-main',
         columns: {
-          0: { id: 'row-main-col-0', mode: 'count' },
+          0: { id: 'row-main-col-0', mode: 'count', terms: [] },
         },
       },
     ],
@@ -250,14 +250,14 @@ test('importMalla preserves multi-row metaPanel configuration', () => {
         {
           id: 'row-1',
           columns: {
-            0: { id: 'row-1-col-0', mode: 'count' },
+            0: { id: 'row-1-col-0', mode: 'count', terms: [] },
           },
         },
         {
           id: 'row-2',
           label: 'Secundaria',
           columns: {
-            1: { id: 'row-2-col-1', mode: 'count' },
+            1: { id: 'row-2-col-1', mode: 'count', terms: [] },
           },
         },
       ],
@@ -269,5 +269,9 @@ test('importMalla preserves multi-row metaPanel configuration', () => {
   assert.equal(result.metaPanel?.rows[0]?.id, 'row-1');
   assert.equal(result.metaPanel?.rows[1]?.id, 'row-2');
   assert.equal(result.metaPanel?.rows[1]?.label, 'Secundaria');
-  assert.deepEqual(result.metaPanel?.rows[1]?.columns[1], { id: 'row-2-col-1', mode: 'count' });
+  assert.deepEqual(result.metaPanel?.rows[1]?.columns[1], {
+    id: 'row-2-col-1',
+    mode: 'count',
+    terms: [],
+  });
 });

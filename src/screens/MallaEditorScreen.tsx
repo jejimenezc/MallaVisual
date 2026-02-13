@@ -23,7 +23,6 @@ import {
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
   getActiveMetaPanelRow,
-  getOrCreateMetaCellConfig,
   normalizeMetaPanelConfig,
   normalizeProjectTheme,
   type MetaPanelConfig,
@@ -44,7 +43,8 @@ import { computeSignature } from '../utils/comparators.ts';
 import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
-import { getColumnCells } from '../utils/malla-queries.ts';
+import type { MallaQuerySource } from '../utils/malla-queries.ts';
+import type { MetaCalcDeps } from '../utils/meta-calc.ts';
 import {
   type MallaHistoryEntry,
   boundsEqual,
@@ -566,22 +566,32 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [metaPanel],
   );
 
-  const metaCalcValuesByColumn = useMemo(
-    () =>
-      Array.from({ length: cols }, (_, colIndex) => {
-        const cellConfig = getOrCreateMetaCellConfig(activeMetaRow, colIndex);
-        if (cellConfig.mode && cellConfig.mode !== 'count') {
-          return null;
-        }
-        return getColumnCells(
-          {
-            grid: { cols, rows },
-            pieces,
-          },
-          colIndex,
-        ).length;
-      }),
-    [cols, rows, pieces, activeMetaRow],
+  const mallaForMetaCalc = useMemo<MallaQuerySource>(
+    () => ({
+      grid: { cols, rows },
+      pieces,
+    }),
+    [cols, rows, pieces],
+  );
+
+  const resolveTemplateForPiece = useCallback(
+    (piece: CurricularPiece): BlockTemplate | null => {
+      if (piece.kind === 'ref') {
+        const master = mastersById[piece.ref.sourceId] ?? { template, visual, aspect };
+        const safeBounds = expandBoundsToMerges(master.template, piece.ref.bounds);
+        return cropTemplate(master.template, safeBounds);
+      }
+      return piece.template;
+    },
+    [mastersById, template, visual, aspect],
+  );
+
+  const metaCalcDeps = useMemo<MetaCalcDeps>(
+    () => ({
+      valuesByPiece: pieceValues,
+      resolveTemplateForPiece,
+    }),
+    [pieceValues, resolveTemplateForPiece],
   );
 
   const zoomedGridWrapperStyle = useMemo(
@@ -1733,8 +1743,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
               <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
                 <MetaCalcHeader
                   columnCount={cols}
-                  valuesByColumn={metaCalcValuesByColumn}
                   rowConfig={activeMetaRow}
+                  malla={mallaForMetaCalc}
+                  deps={metaCalcDeps}
                   className={styles.metaCalcHeader}
                 />
               </div>

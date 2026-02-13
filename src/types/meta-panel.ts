@@ -1,8 +1,25 @@
 export type MetaCellMode = 'count';
 
+export interface TermConditionConfig {
+  controlKey: string;
+  equals: string | number | boolean;
+}
+
+export type TermOp = 'sum' | 'avg' | 'count' | 'countIf';
+
+export interface TermConfig {
+  id: string;
+  sign: 1 | -1;
+  templateId: string;
+  controlKey: string;
+  op: TermOp;
+  condition?: TermConditionConfig;
+}
+
 export interface MetaCellConfig {
   id: string;
   mode?: MetaCellMode;
+  terms: TermConfig[];
 }
 
 export interface MetaPanelRowConfig {
