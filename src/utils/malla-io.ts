@@ -1,6 +1,13 @@
 // src/utils/malla-io.ts
 import type { CurricularPiece, MasterBlockData } from '../types/curricular';
-import type { MetaCellConfig, MetaPanelConfig, MetaPanelRowConfig } from '../types/meta-panel.ts';
+import type {
+  MetaCellConfig,
+  MetaPanelConfig,
+  MetaPanelRowConfig,
+  TermConditionConfig,
+  TermConfig,
+  TermOp,
+} from '../types/meta-panel.ts';
 import { buildBlockId, parseBlockId, type BlockId, type BlockMetadata } from '../types/block.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './block-io.ts';
 import {
@@ -43,7 +50,14 @@ export const MALLA_SCHEMA_VERSION = 6;
 
 export { createDefaultProjectTheme, normalizeProjectTheme };
 export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
-export type { MetaPanelConfig, MetaPanelRowConfig, MetaCellConfig };
+export type {
+  MetaPanelConfig,
+  MetaPanelRowConfig,
+  MetaCellConfig,
+  TermConfig,
+  TermOp,
+  TermConditionConfig,
+};
 
 const DEFAULT_META_PANEL_ROW_ID = 'meta-row-main';
 
@@ -51,6 +65,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
 const buildDefaultMetaCellId = (rowId: string, colIndex: number) => `${rowId}-col-${colIndex}`;
+const buildDefaultMetaTermId = (cellId: string, index: number) => `${cellId}-term-${index + 1}`;
 
 const createDefaultMetaPanelRow = (id = DEFAULT_META_PANEL_ROW_ID): MetaPanelRowConfig => ({
   id,
@@ -68,14 +83,66 @@ const normalizeMetaCellConfig = (
 ): MetaCellConfig => {
   const fallbackId = buildDefaultMetaCellId(rowId, colIndex);
   if (!isRecord(value)) {
-    return { id: fallbackId, mode: 'count' };
+    return { id: fallbackId, mode: 'count', terms: [] };
   }
   const rawId = typeof value.id === 'string' ? value.id.trim() : '';
   const rawMode = value.mode === 'count' ? 'count' : undefined;
+  const id = rawId.length > 0 ? rawId : fallbackId;
+  const rawTerms = Array.isArray(value.terms) ? value.terms : [];
+  const terms = rawTerms
+    .map((rawTerm, index) => normalizeMetaTermConfig(rawTerm, id, index))
+    .filter((term): term is TermConfig => !!term);
+  return {
+    id,
+    mode: rawMode,
+    terms,
+  };
+};
+
+const normalizeMetaTermConfig = (
+  value: unknown,
+  cellId: string,
+  index: number,
+): TermConfig | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const fallbackId = buildDefaultMetaTermId(cellId, index);
+  const rawId = typeof value.id === 'string' ? value.id.trim() : '';
+  const rawSign = value.sign === -1 ? -1 : 1;
+  const rawTemplateId = typeof value.templateId === 'string' ? value.templateId.trim() : '';
+  const rawControlKey = typeof value.controlKey === 'string' ? value.controlKey.trim() : '';
+  const rawOp: TermOp = value.op === 'avg' || value.op === 'count' || value.op === 'countIf'
+    ? value.op
+    : 'sum';
+  const condition = normalizeMetaTermCondition(value.condition);
+
+  if (!rawTemplateId || !rawControlKey) {
+    return null;
+  }
+
   return {
     id: rawId.length > 0 ? rawId : fallbackId,
-    mode: rawMode,
+    sign: rawSign,
+    templateId: rawTemplateId,
+    controlKey: rawControlKey,
+    op: rawOp,
+    ...(condition ? { condition } : {}),
   };
+};
+
+const normalizeMetaTermCondition = (value: unknown): TermConditionConfig | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const controlKey = typeof value.controlKey === 'string' ? value.controlKey.trim() : '';
+  const equals = value.equals;
+  const validEqualsType = ['string', 'number', 'boolean'].includes(typeof equals);
+  if (!controlKey || !validEqualsType) {
+    return undefined;
+  }
+  return { controlKey, equals: equals as string | number | boolean };
 };
 
 const normalizeMetaPanelRowConfig = (
@@ -129,9 +196,10 @@ export const getOrCreateMetaCellConfig = (
 ): MetaCellConfig => {
   const safeRow = row ?? createDefaultMetaPanelRow();
   if (!Number.isInteger(colIndex) || colIndex < 0) {
-    return { id: buildDefaultMetaCellId(safeRow.id, 0), mode: 'count' };
+    return { id: buildDefaultMetaCellId(safeRow.id, 0), mode: 'count', terms: [] };
   }
-  return safeRow.columns[colIndex] ?? { id: buildDefaultMetaCellId(safeRow.id, colIndex), mode: 'count' };
+  return safeRow.columns[colIndex]
+    ?? { id: buildDefaultMetaCellId(safeRow.id, colIndex), mode: 'count', terms: [] };
 };
 
 function cloneBlockExport(data: BlockExport, metadata: BlockMetadata): BlockExport {
