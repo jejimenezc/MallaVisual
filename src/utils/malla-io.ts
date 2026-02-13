@@ -118,7 +118,10 @@ const normalizeMetaTermConfig = (
     : 'sum';
   const condition = normalizeMetaTermCondition(value.condition);
 
-  if (!rawTemplateId || !rawControlKey) {
+  if (!rawTemplateId) {
+    return null;
+  }
+  if ((rawOp === 'sum' || rawOp === 'avg' || rawOp === 'countIf') && !rawControlKey) {
     return null;
   }
 
