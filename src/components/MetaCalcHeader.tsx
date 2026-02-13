@@ -1,28 +1,46 @@
 import React from 'react';
 import type { MetaPanelRowConfig } from '../types/meta-panel.ts';
 import { getOrCreateMetaCellConfig } from '../utils/malla-io.ts';
+import type { MallaQuerySource } from '../utils/malla-queries.ts';
+import { computeMetaCellValueForColumn, type MetaCalcDeps } from '../utils/meta-calc.ts';
 
 interface Props {
   columnCount: number;
-  valuesByColumn?: Array<string | number | null>;
-  rowConfig?: MetaPanelRowConfig;
+  rowConfig: MetaPanelRowConfig;
+  malla: MallaQuerySource;
+  deps: MetaCalcDeps;
   placeholder?: string;
+  invalidPlaceholder?: string;
   className?: string;
   style?: React.CSSProperties;
 }
 
 export const MetaCalcHeader: React.FC<Props> = ({
   columnCount,
-  valuesByColumn = [],
   rowConfig,
+  malla,
+  deps,
   placeholder = '-',
+  invalidPlaceholder = '-',
   className,
   style,
 }) => {
+  const valuesByColumn = React.useMemo(
+    () =>
+      Array.from({ length: Math.max(0, columnCount) }, (_, index) => {
+        const cellConfig = getOrCreateMetaCellConfig(rowConfig, index);
+        return computeMetaCellValueForColumn(malla, index, cellConfig, deps);
+      }),
+    [columnCount, rowConfig, malla, deps],
+  );
+
   const cells = Array.from({ length: Math.max(0, columnCount) }, (_, index) => {
     const cellConfig = getOrCreateMetaCellConfig(rowConfig, index);
     const value = valuesByColumn[index];
-    const displayValue = value == null ? placeholder : `#${value}`;
+    const hasTerms = cellConfig.terms.length > 0;
+    const displayValue = value == null
+      ? (hasTerms ? invalidPlaceholder : placeholder)
+      : `#${value}`;
     return (
       <div
         key={`meta-calc-header-cell-${index}`}
