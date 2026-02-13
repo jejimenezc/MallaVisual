@@ -330,6 +330,16 @@
   position: relative;
 }
 
+.metaCalcHeaderWrapper {
+  position: relative;
+  z-index: 2;
+}
+
+.metaCalcHeader {
+  height: 30px;
+  box-sizing: border-box;
+}
+
 .mallaArea {
   flex: 0 0 auto;
   position: relative;
