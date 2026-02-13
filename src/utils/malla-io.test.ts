@@ -2,7 +2,9 @@
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {
+  createDefaultMetaPanel,
   exportMalla,
+  getActiveMetaPanelRow,
   importMalla,
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
@@ -67,6 +69,16 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
     floatingPieces: ['p1'],
     activeMasterId: 'm1',
     theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-main',
+          columns: {
+            0: { id: 'row-main-col-0', mode: 'count' },
+          },
+        },
+      ],
+    },
   });
 
   const result = importMalla(json);
@@ -80,6 +92,16 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
   assert.deepEqual(result.floatingPieces, ['p1']);
   assert.equal(result.activeMasterId, 'm1');
   assert.deepEqual(result.theme, createDefaultProjectTheme());
+  assert.deepEqual(result.metaPanel, {
+    rows: [
+      {
+        id: 'row-main',
+        columns: {
+          0: { id: 'row-main-col-0', mode: 'count' },
+        },
+      },
+    ],
+  });
 });
 
 test('importMalla migrates legacy schema and remaps references with duplicated names', () => {
@@ -193,4 +215,59 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
   assert.equal(remappedPiece.ref.sourceId, masterEntry.metadata.uuid);
   assert.equal(result.activeMasterId, generatedEntry.metadata.uuid);
   assert.deepEqual(result.theme, createDefaultProjectTheme());
+  assert.deepEqual(result.metaPanel, createDefaultMetaPanel());
+});
+
+test('importMalla adds default metaPanel when absent', () => {
+  const payload = {
+    version: 4,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.rows.length, 1);
+  const activeRow = getActiveMetaPanelRow(result.metaPanel);
+  assert.equal(activeRow.id, 'meta-row-main');
+  assert.deepEqual(activeRow.columns, {});
+});
+
+test('importMalla preserves multi-row metaPanel configuration', () => {
+  const payload = {
+    version: 6,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-1',
+          columns: {
+            0: { id: 'row-1-col-0', mode: 'count' },
+          },
+        },
+        {
+          id: 'row-2',
+          label: 'Secundaria',
+          columns: {
+            1: { id: 'row-2-col-1', mode: 'count' },
+          },
+        },
+      ],
+    },
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.rows.length, 2);
+  assert.equal(result.metaPanel?.rows[0]?.id, 'row-1');
+  assert.equal(result.metaPanel?.rows[1]?.id, 'row-2');
+  assert.equal(result.metaPanel?.rows[1]?.label, 'Secundaria');
+  assert.deepEqual(result.metaPanel?.rows[1]?.columns[1], { id: 'row-2-col-1', mode: 'count' });
 });
