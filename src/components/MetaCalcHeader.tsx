@@ -9,6 +9,7 @@ interface Props {
   rowConfig: MetaPanelRowConfig;
   malla: MallaQuerySource;
   deps: MetaCalcDeps;
+  onCellClick?: (colIndex: number) => void;
   placeholder?: string;
   invalidPlaceholder?: string;
   className?: string;
@@ -20,6 +21,7 @@ export const MetaCalcHeader: React.FC<Props> = ({
   rowConfig,
   malla,
   deps,
+  onCellClick,
   placeholder = '-',
   invalidPlaceholder = '-',
   className,
@@ -53,8 +55,10 @@ export const MetaCalcHeader: React.FC<Props> = ({
           fontSize: '0.85rem',
           color: 'var(--color-secondary)',
           background: 'var(--color-surface)',
+          cursor: onCellClick ? 'pointer' : 'default',
         }}
         title={cellConfig.id}
+        onClick={onCellClick ? () => onCellClick(index) : undefined}
       >
         {displayValue}
       </div>

@@ -15,8 +15,8 @@ import { getCellAt } from './malla-queries.ts';
 import {
   MALLA_SCHEMA_VERSION,
   normalizeMetaPanelConfig,
-  normalizeProjectTheme,
   type MetaPanelConfig,
+  normalizeProjectTheme,
   type MallaExport,
   type ProjectTheme,
 } from './malla-io.ts';
@@ -29,6 +29,7 @@ export interface MallaHistoryEntry {
   floatingPieces: string[];
   mastersById: Record<string, MasterBlockData>;
   selectedMasterId: string;
+  metaPanel: MetaPanelConfig;
   theme: ProjectTheme;
 }
 
