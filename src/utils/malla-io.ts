@@ -67,8 +67,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const buildDefaultMetaCellId = (rowId: string, colIndex: number) => `${rowId}-col-${colIndex}`;
 const buildDefaultMetaTermId = (cellId: string, index: number) => `${cellId}-term-${index + 1}`;
 
+const createDefaultMetaCell = (rowId: string, colIndex: number): MetaCellConfig => ({
+  id: buildDefaultMetaCellId(rowId, colIndex),
+  mode: 'count',
+  terms: [],
+});
+
 const createDefaultMetaPanelRow = (id = DEFAULT_META_PANEL_ROW_ID): MetaPanelRowConfig => ({
   id,
+  defaultCell: createDefaultMetaCell(id, 0),
   columns: {},
 });
 
@@ -163,13 +170,31 @@ const normalizeMetaPanelRowConfig = (
     : undefined;
   const normalizedColumns: Record<number, MetaCellConfig> = {};
   const rawColumns = isRecord(value.columns) ? value.columns : {};
+  const sortedColumnIndices: number[] = [];
   for (const [rawColIndex, rawCellConfig] of Object.entries(rawColumns)) {
     const colIndex = Number(rawColIndex);
     if (!Number.isInteger(colIndex) || colIndex < 0) continue;
     normalizedColumns[colIndex] = normalizeMetaCellConfig(rawCellConfig, id, colIndex);
+    sortedColumnIndices.push(colIndex);
   }
+  sortedColumnIndices.sort((a, b) => a - b);
+
+  const rawDefaultCell = value.defaultCell;
+  let defaultCell = normalizeMetaCellConfig(rawDefaultCell, id, 0);
+
+  const hasExplicitDefaultCell = isRecord(rawDefaultCell);
+  if (!hasExplicitDefaultCell) {
+    if (normalizedColumns[0]) {
+      defaultCell = normalizeMetaCellConfig(normalizedColumns[0], id, 0);
+    } else if (sortedColumnIndices.length > 0) {
+      const firstIndex = sortedColumnIndices[0]!;
+      defaultCell = normalizeMetaCellConfig(normalizedColumns[firstIndex], id, 0);
+    }
+  }
+
   return {
     id,
+    defaultCell,
     columns: normalizedColumns,
     ...(label ? { label } : {}),
   };
@@ -198,12 +223,18 @@ export const getOrCreateMetaCellConfig = (
   colIndex: number,
 ): MetaCellConfig => {
   const safeRow = row ?? createDefaultMetaPanelRow();
+  const safeDefault = normalizeMetaCellConfig(safeRow.defaultCell, safeRow.id, 0);
   if (!Number.isInteger(colIndex) || colIndex < 0) {
-    return { id: buildDefaultMetaCellId(safeRow.id, 0), mode: 'count', terms: [] };
+    return safeDefault;
   }
-  return safeRow.columns[colIndex]
-    ?? { id: buildDefaultMetaCellId(safeRow.id, colIndex), mode: 'count', terms: [] };
+  const override = safeRow.columns?.[colIndex];
+  if (override) {
+    return normalizeMetaCellConfig(override, safeRow.id, colIndex);
+  }
+  return safeDefault;
 };
+
+export const getCellConfigForColumn = getOrCreateMetaCellConfig;
 
 function cloneBlockExport(data: BlockExport, metadata: BlockMetadata): BlockExport {
   const theme = normalizeProjectTheme(data.theme);
