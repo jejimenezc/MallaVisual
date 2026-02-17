@@ -5,8 +5,13 @@ import type {
   CurricularPieceRef,
   CurricularPieceSnapshot,
 } from '../types/curricular.ts';
-import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
-import { computeMetaCellValueForColumn, computeTermForColumn, type MetaCalcDeps } from './meta-calc.ts';
+import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
+import {
+  computeMetaCellValueForColumn,
+  computeMetaRowValueForColumn,
+  computeTermForColumn,
+  type MetaCalcDeps,
+} from './meta-calc.ts';
 
 const templateA: BlockTemplate = [[
   { active: true, type: 'number' },
@@ -115,5 +120,26 @@ describe('computeMetaCellValueForColumn', () => {
       ],
     };
     expect(computeMetaCellValueForColumn(malla, 0, config, deps)).toBe(28);
+  });
+});
+
+describe('computeMetaRowValueForColumn', () => {
+  test('uses column override when present and defaultCell otherwise', () => {
+    const rowConfig: MetaPanelRowConfig = {
+      id: 'row-main',
+      defaultCell: {
+        id: 'default',
+        terms: [{ ...buildTerm('count'), id: 'default-count' }],
+      },
+      columns: {
+        1: {
+          id: 'override-col-1',
+          terms: [{ ...buildTerm('sum'), id: 'override-sum' }],
+        },
+      },
+    };
+
+    expect(computeMetaRowValueForColumn(malla, 0, rowConfig, deps)).toBe(2);
+    expect(computeMetaRowValueForColumn(malla, 1, rowConfig, deps)).toBe(30);
   });
 });
