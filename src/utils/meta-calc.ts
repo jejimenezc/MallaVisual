@@ -1,8 +1,9 @@
 import type { BlockTemplate, CurricularPiece } from '../types/curricular.ts';
-import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
+import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
 import type { MallaQuerySource } from './malla-queries.ts';
 import { getColumnCells } from './malla-queries.ts';
 import { resolveControlValue } from './piece-control-resolver.ts';
+import { getCellConfigForColumn } from './malla-io.ts';
 
 export interface MetaCalcDeps {
   valuesByPiece: Record<string, Record<string, string | number | boolean>>;
@@ -125,4 +126,14 @@ export function computeMetaCellValueForColumn(
   }
 
   return validTermCount > 0 ? total : null;
+}
+
+export function computeMetaRowValueForColumn(
+  malla: MallaQuerySource,
+  colIndex: number,
+  rowConfig: MetaPanelRowConfig,
+  deps: MetaCalcDeps,
+): number | null {
+  const cellConfig = getCellConfigForColumn(rowConfig, colIndex);
+  return computeMetaCellValueForColumn(malla, colIndex, cellConfig, deps);
 }
