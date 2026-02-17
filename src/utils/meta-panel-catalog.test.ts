@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { BlockTemplate, CurricularPieceRef, CurricularPieceSnapshot } from '../types/curricular.ts';
-import { buildMetaPanelCatalogForColumn } from './meta-panel-catalog.ts';
+import { buildMetaPanelCatalogForColumn, getTermAvailability } from './meta-panel-catalog.ts';
 
 const templateMasterA: BlockTemplate = [[
   { active: true, type: 'number', label: 'Monto' },
@@ -72,5 +72,43 @@ describe('buildMetaPanelCatalogForColumn', () => {
     expect(catalog.controlsByTemplateId['master-b']?.numericControls).toEqual([
       { controlKey: 'r0c0', label: 'Total', type: 'calculated' },
     ]);
+  });
+
+  test('reports term availability for missing template/control', () => {
+    const malla = {
+      grid: { cols: 1, rows: 1 },
+      pieces: [{
+        kind: 'ref',
+        id: 'ref-a',
+        ref: {
+          sourceId: 'master-a',
+          bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 1, rows: 1, cols: 2 },
+          aspect: '1/1',
+        },
+        x: 0,
+        y: 0,
+      } as CurricularPieceRef],
+    };
+    const catalog = buildMetaPanelCatalogForColumn({
+      malla,
+      colIndex: 0,
+      resolveTemplateForPiece: () => templateMasterA,
+    });
+
+    expect(getTermAvailability({
+      id: 't1',
+      sign: 1,
+      templateId: 'master-x',
+      controlKey: 'r0c0',
+      op: 'sum',
+    }, catalog)).toEqual({ ok: false, reason: 'missing-template' });
+
+    expect(getTermAvailability({
+      id: 't2',
+      sign: 1,
+      templateId: 'master-a',
+      controlKey: 'r9c9',
+      op: 'sum',
+    }, catalog)).toEqual({ ok: false, reason: 'missing-control' });
   });
 });
