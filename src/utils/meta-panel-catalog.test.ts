@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import type { BlockTemplate, CurricularPieceRef, CurricularPieceSnapshot } from '../types/curricular.ts';
-import { buildMetaPanelCatalogForColumn, getTermAvailability } from './meta-panel-catalog.ts';
+import {
+  buildMetaPanelCatalogForColumn,
+  buildMetaPanelCatalogForMalla,
+  getTermAvailability,
+} from './meta-panel-catalog.ts';
 
 const templateMasterA: BlockTemplate = [[
   { active: true, type: 'number', label: 'Monto' },
@@ -71,6 +75,48 @@ describe('buildMetaPanelCatalogForColumn', () => {
     ]);
     expect(catalog.controlsByTemplateId['master-b']?.numericControls).toEqual([
       { controlKey: 'r0c0', label: 'Total', type: 'calculated' },
+    ]);
+  });
+
+  test('builds global catalog across full malla', () => {
+    const pieceCol0: CurricularPieceRef = {
+      kind: 'ref',
+      id: 'ref-a',
+      ref: {
+        sourceId: 'master-a',
+        bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 1, rows: 1, cols: 2 },
+        aspect: '1/1',
+      },
+      x: 0,
+      y: 0,
+    };
+    const pieceCol1: CurricularPieceRef = {
+      kind: 'ref',
+      id: 'ref-b',
+      ref: {
+        sourceId: 'master-b',
+        bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 0, rows: 1, cols: 1 },
+        aspect: '1/1',
+      },
+      x: 1,
+      y: 0,
+    };
+    const malla = {
+      grid: { cols: 2, rows: 1 },
+      pieces: [pieceCol0, pieceCol1],
+    };
+
+    const catalog = buildMetaPanelCatalogForMalla({
+      malla,
+      resolveTemplateForPiece: (piece) =>
+        piece.kind === 'ref' && piece.ref.sourceId === 'master-a'
+          ? templateMasterA
+          : templateMasterB,
+    });
+
+    expect(catalog.templates.map((template) => template.templateId).sort()).toEqual([
+      'master-a',
+      'master-b',
     ]);
   });
 

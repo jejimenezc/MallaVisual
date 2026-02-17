@@ -35,6 +35,12 @@ interface BuildMetaPanelCatalogForColumnArgs {
   resolveTemplateLabel?: (templateId: string) => string;
 }
 
+interface BuildMetaPanelCatalogForMallaArgs {
+  malla: MallaQuerySource;
+  resolveTemplateForPiece: (piece: CurricularPiece) => BlockTemplate | null;
+  resolveTemplateLabel?: (templateId: string) => string;
+}
+
 const isNumericType = (type: InputType | undefined): type is 'number' | 'calculated' =>
   type === 'number' || type === 'calculated';
 
@@ -123,11 +129,37 @@ export function buildMetaPanelCatalogForColumn({
   resolveTemplateForPiece,
   resolveTemplateLabel,
 }: BuildMetaPanelCatalogForColumnArgs): MetaPanelCatalog {
-  const byTemplateId = new Map<string, MetaPanelCatalogTemplate>();
-  const columnEntries = getColumnCells(malla, colIndex);
+  return buildCatalogFromPieces({
+    pieces: getColumnCells(malla, colIndex).map((entry) => entry.content),
+    resolveTemplateForPiece,
+    resolveTemplateLabel,
+  });
+}
 
-  for (const entry of columnEntries) {
-    const piece = entry.content;
+export function buildMetaPanelCatalogForMalla({
+  malla,
+  resolveTemplateForPiece,
+  resolveTemplateLabel,
+}: BuildMetaPanelCatalogForMallaArgs): MetaPanelCatalog {
+  return buildCatalogFromPieces({
+    pieces: malla.pieces ?? [],
+    resolveTemplateForPiece,
+    resolveTemplateLabel,
+  });
+}
+
+function buildCatalogFromPieces({
+  pieces,
+  resolveTemplateForPiece,
+  resolveTemplateLabel,
+}: {
+  pieces: CurricularPiece[];
+  resolveTemplateForPiece: (piece: CurricularPiece) => BlockTemplate | null;
+  resolveTemplateLabel?: (templateId: string) => string;
+}): MetaPanelCatalog {
+  const byTemplateId = new Map<string, MetaPanelCatalogTemplate>();
+
+  for (const piece of pieces) {
     const templateId = getPieceTemplateId(piece);
     if (!templateId || byTemplateId.has(templateId)) {
       continue;
