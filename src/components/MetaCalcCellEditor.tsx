@@ -13,7 +13,7 @@ interface Props {
   catalog: MetaPanelCatalog;
   availabilityCatalog: MetaPanelCatalog;
   onToggleOverride: (active: boolean) => void;
-  onSave: (nextCellConfig: MetaCellConfig) => void;
+  onSave: (nextCellConfig: MetaCellConfig, nextRowLabel: string) => void;
   onCancel: () => void;
 }
 
@@ -67,13 +67,15 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   onCancel,
 }) => {
   const [draft, setDraft] = useState<MetaCellConfig>(() => cloneCellConfig(initialCellConfig));
+  const [draftRowLabel, setDraftRowLabel] = useState<string>(rowConfig.label ?? '');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setDraft(cloneCellConfig(initialCellConfig));
+    setDraftRowLabel(rowConfig.label ?? '');
     setError(null);
-  }, [initialCellConfig, isOpen]);
+  }, [initialCellConfig, isOpen, rowConfig.label]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -129,21 +131,21 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const handleSave = () => {
     for (const term of draft.terms) {
       if (!term.templateId) {
-        setError('Cada término debe tener un template seleccionado.');
+        setError('Cada termino debe tener un tipo de bloque seleccionado.');
         return;
       }
       if ((term.op === 'sum' || term.op === 'avg' || term.op === 'countIf') && !term.controlKey) {
-        setError('Los términos sum/avg/countIf requieren control.');
+        setError('Los terminos sum/avg/countIf requieren campo.');
         return;
       }
       if (term.op === 'countIf') {
         if (!term.condition?.controlKey) {
-          setError('countIf requiere control de condición.');
+          setError('countIf requiere campo de condicion.');
           return;
         }
       }
     }
-    onSave(cloneCellConfig(draft));
+    onSave(cloneCellConfig(draft), draftRowLabel);
   };
 
   if (!isOpen) {
@@ -160,27 +162,34 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         onClick={(event) => event.stopPropagation()}
       >
         <div className={styles.header}>
-          <h3 id="meta-calc-cell-editor-title">Meta-calculos (aplica a todas las columnas)</h3>
-          <p>Columna seleccionada: {colIndex + 1} (solo preview de catalogo)</p>
+          <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
+          <p>Columna seleccionada: {colIndex + 1}</p>
           <label className={styles.toggleRow}>
             <input
               type="checkbox"
               checked={isOverrideActive}
               onChange={(event) => onToggleOverride(event.target.checked)}
             />
-            <span>Override para esta columna</span>
+            <span>Personalizar esta columna</span>
           </label>
           <p className={styles.modeText}>
             {isOverrideActive
-              ? 'Modo override: editando configuracion solo para esta columna.'
-              : 'Modo global: editando defaultCell para todas las columnas.'}
+              ? 'Esta columna usara un calculo distinto al general.'
+              : 'Calculo general. Este calculo se aplica a todas las columnas.'}
           </p>
-          {rowConfig.columns?.[colIndex] ? (
-            <p className={styles.modeText}>Override detectado para columna {colIndex + 1}.</p>
-          ) : null}
         </div>
 
         <div className={styles.body}>
+          <div className={styles.row}>
+            <label>Label:</label>
+            <input
+              type="text"
+              value={draftRowLabel}
+              onChange={(event) => setDraftRowLabel(event.target.value)}
+              placeholder="Nombre del calculo (opcional)"
+              disabled={isOverrideActive}
+            />
+          </div>
           {draft.terms.map((term, termIndex) => {
             const availability = getTermAvailability(term, availabilityCatalog);
             const templateCatalog = catalog.controlsByTemplateId[term.templateId];
@@ -200,8 +209,8 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 {!availability.ok ? (
                   <p className={styles.warning}>
                     {availability.reason === 'missing-template'
-                      ? 'Template no disponible en esta columna.'
-                      : 'Control no disponible en esta columna.'}
+                      ? 'Tipo de bloque no disponible en esta columna.'
+                      : 'Campo no disponible en esta columna.'}
                   </p>
                 ) : null}
 
@@ -249,7 +258,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 </div>
 
                 <div className={styles.row}>
-                  <label>Template</label>
+                  <label>Tipo de bloque</label>
                   <select
                     value={term.templateId}
                     onChange={(event) => {
@@ -270,7 +279,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                       }));
                     }}
                   >
-                    <option value="">Selecciona template...</option>
+                    <option value="">Selecciona tipo de bloque...</option>
                     {!hasTemplateInCatalog && term.templateId ? (
                       <option value={term.templateId}>{term.templateId} (no disponible aqui)</option>
                     ) : null}
@@ -283,7 +292,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 </div>
 
                 <div className={styles.row}>
-                  <label>Control</label>
+                  <label>Campo</label>
                   <select
                     value={term.controlKey}
                     onChange={(event) =>
@@ -291,7 +300,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     }
                     disabled={term.op === 'count'}
                   >
-                    <option value="">Selecciona control...</option>
+                    <option value="">Selecciona campo...</option>
                     {!hasNumericControl && term.controlKey ? (
                       <option value={term.controlKey}>{term.controlKey} (no disponible aqui)</option>
                     ) : null}
@@ -306,7 +315,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 {term.op === 'countIf' ? (
                   <>
                     <div className={styles.row}>
-                      <label>Condición: control</label>
+                      <label>Condicion: campo</label>
                       <select
                         value={term.condition?.controlKey ?? ''}
                         onChange={(event) =>
@@ -319,7 +328,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           }))
                         }
                       >
-                        <option value="">Selecciona control...</option>
+                        <option value="">Selecciona campo...</option>
                         {!hasConditionControl && term.condition?.controlKey ? (
                           <option value={term.condition.controlKey}>
                             {term.condition.controlKey} (no disponible aqui)
@@ -333,7 +342,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                       </select>
                     </div>
                     <div className={styles.row}>
-                      <label>Condición: equals</label>
+                      <label>Condicion: valor</label>
                       {selectedConditionType === 'checkbox' ? (
                         <select
                           value={serializeConditionEquals(term.condition?.equals)}
