@@ -1,4 +1,5 @@
 import type { BlockTemplate, CurricularPiece, InputType } from '../types/curricular.ts';
+import type { TermConfig } from '../types/meta-panel.ts';
 import type { MallaQuerySource } from './malla-queries.ts';
 import { getColumnCells } from './malla-queries.ts';
 
@@ -20,9 +21,22 @@ export interface MetaPanelCatalog {
   controlsByTemplateId: Record<string, MetaPanelCatalogTemplate>;
 }
 
+export type TermAvailabilityReason = 'missing-template' | 'missing-control';
+
+export interface TermAvailability {
+  ok: boolean;
+  reason?: TermAvailabilityReason;
+}
+
 interface BuildMetaPanelCatalogForColumnArgs {
   malla: MallaQuerySource;
   colIndex: number;
+  resolveTemplateForPiece: (piece: CurricularPiece) => BlockTemplate | null;
+  resolveTemplateLabel?: (templateId: string) => string;
+}
+
+interface BuildMetaPanelCatalogForMallaArgs {
+  malla: MallaQuerySource;
   resolveTemplateForPiece: (piece: CurricularPiece) => BlockTemplate | null;
   resolveTemplateLabel?: (templateId: string) => string;
 }
@@ -115,11 +129,37 @@ export function buildMetaPanelCatalogForColumn({
   resolveTemplateForPiece,
   resolveTemplateLabel,
 }: BuildMetaPanelCatalogForColumnArgs): MetaPanelCatalog {
-  const byTemplateId = new Map<string, MetaPanelCatalogTemplate>();
-  const columnEntries = getColumnCells(malla, colIndex);
+  return buildCatalogFromPieces({
+    pieces: getColumnCells(malla, colIndex).map((entry) => entry.content),
+    resolveTemplateForPiece,
+    resolveTemplateLabel,
+  });
+}
 
-  for (const entry of columnEntries) {
-    const piece = entry.content;
+export function buildMetaPanelCatalogForMalla({
+  malla,
+  resolveTemplateForPiece,
+  resolveTemplateLabel,
+}: BuildMetaPanelCatalogForMallaArgs): MetaPanelCatalog {
+  return buildCatalogFromPieces({
+    pieces: malla.pieces ?? [],
+    resolveTemplateForPiece,
+    resolveTemplateLabel,
+  });
+}
+
+function buildCatalogFromPieces({
+  pieces,
+  resolveTemplateForPiece,
+  resolveTemplateLabel,
+}: {
+  pieces: CurricularPiece[];
+  resolveTemplateForPiece: (piece: CurricularPiece) => BlockTemplate | null;
+  resolveTemplateLabel?: (templateId: string) => string;
+}): MetaPanelCatalog {
+  const byTemplateId = new Map<string, MetaPanelCatalogTemplate>();
+
+  for (const piece of pieces) {
     const templateId = getPieceTemplateId(piece);
     if (!templateId || byTemplateId.has(templateId)) {
       continue;
@@ -147,4 +187,34 @@ export function buildMetaPanelCatalogForColumn({
     templates,
     controlsByTemplateId,
   };
+}
+
+export function getTermAvailability(
+  term: TermConfig,
+  catalog: MetaPanelCatalog,
+): TermAvailability {
+  const template = catalog.controlsByTemplateId[term.templateId];
+  if (!template) {
+    return { ok: false, reason: 'missing-template' };
+  }
+
+  if (term.op === 'count') {
+    return { ok: true };
+  }
+
+  const hasMainControl = template.numericControls.some((control) => control.controlKey === term.controlKey);
+  if (!hasMainControl) {
+    return { ok: false, reason: 'missing-control' };
+  }
+
+  if (term.op === 'countIf') {
+    const conditionKey = term.condition?.controlKey;
+    const hasConditionControl = !!conditionKey
+      && template.conditionControls.some((control) => control.controlKey === conditionKey);
+    if (!hasConditionControl) {
+      return { ok: false, reason: 'missing-control' };
+    }
+  }
+
+  return { ok: true };
 }
