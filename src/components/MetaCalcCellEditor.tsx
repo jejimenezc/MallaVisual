@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './Button';
 import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
-import type { MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
+import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
 import styles from './MetaCalcCellEditor.module.css';
 
 interface Props {
@@ -158,15 +158,29 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
         <div className={styles.body}>
           {draft.terms.map((term, termIndex) => {
+            const availability = getTermAvailability(term, catalog);
             const templateCatalog = catalog.controlsByTemplateId[term.templateId];
             const numericControls = templateCatalog?.numericControls ?? [];
             const conditionControls = templateCatalog?.conditionControls ?? [];
+            const hasTemplateInCatalog = !!templateCatalog;
+            const hasNumericControl = numericControls.some((control) => control.controlKey === term.controlKey);
+            const hasConditionControl = conditionControls.some(
+              (control) => control.controlKey === term.condition?.controlKey,
+            );
             const selectedConditionType = conditionControls.find(
               (control) => control.controlKey === term.condition?.controlKey,
             )?.type;
 
             return (
               <div key={term.id} className={styles.termCard}>
+                {!availability.ok ? (
+                  <p className={styles.warning}>
+                    {availability.reason === 'missing-template'
+                      ? 'Template no disponible en esta columna.'
+                      : 'Control no disponible en esta columna.'}
+                  </p>
+                ) : null}
+
                 <div className={styles.row}>
                   <label>Signo</label>
                   <select
@@ -233,6 +247,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     }}
                   >
                     <option value="">Selecciona template...</option>
+                    {!hasTemplateInCatalog && term.templateId ? (
+                      <option value={term.templateId}>{term.templateId} (no disponible aqui)</option>
+                    ) : null}
                     {templateOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -251,6 +268,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     disabled={term.op === 'count'}
                   >
                     <option value="">Selecciona control...</option>
+                    {!hasNumericControl && term.controlKey ? (
+                      <option value={term.controlKey}>{term.controlKey} (no disponible aqui)</option>
+                    ) : null}
                     {numericControls.map((control) => (
                       <option key={control.controlKey} value={control.controlKey}>
                         {control.label}
@@ -276,6 +296,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                         }
                       >
                         <option value="">Selecciona control...</option>
+                        {!hasConditionControl && term.condition?.controlKey ? (
+                          <option value={term.condition.controlKey}>
+                            {term.condition.controlKey} (no disponible aqui)
+                          </option>
+                        ) : null}
                         {conditionControls.map((control) => (
                           <option key={control.controlKey} value={control.controlKey}>
                             {control.label}
