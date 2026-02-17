@@ -152,7 +152,8 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         onClick={(event) => event.stopPropagation()}
       >
         <div className={styles.header}>
-          <h3 id="meta-calc-cell-editor-title">Meta-celda columna {colIndex + 1}</h3>
+          <h3 id="meta-calc-cell-editor-title">Meta-calculos (aplica a todas las columnas)</h3>
+          <p>Columna seleccionada: {colIndex + 1} (solo preview de catalogo)</p>
         </div>
 
         <div className={styles.body}>

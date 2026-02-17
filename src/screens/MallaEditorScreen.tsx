@@ -23,7 +23,7 @@ import {
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
   getActiveMetaPanelRow,
-  getOrCreateMetaCellConfig,
+  getCellConfigForColumn,
   normalizeMetaPanelConfig,
   normalizeProjectTheme,
   type MetaCellConfig,
@@ -615,11 +615,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
 
   const activeMetaCellConfig = useMemo(() => {
-    if (editingMetaColumn == null) {
-      return null;
-    }
-    return getOrCreateMetaCellConfig(activeMetaRow, editingMetaColumn);
-  }, [activeMetaRow, editingMetaColumn]);
+    return activeMetaRow.defaultCell;
+  }, [activeMetaRow]);
 
   const metaEditorCatalog = useMemo<MetaPanelCatalog>(() => {
     if (editingMetaColumn == null) {
@@ -642,9 +639,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
   }, []);
 
   const handleMetaEditorSave = useCallback((nextCellConfig: MetaCellConfig) => {
-    if (editingMetaColumn == null) {
-      return;
-    }
     runHistoryTransaction(() => {
       setMetaPanel((prev) => {
         const normalized = normalizeMetaPanelConfig(prev);
@@ -655,16 +649,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
         }
         nextRows[0] = {
           ...currentRow,
-          columns: {
-            ...currentRow.columns,
-            [editingMetaColumn]: nextCellConfig,
-          },
+          defaultCell: nextCellConfig,
         };
         return { ...normalized, rows: nextRows };
       });
     });
     setEditingMetaColumn(null);
-  }, [editingMetaColumn, runHistoryTransaction]);
+  }, [runHistoryTransaction]);
 
   const zoomedGridWrapperStyle = useMemo(
     () =>
@@ -1965,7 +1956,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       <MetaCalcCellEditor
         isOpen={editingMetaColumn != null && activeMetaCellConfig != null}
         colIndex={editingMetaColumn ?? 0}
-        initialCellConfig={activeMetaCellConfig ?? getOrCreateMetaCellConfig(activeMetaRow, 0)}
+        initialCellConfig={activeMetaCellConfig ?? getCellConfigForColumn(activeMetaRow, 0)}
         catalog={metaEditorCatalog}
         onSave={handleMetaEditorSave}
         onCancel={handleMetaEditorCancel}

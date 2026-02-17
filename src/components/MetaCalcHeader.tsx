@@ -1,8 +1,8 @@
 import React from 'react';
 import type { MetaPanelRowConfig } from '../types/meta-panel.ts';
-import { getOrCreateMetaCellConfig } from '../utils/malla-io.ts';
+import { getCellConfigForColumn } from '../utils/malla-io.ts';
 import type { MallaQuerySource } from '../utils/malla-queries.ts';
-import { computeMetaCellValueForColumn, type MetaCalcDeps } from '../utils/meta-calc.ts';
+import { computeMetaRowValueForColumn, type MetaCalcDeps } from '../utils/meta-calc.ts';
 
 interface Props {
   columnCount: number;
@@ -30,14 +30,13 @@ export const MetaCalcHeader: React.FC<Props> = ({
   const valuesByColumn = React.useMemo(
     () =>
       Array.from({ length: Math.max(0, columnCount) }, (_, index) => {
-        const cellConfig = getOrCreateMetaCellConfig(rowConfig, index);
-        return computeMetaCellValueForColumn(malla, index, cellConfig, deps);
+        return computeMetaRowValueForColumn(malla, index, rowConfig, deps);
       }),
     [columnCount, rowConfig, malla, deps],
   );
 
   const cells = Array.from({ length: Math.max(0, columnCount) }, (_, index) => {
-    const cellConfig = getOrCreateMetaCellConfig(rowConfig, index);
+    const cellConfig = getCellConfigForColumn(rowConfig, index);
     const value = valuesByColumn[index];
     const hasTerms = cellConfig.terms.length > 0;
     const displayValue = value == null
