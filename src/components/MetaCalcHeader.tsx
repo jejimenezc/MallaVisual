@@ -10,6 +10,7 @@ interface Props {
   malla: MallaQuerySource;
   deps: MetaCalcDeps;
   onCellClick?: (colIndex: number) => void;
+  isOverrideColumn?: (colIndex: number) => boolean;
   placeholder?: string;
   invalidPlaceholder?: string;
   className?: string;
@@ -22,6 +23,7 @@ export const MetaCalcHeader: React.FC<Props> = ({
   malla,
   deps,
   onCellClick,
+  isOverrideColumn,
   placeholder = '-',
   invalidPlaceholder = '-',
   className,
@@ -39,6 +41,7 @@ export const MetaCalcHeader: React.FC<Props> = ({
     const cellConfig = getCellConfigForColumn(rowConfig, index);
     const value = valuesByColumn[index];
     const hasTerms = cellConfig.terms.length > 0;
+    const hasOverride = isOverrideColumn?.(index) ?? false;
     const displayValue = value == null
       ? (hasTerms ? invalidPlaceholder : placeholder)
       : `#${value}`;
@@ -59,7 +62,8 @@ export const MetaCalcHeader: React.FC<Props> = ({
         title={cellConfig.id}
         onClick={onCellClick ? () => onCellClick(index) : undefined}
       >
-        {displayValue}
+        <span>{displayValue}</span>
+        {hasOverride ? <span style={{ marginLeft: 4, fontSize: '0.65rem' }}>●</span> : null}
       </div>
     );
   });

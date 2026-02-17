@@ -24,6 +24,19 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.toggleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.modeText {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+}
+
 .body {
   display: grid;
   gap: 0.75rem;

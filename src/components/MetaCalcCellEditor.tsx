@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './Button';
-import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
+import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
 import styles from './MetaCalcCellEditor.module.css';
 
 interface Props {
   isOpen: boolean;
   colIndex: number;
+  rowConfig: MetaPanelRowConfig;
+  isOverrideActive: boolean;
   initialCellConfig: MetaCellConfig;
   catalog: MetaPanelCatalog;
+  availabilityCatalog: MetaPanelCatalog;
+  onToggleOverride: (active: boolean) => void;
   onSave: (nextCellConfig: MetaCellConfig) => void;
   onCancel: () => void;
 }
@@ -53,8 +57,12 @@ const serializeConditionEquals = (value: string | number | boolean | undefined):
 export const MetaCalcCellEditor: React.FC<Props> = ({
   isOpen,
   colIndex,
+  rowConfig,
+  isOverrideActive,
   initialCellConfig,
   catalog,
+  availabilityCatalog,
+  onToggleOverride,
   onSave,
   onCancel,
 }) => {
@@ -154,11 +162,27 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         <div className={styles.header}>
           <h3 id="meta-calc-cell-editor-title">Meta-calculos (aplica a todas las columnas)</h3>
           <p>Columna seleccionada: {colIndex + 1} (solo preview de catalogo)</p>
+          <label className={styles.toggleRow}>
+            <input
+              type="checkbox"
+              checked={isOverrideActive}
+              onChange={(event) => onToggleOverride(event.target.checked)}
+            />
+            <span>Override para esta columna</span>
+          </label>
+          <p className={styles.modeText}>
+            {isOverrideActive
+              ? 'Modo override: editando configuracion solo para esta columna.'
+              : 'Modo global: editando defaultCell para todas las columnas.'}
+          </p>
+          {rowConfig.columns?.[colIndex] ? (
+            <p className={styles.modeText}>Override detectado para columna {colIndex + 1}.</p>
+          ) : null}
         </div>
 
         <div className={styles.body}>
           {draft.terms.map((term, termIndex) => {
-            const availability = getTermAvailability(term, catalog);
+            const availability = getTermAvailability(term, availabilityCatalog);
             const templateCatalog = catalog.controlsByTemplateId[term.templateId];
             const numericControls = templateCatalog?.numericControls ?? [];
             const conditionControls = templateCatalog?.conditionControls ?? [];
