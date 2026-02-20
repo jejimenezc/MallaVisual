@@ -12,10 +12,13 @@ interface RecentProject {
 
 interface GlobalMenuBarProps {
   hasProject: boolean;
+  isMetaPanelEnabled: boolean;
+  canToggleMetaPanel: boolean;
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onCloseProject: () => void;
+  onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => RecentProject[];
   onOpenProjectById: (id: string) => void;
   onShowIntro: () => void;
@@ -36,10 +39,13 @@ type SubmenuKey = 'archivo-recientes' | 'biblioteca-plantillas' | 'biblioteca-ma
 
 export function GlobalMenuBar({
   hasProject,
+  isMetaPanelEnabled,
+  canToggleMetaPanel,
   onNewProject,
   onImportProjectFile,
   onExportProject,
   onCloseProject,
+  onToggleMetaPanelEnabled,
   getRecentProjects,
   onOpenProjectById,
   onShowIntro,
@@ -213,6 +219,19 @@ export function GlobalMenuBar({
     [handleCloseMenu, hasProject, onOpenProjectPalette],
   );
 
+  const handleToggleMetaPanelClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject || !canToggleMetaPanel) {
+        return;
+      }
+      onToggleMetaPanelEnabled();
+    },
+    [canToggleMetaPanel, handleCloseMenu, hasProject, onToggleMetaPanelEnabled],
+  );
+
   const renderRecentProjects = useMemo(() => {
     if (recentProjects.length === 0) {
       return (
@@ -346,6 +365,16 @@ export function GlobalMenuBar({
                   onClick={handleOpenPaletteClick}
                   disabled={!hasProject}
                 >                  Paleta de color…
+                </button>
+              </li>
+              <li className={styles.dropdownItemWrapper}>
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleToggleMetaPanelClick}
+                  disabled={!hasProject || !canToggleMetaPanel}
+                >
+                  {isMetaPanelEnabled ? '✓ ' : ''}Meta-cálculos
                 </button>
               </li>
             </ul>
