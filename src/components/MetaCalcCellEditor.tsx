@@ -13,7 +13,7 @@ interface Props {
   catalog: MetaPanelCatalog;
   availabilityCatalog: MetaPanelCatalog;
   onToggleOverride: (active: boolean) => void;
-  onSave: (nextCellConfig: MetaCellConfig, nextRowLabel: string) => void;
+  onSave: (nextCellConfig: MetaCellConfig, nextRowLabel: string, nextOverrideLabel: string) => void;
   onCancel: () => void;
 }
 
@@ -68,14 +68,18 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 }) => {
   const [draft, setDraft] = useState<MetaCellConfig>(() => cloneCellConfig(initialCellConfig));
   const [draftRowLabel, setDraftRowLabel] = useState<string>(rowConfig.label ?? '');
+  const [draftOverrideLabel, setDraftOverrideLabel] = useState<string>(
+    isOverrideActive ? (initialCellConfig.label ?? '') : '',
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setDraft(cloneCellConfig(initialCellConfig));
     setDraftRowLabel(rowConfig.label ?? '');
+    setDraftOverrideLabel(isOverrideActive ? (initialCellConfig.label ?? '') : '');
     setError(null);
-  }, [initialCellConfig, isOpen, rowConfig.label]);
+  }, [initialCellConfig, isOpen, isOverrideActive, rowConfig.label]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -145,7 +149,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         }
       }
     }
-    onSave(cloneCellConfig(draft), draftRowLabel);
+    onSave(
+      cloneCellConfig(draft),
+      draftRowLabel.trim(),
+      draftOverrideLabel.trim(),
+    );
   };
 
   if (!isOpen) {
@@ -180,16 +188,30 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         </div>
 
         <div className={styles.body}>
-          <div className={styles.row}>
-            <label>Label:</label>
-            <input
-              type="text"
-              value={draftRowLabel}
-              onChange={(event) => setDraftRowLabel(event.target.value)}
-              placeholder="Nombre del calculo (opcional)"
-              disabled={isOverrideActive}
-            />
-          </div>
+          {isOverrideActive ? (
+            <>
+              <div className={styles.row}>
+                <label>Nombre para esta columna (opcional)</label>
+                <input
+                  type="text"
+                  value={draftOverrideLabel}
+                  onChange={(event) => setDraftOverrideLabel(event.target.value)}
+                  placeholder="Nombre para esta columna (opcional)"
+                />
+              </div>
+              <p className={styles.modeText}>Si lo dejas vacio, se usara el nombre general.</p>
+            </>
+          ) : (
+            <div className={styles.row}>
+              <label>Nombre del calculo (opcional)</label>
+              <input
+                type="text"
+                value={draftRowLabel}
+                onChange={(event) => setDraftRowLabel(event.target.value)}
+                placeholder="Nombre del calculo (opcional)"
+              />
+            </div>
+          )}
           {draft.terms.map((term, termIndex) => {
             const availability = getTermAvailability(term, availabilityCatalog);
             const templateCatalog = catalog.controlsByTemplateId[term.templateId];

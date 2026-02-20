@@ -697,7 +697,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     });
   }, [cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction]);
 
-  const handleMetaEditorSave = useCallback((nextCellConfig: MetaCellConfig, nextRowLabel: string) => {
+  const handleMetaEditorSave = useCallback((
+    nextCellConfig: MetaCellConfig,
+    nextRowLabel: string,
+    nextOverrideLabel: string,
+  ) => {
     runHistoryTransaction(() => {
       setMetaPanel((prev) => {
         const normalized = normalizeMetaPanelConfig(prev);
@@ -708,16 +712,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
         }
         if (editingMetaColumn != null && currentRow.columns?.[editingMetaColumn]) {
           const nextColumns = { ...(currentRow.columns ?? {}) };
-          nextColumns[editingMetaColumn] = cloneMetaCellConfig(nextCellConfig);
+          nextColumns[editingMetaColumn] = {
+            ...cloneMetaCellConfig(nextCellConfig),
+            label: nextOverrideLabel || undefined,
+          };
           nextRows[0] = {
             ...currentRow,
             columns: nextColumns,
           };
         } else {
-          const trimmedLabel = nextRowLabel.trim();
           nextRows[0] = {
             ...currentRow,
-            label: trimmedLabel || undefined,
+            label: nextRowLabel || undefined,
             defaultCell: cloneMetaCellConfig(nextCellConfig),
           };
         }
