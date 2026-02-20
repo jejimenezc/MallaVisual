@@ -40,7 +40,9 @@ export const MetaCalcHeader: React.FC<Props> = ({
   const cells = Array.from({ length: Math.max(0, columnCount) }, (_, index) => {
     const cellConfig = getCellConfigForColumn(rowConfig, index);
     const value = valuesByColumn[index];
-    const rowLabel = rowConfig.label?.trim();
+    const overrideLabel = rowConfig.columns?.[index]?.label?.trim();
+    const generalLabel = rowConfig.label?.trim();
+    const rowLabel = overrideLabel || generalLabel || undefined;
     const hasTerms = cellConfig.terms.length > 0;
     const hasOverride = isOverrideColumn?.(index) ?? false;
     const displayValue = value == null
