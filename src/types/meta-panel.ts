@@ -31,5 +31,6 @@ export interface MetaPanelRowConfig {
 }
 
 export interface MetaPanelConfig {
+  enabled?: boolean;
   rows: MetaPanelRowConfig[];
 }

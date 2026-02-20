@@ -21,6 +21,7 @@ import { blockContentEquals } from '../utils/block-content.ts';
 import {
   type MallaExport,
   MALLA_SCHEMA_VERSION,
+  createDefaultMetaPanel,
   createDefaultProjectTheme,
   getActiveMetaPanelRow,
   getCellConfigForColumn,
@@ -127,7 +128,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
   const [metaPanel, setMetaPanel] = useState<MetaPanelConfig>(
-    normalizeMetaPanelConfig(initialMalla?.metaPanel),
+    initialMalla
+      ? normalizeMetaPanelConfig(initialMalla.metaPanel)
+      : createDefaultMetaPanel(false),
   );
   const [theme, setTheme] = useState<ProjectTheme>(
     initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
@@ -560,9 +563,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        height: gridHeight * zoomScale + META_CALC_HEADER_HEIGHT,
+        height: gridHeight * zoomScale + (metaPanel.enabled === false ? 0 : META_CALC_HEADER_HEIGHT),
       }) as React.CSSProperties,
-    [gridHeight, zoomScale],
+    [gridHeight, metaPanel.enabled, zoomScale],
   );
 
   const zoomedMetaCalcHeaderWrapperStyle = useMemo(
@@ -655,8 +658,35 @@ export const MallaEditorScreen: React.FC<Props> = ({
     : globalMetaEditorCatalog;
 
   const handleMetaCellClick = useCallback((colIndex: number) => {
+    if (metaPanel.enabled === false) {
+      return;
+    }
     setEditingMetaColumn(colIndex);
-  }, []);
+  }, [metaPanel.enabled]);
+
+  useEffect(() => {
+    if (metaPanel.enabled === false && editingMetaColumn != null) {
+      setEditingMetaColumn(null);
+    }
+  }, [editingMetaColumn, metaPanel.enabled]);
+
+  const handleMetaPanelEnabledChange = useCallback((nextEnabled: boolean) => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.enabled === nextEnabled) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          enabled: nextEnabled,
+        };
+      });
+    });
+    if (!nextEnabled) {
+      setEditingMetaColumn(null);
+    }
+  }, [runHistoryTransaction]);
 
   const handleMetaEditorCancel = useCallback(() => {
     setEditingMetaColumn(null);
@@ -1143,7 +1173,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(data?.pieces ?? []);
     setPieceValues(data?.values ?? {});
     setFloatingPieces(data?.floatingPieces ?? []);
-    setMetaPanel(normalizeMetaPanelConfig(data?.metaPanel));
+    setMetaPanel(data ? normalizeMetaPanelConfig(data.metaPanel) : createDefaultMetaPanel(false));
     setTheme(normalizeProjectTheme(data?.theme));
     setIsHistoryInitialized(false);
   }, [
@@ -1183,7 +1213,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const nextPieces = initialMalla?.pieces ?? [];
     const nextValues = initialMalla?.values ?? {};
     const nextFloatingPieces = initialMalla?.floatingPieces ?? [];
-    const nextMetaPanel = normalizeMetaPanelConfig(initialMalla?.metaPanel);
+    const nextMetaPanel = initialMalla
+      ? normalizeMetaPanelConfig(initialMalla.metaPanel)
+      : createDefaultMetaPanel(false);
     const nextTheme = initialMalla
       ? normalizeProjectTheme(initialMalla.theme)
       : createDefaultProjectTheme();
@@ -1836,6 +1868,21 @@ export const MallaEditorScreen: React.FC<Props> = ({
             <>
 
               <label className={styles.blockMenuToggle}>
+                <span>Meta-cálculos:</span>
+                <span className={styles.blockMenuToggleControl}>
+                  <input
+                    type="checkbox"
+                    checked={metaPanel.enabled !== false}
+                    onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
+                    className={styles.blockMenuToggleInput}
+                  />
+                  <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                    <span className={styles.blockMenuToggleThumb} />
+                  </span>
+                </span>
+              </label>
+
+              <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
                   <input
@@ -1867,7 +1914,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
             >
               <div
                 className={styles.rowControls}
-                style={{ height: gridHeight * zoomScale, marginTop: META_CALC_HEADER_HEIGHT }}
+                style={{
+                  height: gridHeight * zoomScale,
+                  marginTop: metaPanel.enabled === false ? 0 : META_CALC_HEADER_HEIGHT,
+                }}
               >
                 {rowControlButtons.plusButtons.map((button) => (
                   <button
@@ -1899,17 +1949,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
               </div>
             </div>
             <div className={styles.mallaViewportGridContent}>
-              <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
-                <MetaCalcHeader
-                  columnCount={cols}
-                  rowConfig={activeMetaRow}
-                  malla={mallaForMetaCalc}
-                  deps={metaCalcDeps}
-                  onCellClick={handleMetaCellClick}
-                  isOverrideColumn={(colIndex) => !!activeMetaRow.columns?.[colIndex]}
-                  className={styles.metaCalcHeader}
-                />
-              </div>
+              {metaPanel.enabled !== false ? (
+                <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
+                  <MetaCalcHeader
+                    columnCount={cols}
+                    rowConfig={activeMetaRow}
+                    malla={mallaForMetaCalc}
+                    deps={metaCalcDeps}
+                    onCellClick={handleMetaCellClick}
+                    isOverrideColumn={(colIndex) => !!activeMetaRow.columns?.[colIndex]}
+                    className={styles.metaCalcHeader}
+                  />
+                </div>
+              ) : null}
               <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
                   className={mallaAreaClassName}
@@ -2051,7 +2103,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
         </div>
       </div>
       <MetaCalcCellEditor
-        isOpen={editingMetaColumn != null && activeMetaCellConfig != null}
+        isOpen={metaPanel.enabled !== false && editingMetaColumn != null && activeMetaCellConfig != null}
         colIndex={editingMetaColumn ?? 0}
         rowConfig={activeMetaRow}
         isOverrideActive={isEditingOverrideActive}
