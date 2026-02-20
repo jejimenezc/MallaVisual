@@ -232,6 +232,17 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
             const hasConditionControl = conditionControls.some(
               (control) => control.controlKey === term.condition?.controlKey,
             );
+            const shouldShowAvailabilityWarning = !availability.ok && (
+              (availability.reason === 'missing-template' && !!term.templateId)
+              || (
+                availability.reason === 'missing-control'
+                && (
+                  (term.op !== 'countIf' && !!term.controlKey)
+                  || (term.op === 'countIf' && !!term.controlKey && !hasNumericControl)
+                  || (term.op === 'countIf' && !!term.condition?.controlKey && !hasConditionControl)
+                )
+              )
+            );
             const selectedConditionType = conditionControls.find(
               (control) => control.controlKey === term.condition?.controlKey,
             )?.type;
@@ -242,10 +253,12 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 key={term.id}
                 className={`${styles.termCard} ${isInvalid ? styles.termCardInvalid : ''}`}
               >
-                {!availability.ok ? (
+                {shouldShowAvailabilityWarning ? (
                   <p className={styles.warning}>
                     {availability.reason === 'missing-template'
-                      ? 'Tipo de bloque no disponible en esta columna.'
+                      ? (isOverrideActive
+                        ? 'Tipo de bloque no disponible en esta columna.'
+                        : 'El Tipo de bloque que se usará en el cálculo general no está disponible en esta columna')
                       : 'Campo no disponible en esta columna.'}
                   </p>
                 ) : null}
