@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from './Button';
 import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
+import { confirmAsync } from '../ui/alerts';
 import styles from './MetaCalcCellEditor.module.css';
 
 interface Props {
@@ -12,7 +13,7 @@ interface Props {
   initialCellConfig: MetaCellConfig;
   catalog: MetaPanelCatalog;
   availabilityCatalog: MetaPanelCatalog;
-  onToggleOverride: (active: boolean) => void;
+  onToggleOverride: (active: boolean) => void | Promise<void>;
   onSave: (nextCellConfig: MetaCellConfig, nextRowLabel: string, nextOverrideLabel: string) => void;
   onCancel: () => void;
 }
@@ -71,14 +72,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const [draftOverrideLabel, setDraftOverrideLabel] = useState<string>(
     isOverrideActive ? (initialCellConfig.label ?? '') : '',
   );
-  const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     if (!isOpen) return;
     setDraft(cloneCellConfig(initialCellConfig));
     setDraftRowLabel(rowConfig.label ?? '');
     setDraftOverrideLabel(isOverrideActive ? (initialCellConfig.label ?? '') : '');
-    setError(null);
   }, [initialCellConfig, isOpen, isOverrideActive, rowConfig.label]);
 
   useEffect(() => {
@@ -94,6 +92,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   }, [isOpen, onCancel]);
 
   const canAddTerm = draft.terms.length < MAX_TERMS;
+  const exceedsTermLimit = draft.terms.length > MAX_TERMS;
 
   const templates = catalog.templates;
   const templateOptions = useMemo(
@@ -121,34 +120,45 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
       nextTerms[index] = updater(current);
       return { ...prev, terms: nextTerms };
     });
-    setError(null);
   };
 
-  const removeTerm = (index: number) => {
+  const removeTerm = async (index: number) => {
+    const confirmed = await confirmAsync({
+      title: 'Eliminar termino',
+      message: 'Eliminar este termino?\nEsta accion no se puede deshacer.',
+      confirmLabel: 'Si, eliminar',
+      cancelLabel: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
     setDraft((prev) => ({
       ...prev,
       terms: prev.terms.filter((_, idx) => idx !== index),
     }));
-    setError(null);
   };
 
-  const handleSave = () => {
-    for (const term of draft.terms) {
+  const invalidTermIndexes = useMemo(() => {
+    const indexes = new Set<number>();
+    draft.terms.forEach((term, index) => {
       if (!term.templateId) {
-        setError('Cada termino debe tener un tipo de bloque seleccionado.');
+        indexes.add(index);
         return;
       }
       if ((term.op === 'sum' || term.op === 'avg' || term.op === 'countIf') && !term.controlKey) {
-        setError('Los terminos sum/avg/countIf requieren campo.');
+        indexes.add(index);
         return;
       }
-      if (term.op === 'countIf') {
-        if (!term.condition?.controlKey) {
-          setError('countIf requiere campo de condicion.');
-          return;
-        }
+      if (term.op === 'countIf' && !term.condition?.controlKey) {
+        indexes.add(index);
       }
-    }
+    });
+    return indexes;
+  }, [draft.terms]);
+
+  const isSaveDisabled = invalidTermIndexes.size > 0 || exceedsTermLimit;
+
+  const handleSave = () => {
+    if (isSaveDisabled) return;
     onSave(
       cloneCellConfig(draft),
       draftRowLabel.trim(),
@@ -225,9 +235,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
             const selectedConditionType = conditionControls.find(
               (control) => control.controlKey === term.condition?.controlKey,
             )?.type;
+            const isInvalid = invalidTermIndexes.has(termIndex);
 
             return (
-              <div key={term.id} className={styles.termCard}>
+              <div
+                key={term.id}
+                className={`${styles.termCard} ${isInvalid ? styles.termCardInvalid : ''}`}
+              >
                 {!availability.ok ? (
                   <p className={styles.warning}>
                     {availability.reason === 'missing-template'
@@ -401,7 +415,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 ) : null}
 
                 <div className={styles.termActions}>
-                  <Button type="button" onClick={() => removeTerm(termIndex)}>
+                  <Button type="button" onClick={() => { void removeTerm(termIndex); }}>
                     Eliminar término
                   </Button>
                 </div>
@@ -416,14 +430,16 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
             <span>{draft.terms.length}/{MAX_TERMS}</span>
           </div>
 
-          {error ? <p className={styles.error}>{error}</p> : null}
+          {isSaveDisabled ? (
+            <p className={styles.error}>Revisa los terminos incompletos antes de guardar.</p>
+          ) : null}
         </div>
 
         <div className={styles.footer}>
           <Button type="button" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="button" variant="primary" onClick={handleSave}>
+          <Button type="button" variant="primary" onClick={handleSave} disabled={isSaveDisabled}>
             Save
           </Button>
         </div>
@@ -431,3 +447,4 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     </div>
   );
 };
+
