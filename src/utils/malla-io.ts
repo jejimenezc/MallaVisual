@@ -93,6 +93,9 @@ const normalizeMetaCellConfig = (
     return { id: fallbackId, mode: 'count', terms: [] };
   }
   const rawId = typeof value.id === 'string' ? value.id.trim() : '';
+  const label = typeof value.label === 'string' && value.label.trim().length > 0
+    ? value.label.trim()
+    : undefined;
   const rawMode = value.mode === 'count' ? 'count' : undefined;
   const id = rawId.length > 0 ? rawId : fallbackId;
   const rawTerms = Array.isArray(value.terms) ? value.terms : [];
@@ -101,6 +104,7 @@ const normalizeMetaCellConfig = (
     .filter((term): term is TermConfig => !!term);
   return {
     id,
+    ...(label ? { label } : {}),
     mode: rawMode,
     terms,
   };
