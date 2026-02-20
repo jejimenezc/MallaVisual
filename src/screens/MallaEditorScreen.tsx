@@ -670,9 +670,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
     })),
   }), []);
 
-  const handleMetaOverrideToggle = useCallback((active: boolean) => {
+  const handleMetaOverrideToggle = useCallback(async (active: boolean) => {
     if (editingMetaColumn == null) {
       return;
+    }
+    const hasOverride = !!activeMetaRow.columns?.[editingMetaColumn];
+    if (!active && hasOverride) {
+      const confirmed = await confirmAsync({
+        title: 'Volver al calculo general',
+        message:
+          'Volver al calculo general?\nSe perdera el calculo personalizado de esta columna.',
+        confirmLabel: 'Si, volver',
+        cancelLabel: 'Cancelar',
+        variant: 'destructive',
+      });
+      if (!confirmed) {
+        return;
+      }
     }
     runHistoryTransaction(() => {
       setMetaPanel((prev) => {
@@ -695,35 +709,49 @@ export const MallaEditorScreen: React.FC<Props> = ({
         return { ...normalized, rows: nextRows };
       });
     });
-  }, [cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction]);
+  }, [activeMetaRow.columns, cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction]);
 
-  const handleMetaEditorSave = useCallback((nextCellConfig: MetaCellConfig) => {
-    runHistoryTransaction(() => {
-      setMetaPanel((prev) => {
-        const normalized = normalizeMetaPanelConfig(prev);
-        const nextRows = normalized.rows.slice();
-        const currentRow = nextRows[0];
-        if (!currentRow) {
-          return normalized;
-        }
-        if (editingMetaColumn != null && currentRow.columns?.[editingMetaColumn]) {
-          const nextColumns = { ...(currentRow.columns ?? {}) };
-          nextColumns[editingMetaColumn] = cloneMetaCellConfig(nextCellConfig);
-          nextRows[0] = {
-            ...currentRow,
-            columns: nextColumns,
-          };
-        } else {
-          nextRows[0] = {
-            ...currentRow,
-            defaultCell: cloneMetaCellConfig(nextCellConfig),
-          };
-        }
-        return { ...normalized, rows: nextRows };
+  const handleMetaEditorSave = useCallback((
+    nextCellConfig: MetaCellConfig,
+    nextRowLabel: string,
+    nextOverrideLabel: string,
+  ) => {
+    try {
+      runHistoryTransaction(() => {
+        setMetaPanel((prev) => {
+          const normalized = normalizeMetaPanelConfig(prev);
+          const nextRows = normalized.rows.slice();
+          const currentRow = nextRows[0];
+          if (!currentRow) {
+            return normalized;
+          }
+          if (editingMetaColumn != null && currentRow.columns?.[editingMetaColumn]) {
+            const nextColumns = { ...(currentRow.columns ?? {}) };
+            nextColumns[editingMetaColumn] = {
+              ...cloneMetaCellConfig(nextCellConfig),
+              label: nextOverrideLabel || undefined,
+            };
+            nextRows[0] = {
+              ...currentRow,
+              columns: nextColumns,
+            };
+          } else {
+            nextRows[0] = {
+              ...currentRow,
+              label: nextRowLabel || undefined,
+              defaultCell: cloneMetaCellConfig(nextCellConfig),
+            };
+          }
+          return { ...normalized, rows: nextRows };
+        });
       });
-    });
-    setEditingMetaColumn(null);
-  }, [cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction]);
+      setEditingMetaColumn(null);
+      showToast('Calculo guardado', 'success');
+    } catch (error) {
+      console.error('[MetaCalc] Error saving cell config', error);
+      showToast('No se pudo guardar el calculo', 'error');
+    }
+  }, [cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction, showToast]);
 
   const zoomedGridWrapperStyle = useMemo(
     () =>

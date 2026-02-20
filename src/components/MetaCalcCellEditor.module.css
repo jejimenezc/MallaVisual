@@ -51,6 +51,11 @@
   gap: 0.5rem;
 }
 
+.termCardInvalid {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
 .row {
   display: grid;
   grid-template-columns: 180px 1fr;
@@ -80,11 +85,12 @@
 }
 
 .warning {
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
+  color: #6b7280;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
   margin: 0;
 }
 

@@ -18,6 +18,7 @@ export interface TermConfig {
 
 export interface MetaCellConfig {
   id: string;
+  label?: string;
   mode?: MetaCellMode;
   terms: TermConfig[];
 }

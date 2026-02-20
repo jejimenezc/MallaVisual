@@ -40,6 +40,9 @@ export const MetaCalcHeader: React.FC<Props> = ({
   const cells = Array.from({ length: Math.max(0, columnCount) }, (_, index) => {
     const cellConfig = getCellConfigForColumn(rowConfig, index);
     const value = valuesByColumn[index];
+    const overrideLabel = rowConfig.columns?.[index]?.label?.trim();
+    const generalLabel = rowConfig.label?.trim();
+    const rowLabel = overrideLabel || generalLabel || undefined;
     const hasTerms = cellConfig.terms.length > 0;
     const hasOverride = isOverrideColumn?.(index) ?? false;
     const displayValue = value == null
@@ -52,18 +55,43 @@ export const MetaCalcHeader: React.FC<Props> = ({
           minHeight: 28,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'stretch',
           borderRight: '1px solid var(--color-border)',
           fontSize: '0.85rem',
           color: 'var(--color-secondary)',
           background: 'var(--color-surface)',
           cursor: onCellClick ? 'pointer' : 'default',
+          padding: '0 6px',
         }}
-        title={cellConfig.id}
+        title={rowLabel ? `${rowLabel} (${cellConfig.id})` : cellConfig.id}
         onClick={onCellClick ? () => onCellClick(index) : undefined}
       >
-        <span>{displayValue}</span>
-        {hasOverride ? <span style={{ marginLeft: 4, fontSize: '0.65rem' }}>●</span> : null}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto',
+            alignItems: 'center',
+            columnGap: 6,
+            width: '100%',
+            lineHeight: 1.1,
+          }}
+        >
+          <span
+            style={{
+              fontSize: '0.62rem',
+              opacity: 0.8,
+              textAlign: 'left',
+              whiteSpace: 'normal',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {rowLabel ?? ''}
+          </span>
+          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+            {displayValue}
+            {hasOverride ? <span style={{ marginLeft: 4, fontSize: '0.65rem' }}>●</span> : null}
+          </span>
+        </div>
       </div>
     );
   });
