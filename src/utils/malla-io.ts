@@ -79,7 +79,8 @@ const createDefaultMetaPanelRow = (id = DEFAULT_META_PANEL_ROW_ID): MetaPanelRow
   columns: {},
 });
 
-export const createDefaultMetaPanel = (): MetaPanelConfig => ({
+export const createDefaultMetaPanel = (enabled = true): MetaPanelConfig => ({
+  enabled,
   rows: [createDefaultMetaPanelRow()],
 });
 
@@ -208,15 +209,16 @@ export const normalizeMetaPanelConfig = (value: unknown): MetaPanelConfig => {
   if (!isRecord(value)) {
     return createDefaultMetaPanel();
   }
+  const enabled = value.enabled === false ? false : true;
   const rawRows = Array.isArray(value.rows) ? value.rows : [];
   const rows = rawRows.map((row, index) => {
     const fallbackId = index === 0 ? DEFAULT_META_PANEL_ROW_ID : `meta-row-${index + 1}`;
     return normalizeMetaPanelRowConfig(row, fallbackId);
   });
   if (rows.length === 0) {
-    return createDefaultMetaPanel();
+    return createDefaultMetaPanel(enabled);
   }
-  return { rows };
+  return { enabled, rows };
 };
 
 export const getActiveMetaPanelRow = (metaPanel: MetaPanelConfig | undefined): MetaPanelRowConfig =>

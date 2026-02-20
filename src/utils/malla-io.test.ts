@@ -94,6 +94,7 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
   assert.equal(result.activeMasterId, 'm1');
   assert.deepEqual(result.theme, createDefaultProjectTheme());
   assert.deepEqual(result.metaPanel, {
+    enabled: true,
     rows: [
       {
         id: 'row-main',
@@ -232,6 +233,7 @@ test('importMalla adds default metaPanel when absent', () => {
   };
 
   const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.enabled, true);
   assert.equal(result.metaPanel?.rows.length, 1);
   const activeRow = getActiveMetaPanelRow(result.metaPanel);
   assert.equal(activeRow.id, 'meta-row-main');
@@ -320,4 +322,51 @@ test('export/import roundtrip preserves defaultCell and columns overrides', () =
   assert.equal(row.defaultCell.terms[0]?.id, 'tt');
   assert.equal(row.columns?.[1]?.id, 'row-main-col-1');
   assert.equal(row.columns?.[1]?.terms[0]?.id, 'ov');
+});
+
+test('importMalla defaults enabled=true when metaPanel exists without enabled', () => {
+  const payload = {
+    version: 6,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-main',
+          defaultCell: { id: 'row-main-default', mode: 'count', terms: [] },
+        },
+      ],
+    },
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.enabled, true);
+});
+
+test('export/import roundtrip preserves metaPanel enabled=false', () => {
+  const payload = {
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      enabled: false,
+      rows: [
+        {
+          id: 'row-main',
+          defaultCell: { id: 'row-main-default', mode: 'count', terms: [] },
+        },
+      ],
+    },
+  } as const;
+
+  const json = exportMalla(payload as unknown as Parameters<typeof exportMalla>[0]);
+  const result = importMalla(json);
+  assert.equal(result.metaPanel?.enabled, false);
 });
