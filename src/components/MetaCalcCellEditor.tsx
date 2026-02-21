@@ -72,6 +72,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const [draftOverrideLabel, setDraftOverrideLabel] = useState<string>(
     isOverrideActive ? (initialCellConfig.label ?? '') : '',
   );
+
   useEffect(() => {
     if (!isOpen) return;
     setDraft(cloneCellConfig(initialCellConfig));
@@ -180,268 +181,303 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         onClick={(event) => event.stopPropagation()}
       >
         <div className={styles.header}>
-          <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
-          <p>Columna seleccionada: {colIndex + 1}</p>
-          <label className={styles.toggleRow}>
-            <input
-              type="checkbox"
-              checked={isOverrideActive}
-              onChange={(event) => onToggleOverride(event.target.checked)}
-            />
-            <span>Personalizar esta columna</span>
-          </label>
+          <div className={styles.headerTop}>
+            <div>
+              <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
+              <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
+            </div>
+            <label className={styles.toggleRow}>
+              <input
+                type="checkbox"
+                checked={isOverrideActive}
+                onChange={(event) => onToggleOverride(event.target.checked)}
+              />
+              <span>Personalizar esta columna</span>
+            </label>
+          </div>
           <p className={styles.modeText}>
             {isOverrideActive
-              ? 'Esta columna usara un calculo distinto al general.'
-              : 'Calculo general. Este calculo se aplica a todas las columnas.'}
+              ? 'Personalizacion de esta columna'
+              : 'Calculo general (todas las columnas)'}
           </p>
         </div>
 
         <div className={styles.body}>
-          {isOverrideActive ? (
-            <>
-              <div className={styles.row}>
-                <label>Nombre para esta columna (opcional)</label>
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Nombre del calculo</h4>
+            {isOverrideActive ? (
+              <>
+                <div className={styles.formRow}>
+                  <label>Nombre para esta columna</label>
+                  <input
+                    type="text"
+                    value={draftOverrideLabel}
+                    onChange={(event) => setDraftOverrideLabel(event.target.value)}
+                    placeholder="Nombre para esta columna"
+                  />
+                </div>
+                <p className={styles.sectionHint}>Si lo dejas vacio, se usara el nombre general.</p>
+              </>
+            ) : (
+              <div className={styles.formRow}>
+                <label>Nombre del calculo</label>
                 <input
                   type="text"
-                  value={draftOverrideLabel}
-                  onChange={(event) => setDraftOverrideLabel(event.target.value)}
-                  placeholder="Nombre para esta columna (opcional)"
+                  value={draftRowLabel}
+                  onChange={(event) => setDraftRowLabel(event.target.value)}
+                  placeholder="Nombre del calculo"
                 />
               </div>
-              <p className={styles.modeText}>Si lo dejas vacio, se usara el nombre general.</p>
-            </>
-          ) : (
-            <div className={styles.row}>
-              <label>Nombre del calculo (opcional)</label>
-              <input
-                type="text"
-                value={draftRowLabel}
-                onChange={(event) => setDraftRowLabel(event.target.value)}
-                placeholder="Nombre del calculo (opcional)"
-              />
+            )}
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h4 className={styles.sectionTitle}>Constructor de terminos</h4>
             </div>
-          )}
-          {draft.terms.map((term, termIndex) => {
-            const availability = getTermAvailability(term, availabilityCatalog);
-            const templateCatalog = catalog.controlsByTemplateId[term.templateId];
-            const numericControls = templateCatalog?.numericControls ?? [];
-            const conditionControls = templateCatalog?.conditionControls ?? [];
-            const hasTemplateInCatalog = !!templateCatalog;
-            const hasNumericControl = numericControls.some((control) => control.controlKey === term.controlKey);
-            const hasConditionControl = conditionControls.some(
-              (control) => control.controlKey === term.condition?.controlKey,
-            );
-            const shouldShowAvailabilityWarning = !availability.ok && (
-              (availability.reason === 'missing-template' && !!term.templateId)
-              || (
-                availability.reason === 'missing-control'
-                && (
-                  (term.op !== 'countIf' && !!term.controlKey)
-                  || (term.op === 'countIf' && !!term.controlKey && !hasNumericControl)
-                  || (term.op === 'countIf' && !!term.condition?.controlKey && !hasConditionControl)
+
+            {draft.terms.map((term, termIndex) => {
+              const availability = getTermAvailability(term, availabilityCatalog);
+              const templateCatalog = catalog.controlsByTemplateId[term.templateId];
+              const numericControls = templateCatalog?.numericControls ?? [];
+              const conditionControls = templateCatalog?.conditionControls ?? [];
+              const hasTemplateInCatalog = !!templateCatalog;
+              const hasNumericControl = numericControls.some((control) => control.controlKey === term.controlKey);
+              const hasConditionControl = conditionControls.some(
+                (control) => control.controlKey === term.condition?.controlKey,
+              );
+              const shouldShowAvailabilityWarning = !availability.ok && (
+                (availability.reason === 'missing-template' && !!term.templateId)
+                || (
+                  availability.reason === 'missing-control'
+                  && (
+                    (term.op !== 'countIf' && !!term.controlKey)
+                    || (term.op === 'countIf' && !!term.controlKey && !hasNumericControl)
+                    || (term.op === 'countIf' && !!term.condition?.controlKey && !hasConditionControl)
+                  )
                 )
-              )
-            );
-            const selectedConditionType = conditionControls.find(
-              (control) => control.controlKey === term.condition?.controlKey,
-            )?.type;
-            const isInvalid = invalidTermIndexes.has(termIndex);
+              );
+              const selectedConditionType = conditionControls.find(
+                (control) => control.controlKey === term.condition?.controlKey,
+              )?.type;
+              const isInvalid = invalidTermIndexes.has(termIndex);
 
-            return (
-              <div
-                key={term.id}
-                className={`${styles.termCard} ${isInvalid ? styles.termCardInvalid : ''}`}
-              >
-                {shouldShowAvailabilityWarning ? (
-                  <p className={styles.warning}>
-                    {availability.reason === 'missing-template'
-                      ? (isOverrideActive
-                        ? 'Tipo de bloque no disponible en esta columna.'
-                        : 'El Tipo de bloque que se usará en el cálculo general no está disponible en esta columna')
-                      : 'Campo no disponible en esta columna.'}
-                  </p>
-                ) : null}
+              return (
+                <div
+                  key={term.id}
+                  className={`${styles.termCard} ${isInvalid ? styles.termCardInvalid : ''}`}
+                >
+                  <div className={styles.termMainRow}>
+                    <div className={`${styles.termControl} ${styles.termSignControl}`}>
+                      <label>Signo</label>
+                      <div className={styles.signGroup} role="group" aria-label={`Signo del termino ${termIndex + 1}`}>
+                        <button
+                          type="button"
+                          className={`${styles.signButton} ${term.sign === 1 ? styles.signButtonActive : ''}`}
+                          onClick={() => updateTerm(termIndex, (prev) => ({ ...prev, sign: 1 }))}
+                          aria-pressed={term.sign === 1}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className={`${styles.signButton} ${term.sign === -1 ? styles.signButtonActive : ''}`}
+                          onClick={() => updateTerm(termIndex, (prev) => ({ ...prev, sign: -1 }))}
+                          aria-pressed={term.sign === -1}
+                        >
+                          -
+                        </button>
+                      </div>
+                    </div>
 
-                <div className={styles.row}>
-                  <label>Signo</label>
-                  <select
-                    value={String(term.sign)}
-                    onChange={(event) =>
-                      updateTerm(termIndex, (prev) => ({
-                        ...prev,
-                        sign: event.target.value === '-1' ? -1 : 1,
-                      }))
-                    }
-                  >
-                    <option value="1">+</option>
-                    <option value="-1">-</option>
-                  </select>
-                </div>
-
-                <div className={styles.row}>
-                  <label>Operación</label>
-                  <select
-                    value={term.op}
-                    onChange={(event) => {
-                      const nextOp = event.target.value as TermConfig['op'];
-                      updateTerm(termIndex, (prev) => ({
-                        ...prev,
-                        op: nextOp,
-                        ...(nextOp === 'countIf'
-                          ? {
-                            condition: prev.condition ?? {
-                              controlKey: conditionControls[0]?.controlKey ?? '',
-                              equals: '',
-                            },
-                          }
-                          : { condition: undefined }),
-                      }));
-                    }}
-                  >
-                    <option value="sum">sum</option>
-                    <option value="avg">avg</option>
-                    <option value="count">count</option>
-                    <option value="countIf">countIf</option>
-                  </select>
-                </div>
-
-                <div className={styles.row}>
-                  <label>Tipo de bloque</label>
-                  <select
-                    value={term.templateId}
-                    onChange={(event) => {
-                      const nextTemplateId = event.target.value;
-                      const nextTemplate = catalog.controlsByTemplateId[nextTemplateId];
-                      updateTerm(termIndex, (prev) => ({
-                        ...prev,
-                        templateId: nextTemplateId,
-                        controlKey: nextTemplate?.numericControls[0]?.controlKey ?? '',
-                        ...(prev.condition
-                          ? {
-                            condition: {
-                              ...prev.condition,
-                              controlKey: nextTemplate?.conditionControls[0]?.controlKey ?? '',
-                            },
-                          }
-                          : {}),
-                      }));
-                    }}
-                  >
-                    <option value="">Selecciona tipo de bloque...</option>
-                    {!hasTemplateInCatalog && term.templateId ? (
-                      <option value={term.templateId}>{term.templateId} (no disponible aqui)</option>
-                    ) : null}
-                    {templateOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.row}>
-                  <label>Campo</label>
-                  <select
-                    value={term.controlKey}
-                    onChange={(event) =>
-                      updateTerm(termIndex, (prev) => ({ ...prev, controlKey: event.target.value }))
-                    }
-                    disabled={term.op === 'count'}
-                  >
-                    <option value="">Selecciona campo...</option>
-                    {!hasNumericControl && term.controlKey ? (
-                      <option value={term.controlKey}>{term.controlKey} (no disponible aqui)</option>
-                    ) : null}
-                    {numericControls.map((control) => (
-                      <option key={control.controlKey} value={control.controlKey}>
-                        {control.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {term.op === 'countIf' ? (
-                  <>
-                    <div className={styles.row}>
-                      <label>Condicion: campo</label>
+                    <div className={`${styles.termControl} ${styles.termOperationControl}`}>
+                      <label>Operacion</label>
                       <select
-                        value={term.condition?.controlKey ?? ''}
-                        onChange={(event) =>
+                        value={term.op}
+                        onChange={(event) => {
+                          const nextOp = event.target.value as TermConfig['op'];
                           updateTerm(termIndex, (prev) => ({
                             ...prev,
-                            condition: {
-                              controlKey: event.target.value,
-                              equals: prev.condition?.equals ?? '',
-                            },
-                          }))
+                            op: nextOp,
+                            ...(nextOp === 'countIf'
+                              ? {
+                                condition: prev.condition ?? {
+                                  controlKey: conditionControls[0]?.controlKey ?? '',
+                                  equals: '',
+                                },
+                              }
+                              : { condition: undefined }),
+                          }));
+                        }}
+                      >
+                        <option value="sum">sum</option>
+                        <option value="avg">avg</option>
+                        <option value="count">count</option>
+                        <option value="countIf">countIf</option>
+                      </select>
+                    </div>
+
+                    <div className={`${styles.termControl} ${styles.termTemplateControl}`}>
+                      <label>Tipo de bloque</label>
+                      <select
+                        value={term.templateId}
+                        onChange={(event) => {
+                          const nextTemplateId = event.target.value;
+                          const nextTemplate = catalog.controlsByTemplateId[nextTemplateId];
+                          updateTerm(termIndex, (prev) => ({
+                            ...prev,
+                            templateId: nextTemplateId,
+                            controlKey: nextTemplate?.numericControls[0]?.controlKey ?? '',
+                            ...(prev.condition
+                              ? {
+                                condition: {
+                                  ...prev.condition,
+                                  controlKey: nextTemplate?.conditionControls[0]?.controlKey ?? '',
+                                },
+                              }
+                              : {}),
+                          }));
+                        }}
+                      >
+                        <option value="">Selecciona tipo de bloque...</option>
+                        {!hasTemplateInCatalog && term.templateId ? (
+                          <option value={term.templateId}>{term.templateId} (no disponible aqui)</option>
+                        ) : null}
+                        {templateOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className={`${styles.termControl} ${styles.termFieldControl}`}>
+                      <label>Campo</label>
+                      <select
+                        value={term.controlKey}
+                        onChange={(event) =>
+                          updateTerm(termIndex, (prev) => ({ ...prev, controlKey: event.target.value }))
                         }
+                        disabled={term.op === 'count'}
                       >
                         <option value="">Selecciona campo...</option>
-                        {!hasConditionControl && term.condition?.controlKey ? (
-                          <option value={term.condition.controlKey}>
-                            {term.condition.controlKey} (no disponible aqui)
-                          </option>
+                        {!hasNumericControl && term.controlKey ? (
+                          <option value={term.controlKey}>{term.controlKey} (no disponible aqui)</option>
                         ) : null}
-                        {conditionControls.map((control) => (
+                        {numericControls.map((control) => (
                           <option key={control.controlKey} value={control.controlKey}>
                             {control.label}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <div className={styles.row}>
-                      <label>Condicion: valor</label>
-                      {selectedConditionType === 'checkbox' ? (
+
+                    <div className={`${styles.termControl} ${styles.termDeleteControl}`}>
+                      <label>Accion</label>
+                      <Button
+                        type="button"
+                        className={styles.removeButton}
+                        onClick={() => { void removeTerm(termIndex); }}
+                      >
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {term.op === 'countIf' ? (
+                    <div className={styles.termConditionRow}>
+                      <div className={styles.termControl}>
+                        <label>Condicion: campo</label>
                         <select
-                          value={serializeConditionEquals(term.condition?.equals)}
+                          value={term.condition?.controlKey ?? ''}
                           onChange={(event) =>
                             updateTerm(termIndex, (prev) => ({
                               ...prev,
                               condition: {
-                                controlKey: prev.condition?.controlKey ?? '',
-                                equals: event.target.value === 'true',
+                                controlKey: event.target.value,
+                                equals: prev.condition?.equals ?? '',
                               },
                             }))
                           }
                         >
-                          <option value="true">true</option>
-                          <option value="false">false</option>
+                          <option value="">Selecciona campo...</option>
+                          {!hasConditionControl && term.condition?.controlKey ? (
+                            <option value={term.condition.controlKey}>
+                              {term.condition.controlKey} (no disponible aqui)
+                            </option>
+                          ) : null}
+                          {conditionControls.map((control) => (
+                            <option key={control.controlKey} value={control.controlKey}>
+                              {control.label}
+                            </option>
+                          ))}
                         </select>
-                      ) : (
-                        <input
-                          type={selectedConditionType === 'number' || selectedConditionType === 'calculated' ? 'number' : 'text'}
-                          value={serializeConditionEquals(term.condition?.equals)}
-                          onChange={(event) =>
-                            updateTerm(termIndex, (prev) => ({
-                              ...prev,
-                              condition: {
-                                controlKey: prev.condition?.controlKey ?? '',
-                                equals: parseConditionEquals(event.target.value, selectedConditionType),
-                              },
-                            }))
-                          }
-                        />
-                      )}
+                      </div>
+                      <div className={styles.termControl}>
+                        <label>Condicion: valor</label>
+                        {selectedConditionType === 'checkbox' ? (
+                          <select
+                            value={serializeConditionEquals(term.condition?.equals)}
+                            onChange={(event) =>
+                              updateTerm(termIndex, (prev) => ({
+                                ...prev,
+                                condition: {
+                                  controlKey: prev.condition?.controlKey ?? '',
+                                  equals: event.target.value === 'true',
+                                },
+                              }))
+                            }
+                          >
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                          </select>
+                        ) : (
+                          <input
+                            type={selectedConditionType === 'number' || selectedConditionType === 'calculated' ? 'number' : 'text'}
+                            value={serializeConditionEquals(term.condition?.equals)}
+                            onChange={(event) =>
+                              updateTerm(termIndex, (prev) => ({
+                                ...prev,
+                                condition: {
+                                  controlKey: prev.condition?.controlKey ?? '',
+                                  equals: parseConditionEquals(event.target.value, selectedConditionType),
+                                },
+                              }))
+                            }
+                          />
+                        )}
+                      </div>
                     </div>
-                  </>
-                ) : null}
+                  ) : null}
 
-                <div className={styles.termActions}>
-                  <Button type="button" onClick={() => { void removeTerm(termIndex); }}>
-                    Eliminar término
-                  </Button>
+                  {shouldShowAvailabilityWarning ? (
+                    <p className={styles.warning}>
+                      {availability.reason === 'missing-template'
+                        ? (isOverrideActive
+                          ? 'Tipo de bloque no disponible en esta columna.'
+                          : 'El tipo de bloque del calculo general no esta disponible en esta columna.')
+                        : 'Campo no disponible en esta columna.'}
+                    </p>
+                  ) : null}
+
+                  {isInvalid ? (
+                    <p className={styles.termError}>Completa este termino para poder guardar.</p>
+                  ) : null}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          <div className={styles.actionsInline}>
-            <Button type="button" onClick={() => setDraft((prev) => ({ ...prev, terms: [...prev.terms, buildEmptyTerm()] }))} disabled={!canAddTerm}>
-              Add term
-            </Button>
-            <span>{draft.terms.length}/{MAX_TERMS}</span>
-          </div>
+            <div className={styles.builderFooter}>
+              <Button
+                type="button"
+                onClick={() => setDraft((prev) => ({ ...prev, terms: [...prev.terms, buildEmptyTerm()] }))}
+                disabled={!canAddTerm}
+              >
+                Agregar termino
+              </Button>
+              <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} terminos</span>
+            </div>
+          </section>
 
           {isSaveDisabled ? (
             <p className={styles.error}>Revisa los terminos incompletos antes de guardar.</p>
@@ -450,14 +486,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
         <div className={styles.footer}>
           <Button type="button" onClick={onCancel}>
-            Cancel
+            Cancelar
           </Button>
           <Button type="button" variant="primary" onClick={handleSave} disabled={isSaveDisabled}>
-            Save
+            Guardar
           </Button>
         </div>
       </div>
     </div>
   );
 };
-
