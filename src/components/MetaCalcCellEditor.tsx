@@ -35,6 +35,38 @@ const cloneCellConfig = (config: MetaCellConfig): MetaCellConfig => ({
   terms: (config.terms ?? []).map(cloneTerm),
 });
 
+const moveItem = <T,>(arr: T[], fromIndex: number, toIndex: number): T[] => {
+  if (
+    fromIndex < 0
+    || toIndex < 0
+    || fromIndex >= arr.length
+    || toIndex >= arr.length
+    || fromIndex === toIndex
+  ) {
+    return arr;
+  }
+
+  const next = arr.slice();
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+};
+
+const duplicateTermAt = (terms: TermConfig[], index: number): TermConfig[] => {
+  if (index < 0 || index >= terms.length || terms.length >= MAX_TERMS) {
+    return terms;
+  }
+
+  const source = terms[index];
+  const duplicated: TermConfig = {
+    ...cloneTerm(source),
+    id: createTermId(),
+  };
+  const nextTerms = terms.slice();
+  nextTerms.splice(index + 1, 0, duplicated);
+  return nextTerms;
+};
+
 const parseConditionEquals = (
   rawValue: string,
   controlType: string | undefined,
@@ -54,6 +86,23 @@ const serializeConditionEquals = (value: string | number | boolean | undefined):
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '0';
   return value ?? '';
 };
+
+const DuplicateIcon: React.FC = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <rect x="3" y="6" width="9" height="9" rx="1.5" />
+    <rect x="7" y="2" width="9" height="9" rx="1.5" />
+    <path d="M15.5 13v5M13 15.5h5" />
+  </svg>
+);
+
+const TrashIcon: React.FC = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <path d="M4 6h12" />
+    <path d="M8 6V4h4v2" />
+    <path d="M6.5 6l.7 10h5.6l.7-10" />
+    <path d="M8.5 9v5M11.5 9v5" />
+  </svg>
+);
 
 export const MetaCalcCellEditor: React.FC<Props> = ({
   isOpen,
@@ -121,6 +170,27 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
       nextTerms[index] = updater(current);
       return { ...prev, terms: nextTerms };
     });
+  };
+
+  const moveTermUp = (index: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      terms: moveItem(prev.terms, index, index - 1),
+    }));
+  };
+
+  const moveTermDown = (index: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      terms: moveItem(prev.terms, index, index + 1),
+    }));
+  };
+
+  const duplicateTerm = (index: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      terms: duplicateTermAt(prev.terms, index),
+    }));
   };
 
   const removeTerm = async (index: number) => {
@@ -261,6 +331,8 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 (control) => control.controlKey === term.condition?.controlKey,
               )?.type;
               const isInvalid = invalidTermIndexes.has(termIndex);
+              const isFirstTerm = termIndex === 0;
+              const isLastTerm = termIndex === draft.terms.length - 1;
 
               return (
                 <div
@@ -373,14 +445,48 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     </div>
 
                     <div className={`${styles.termControl} ${styles.termDeleteControl}`}>
-                      <label>Accion</label>
-                      <Button
-                        type="button"
-                        className={styles.removeButton}
-                        onClick={() => { void removeTerm(termIndex); }}
-                      >
-                        Eliminar
-                      </Button>
+                      <label>Acciones</label>
+                      <div className={styles.termActions}>
+                        <Button
+                          type="button"
+                          className={styles.actionIconButton}
+                          onClick={() => moveTermUp(termIndex)}
+                          disabled={isFirstTerm}
+                          aria-label={`Mover termino ${termIndex + 1} arriba`}
+                          title="Mover arriba"
+                        >
+                          ↑
+                        </Button>
+                        <Button
+                          type="button"
+                          className={styles.actionIconButton}
+                          onClick={() => moveTermDown(termIndex)}
+                          disabled={isLastTerm}
+                          aria-label={`Mover termino ${termIndex + 1} abajo`}
+                          title="Mover abajo"
+                        >
+                          ↓
+                        </Button>
+                        <Button
+                          type="button"
+                          className={styles.actionIconButton}
+                          onClick={() => duplicateTerm(termIndex)}
+                          disabled={!canAddTerm}
+                          aria-label={`Duplicar termino ${termIndex + 1}`}
+                          title="Duplicar"
+                        >
+                          <DuplicateIcon />
+                        </Button>
+                        <Button
+                          type="button"
+                          className={styles.actionIconButton}
+                          onClick={() => { void removeTerm(termIndex); }}
+                          aria-label={`Eliminar termino ${termIndex + 1}`}
+                          title="Eliminar"
+                        >
+                          <TrashIcon />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
@@ -477,6 +583,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
               </Button>
               <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} terminos</span>
             </div>
+            {!canAddTerm ? <p className={styles.maxTermsHint}>Maximo 5 terminos.</p> : null}
           </section>
 
           {isSaveDisabled ? (

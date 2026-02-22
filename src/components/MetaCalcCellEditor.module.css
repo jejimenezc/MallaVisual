@@ -115,7 +115,7 @@
 
 .termMainRow {
   display: grid;
-  grid-template-columns: 76px 180px minmax(170px, 1fr) minmax(170px, 1fr) auto;
+  grid-template-columns: 76px 160px minmax(150px, 1fr) minmax(150px, 1fr) 188px;
   grid-template-areas: 'sign operation template field delete';
   gap: 0.6rem;
   align-items: end;
@@ -168,8 +168,33 @@
   font-weight: 600;
 }
 
-.removeButton {
-  min-width: 92px;
+.termActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+}
+
+.actionIconButton {
+  width: 38px;
+  min-width: 38px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.actionIconButton svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .termConditionRow {
@@ -187,6 +212,12 @@
 
 .counterText {
   font-size: 0.85rem;
+  color: var(--color-secondary);
+}
+
+.maxTermsHint {
+  margin: -0.3rem 0 0;
+  font-size: 0.8rem;
   color: var(--color-secondary);
 }
 
@@ -221,7 +252,7 @@
 
 @media (max-width: 900px) {
   .termMainRow {
-    grid-template-columns: 84px minmax(0, 1fr) auto;
+    grid-template-columns: 84px minmax(0, 1fr) 188px;
     grid-template-areas:
       'sign operation delete'
       'template field field';
