@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './Button';
 import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
@@ -175,11 +175,14 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   onSave,
   onCancel,
 }) => {
+  const termPrimaryControlRefs = useRef<Record<string, HTMLSelectElement | null>>({});
+  const termCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [draft, setDraft] = useState<MetaCellConfig>(() => cloneCellConfig(initialCellConfig));
   const [draftRowLabel, setDraftRowLabel] = useState<string>(rowConfig.label ?? '');
   const [draftOverrideLabel, setDraftOverrideLabel] = useState<string>(
     isOverrideActive ? (initialCellConfig.label ?? '') : '',
   );
+  const [pendingFocusTermId, setPendingFocusTermId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -234,10 +237,17 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   };
 
   const duplicateTerm = (index: number) => {
+    if (!canAddTerm) return;
+    const nextTerms = duplicateTermAt(draft.terms, index);
+    if (nextTerms === draft.terms) return;
+    const duplicatedTerm = nextTerms[index + 1];
     setDraft((prev) => ({
       ...prev,
-      terms: duplicateTermAt(prev.terms, index),
+      terms: nextTerms,
     }));
+    if (duplicatedTerm) {
+      setPendingFocusTermId(duplicatedTerm.id);
+    }
   };
 
   const removeTerm = async (index: number) => {
@@ -302,6 +312,22 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     () => formatHumanPreview(draft.terms, catalog, availabilityCatalog),
     [availabilityCatalog, catalog, draft.terms],
   );
+
+  useEffect(() => {
+    if (!pendingFocusTermId || !isOpen) return;
+    const requestId = window.requestAnimationFrame(() => {
+      const cardNode = termCardRefs.current[pendingFocusTermId];
+      const focusNode = termPrimaryControlRefs.current[pendingFocusTermId];
+      if (cardNode) {
+        cardNode.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      if (focusNode) {
+        focusNode.focus();
+      }
+    });
+    setPendingFocusTermId(null);
+    return () => window.cancelAnimationFrame(requestId);
+  }, [draft.terms, isOpen, pendingFocusTermId]);
 
   if (!isOpen) {
     return null;
@@ -410,6 +436,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 <div
                   key={term.id}
                   className={`${styles.termCard} ${isInvalid ? styles.termCardInvalid : ''}`}
+                  ref={(node) => {
+                    termCardRefs.current[term.id] = node;
+                  }}
                 >
                   <div className={styles.termMainRow}>
                     <div className={`${styles.termControl} ${styles.termSignControl}`}>
@@ -437,6 +466,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     <div className={`${styles.termControl} ${styles.termOperationControl}`}>
                       <label>Operacion</label>
                       <select
+                        ref={(node) => {
+                          termPrimaryControlRefs.current[term.id] = node;
+                        }}
                         value={term.op}
                         onChange={(event) => {
                           const nextOp = event.target.value as TermConfig['op'];
@@ -648,7 +680,12 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
             <div className={styles.builderFooter}>
               <Button
                 type="button"
-                onClick={() => setDraft((prev) => ({ ...prev, terms: [...prev.terms, buildEmptyTerm()] }))}
+                onClick={() => {
+                  if (!canAddTerm) return;
+                  const newTerm = buildEmptyTerm();
+                  setDraft((prev) => ({ ...prev, terms: [...prev.terms, newTerm] }));
+                  setPendingFocusTermId(newTerm.id);
+                }}
                 disabled={!canAddTerm}
               >
                 Agregar termino
