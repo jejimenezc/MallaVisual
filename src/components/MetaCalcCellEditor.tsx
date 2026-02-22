@@ -1,20 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './Button';
-import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
+import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
 import { confirmAsync } from '../ui/alerts';
 import styles from './MetaCalcCellEditor.module.css';
 
 interface Props {
   isOpen: boolean;
+  rowId: string;
+  rowLabel?: string;
+  rowPosition: number;
   colIndex: number;
-  rowConfig: MetaPanelRowConfig;
   isOverrideActive: boolean;
   initialCellConfig: MetaCellConfig;
   catalog: MetaPanelCatalog;
   availabilityCatalog: MetaPanelCatalog;
-  onToggleOverride: (active: boolean) => void | Promise<void>;
-  onSave: (nextCellConfig: MetaCellConfig, nextRowLabel: string, nextOverrideLabel: string) => void;
+  onToggleOverride: (rowId: string, active: boolean) => void | Promise<void>;
+  onSave: (
+    rowId: string,
+    nextCellConfig: MetaCellConfig,
+    nextRowLabel: string,
+    nextOverrideLabel: string,
+  ) => void;
   onCancel: () => void;
 }
 
@@ -184,8 +191,10 @@ const TrashIcon: React.FC = () => (
 
 export const MetaCalcCellEditor: React.FC<Props> = ({
   isOpen,
+  rowId,
+  rowLabel,
+  rowPosition,
   colIndex,
-  rowConfig,
   isOverrideActive,
   initialCellConfig,
   catalog,
@@ -197,7 +206,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const termPrimaryControlRefs = useRef<Record<string, HTMLSelectElement | null>>({});
   const termCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [draft, setDraft] = useState<MetaCellConfig>(() => cloneCellConfig(initialCellConfig));
-  const [draftRowLabel, setDraftRowLabel] = useState<string>(rowConfig.label ?? '');
+  const [draftRowLabel, setDraftRowLabel] = useState<string>(rowLabel ?? '');
   const [draftOverrideLabel, setDraftOverrideLabel] = useState<string>(
     isOverrideActive ? (initialCellConfig.label ?? '') : '',
   );
@@ -206,9 +215,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   useEffect(() => {
     if (!isOpen) return;
     setDraft(cloneCellConfig(initialCellConfig));
-    setDraftRowLabel(rowConfig.label ?? '');
+    setDraftRowLabel(rowLabel ?? '');
     setDraftOverrideLabel(isOverrideActive ? (initialCellConfig.label ?? '') : '');
-  }, [initialCellConfig, isOpen, isOverrideActive, rowConfig.label]);
+  }, [initialCellConfig, isOpen, isOverrideActive, rowLabel]);
 
   const canAddTerm = draft.terms.length < MAX_TERMS;
   const exceedsTermLimit = draft.terms.length > MAX_TERMS;
@@ -307,6 +316,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const handleSave = () => {
     if (isSaveDisabled) return;
     onSave(
+      rowId,
       cloneCellConfig(draft),
       draftRowLabel.trim(),
       draftOverrideLabel.trim(),
@@ -331,6 +341,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     () => formatHumanPreview(draft.terms, catalog, availabilityCatalog),
     [availabilityCatalog, catalog, draft.terms],
   );
+  const editingRowContext = useMemo(() => {
+    const safeLabel = rowLabel?.trim();
+    if (safeLabel) {
+      return `Editando: ${safeLabel}`;
+    }
+    return `Editando: Calculo ${rowPosition}`;
+  }, [rowLabel, rowPosition]);
 
   useEffect(() => {
     if (!pendingFocusTermId || !isOpen) return;
@@ -366,6 +383,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
           <div className={styles.headerTop}>
             <div>
               <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
+              <p className={styles.headerSubtext}>{editingRowContext}</p>
               <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
               <p className={styles.modeChip}>
                 {isOverrideActive
@@ -377,7 +395,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
               <input
                 type="checkbox"
                 checked={isOverrideActive}
-                onChange={(event) => onToggleOverride(event.target.checked)}
+                onChange={(event) => onToggleOverride(rowId, event.target.checked)}
               />
               <span>Personalizar esta columna</span>
             </label>

@@ -560,13 +560,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const sliderMin = Math.round(MIN_ZOOM * 100);
   const sliderMax = Math.round(MAX_ZOOM * 100);
   const sliderStep = Math.round(ZOOM_STEP * 100);
+  const normalizedMetaPanel = useMemo(() => normalizeMetaPanelConfig(metaPanel), [metaPanel]);
+  const normalizedMetaRows = normalizedMetaPanel.rows;
   const metaCalcRowCount = useMemo(() => {
-    if (metaPanel.enabled === false) {
+    if (normalizedMetaPanel.enabled === false) {
       return 0;
     }
-    const normalizedMetaPanel = normalizeMetaPanelConfig(metaPanel);
-    return normalizedMetaPanel.rows.length;
-  }, [metaPanel]);
+    return normalizedMetaRows.length;
+  }, [normalizedMetaPanel.enabled, normalizedMetaRows]);
   const metaCalcHeaderHeight = useMemo(
     () => metaCalcRowCount * META_CALC_HEADER_ROW_HEIGHT,
     [metaCalcRowCount],
@@ -588,13 +589,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [gridWidth, zoomScale],
   );
 
-  const activeMetaRow = useMemo<MetaPanelRowConfig>(() => {
-    const normalizedMetaPanel = normalizeMetaPanelConfig(metaPanel);
-    if (activeMetaRowId == null) {
-      return normalizedMetaPanel.rows[0]!;
+  useEffect(() => {
+    if (normalizedMetaPanel.enabled === false) {
+      return;
     }
-    return normalizedMetaPanel.rows.find((row) => row.id === activeMetaRowId) ?? normalizedMetaPanel.rows[0]!;
-  }, [activeMetaRowId, metaPanel]);
+    const fallbackRow = normalizedMetaRows[0];
+    if (!fallbackRow) {
+      return;
+    }
+    const hasActiveRow =
+      activeMetaRowId != null && normalizedMetaRows.some((row) => row.id === activeMetaRowId);
+    if (hasActiveRow) {
+      return;
+    }
+    setActiveMetaRowId(fallbackRow.id);
+  }, [activeMetaRowId, normalizedMetaPanel.enabled, normalizedMetaRows]);
+
+  const activeMetaRow = useMemo<MetaPanelRowConfig>(() => {
+    const fallbackRow = normalizedMetaRows[0]!;
+    if (activeMetaRowId == null) {
+      return fallbackRow;
+    }
+    return normalizedMetaRows.find((row) => row.id === activeMetaRowId) ?? fallbackRow;
+  }, [activeMetaRowId, normalizedMetaRows]);
+
+  const activeMetaRowPosition = useMemo(() => {
+    const index = normalizedMetaRows.findIndex((row) => row.id === activeMetaRow.id);
+    return index >= 0 ? index + 1 : 1;
+  }, [activeMetaRow.id, normalizedMetaRows]);
 
   const mallaForMetaCalc = useMemo<MallaQuerySource>(
     () => ({
@@ -723,11 +745,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
     })),
   }), []);
 
-  const handleMetaOverrideToggle = useCallback(async (active: boolean) => {
+  const handleMetaOverrideToggle = useCallback(async (rowId: string, active: boolean) => {
     if (activeMetaColIndex == null) {
       return;
     }
-    const hasOverride = !!activeMetaRow.columns?.[activeMetaColIndex];
+    const fallbackRow = normalizedMetaRows[0];
+    if (!fallbackRow) {
+      return;
+    }
+    const resolvedRow = normalizedMetaRows.find((row) => row.id === rowId) ?? fallbackRow;
+    const targetRowId = resolvedRow.id;
+    if (targetRowId !== rowId) {
+      setActiveMetaRowId(targetRowId);
+    }
+    const hasOverride = !!resolvedRow.columns?.[activeMetaColIndex];
     if (!active && hasOverride) {
       const confirmed = await confirmAsync({
         title: 'Volver al calculo general',
@@ -745,7 +776,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setMetaPanel((prev) => {
         const normalized = normalizeMetaPanelConfig(prev);
         const nextRows = normalized.rows.slice();
-        const targetRowId = activeMetaRow.id;
         const targetRowIndex = nextRows.findIndex((row) => row.id === targetRowId);
         if (targetRowIndex < 0) {
           return normalized;
@@ -764,19 +794,28 @@ export const MallaEditorScreen: React.FC<Props> = ({
         return { ...normalized, rows: nextRows };
       });
     });
-  }, [activeMetaColIndex, activeMetaRow, cloneMetaCellConfig, runHistoryTransaction]);
+  }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction]);
 
   const handleMetaEditorSave = useCallback((
+    rowId: string,
     nextCellConfig: MetaCellConfig,
     nextRowLabel: string,
     nextOverrideLabel: string,
   ) => {
     try {
+      const fallbackRow = normalizedMetaRows[0];
+      if (!fallbackRow) {
+        return;
+      }
+      const resolvedRow = normalizedMetaRows.find((row) => row.id === rowId) ?? fallbackRow;
+      const targetRowId = resolvedRow.id;
+      if (targetRowId !== rowId) {
+        setActiveMetaRowId(targetRowId);
+      }
       runHistoryTransaction(() => {
         setMetaPanel((prev) => {
           const normalized = normalizeMetaPanelConfig(prev);
           const nextRows = normalized.rows.slice();
-          const targetRowId = activeMetaRow.id;
           const targetRowIndex = nextRows.findIndex((row) => row.id === targetRowId);
           if (targetRowIndex < 0) {
             return normalized;
@@ -810,7 +849,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       console.error('[MetaCalc] Error saving cell config', error);
       showToast('No se pudo guardar el calculo', 'error');
     }
-  }, [activeMetaColIndex, activeMetaRow, cloneMetaCellConfig, runHistoryTransaction, showToast]);
+  }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, showToast]);
 
   const zoomedGridWrapperStyle = useMemo(
     () =>
@@ -1987,7 +2026,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     deps={metaCalcDeps}
                     onCellClick={handleMetaCellClick}
                     isOverrideColumn={(rowConfig, colIndex) => !!rowConfig.columns?.[colIndex]}
-                    activeRowId={isMetaEditorOpen ? activeMetaRow.id : null}
+                    activeRowId={isMetaEditorOpen ? activeMetaRowId : null}
                     className={styles.metaCalcHeader}
                   />
                 </div>
@@ -2135,9 +2174,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
       <MetaCalcCellEditor
         isOpen={metaPanel.enabled !== false && isMetaEditorOpen && activeMetaColIndex != null && activeMetaCellConfig != null}
         colIndex={activeMetaColIndex ?? 0}
-        rowConfig={activeMetaRow}
+        rowId={activeMetaRow.id}
+        rowLabel={activeMetaRow.label}
+        rowPosition={activeMetaRowPosition}
         isOverrideActive={isEditingOverrideActive}
-        initialCellConfig={activeMetaCellConfig ?? getCellConfigForColumn(activeMetaRow, 0)}
+        initialCellConfig={activeMetaCellConfig ?? activeMetaRow.defaultCell}
         catalog={activeMetaEditorCatalog}
         availabilityCatalog={columnMetaEditorCatalog}
         onToggleOverride={handleMetaOverrideToggle}
