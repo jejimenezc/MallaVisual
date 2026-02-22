@@ -48,6 +48,23 @@ const getFieldLabel = (term: TermConfig, catalog: MetaPanelCatalog): string => {
   return fieldLabel ?? `Campo ${term.controlKey}`;
 };
 
+const getConditionFieldLabel = (term: TermConfig, catalog: MetaPanelCatalog): string => {
+  const conditionKey = term.condition?.controlKey;
+  if (!conditionKey) return 'Termino incompleto';
+  const templateCatalog = catalog.controlsByTemplateId[term.templateId];
+  const conditionLabel = templateCatalog?.conditionControls.find(
+    (control) => control.controlKey === conditionKey,
+  )?.label;
+  return conditionLabel ?? `Campo ${conditionKey}`;
+};
+
+const formatConditionValue = (value: string | number | boolean | undefined): string => {
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '0';
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  return '...';
+};
+
 const formatHumanPreview = (
   terms: TermConfig[],
   catalog: MetaPanelCatalog,
@@ -72,7 +89,9 @@ const formatHumanPreview = (
     const fieldLabel = getFieldLabel(term, catalog);
     const description = term.op === 'count'
       ? `${operationLabel} de ${templateLabel}`
-      : `${operationLabel} de ${fieldLabel} en ${templateLabel}`;
+      : term.op === 'countIf'
+        ? `Conteo de ${fieldLabel} en ${templateLabel} si ${getConditionFieldLabel(term, catalog)} igual ${formatConditionValue(term.condition?.equals)}`
+        : `${operationLabel} de ${fieldLabel} en ${templateLabel}`;
     return `${prefix}${description}${warning}`;
   });
 
