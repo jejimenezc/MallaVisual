@@ -142,6 +142,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isMetaEditorOpen, setIsMetaEditorOpen] = useState(false);
   const [activeMetaRowId, setActiveMetaRowId] = useState<string | null>(null);
   const [activeMetaColIndex, setActiveMetaColIndex] = useState<number | null>(null);
+  const [isMetaMenuOpen, setIsMetaMenuOpen] = useState(false);
   const { autoSave, clearDraft, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -374,6 +375,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const metaMenuRef = useRef<HTMLDivElement>(null);
   const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({
@@ -483,6 +485,36 @@ export const MallaEditorScreen: React.FC<Props> = ({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleUndo, handleRedo]);
+
+  useEffect(() => {
+    if (!isMetaMenuOpen) {
+      return;
+    }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (metaMenuRef.current?.contains(target)) {
+        return;
+      }
+      setIsMetaMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMetaMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isMetaMenuOpen]);
   const {
     colWidths,
     rowHeights,
@@ -718,9 +750,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
         if (normalized.enabled === nextEnabled) {
           return normalized;
         }
+        const nextRows = nextEnabled && normalized.rows.length === 0
+          ? createDefaultMetaPanel(true).rows
+          : normalized.rows;
         return {
           ...normalized,
           enabled: nextEnabled,
+          rows: nextRows,
         };
       });
     });
@@ -744,6 +780,127 @@ export const MallaEditorScreen: React.FC<Props> = ({
       ...(term.condition ? { condition: { ...term.condition } } : {}),
     })),
   }), []);
+
+  const createMetaConfigId = useCallback(
+    (prefix: string) =>
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    [],
+  );
+
+  const cloneMetaCellConfigWithNewIds = useCallback((config: MetaCellConfig): MetaCellConfig => {
+    const clonedConfig = cloneMetaCellConfig(config);
+    return {
+      ...clonedConfig,
+      id: createMetaConfigId('meta-cell'),
+      terms: (clonedConfig.terms ?? []).map((term) => ({
+        ...term,
+        id: createMetaConfigId('meta-term'),
+      })),
+    };
+  }, [cloneMetaCellConfig, createMetaConfigId]);
+
+  const createEmptyMetaRow = useCallback((): MetaPanelRowConfig => ({
+    id: createMetaConfigId('meta-row'),
+    defaultCell: {
+      id: createMetaConfigId('meta-cell'),
+      mode: 'count',
+      terms: [],
+    },
+    columns: {},
+  }), [createMetaConfigId]);
+
+  const cloneMetaRowWithNewIds = useCallback((row: MetaPanelRowConfig): MetaPanelRowConfig => {
+    const nextColumns: Record<number, MetaCellConfig> = {};
+    for (const [rawColIndex, cell] of Object.entries(row.columns ?? {})) {
+      const colIndex = Number(rawColIndex);
+      if (!Number.isInteger(colIndex) || colIndex < 0) {
+        continue;
+      }
+      nextColumns[colIndex] = cloneMetaCellConfigWithNewIds(cell);
+    }
+
+    return {
+      ...row,
+      id: createMetaConfigId('meta-row'),
+      defaultCell: cloneMetaCellConfigWithNewIds(row.defaultCell),
+      columns: nextColumns,
+    };
+  }, [cloneMetaCellConfigWithNewIds, createMetaConfigId]);
+
+  const handleMetaAddRow = useCallback(() => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.enabled === false) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          rows: [...normalized.rows, createEmptyMetaRow()],
+        };
+      });
+    });
+  }, [createEmptyMetaRow, runHistoryTransaction]);
+
+  const handleMetaDuplicateRow = useCallback((rowId: string) => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        const targetIndex = normalized.rows.findIndex((row) => row.id === rowId);
+        if (targetIndex < 0) {
+          return normalized;
+        }
+        const nextRows = normalized.rows.slice();
+        nextRows.splice(targetIndex + 1, 0, cloneMetaRowWithNewIds(nextRows[targetIndex]!));
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+  }, [cloneMetaRowWithNewIds, runHistoryTransaction]);
+
+  const handleMetaDeleteRow = useCallback(async (rowId: string) => {
+    if (normalizedMetaRows.length <= 1) {
+      return;
+    }
+
+    const confirmed = await confirmAsync({
+      title: 'Eliminar fila de calculo',
+      message: 'Se eliminara esta fila y su configuracion. Continuar?',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.rows.length <= 1) {
+          return normalized;
+        }
+        const nextRows = normalized.rows.filter((row) => row.id !== rowId);
+        if (nextRows.length === normalized.rows.length) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+
+    if (activeMetaRowId === rowId) {
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
+    }
+  }, [activeMetaRowId, normalizedMetaRows.length, runHistoryTransaction]);
 
   const handleMetaOverrideToggle = useCallback(async (rowId: string, active: boolean) => {
     if (activeMetaColIndex == null) {
@@ -1935,21 +2092,74 @@ export const MallaEditorScreen: React.FC<Props> = ({
           right={
             <>
 
-              <label className={styles.blockMenuToggle}>
-                <span>Meta-cálculos:</span>
-                <span className={styles.blockMenuToggleControl}>
-                  <input
-                    type="checkbox"
-                    checked={metaPanel.enabled !== false}
-                    onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
-                    className={styles.blockMenuToggleInput}
-                  />
-                  <span className={styles.blockMenuToggleTrack} aria-hidden="true">
-                    <span className={styles.blockMenuToggleThumb} />
-                  </span>
-                </span>
-              </label>
-
+              <div className={styles.metaMenu} ref={metaMenuRef}>
+                <Button
+                  type="button"
+                  onClick={() => setIsMetaMenuOpen((prev) => !prev)}
+                  className={styles.metaMenuTrigger}
+                  aria-haspopup="menu"
+                  aria-expanded={isMetaMenuOpen}
+                  aria-label="Abrir menu de meta-calculos"
+                >
+                  Meta-calculos v
+                </Button>
+                {isMetaMenuOpen ? (
+                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de meta-calculos">
+                    <label className={styles.blockMenuToggle}>
+                      <span>Meta-calculos</span>
+                      <span className={styles.blockMenuToggleControl}>
+                        <input
+                          type="checkbox"
+                          checked={metaPanel.enabled !== false}
+                          onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
+                          className={styles.blockMenuToggleInput}
+                        />
+                        <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                          <span className={styles.blockMenuToggleThumb} />
+                        </span>
+                      </span>
+                    </label>
+                    {metaPanel.enabled !== false ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.metaMenuAction}
+                          onClick={handleMetaAddRow}
+                        >
+                          Agregar fila de calculo
+                        </button>
+                        <div className={styles.metaMenuSectionTitle}>Filas</div>
+                        <ul className={styles.metaMenuRows} aria-label="Lista de filas de calculo">
+                          {normalizedMetaRows.map((row, index) => (
+                            <li key={row.id} className={styles.metaMenuRowItem}>
+                              <span className={styles.metaMenuRowLabel}>
+                                {row.label?.trim() || `Calculo ${index + 1}`}
+                              </span>
+                              <div className={styles.metaMenuRowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => handleMetaDuplicateRow(row.id)}
+                                >
+                                  Duplicar
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => void handleMetaDeleteRow(row.id)}
+                                  disabled={normalizedMetaRows.length <= 1}
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
