@@ -19,6 +19,65 @@ interface Props {
 }
 
 const MAX_TERMS = 5;
+const OP_LABELS: Record<TermConfig['op'], string> = {
+  sum: 'Suma',
+  avg: 'Promedio',
+  count: 'Conteo',
+  countIf: 'Conteo si',
+};
+
+const isTermIncomplete = (term: TermConfig): boolean => {
+  if (!term.templateId) return true;
+  if ((term.op === 'sum' || term.op === 'avg' || term.op === 'countIf') && !term.controlKey) return true;
+  if (term.op === 'countIf' && !term.condition?.controlKey) return true;
+  return false;
+};
+
+const getTemplateLabel = (term: TermConfig, catalog: MetaPanelCatalog): string => {
+  const templateLabel = catalog.controlsByTemplateId[term.templateId]?.label;
+  if (templateLabel) return templateLabel;
+  return term.templateId ? term.templateId : 'Tipo de bloque sin seleccionar';
+};
+
+const getFieldLabel = (term: TermConfig, catalog: MetaPanelCatalog): string => {
+  if (!term.controlKey) return 'Termino incompleto';
+  const templateCatalog = catalog.controlsByTemplateId[term.templateId];
+  const fieldLabel = templateCatalog?.numericControls.find(
+    (control) => control.controlKey === term.controlKey,
+  )?.label;
+  return fieldLabel ?? `Campo ${term.controlKey}`;
+};
+
+const formatHumanPreview = (
+  terms: TermConfig[],
+  catalog: MetaPanelCatalog,
+  availabilityCatalog: MetaPanelCatalog,
+): string => {
+  if (terms.length === 0) return 'Sin calculo definido';
+
+  const formattedTerms = terms.map((term, index) => {
+    const incomplete = isTermIncomplete(term);
+    const symbol = term.sign === -1 ? '−' : '+';
+    const prefix = index === 0
+      ? (symbol === '−' ? `${symbol} ` : '')
+      : ` ${symbol} `;
+    const warning = getTermAvailability(term, availabilityCatalog).ok ? '' : ' (!)';
+
+    if (incomplete) {
+      return `${prefix}Termino incompleto${warning}`;
+    }
+
+    const operationLabel = OP_LABELS[term.op];
+    const templateLabel = getTemplateLabel(term, catalog);
+    const fieldLabel = getFieldLabel(term, catalog);
+    const description = term.op === 'count'
+      ? `${operationLabel} de ${templateLabel}`
+      : `${operationLabel} de ${fieldLabel} en ${templateLabel}`;
+    return `${prefix}${description}${warning}`;
+  });
+
+  return formattedTerms.join('');
+};
 
 const createTermId = () =>
   (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -237,6 +296,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     );
   };
 
+  const humanPreview = useMemo(
+    () => formatHumanPreview(draft.terms, catalog, availabilityCatalog),
+    [availabilityCatalog, catalog, draft.terms],
+  );
+
   if (!isOpen) {
     return null;
   }
@@ -299,6 +363,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 />
               </div>
             )}
+          </section>
+
+          <section className={styles.section}>
+            <h4 className={styles.sectionTitle}>Vista previa</h4>
+            <p className={styles.previewText}>{humanPreview}</p>
           </section>
 
           <section className={styles.section}>
