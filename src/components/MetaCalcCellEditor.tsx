@@ -348,6 +348,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
             <div>
               <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
               <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
+              <p className={styles.modeChip}>
+                {isOverrideActive
+                  ? 'Personalizacion de esta columna'
+                  : 'Calculo general'}
+              </p>
             </div>
             <label className={styles.toggleRow}>
               <input
@@ -358,11 +363,6 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
               <span>Personalizar esta columna</span>
             </label>
           </div>
-          <p className={styles.modeText}>
-            {isOverrideActive
-              ? 'Personalizacion de esta columna'
-              : 'Calculo general (todas las columnas)'}
-          </p>
         </div>
 
         <div className={styles.body}>
@@ -690,9 +690,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
               >
                 Agregar termino
               </Button>
-              <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} terminos</span>
+              <div className={styles.limitInfo}>
+                <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} terminos</span>
+                {!canAddTerm ? <span className={styles.limitReachedText}>Limite alcanzado.</span> : null}
+              </div>
             </div>
-            {!canAddTerm ? <p className={styles.maxTermsHint}>Maximo 5 terminos.</p> : null}
           </section>
 
           {isSaveDisabled ? (
