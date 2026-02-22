@@ -77,7 +77,7 @@ const formatHumanPreview = (
   catalog: MetaPanelCatalog,
   availabilityCatalog: MetaPanelCatalog,
 ): string => {
-  if (terms.length === 0) return 'Sin calculo definido';
+  if (terms.length === 0) return 'Sin cálculo definido';
 
   const formattedTerms = terms.map((term, index) => {
     const incomplete = isTermIncomplete(term);
@@ -88,7 +88,7 @@ const formatHumanPreview = (
     const warning = getTermAvailability(term, availabilityCatalog).ok ? '' : ' (!)';
 
     if (incomplete) {
-      return `${prefix}Termino incompleto${warning}`;
+      return `${prefix}Término incompleto${warning}`;
     }
 
     const operationLabel = OP_LABELS[term.op];
@@ -280,8 +280,8 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
   const removeTerm = async (index: number) => {
     const confirmed = await confirmAsync({
-      title: 'Eliminar termino',
-      message: 'Eliminar este termino?\nEsta accion no se puede deshacer.',
+      title: 'Eliminar término',
+      message: 'Eliminar este término?\nEsta accion no se puede deshacer.',
       confirmLabel: 'Si, eliminar',
       cancelLabel: 'Cancelar',
       variant: 'destructive',
@@ -346,7 +346,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     if (safeLabel) {
       return `Editando: ${safeLabel}`;
     }
-    return `Editando: Calculo ${rowPosition}`;
+    return `Editando: Cálculo ${rowPosition}`;
   }, [rowLabel, rowPosition]);
 
   useEffect(() => {
@@ -382,13 +382,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         <div className={styles.header}>
           <div className={styles.headerTop}>
             <div>
-              <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
+              <h3 id="meta-calc-cell-editor-title">Meta-cálculos</h3>
               <p className={styles.headerSubtext}>{editingRowContext}</p>
               <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
               <p className={styles.modeChip}>
                 {isOverrideActive
                   ? 'Personalizacion de esta columna'
-                  : 'Calculo general'}
+                  : 'Cálculo general'}
               </p>
             </div>
             <label className={styles.toggleRow}>
@@ -404,7 +404,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
         <div className={styles.body}>
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Nombre del calculo</h4>
+            <h4 className={styles.sectionTitle}>Nombre del cálculo</h4>
             {isOverrideActive ? (
               <>
                 <div className={styles.formRow}>
@@ -420,12 +420,12 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
               </>
             ) : (
               <div className={styles.formRow}>
-                <label>Nombre del calculo</label>
+                <label>Nombre del cálculo</label>
                 <input
                   type="text"
                   value={draftRowLabel}
                   onChange={(event) => setDraftRowLabel(event.target.value)}
-                  placeholder="Nombre del calculo"
+                  placeholder="Nombre del cálculo"
                 />
               </div>
             )}
@@ -438,7 +438,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h4 className={styles.sectionTitle}>Constructor de terminos</h4>
+              <h4 className={styles.sectionTitle}>Constructor de términos</h4>
             </div>
 
             {draft.terms.map((term, termIndex) => {
@@ -480,7 +480,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                   <div className={styles.termMainRow}>
                     <div className={`${styles.termControl} ${styles.termSignControl}`}>
                       <label>Signo</label>
-                      <div className={styles.signGroup} role="group" aria-label={`Signo del termino ${termIndex + 1}`}>
+                      <div className={styles.signGroup} role="group" aria-label={`Signo del término ${termIndex + 1}`}>
                         <button
                           type="button"
                           className={`${styles.signButton} ${term.sign === 1 ? styles.signButtonActive : ''}`}
@@ -593,7 +593,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           className={styles.actionIconButton}
                           onClick={() => moveTermUp(termIndex)}
                           disabled={isFirstTerm}
-                          aria-label={`Mover termino ${termIndex + 1} arriba`}
+                          aria-label={`Mover término ${termIndex + 1} arriba`}
                           title="Mover arriba"
                         >
                           ↑
@@ -603,7 +603,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           className={styles.actionIconButton}
                           onClick={() => moveTermDown(termIndex)}
                           disabled={isLastTerm}
-                          aria-label={`Mover termino ${termIndex + 1} abajo`}
+                          aria-label={`Mover término ${termIndex + 1} abajo`}
                           title="Mover abajo"
                         >
                           ↓
@@ -613,7 +613,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           className={styles.actionIconButton}
                           onClick={() => duplicateTerm(termIndex)}
                           disabled={!canAddTerm}
-                          aria-label={`Duplicar termino ${termIndex + 1}`}
+                          aria-label={`Duplicar término ${termIndex + 1}`}
                           title="Duplicar"
                         >
                           <DuplicateIcon />
@@ -622,7 +622,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           type="button"
                           className={styles.actionIconButton}
                           onClick={() => { void removeTerm(termIndex); }}
-                          aria-label={`Eliminar termino ${termIndex + 1}`}
+                          aria-label={`Eliminar término ${termIndex + 1}`}
                           title="Eliminar"
                         >
                           <TrashIcon />
@@ -702,13 +702,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                       {availability.reason === 'missing-template'
                         ? (isOverrideActive
                           ? 'Tipo de bloque no disponible en esta columna.'
-                          : 'El tipo de bloque del calculo general no esta disponible en esta columna.')
+                          : 'El tipo de bloque del cálculo general no esta disponible en esta columna.')
                         : 'Campo no disponible en esta columna.'}
                     </p>
                   ) : null}
 
                   {isInvalid ? (
-                    <p className={styles.termError}>Completa este termino para poder guardar.</p>
+                    <p className={styles.termError}>Completa este término para poder guardar.</p>
                   ) : null}
                 </div>
               );
@@ -725,17 +725,17 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 }}
                 disabled={!canAddTerm}
               >
-                Agregar termino
+                Agregar término
               </Button>
               <div className={styles.limitInfo}>
-                <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} terminos</span>
+                <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} términos</span>
                 {!canAddTerm ? <span className={styles.limitReachedText}>Limite alcanzado.</span> : null}
               </div>
             </div>
           </section>
 
           {isSaveDisabled ? (
-            <p className={styles.error}>Revisa los terminos incompletos antes de guardar.</p>
+            <p className={styles.error}>Revisa los términos incompletos antes de guardar.</p>
           ) : null}
         </div>
 

@@ -868,7 +868,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     }
 
     const confirmed = await confirmAsync({
-      title: 'Eliminar fila de calculo',
+      title: 'Eliminar fila de cálculo',
       message: 'Se eliminara esta fila y su configuracion. Continuar?',
       confirmLabel: 'Eliminar',
       cancelLabel: 'Cancelar',
@@ -918,9 +918,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const hasOverride = !!resolvedRow.columns?.[activeMetaColIndex];
     if (!active && hasOverride) {
       const confirmed = await confirmAsync({
-        title: 'Volver al calculo general',
+        title: 'Volver al cálculo general',
         message:
-          'Volver al calculo general?\nSe perdera el calculo personalizado de esta columna.',
+          'Volver al cálculo general?\nSe perderá el cálculo personalizado de esta columna.',
         confirmLabel: 'Si, volver',
         cancelLabel: 'Cancelar',
         variant: 'destructive',
@@ -1004,7 +1004,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       showToast('Calculo guardado', 'success');
     } catch (error) {
       console.error('[MetaCalc] Error saving cell config', error);
-      showToast('No se pudo guardar el calculo', 'error');
+      showToast('No se pudo guardar el cálculo', 'error');
     }
   }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, showToast]);
 
@@ -2099,14 +2099,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   className={styles.metaMenuTrigger}
                   aria-haspopup="menu"
                   aria-expanded={isMetaMenuOpen}
-                  aria-label="Abrir menu de meta-calculos"
+                  aria-label="Abrir menú de meta-cálculos"
                 >
-                  Meta-calculos v
+                  Meta-cálculos v
                 </Button>
                 {isMetaMenuOpen ? (
-                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de meta-calculos">
+                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de meta-cálculos">
                     <label className={styles.blockMenuToggle}>
-                      <span>Meta-calculos</span>
+                      <span>Meta-cálculos</span>
                       <span className={styles.blockMenuToggleControl}>
                         <input
                           type="checkbox"
@@ -2126,14 +2126,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                           className={styles.metaMenuAction}
                           onClick={handleMetaAddRow}
                         >
-                          Agregar fila de calculo
+                          Agregar fila de cálculo
                         </button>
                         <div className={styles.metaMenuSectionTitle}>Filas</div>
-                        <ul className={styles.metaMenuRows} aria-label="Lista de filas de calculo">
+                        <ul className={styles.metaMenuRows} aria-label="Lista de filas de cálculo">
                           {normalizedMetaRows.map((row, index) => (
                             <li key={row.id} className={styles.metaMenuRowItem}>
                               <span className={styles.metaMenuRowLabel}>
-                                {row.label?.trim() || `Calculo ${index + 1}`}
+                                {row.label?.trim() || `Cálculo ${index + 1}`}
                               </span>
                               <div className={styles.metaMenuRowActions}>
                                 <button
@@ -2250,7 +2250,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onMouseUp={handleMouseUp}
                 >
                   {pieces.map((p) => {
-                    // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
+                    // --- cálculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
                     let pieceTemplate: BlockTemplate;
                     let pieceVisual: VisualTemplate;
                     let pieceAspect: BlockAspect;
