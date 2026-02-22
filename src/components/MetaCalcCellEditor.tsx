@@ -188,18 +188,6 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     setDraftOverrideLabel(isOverrideActive ? (initialCellConfig.label ?? '') : '');
   }, [initialCellConfig, isOpen, isOverrideActive, rowConfig.label]);
 
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onCancel]);
-
   const canAddTerm = draft.terms.length < MAX_TERMS;
   const exceedsTermLimit = draft.terms.length > MAX_TERMS;
 
@@ -296,6 +284,20 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     );
   };
 
+  const handleModalKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      if (!isSaveDisabled) {
+        handleSave();
+      }
+    }
+  };
+
   const humanPreview = useMemo(
     () => formatHumanPreview(draft.terms, catalog, availabilityCatalog),
     [availabilityCatalog, catalog, draft.terms],
@@ -312,6 +314,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="meta-calc-cell-editor-title"
+        onKeyDown={handleModalKeyDown}
         onClick={(event) => event.stopPropagation()}
       >
         <div className={styles.header}>
