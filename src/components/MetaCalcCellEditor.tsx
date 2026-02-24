@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './Button';
-import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
+import type { MetaCellConfig, MetricExprToken, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
+import { deriveExprFromTerms, validateExprTokens } from '../utils/metrics-expr.ts';
 import { confirmAsync } from '../ui/alerts';
 import styles from './MetaCalcCellEditor.module.css';
 
@@ -72,37 +73,73 @@ const formatConditionValue = (value: string | number | boolean | undefined): str
   return '...';
 };
 
-const formatHumanPreview = (
-  terms: TermConfig[],
-  catalog: MetaPanelCatalog,
-  availabilityCatalog: MetaPanelCatalog,
-): string => {
-  if (terms.length === 0) return 'Sin métrica definida';
+const cloneExprTokens = (tokens: MetricExprToken[] | undefined): MetricExprToken[] =>
+  (tokens ?? []).map((token) => ({ ...token }));
 
-  const formattedTerms = terms.map((term, index) => {
-    const incomplete = isTermIncomplete(term);
-    const symbol = term.sign === -1 ? '−' : '+';
-    const prefix = index === 0
-      ? (symbol === '−' ? `${symbol} ` : '')
-      : ` ${symbol} `;
-    const warning = getTermAvailability(term, availabilityCatalog).ok ? '' : ' (!)';
+const getInitialExprTokens = (cellConfig: MetaCellConfig): MetricExprToken[] => {
+  if (Array.isArray(cellConfig.expr) && cellConfig.expr.length > 0) {
+    return cloneExprTokens(cellConfig.expr);
+  }
+  return deriveExprFromTerms(cellConfig).map((token) => ({ ...token }));
+};
 
-    if (incomplete) {
-      return `${prefix}Término incompleto${warning}`;
+const getExprOperatorLabel = (op: '+' | '-' | '*' | '/'): string => {
+  if (op === '*') return '×';
+  if (op === '/') return '÷';
+  return op;
+};
+
+const isOperandToken = (token: MetricExprToken | undefined): boolean =>
+  !!token && (token.type === 'term' || token.type === 'const');
+
+const getOpenParenBalance = (tokens: MetricExprToken[], untilIndex: number): number => {
+  let balance = 0;
+  for (let index = 0; index < untilIndex; index += 1) {
+    const token = tokens[index];
+    if (token?.type !== 'paren') continue;
+    balance += token.paren === '(' ? 1 : -1;
+  }
+  return balance;
+};
+
+const expectsOperandAtCursor = (tokens: MetricExprToken[], cursorIndex: number): boolean => {
+  let expectsOperand = true;
+  for (let index = 0; index < cursorIndex; index += 1) {
+    const token = tokens[index];
+    if (!token) continue;
+    if (token.type === 'term' || token.type === 'const') {
+      expectsOperand = false;
+      continue;
     }
+    if (token.type === 'op') {
+      expectsOperand = true;
+      continue;
+    }
+    expectsOperand = token.paren === '(';
+  }
+  return expectsOperand;
+};
 
-    const operationLabel = OP_LABELS[term.op];
-    const templateLabel = getTemplateLabel(term, catalog);
-    const fieldLabel = getFieldLabel(term, catalog);
-    const description = term.op === 'count'
-      ? `${operationLabel} de ${templateLabel}`
-      : term.op === 'countIf'
-        ? `Conteo de ${fieldLabel} en ${templateLabel} si ${getConditionFieldLabel(term, catalog)} igual ${formatConditionValue(term.condition?.equals)}`
-        : `${operationLabel} de ${fieldLabel} en ${templateLabel}`;
-    return `${prefix}${description}${warning}`;
-  });
+const getEditableConstText = (value: number, hasPendingDecimal: boolean): string =>
+  hasPendingDecimal ? `${value}.` : String(value);
 
-  return formattedTerms.join('');
+const getTermExpressionLabel = (term: TermConfig, catalog: MetaPanelCatalog): string => {
+  if (isTermIncomplete(term)) {
+    return 'Termino incompleto';
+  }
+
+  const operationLabel = OP_LABELS[term.op];
+  const templateLabel = getTemplateLabel(term, catalog);
+  const fieldLabel = getFieldLabel(term, catalog);
+
+  if (term.op === 'count') {
+    return `${templateLabel} (${operationLabel})`;
+  }
+  if (term.op === 'countIf') {
+    const conditionField = getConditionFieldLabel(term, catalog);
+    return `${fieldLabel} (${operationLabel}: ${conditionField}=${formatConditionValue(term.condition?.equals)})`;
+  }
+  return `${fieldLabel} (${operationLabel})`;
 };
 
 const createTermId = () =>
@@ -118,6 +155,7 @@ const cloneTerm = (term: TermConfig): TermConfig => ({
 const cloneCellConfig = (config: MetaCellConfig): MetaCellConfig => ({
   ...config,
   terms: (config.terms ?? []).map(cloneTerm),
+  ...(Array.isArray(config.expr) ? { expr: cloneExprTokens(config.expr) } : {}),
 });
 
 const moveItem = <T,>(arr: T[], fromIndex: number, toIndex: number): T[] => {
@@ -211,13 +249,27 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     isOverrideActive ? (initialCellConfig.label ?? '') : '',
   );
   const [pendingFocusTermId, setPendingFocusTermId] = useState<string | null>(null);
+  const [draftExprTokens, setDraftExprTokens] = useState<MetricExprToken[]>(
+    () => getInitialExprTokens(initialCellConfig),
+  );
+  const [cursorIndex, setCursorIndex] = useState<number>(draftExprTokens.length);
+  const [pendingDecimalTokenIndex, setPendingDecimalTokenIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
+    const nextExprTokens = getInitialExprTokens(initialCellConfig);
     setDraft(cloneCellConfig(initialCellConfig));
     setDraftRowLabel(rowLabel ?? '');
     setDraftOverrideLabel(isOverrideActive ? (initialCellConfig.label ?? '') : '');
+    setDraftExprTokens(nextExprTokens);
+    setCursorIndex(nextExprTokens.length);
+    setPendingDecimalTokenIndex(null);
   }, [initialCellConfig, isOpen, isOverrideActive, rowLabel]);
+
+  useEffect(() => {
+    if (cursorIndex <= draftExprTokens.length) return;
+    setCursorIndex(draftExprTokens.length);
+  }, [cursorIndex, draftExprTokens.length]);
 
   const canAddTerm = draft.terms.length < MAX_TERMS;
   const exceedsTermLimit = draft.terms.length > MAX_TERMS;
@@ -293,6 +345,161 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     }));
   };
 
+  const insertExprTokenAtCursor = (token: MetricExprToken) => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    const nextTokens = draftExprTokens.slice();
+    nextTokens.splice(safeCursor, 0, token);
+    setDraftExprTokens(nextTokens);
+    setCursorIndex(safeCursor + 1);
+    setPendingDecimalTokenIndex((prev) => {
+      if (prev === null) return null;
+      return prev >= safeCursor ? prev + 1 : prev;
+    });
+  };
+
+  const insertExprOperator = (op: '+' | '-' | '*' | '/') => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    const previousToken = draftExprTokens[safeCursor - 1];
+    if (!previousToken) return;
+
+    if (previousToken.type === 'op') {
+      const nextTokens = draftExprTokens.slice();
+      nextTokens[safeCursor - 1] = { type: 'op', op };
+      setDraftExprTokens(nextTokens);
+      setPendingDecimalTokenIndex(null);
+      return;
+    }
+
+    if (!isOperandToken(previousToken) && !(previousToken.type === 'paren' && previousToken.paren === ')')) {
+      return;
+    }
+
+    insertExprTokenAtCursor({ type: 'op', op });
+    setPendingDecimalTokenIndex(null);
+  };
+
+  const insertOpenParen = () => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    if (!expectsOperandAtCursor(draftExprTokens, safeCursor)) {
+      return;
+    }
+    insertExprTokenAtCursor({ type: 'paren', paren: '(' });
+    setPendingDecimalTokenIndex(null);
+  };
+
+  const insertCloseParen = () => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    if (expectsOperandAtCursor(draftExprTokens, safeCursor)) {
+      return;
+    }
+    if (getOpenParenBalance(draftExprTokens, safeCursor) <= 0) {
+      return;
+    }
+    insertExprTokenAtCursor({ type: 'paren', paren: ')' });
+    setPendingDecimalTokenIndex(null);
+  };
+
+  const insertDigit = (digit: string) => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    const previousIndex = safeCursor - 1;
+    const previousToken = draftExprTokens[previousIndex];
+    if (previousToken?.type === 'const') {
+      const previousText = getEditableConstText(
+        previousToken.value,
+        pendingDecimalTokenIndex === previousIndex,
+      );
+      const nextText = previousText === '0' ? digit : `${previousText}${digit}`;
+      const parsed = Number(nextText);
+      if (!Number.isFinite(parsed)) {
+        return;
+      }
+      const nextTokens = draftExprTokens.slice();
+      nextTokens[previousIndex] = { type: 'const', value: parsed };
+      setDraftExprTokens(nextTokens);
+      setPendingDecimalTokenIndex(null);
+      return;
+    }
+
+    insertExprTokenAtCursor({ type: 'const', value: Number(digit) });
+    setPendingDecimalTokenIndex(null);
+  };
+
+  const insertDecimalPoint = () => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    const previousIndex = safeCursor - 1;
+    const previousToken = draftExprTokens[previousIndex];
+
+    if (previousToken?.type === 'const') {
+      if (pendingDecimalTokenIndex === previousIndex) return;
+      if (String(previousToken.value).includes('.')) return;
+      setPendingDecimalTokenIndex(previousIndex);
+      return;
+    }
+
+    insertExprTokenAtCursor({ type: 'const', value: 0 });
+    setPendingDecimalTokenIndex(safeCursor);
+  };
+
+  const handleExprBackspace = () => {
+    const safeCursor = Math.max(0, Math.min(cursorIndex, draftExprTokens.length));
+    if (safeCursor <= 0) {
+      return;
+    }
+
+    const previousIndex = safeCursor - 1;
+    const previousToken = draftExprTokens[previousIndex];
+    if (!previousToken) return;
+
+    if (previousToken.type === 'const') {
+      if (pendingDecimalTokenIndex === previousIndex) {
+        setPendingDecimalTokenIndex(null);
+        return;
+      }
+      const previousText = String(previousToken.value);
+      const nextText = previousText.slice(0, -1);
+      if (!nextText) {
+        const nextTokens = draftExprTokens.slice();
+        nextTokens.splice(previousIndex, 1);
+        setDraftExprTokens(nextTokens);
+        setCursorIndex(previousIndex);
+        setPendingDecimalTokenIndex((prev) => {
+          if (prev === null || prev === previousIndex) return null;
+          return prev > previousIndex ? prev - 1 : prev;
+        });
+        return;
+      }
+
+      const parsed = Number(nextText);
+      if (!Number.isFinite(parsed)) {
+        return;
+      }
+      const nextTokens = draftExprTokens.slice();
+      nextTokens[previousIndex] = { type: 'const', value: parsed };
+      setDraftExprTokens(nextTokens);
+      return;
+    }
+
+    const nextTokens = draftExprTokens.slice();
+    nextTokens.splice(previousIndex, 1);
+    setDraftExprTokens(nextTokens);
+    setCursorIndex(previousIndex);
+    setPendingDecimalTokenIndex((prev) => {
+      if (prev === null) return null;
+      return prev > previousIndex ? prev - 1 : prev;
+    });
+  };
+
+  const clearExpr = () => {
+    setDraftExprTokens([]);
+    setCursorIndex(0);
+    setPendingDecimalTokenIndex(null);
+  };
+
+  const insertTermIntoExpr = (termId: string) => {
+    insertExprTokenAtCursor({ type: 'term', termId });
+    setPendingDecimalTokenIndex(null);
+  };
+
   const invalidTermIndexes = useMemo(() => {
     const indexes = new Set<number>();
     draft.terms.forEach((term, index) => {
@@ -311,13 +518,23 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     return indexes;
   }, [draft.terms]);
 
-  const isSaveDisabled = invalidTermIndexes.size > 0 || exceedsTermLimit;
+  const exprValidation = useMemo(
+    () => validateExprTokens(draftExprTokens),
+    [draftExprTokens],
+  );
+  const isSaveDisabled = invalidTermIndexes.size > 0 || exceedsTermLimit || !exprValidation.isValid;
 
   const handleSave = () => {
     if (isSaveDisabled) return;
+    const nextCellConfig = cloneCellConfig(draft);
+    if (draftExprTokens.length > 0) {
+      nextCellConfig.expr = cloneExprTokens(draftExprTokens);
+    } else {
+      delete nextCellConfig.expr;
+    }
     onSave(
       rowId,
-      cloneCellConfig(draft),
+      nextCellConfig,
       draftRowLabel.trim(),
       draftOverrideLabel.trim(),
     );
@@ -337,10 +554,27 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     }
   };
 
-  const humanPreview = useMemo(
-    () => formatHumanPreview(draft.terms, catalog, availabilityCatalog),
-    [availabilityCatalog, catalog, draft.terms],
+  const termExpressionLabelById = useMemo(
+    () =>
+      new Map(
+        draft.terms.map((term) => [term.id, getTermExpressionLabel(term, catalog)]),
+      ),
+    [catalog, draft.terms],
   );
+  const renderExprToken = (token: MetricExprToken, index: number): React.ReactNode => {
+    if (token.type === 'term') {
+      const label = termExpressionLabelById.get(token.termId) ?? `Termino ${token.termId}`;
+      return <span className={styles.exprTokenChip}>{label}</span>;
+    }
+    if (token.type === 'const') {
+      const label = getEditableConstText(token.value, pendingDecimalTokenIndex === index);
+      return <span className={styles.exprTokenConst}>{label}</span>;
+    }
+    if (token.type === 'op') {
+      return <span className={styles.exprTokenOp}>{getExprOperatorLabel(token.op)}</span>;
+    }
+    return <span className={styles.exprTokenParen}>{token.paren}</span>;
+  };
   const editingRowContext = useMemo(() => {
     const safeLabel = rowLabel?.trim();
     if (safeLabel) {
@@ -432,8 +666,56 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
           </section>
 
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Vista previa</h4>
-            <p className={styles.previewText}>{humanPreview}</p>
+            <h4 className={styles.sectionTitle}>Expresion</h4>
+            <div className={styles.keypad}>
+              <div className={styles.keypadGroup}>
+                <Button type="button" onClick={() => insertExprOperator('+')}>+</Button>
+                <Button type="button" onClick={() => insertExprOperator('-')}>-</Button>
+                <Button type="button" onClick={() => insertExprOperator('*')}>×</Button>
+                <Button type="button" onClick={() => insertExprOperator('/')}>÷</Button>
+              </div>
+              <div className={styles.keypadGroup}>
+                <Button type="button" onClick={insertOpenParen}>(</Button>
+                <Button type="button" onClick={insertCloseParen}>)</Button>
+              </div>
+              <div className={styles.keypadGroup}>
+                {['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'].map((key) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    onClick={() => (key === '.' ? insertDecimalPoint() : insertDigit(key))}
+                  >
+                    {key}
+                  </Button>
+                ))}
+              </div>
+              <div className={styles.keypadGroup}>
+                <Button type="button" onClick={handleExprBackspace}>⌫</Button>
+                <Button type="button" onClick={clearExpr}>Clear</Button>
+              </div>
+            </div>
+
+            <div className={styles.expressionEditor} role="group" aria-label="Editor de expresion">
+              {Array.from({ length: draftExprTokens.length + 1 }, (_, slotIndex) => (
+                <React.Fragment key={`slot-${slotIndex}`}>
+                  <button
+                    type="button"
+                    className={`${styles.cursorSlot} ${cursorIndex === slotIndex ? styles.cursorSlotActive : ''}`}
+                    onClick={() => setCursorIndex(slotIndex)}
+                    aria-label={`Mover cursor a la posicion ${slotIndex + 1}`}
+                  >
+                    {cursorIndex === slotIndex ? '|' : ' '}
+                  </button>
+                  {slotIndex < draftExprTokens.length ? (
+                    <span className={styles.exprToken}>{renderExprToken(draftExprTokens[slotIndex]!, slotIndex)}</span>
+                  ) : null}
+                </React.Fragment>
+              ))}
+            </div>
+
+            {!exprValidation.isValid ? (
+              <p className={styles.error}>{exprValidation.message ?? 'Expresion incompleta.'}</p>
+            ) : null}
           </section>
 
           <section className={styles.section}>
@@ -631,6 +913,17 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     </div>
                   </div>
 
+                  <div className={styles.termInsertRow}>
+                    <Button
+                      type="button"
+                      className={styles.insertExprButton}
+                      onClick={() => insertTermIntoExpr(term.id)}
+                      title="Insertar en expresion"
+                    >
+                      Insertar en expresion
+                    </Button>
+                  </div>
+
                   {term.op === 'countIf' ? (
                     <div className={styles.termConditionRow}>
                       <div className={styles.termControl}>
@@ -735,7 +1028,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
           </section>
 
           {isSaveDisabled ? (
-            <p className={styles.error}>Revisa los términos incompletos antes de guardar.</p>
+            <p className={styles.error}>
+              {invalidTermIndexes.size > 0 || exceedsTermLimit
+                ? 'Revisa los terminos incompletos antes de guardar.'
+                : (exprValidation.message ?? 'Expresion incompleta.')}
+            </p>
           ) : null}
         </div>
 

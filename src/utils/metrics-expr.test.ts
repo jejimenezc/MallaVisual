@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { MetaCellConfig, MetricExprToken } from '../types/meta-panel.ts';
-import { deriveExprFromTerms, evaluateMetricExpr } from './metrics-expr.ts';
+import { deriveExprFromTerms, evaluateMetricExpr, validateExprTokens } from './metrics-expr.ts';
 
 const buildCell = (overrides: Partial<MetaCellConfig> = {}): MetaCellConfig => ({
   id: 'cell-1',
@@ -71,5 +71,42 @@ describe('evaluateMetricExpr', () => {
       { type: 'op', op: '+' },
     ];
     expect(evaluateMetricExpr(tokens, () => 1)).toBeNull();
+  });
+});
+
+describe('validateExprTokens', () => {
+  test('accepts a complete expression', () => {
+    const tokens: MetricExprToken[] = [
+      { type: 'paren', paren: '(' },
+      { type: 'term', termId: 'a' },
+      { type: 'op', op: '+' },
+      { type: 'const', value: 1 },
+      { type: 'paren', paren: ')' },
+    ];
+    expect(validateExprTokens(tokens)).toEqual({ isValid: true });
+  });
+
+  test('fails when expression ends with operator', () => {
+    const tokens: MetricExprToken[] = [
+      { type: 'term', termId: 'a' },
+      { type: 'op', op: '+' },
+    ];
+    expect(validateExprTokens(tokens)).toEqual({
+      isValid: false,
+      message: 'Expresion incompleta.',
+    });
+  });
+
+  test('fails for unbalanced parentheses', () => {
+    const tokens: MetricExprToken[] = [
+      { type: 'paren', paren: '(' },
+      { type: 'term', termId: 'a' },
+      { type: 'op', op: '+' },
+      { type: 'const', value: 2 },
+    ];
+    expect(validateExprTokens(tokens)).toEqual({
+      isValid: false,
+      message: 'Parentesis sin cerrar.',
+    });
   });
 });

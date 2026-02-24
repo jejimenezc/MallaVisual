@@ -17,6 +17,11 @@ const getSafeTermId = (term: Partial<TermConfig>, index: number): string => {
   return `legacy-term-${index + 1}`;
 };
 
+export interface ExprValidationResult {
+  isValid: boolean;
+  message?: string;
+}
+
 export function deriveExprFromTerms(cell: MetaCellConfig): MetricExprToken[] {
   if (Array.isArray(cell.expr)) {
     return cell.expr;
@@ -105,6 +110,64 @@ export function evaluateMetricExpr(
   } catch {
     return null;
   }
+}
+
+export function validateExprTokens(tokens: MetricExprToken[]): ExprValidationResult {
+  if (!Array.isArray(tokens) || tokens.length === 0) {
+    return { isValid: true };
+  }
+
+  let expectsOperand = true;
+  let openParens = 0;
+
+  for (const token of tokens) {
+    if (token.type === 'term' || token.type === 'const') {
+      if (!expectsOperand) {
+        return { isValid: false, message: 'Falta un operador entre valores.' };
+      }
+      expectsOperand = false;
+      continue;
+    }
+
+    if (token.type === 'op') {
+      if (expectsOperand) {
+        return { isValid: false, message: 'Expresion incompleta.' };
+      }
+      expectsOperand = true;
+      continue;
+    }
+
+    if (token.type !== 'paren') {
+      return { isValid: false, message: 'Expresion invalida.' };
+    }
+
+    if (token.paren === '(') {
+      if (!expectsOperand) {
+        return { isValid: false, message: 'Falta un operador antes del parentesis.' };
+      }
+      openParens += 1;
+      expectsOperand = true;
+      continue;
+    }
+
+    if (expectsOperand) {
+      return { isValid: false, message: 'Expresion incompleta.' };
+    }
+    openParens -= 1;
+    if (openParens < 0) {
+      return { isValid: false, message: 'Parentesis de cierre sin apertura.' };
+    }
+    expectsOperand = false;
+  }
+
+  if (openParens > 0) {
+    return { isValid: false, message: 'Parentesis sin cerrar.' };
+  }
+  if (expectsOperand) {
+    return { isValid: false, message: 'Expresion incompleta.' };
+  }
+
+  return { isValid: true };
 }
 
 function toPostfix(tokens: MetricExprToken[]): Array<MetricExprToken & { type: 'const' | 'term' | 'op' }> | null {
