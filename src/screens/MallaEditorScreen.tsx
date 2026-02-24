@@ -866,10 +866,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (normalizedMetaRows.length <= 1) {
       return;
     }
+    const rowLabel = normalizedMetaRows.find((row) => row.id === rowId)?.label?.trim();
+    const deleteTitle = rowLabel ? `Eliminar métrica: ${rowLabel}` : 'Eliminar métrica';
 
     const confirmed = await confirmAsync({
-      title: 'Eliminar fila de cálculo',
-      message: 'Se eliminara esta fila y su configuracion. Continuar?',
+      title: deleteTitle,
+      message: 'Se eliminara esta métrica y su configuracion. Continuar?',
       confirmLabel: 'Eliminar',
       cancelLabel: 'Cancelar',
       variant: 'destructive',
@@ -900,7 +902,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setActiveMetaRowId(null);
       setActiveMetaColIndex(null);
     }
-  }, [activeMetaRowId, normalizedMetaRows.length, runHistoryTransaction]);
+    showToast(deleteTitle, 'success');
+  }, [activeMetaRowId, normalizedMetaRows, runHistoryTransaction, showToast]);
 
   const handleMetaOverrideToggle = useCallback(async (rowId: string, active: boolean) => {
     if (activeMetaColIndex == null) {
@@ -918,9 +921,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const hasOverride = !!resolvedRow.columns?.[activeMetaColIndex];
     if (!active && hasOverride) {
       const confirmed = await confirmAsync({
-        title: 'Volver al cálculo general',
+        title: 'Volver a la métrica general',
         message:
-          'Volver al cálculo general?\nSe perderá el cálculo personalizado de esta columna.',
+          'Volver a la métrica general?\nSe perdera la configuracion personalizada de este periodo.',
         confirmLabel: 'Si, volver',
         cancelLabel: 'Cancelar',
         variant: 'destructive',
@@ -1001,10 +1004,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setIsMetaEditorOpen(false);
       setActiveMetaRowId(null);
       setActiveMetaColIndex(null);
-      showToast('Calculo guardado', 'success');
+      showToast('Métrica guardada', 'success');
     } catch (error) {
       console.error('[MetaCalc] Error saving cell config', error);
-      showToast('No se pudo guardar el cálculo', 'error');
+      showToast('No se pudo guardar la métrica', 'error');
     }
   }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, showToast]);
 
@@ -2126,20 +2129,21 @@ export const MallaEditorScreen: React.FC<Props> = ({
                           className={styles.metaMenuAction}
                           onClick={handleMetaAddRow}
                         >
-                          Agregar fila de cálculo
+                          Agregar métrica
                         </button>
-                        <div className={styles.metaMenuSectionTitle}>Filas</div>
-                        <ul className={styles.metaMenuRows} aria-label="Lista de filas de cálculo">
+                        <div className={styles.metaMenuSectionTitle}>Métricas</div>
+                        <ul className={styles.metaMenuRows} aria-label="Lista de métricas">
                           {normalizedMetaRows.map((row, index) => (
                             <li key={row.id} className={styles.metaMenuRowItem}>
                               <span className={styles.metaMenuRowLabel}>
-                                {row.label?.trim() || `Cálculo ${index + 1}`}
+                                {row.label?.trim() || `Métrica ${index + 1}`}
                               </span>
                               <div className={styles.metaMenuRowActions}>
                                 <button
                                   type="button"
                                   className={styles.metaMenuInlineAction}
                                   onClick={() => handleMetaDuplicateRow(row.id)}
+                                  aria-label="Duplicar métrica"
                                 >
                                   Duplicar
                                 </button>
@@ -2148,6 +2152,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                                   className={styles.metaMenuInlineAction}
                                   onClick={() => void handleMetaDeleteRow(row.id)}
                                   disabled={normalizedMetaRows.length <= 1}
+                                  aria-label="Eliminar métrica"
                                 >
                                   Eliminar
                                 </button>
