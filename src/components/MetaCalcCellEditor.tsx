@@ -77,7 +77,7 @@ const formatHumanPreview = (
   catalog: MetaPanelCatalog,
   availabilityCatalog: MetaPanelCatalog,
 ): string => {
-  if (terms.length === 0) return 'Sin cálculo definido';
+  if (terms.length === 0) return 'Sin métrica definida';
 
   const formattedTerms = terms.map((term, index) => {
     const incomplete = isTermIncomplete(term);
@@ -346,7 +346,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     if (safeLabel) {
       return `Editando: ${safeLabel}`;
     }
-    return `Editando: Cálculo ${rowPosition}`;
+    return `Editando: Métrica ${rowPosition}`;
   }, [rowLabel, rowPosition]);
 
   useEffect(() => {
@@ -384,11 +384,11 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
             <div>
               <h3 id="meta-calc-cell-editor-title">Métricas por periodo</h3>
               <p className={styles.headerSubtext}>{editingRowContext}</p>
-              <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
+              <p className={styles.headerSubtext}>Periodo seleccionado: {colIndex + 1}</p>
               <p className={styles.modeChip}>
                 {isOverrideActive
-                  ? 'Personalizacion de esta columna'
-                  : 'Cálculo general'}
+                  ? 'Personalizacion de este periodo'
+                  : 'Métrica general (todos los periodos)'}
               </p>
             </div>
             <label className={styles.toggleRow}>
@@ -397,35 +397,35 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 checked={isOverrideActive}
                 onChange={(event) => onToggleOverride(rowId, event.target.checked)}
               />
-              <span>Personalizar esta columna</span>
+              <span>Personalizar este periodo</span>
             </label>
           </div>
         </div>
 
         <div className={styles.body}>
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Nombre del cálculo</h4>
+            <h4 className={styles.sectionTitle}>Nombre de la métrica</h4>
             {isOverrideActive ? (
               <>
                 <div className={styles.formRow}>
-                  <label>Nombre para esta columna</label>
+                  <label>Nombre para este periodo</label>
                   <input
                     type="text"
                     value={draftOverrideLabel}
                     onChange={(event) => setDraftOverrideLabel(event.target.value)}
-                    placeholder="Nombre para esta columna"
+                    placeholder="Nombre para este periodo"
                   />
                 </div>
-                <p className={styles.sectionHint}>Si lo dejas vacio, se usara el nombre general.</p>
+                <p className={styles.sectionHint}>Si lo dejas vacio, se usara el nombre de la métrica general.</p>
               </>
             ) : (
               <div className={styles.formRow}>
-                <label>Nombre del cálculo</label>
+                <label>Nombre de la métrica</label>
                 <input
                   type="text"
                   value={draftRowLabel}
                   onChange={(event) => setDraftRowLabel(event.target.value)}
-                  placeholder="Nombre del cálculo"
+                  placeholder="Nombre de la métrica"
                 />
               </div>
             )}
@@ -701,9 +701,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     <p className={styles.warning}>
                       {availability.reason === 'missing-template'
                         ? (isOverrideActive
-                          ? 'Tipo de bloque no disponible en esta columna.'
-                          : 'El tipo de bloque del cálculo general no esta disponible en esta columna.')
-                        : 'Campo no disponible en esta columna.'}
+                          ? 'Tipo de bloque no disponible en este periodo.'
+                          : 'El tipo de bloque de la métrica general no esta disponible en este periodo.')
+                        : 'Este término no se aplica en este periodo.'}
                     </p>
                   ) : null}
 
