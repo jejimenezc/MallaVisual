@@ -382,7 +382,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         <div className={styles.header}>
           <div className={styles.headerTop}>
             <div>
-              <h3 id="meta-calc-cell-editor-title">Meta-cálculos</h3>
+              <h3 id="meta-calc-cell-editor-title">Métricas por periodo</h3>
               <p className={styles.headerSubtext}>{editingRowContext}</p>
               <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
               <p className={styles.modeChip}>

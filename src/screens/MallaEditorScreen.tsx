@@ -2099,14 +2099,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   className={styles.metaMenuTrigger}
                   aria-haspopup="menu"
                   aria-expanded={isMetaMenuOpen}
-                  aria-label="Abrir menú de meta-cálculos"
+                  aria-label="Abrir menú de métricas por periodo"
                 >
-                  Meta-cálculos v
+                  Métricas por periodo
                 </Button>
                 {isMetaMenuOpen ? (
-                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de meta-cálculos">
+                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de métricas por periodo">
                     <label className={styles.blockMenuToggle}>
-                      <span>Meta-cálculos</span>
+                      <span>Métricas por periodo</span>
                       <span className={styles.blockMenuToggleControl}>
                         <input
                           type="checkbox"
