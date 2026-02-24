@@ -1,20 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './Button';
-import type { MetaCellConfig, MetaPanelRowConfig, TermConfig } from '../types/meta-panel.ts';
+import type { MetaCellConfig, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
 import { confirmAsync } from '../ui/alerts';
 import styles from './MetaCalcCellEditor.module.css';
 
 interface Props {
   isOpen: boolean;
+  rowId: string;
+  rowLabel?: string;
+  rowPosition: number;
   colIndex: number;
-  rowConfig: MetaPanelRowConfig;
   isOverrideActive: boolean;
   initialCellConfig: MetaCellConfig;
   catalog: MetaPanelCatalog;
   availabilityCatalog: MetaPanelCatalog;
-  onToggleOverride: (active: boolean) => void | Promise<void>;
-  onSave: (nextCellConfig: MetaCellConfig, nextRowLabel: string, nextOverrideLabel: string) => void;
+  onToggleOverride: (rowId: string, active: boolean) => void | Promise<void>;
+  onSave: (
+    rowId: string,
+    nextCellConfig: MetaCellConfig,
+    nextRowLabel: string,
+    nextOverrideLabel: string,
+  ) => void;
   onCancel: () => void;
 }
 
@@ -70,7 +77,7 @@ const formatHumanPreview = (
   catalog: MetaPanelCatalog,
   availabilityCatalog: MetaPanelCatalog,
 ): string => {
-  if (terms.length === 0) return 'Sin calculo definido';
+  if (terms.length === 0) return 'Sin cálculo definido';
 
   const formattedTerms = terms.map((term, index) => {
     const incomplete = isTermIncomplete(term);
@@ -81,7 +88,7 @@ const formatHumanPreview = (
     const warning = getTermAvailability(term, availabilityCatalog).ok ? '' : ' (!)';
 
     if (incomplete) {
-      return `${prefix}Termino incompleto${warning}`;
+      return `${prefix}Término incompleto${warning}`;
     }
 
     const operationLabel = OP_LABELS[term.op];
@@ -184,8 +191,10 @@ const TrashIcon: React.FC = () => (
 
 export const MetaCalcCellEditor: React.FC<Props> = ({
   isOpen,
+  rowId,
+  rowLabel,
+  rowPosition,
   colIndex,
-  rowConfig,
   isOverrideActive,
   initialCellConfig,
   catalog,
@@ -197,7 +206,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const termPrimaryControlRefs = useRef<Record<string, HTMLSelectElement | null>>({});
   const termCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [draft, setDraft] = useState<MetaCellConfig>(() => cloneCellConfig(initialCellConfig));
-  const [draftRowLabel, setDraftRowLabel] = useState<string>(rowConfig.label ?? '');
+  const [draftRowLabel, setDraftRowLabel] = useState<string>(rowLabel ?? '');
   const [draftOverrideLabel, setDraftOverrideLabel] = useState<string>(
     isOverrideActive ? (initialCellConfig.label ?? '') : '',
   );
@@ -206,9 +215,9 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   useEffect(() => {
     if (!isOpen) return;
     setDraft(cloneCellConfig(initialCellConfig));
-    setDraftRowLabel(rowConfig.label ?? '');
+    setDraftRowLabel(rowLabel ?? '');
     setDraftOverrideLabel(isOverrideActive ? (initialCellConfig.label ?? '') : '');
-  }, [initialCellConfig, isOpen, isOverrideActive, rowConfig.label]);
+  }, [initialCellConfig, isOpen, isOverrideActive, rowLabel]);
 
   const canAddTerm = draft.terms.length < MAX_TERMS;
   const exceedsTermLimit = draft.terms.length > MAX_TERMS;
@@ -271,8 +280,8 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
   const removeTerm = async (index: number) => {
     const confirmed = await confirmAsync({
-      title: 'Eliminar termino',
-      message: 'Eliminar este termino?\nEsta accion no se puede deshacer.',
+      title: 'Eliminar término',
+      message: 'Eliminar este término?\nEsta accion no se puede deshacer.',
       confirmLabel: 'Si, eliminar',
       cancelLabel: 'Cancelar',
       variant: 'destructive',
@@ -307,6 +316,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
   const handleSave = () => {
     if (isSaveDisabled) return;
     onSave(
+      rowId,
       cloneCellConfig(draft),
       draftRowLabel.trim(),
       draftOverrideLabel.trim(),
@@ -331,6 +341,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
     () => formatHumanPreview(draft.terms, catalog, availabilityCatalog),
     [availabilityCatalog, catalog, draft.terms],
   );
+  const editingRowContext = useMemo(() => {
+    const safeLabel = rowLabel?.trim();
+    if (safeLabel) {
+      return `Editando: ${safeLabel}`;
+    }
+    return `Editando: Cálculo ${rowPosition}`;
+  }, [rowLabel, rowPosition]);
 
   useEffect(() => {
     if (!pendingFocusTermId || !isOpen) return;
@@ -365,19 +382,20 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
         <div className={styles.header}>
           <div className={styles.headerTop}>
             <div>
-              <h3 id="meta-calc-cell-editor-title">Meta-calculos</h3>
+              <h3 id="meta-calc-cell-editor-title">Métricas por periodo</h3>
+              <p className={styles.headerSubtext}>{editingRowContext}</p>
               <p className={styles.headerSubtext}>Columna seleccionada: {colIndex + 1}</p>
               <p className={styles.modeChip}>
                 {isOverrideActive
                   ? 'Personalizacion de esta columna'
-                  : 'Calculo general'}
+                  : 'Cálculo general'}
               </p>
             </div>
             <label className={styles.toggleRow}>
               <input
                 type="checkbox"
                 checked={isOverrideActive}
-                onChange={(event) => onToggleOverride(event.target.checked)}
+                onChange={(event) => onToggleOverride(rowId, event.target.checked)}
               />
               <span>Personalizar esta columna</span>
             </label>
@@ -386,7 +404,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
         <div className={styles.body}>
           <section className={styles.section}>
-            <h4 className={styles.sectionTitle}>Nombre del calculo</h4>
+            <h4 className={styles.sectionTitle}>Nombre del cálculo</h4>
             {isOverrideActive ? (
               <>
                 <div className={styles.formRow}>
@@ -402,12 +420,12 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
               </>
             ) : (
               <div className={styles.formRow}>
-                <label>Nombre del calculo</label>
+                <label>Nombre del cálculo</label>
                 <input
                   type="text"
                   value={draftRowLabel}
                   onChange={(event) => setDraftRowLabel(event.target.value)}
-                  placeholder="Nombre del calculo"
+                  placeholder="Nombre del cálculo"
                 />
               </div>
             )}
@@ -420,7 +438,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h4 className={styles.sectionTitle}>Constructor de terminos</h4>
+              <h4 className={styles.sectionTitle}>Constructor de términos</h4>
             </div>
 
             {draft.terms.map((term, termIndex) => {
@@ -462,7 +480,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                   <div className={styles.termMainRow}>
                     <div className={`${styles.termControl} ${styles.termSignControl}`}>
                       <label>Signo</label>
-                      <div className={styles.signGroup} role="group" aria-label={`Signo del termino ${termIndex + 1}`}>
+                      <div className={styles.signGroup} role="group" aria-label={`Signo del término ${termIndex + 1}`}>
                         <button
                           type="button"
                           className={`${styles.signButton} ${term.sign === 1 ? styles.signButtonActive : ''}`}
@@ -575,7 +593,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           className={styles.actionIconButton}
                           onClick={() => moveTermUp(termIndex)}
                           disabled={isFirstTerm}
-                          aria-label={`Mover termino ${termIndex + 1} arriba`}
+                          aria-label={`Mover término ${termIndex + 1} arriba`}
                           title="Mover arriba"
                         >
                           ↑
@@ -585,7 +603,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           className={styles.actionIconButton}
                           onClick={() => moveTermDown(termIndex)}
                           disabled={isLastTerm}
-                          aria-label={`Mover termino ${termIndex + 1} abajo`}
+                          aria-label={`Mover término ${termIndex + 1} abajo`}
                           title="Mover abajo"
                         >
                           ↓
@@ -595,7 +613,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           className={styles.actionIconButton}
                           onClick={() => duplicateTerm(termIndex)}
                           disabled={!canAddTerm}
-                          aria-label={`Duplicar termino ${termIndex + 1}`}
+                          aria-label={`Duplicar término ${termIndex + 1}`}
                           title="Duplicar"
                         >
                           <DuplicateIcon />
@@ -604,7 +622,7 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           type="button"
                           className={styles.actionIconButton}
                           onClick={() => { void removeTerm(termIndex); }}
-                          aria-label={`Eliminar termino ${termIndex + 1}`}
+                          aria-label={`Eliminar término ${termIndex + 1}`}
                           title="Eliminar"
                         >
                           <TrashIcon />
@@ -684,13 +702,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                       {availability.reason === 'missing-template'
                         ? (isOverrideActive
                           ? 'Tipo de bloque no disponible en esta columna.'
-                          : 'El tipo de bloque del calculo general no esta disponible en esta columna.')
+                          : 'El tipo de bloque del cálculo general no esta disponible en esta columna.')
                         : 'Campo no disponible en esta columna.'}
                     </p>
                   ) : null}
 
                   {isInvalid ? (
-                    <p className={styles.termError}>Completa este termino para poder guardar.</p>
+                    <p className={styles.termError}>Completa este término para poder guardar.</p>
                   ) : null}
                 </div>
               );
@@ -707,17 +725,17 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 }}
                 disabled={!canAddTerm}
               >
-                Agregar termino
+                Agregar término
               </Button>
               <div className={styles.limitInfo}>
-                <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} terminos</span>
+                <span className={styles.counterText}>{draft.terms.length}/{MAX_TERMS} términos</span>
                 {!canAddTerm ? <span className={styles.limitReachedText}>Limite alcanzado.</span> : null}
               </div>
             </div>
           </section>
 
           {isSaveDisabled ? (
-            <p className={styles.error}>Revisa los terminos incompletos antes de guardar.</p>
+            <p className={styles.error}>Revisa los términos incompletos antes de guardar.</p>
           ) : null}
         </div>
 

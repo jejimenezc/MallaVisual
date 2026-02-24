@@ -23,7 +23,6 @@ import {
   MALLA_SCHEMA_VERSION,
   createDefaultMetaPanel,
   createDefaultProjectTheme,
-  getActiveMetaPanelRow,
   getCellConfigForColumn,
   normalizeMetaPanelConfig,
   normalizeProjectTheme,
@@ -71,7 +70,7 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
-const META_CALC_HEADER_HEIGHT = 30;
+const META_CALC_HEADER_ROW_HEIGHT = 30;
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -140,7 +139,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const [editingMetaColumn, setEditingMetaColumn] = useState<number | null>(null);
+  const [isMetaEditorOpen, setIsMetaEditorOpen] = useState(false);
+  const [activeMetaRowId, setActiveMetaRowId] = useState<string | null>(null);
+  const [activeMetaColIndex, setActiveMetaColIndex] = useState<number | null>(null);
+  const [isMetaMenuOpen, setIsMetaMenuOpen] = useState(false);
   const { autoSave, clearDraft, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -373,6 +375,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const metaMenuRef = useRef<HTMLDivElement>(null);
   const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({
@@ -482,6 +485,36 @@ export const MallaEditorScreen: React.FC<Props> = ({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleUndo, handleRedo]);
+
+  useEffect(() => {
+    if (!isMetaMenuOpen) {
+      return;
+    }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (metaMenuRef.current?.contains(target)) {
+        return;
+      }
+      setIsMetaMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMetaMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isMetaMenuOpen]);
   const {
     colWidths,
     rowHeights,
@@ -559,13 +592,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const sliderMin = Math.round(MIN_ZOOM * 100);
   const sliderMax = Math.round(MAX_ZOOM * 100);
   const sliderStep = Math.round(ZOOM_STEP * 100);
+  const normalizedMetaPanel = useMemo(() => normalizeMetaPanelConfig(metaPanel), [metaPanel]);
+  const normalizedMetaRows = normalizedMetaPanel.rows;
+  const metaCalcRowCount = useMemo(() => {
+    if (normalizedMetaPanel.enabled === false) {
+      return 0;
+    }
+    return normalizedMetaRows.length;
+  }, [normalizedMetaPanel.enabled, normalizedMetaRows]);
+  const metaCalcHeaderHeight = useMemo(
+    () => metaCalcRowCount * META_CALC_HEADER_ROW_HEIGHT,
+    [metaCalcRowCount],
+  );
 
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        height: gridHeight * zoomScale + (metaPanel.enabled === false ? 0 : META_CALC_HEADER_HEIGHT),
+        height: gridHeight * zoomScale + metaCalcHeaderHeight,
       }) as React.CSSProperties,
-    [gridHeight, metaPanel.enabled, zoomScale],
+    [gridHeight, metaCalcHeaderHeight, zoomScale],
   );
 
   const zoomedMetaCalcHeaderWrapperStyle = useMemo(
@@ -576,10 +621,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
     [gridWidth, zoomScale],
   );
 
-  const activeMetaRow = useMemo<MetaPanelRowConfig>(
-    () => getActiveMetaPanelRow(metaPanel),
-    [metaPanel],
-  );
+  useEffect(() => {
+    if (normalizedMetaPanel.enabled === false) {
+      return;
+    }
+    const fallbackRow = normalizedMetaRows[0];
+    if (!fallbackRow) {
+      return;
+    }
+    const hasActiveRow =
+      activeMetaRowId != null && normalizedMetaRows.some((row) => row.id === activeMetaRowId);
+    if (hasActiveRow) {
+      return;
+    }
+    setActiveMetaRowId(fallbackRow.id);
+  }, [activeMetaRowId, normalizedMetaPanel.enabled, normalizedMetaRows]);
+
+  const activeMetaRow = useMemo<MetaPanelRowConfig>(() => {
+    const fallbackRow = normalizedMetaRows[0]!;
+    if (activeMetaRowId == null) {
+      return fallbackRow;
+    }
+    return normalizedMetaRows.find((row) => row.id === activeMetaRowId) ?? fallbackRow;
+  }, [activeMetaRowId, normalizedMetaRows]);
+
+  const activeMetaRowPosition = useMemo(() => {
+    const index = normalizedMetaRows.findIndex((row) => row.id === activeMetaRow.id);
+    return index >= 0 ? index + 1 : 1;
+  }, [activeMetaRow.id, normalizedMetaRows]);
 
   const mallaForMetaCalc = useMemo<MallaQuerySource>(
     () => ({
@@ -619,16 +688,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
 
   const activeMetaCellConfig = useMemo(() => {
-    if (editingMetaColumn == null) return activeMetaRow.defaultCell;
-    return getCellConfigForColumn(activeMetaRow, editingMetaColumn);
-  }, [activeMetaRow, editingMetaColumn]);
+    if (activeMetaColIndex == null) return activeMetaRow.defaultCell;
+    return getCellConfigForColumn(activeMetaRow, activeMetaColIndex);
+  }, [activeMetaColIndex, activeMetaRow]);
 
   const isEditingOverrideActive = useMemo(
     () =>
-      editingMetaColumn != null
-        ? !!activeMetaRow.columns?.[editingMetaColumn]
+      activeMetaColIndex != null
+        ? !!activeMetaRow.columns?.[activeMetaColIndex]
         : false,
-    [activeMetaRow, editingMetaColumn],
+    [activeMetaColIndex, activeMetaRow],
   );
 
   const globalMetaEditorCatalog = useMemo<MetaPanelCatalog>(
@@ -642,33 +711,37 @@ export const MallaEditorScreen: React.FC<Props> = ({
   );
 
   const columnMetaEditorCatalog = useMemo<MetaPanelCatalog>(() => {
-    if (editingMetaColumn == null) {
+    if (activeMetaColIndex == null) {
       return { templates: [], controlsByTemplateId: {} };
     }
     return buildMetaPanelCatalogForColumn({
       malla: mallaForMetaCalc,
-      colIndex: editingMetaColumn,
+      colIndex: activeMetaColIndex,
       resolveTemplateForPiece,
       resolveTemplateLabel: (templateId) => templateLabelById[templateId] ?? templateId,
     });
-  }, [editingMetaColumn, mallaForMetaCalc, resolveTemplateForPiece, templateLabelById]);
+  }, [activeMetaColIndex, mallaForMetaCalc, resolveTemplateForPiece, templateLabelById]);
 
   const activeMetaEditorCatalog = isEditingOverrideActive
     ? columnMetaEditorCatalog
     : globalMetaEditorCatalog;
 
-  const handleMetaCellClick = useCallback((colIndex: number) => {
+  const handleMetaCellClick = useCallback((rowId: string, colIndex: number) => {
     if (metaPanel.enabled === false) {
       return;
     }
-    setEditingMetaColumn(colIndex);
+    setActiveMetaRowId(rowId);
+    setActiveMetaColIndex(colIndex);
+    setIsMetaEditorOpen(true);
   }, [metaPanel.enabled]);
 
   useEffect(() => {
-    if (metaPanel.enabled === false && editingMetaColumn != null) {
-      setEditingMetaColumn(null);
+    if (metaPanel.enabled === false && isMetaEditorOpen) {
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
     }
-  }, [editingMetaColumn, metaPanel.enabled]);
+  }, [isMetaEditorOpen, metaPanel.enabled]);
 
   const handleMetaPanelEnabledChange = useCallback((nextEnabled: boolean) => {
     runHistoryTransaction(() => {
@@ -677,19 +750,27 @@ export const MallaEditorScreen: React.FC<Props> = ({
         if (normalized.enabled === nextEnabled) {
           return normalized;
         }
+        const nextRows = nextEnabled && normalized.rows.length === 0
+          ? createDefaultMetaPanel(true).rows
+          : normalized.rows;
         return {
           ...normalized,
           enabled: nextEnabled,
+          rows: nextRows,
         };
       });
     });
     if (!nextEnabled) {
-      setEditingMetaColumn(null);
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
     }
   }, [runHistoryTransaction]);
 
   const handleMetaEditorCancel = useCallback(() => {
-    setEditingMetaColumn(null);
+    setIsMetaEditorOpen(false);
+    setActiveMetaRowId(null);
+    setActiveMetaColIndex(null);
   }, []);
 
   const cloneMetaCellConfig = useCallback((config: MetaCellConfig): MetaCellConfig => ({
@@ -700,16 +781,146 @@ export const MallaEditorScreen: React.FC<Props> = ({
     })),
   }), []);
 
-  const handleMetaOverrideToggle = useCallback(async (active: boolean) => {
-    if (editingMetaColumn == null) {
+  const createMetaConfigId = useCallback(
+    (prefix: string) =>
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    [],
+  );
+
+  const cloneMetaCellConfigWithNewIds = useCallback((config: MetaCellConfig): MetaCellConfig => {
+    const clonedConfig = cloneMetaCellConfig(config);
+    return {
+      ...clonedConfig,
+      id: createMetaConfigId('meta-cell'),
+      terms: (clonedConfig.terms ?? []).map((term) => ({
+        ...term,
+        id: createMetaConfigId('meta-term'),
+      })),
+    };
+  }, [cloneMetaCellConfig, createMetaConfigId]);
+
+  const createEmptyMetaRow = useCallback((): MetaPanelRowConfig => ({
+    id: createMetaConfigId('meta-row'),
+    defaultCell: {
+      id: createMetaConfigId('meta-cell'),
+      mode: 'count',
+      terms: [],
+    },
+    columns: {},
+  }), [createMetaConfigId]);
+
+  const cloneMetaRowWithNewIds = useCallback((row: MetaPanelRowConfig): MetaPanelRowConfig => {
+    const nextColumns: Record<number, MetaCellConfig> = {};
+    for (const [rawColIndex, cell] of Object.entries(row.columns ?? {})) {
+      const colIndex = Number(rawColIndex);
+      if (!Number.isInteger(colIndex) || colIndex < 0) {
+        continue;
+      }
+      nextColumns[colIndex] = cloneMetaCellConfigWithNewIds(cell);
+    }
+
+    return {
+      ...row,
+      id: createMetaConfigId('meta-row'),
+      defaultCell: cloneMetaCellConfigWithNewIds(row.defaultCell),
+      columns: nextColumns,
+    };
+  }, [cloneMetaCellConfigWithNewIds, createMetaConfigId]);
+
+  const handleMetaAddRow = useCallback(() => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.enabled === false) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          rows: [...normalized.rows, createEmptyMetaRow()],
+        };
+      });
+    });
+  }, [createEmptyMetaRow, runHistoryTransaction]);
+
+  const handleMetaDuplicateRow = useCallback((rowId: string) => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        const targetIndex = normalized.rows.findIndex((row) => row.id === rowId);
+        if (targetIndex < 0) {
+          return normalized;
+        }
+        const nextRows = normalized.rows.slice();
+        nextRows.splice(targetIndex + 1, 0, cloneMetaRowWithNewIds(nextRows[targetIndex]!));
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+  }, [cloneMetaRowWithNewIds, runHistoryTransaction]);
+
+  const handleMetaDeleteRow = useCallback(async (rowId: string) => {
+    if (normalizedMetaRows.length <= 1) {
       return;
     }
-    const hasOverride = !!activeMetaRow.columns?.[editingMetaColumn];
+
+    const confirmed = await confirmAsync({
+      title: 'Eliminar fila de cálculo',
+      message: 'Se eliminara esta fila y su configuracion. Continuar?',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.rows.length <= 1) {
+          return normalized;
+        }
+        const nextRows = normalized.rows.filter((row) => row.id !== rowId);
+        if (nextRows.length === normalized.rows.length) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+
+    if (activeMetaRowId === rowId) {
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
+    }
+  }, [activeMetaRowId, normalizedMetaRows.length, runHistoryTransaction]);
+
+  const handleMetaOverrideToggle = useCallback(async (rowId: string, active: boolean) => {
+    if (activeMetaColIndex == null) {
+      return;
+    }
+    const fallbackRow = normalizedMetaRows[0];
+    if (!fallbackRow) {
+      return;
+    }
+    const resolvedRow = normalizedMetaRows.find((row) => row.id === rowId) ?? fallbackRow;
+    const targetRowId = resolvedRow.id;
+    if (targetRowId !== rowId) {
+      setActiveMetaRowId(targetRowId);
+    }
+    const hasOverride = !!resolvedRow.columns?.[activeMetaColIndex];
     if (!active && hasOverride) {
       const confirmed = await confirmAsync({
-        title: 'Volver al calculo general',
+        title: 'Volver al cálculo general',
         message:
-          'Volver al calculo general?\nSe perdera el calculo personalizado de esta columna.',
+          'Volver al cálculo general?\nSe perderá el cálculo personalizado de esta columna.',
         confirmLabel: 'Si, volver',
         cancelLabel: 'Cancelar',
         variant: 'destructive',
@@ -722,51 +933,63 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setMetaPanel((prev) => {
         const normalized = normalizeMetaPanelConfig(prev);
         const nextRows = normalized.rows.slice();
-        const currentRow = nextRows[0];
-        if (!currentRow) {
+        const targetRowIndex = nextRows.findIndex((row) => row.id === targetRowId);
+        if (targetRowIndex < 0) {
           return normalized;
         }
+        const currentRow = nextRows[targetRowIndex];
         const nextColumns = { ...(currentRow.columns ?? {}) };
         if (active) {
-          nextColumns[editingMetaColumn] = cloneMetaCellConfig(currentRow.defaultCell);
+          nextColumns[activeMetaColIndex] = cloneMetaCellConfig(currentRow.defaultCell);
         } else {
-          delete nextColumns[editingMetaColumn];
+          delete nextColumns[activeMetaColIndex];
         }
-        nextRows[0] = {
+        nextRows[targetRowIndex] = {
           ...currentRow,
           columns: nextColumns,
         };
         return { ...normalized, rows: nextRows };
       });
     });
-  }, [activeMetaRow.columns, cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction]);
+  }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction]);
 
   const handleMetaEditorSave = useCallback((
+    rowId: string,
     nextCellConfig: MetaCellConfig,
     nextRowLabel: string,
     nextOverrideLabel: string,
   ) => {
     try {
+      const fallbackRow = normalizedMetaRows[0];
+      if (!fallbackRow) {
+        return;
+      }
+      const resolvedRow = normalizedMetaRows.find((row) => row.id === rowId) ?? fallbackRow;
+      const targetRowId = resolvedRow.id;
+      if (targetRowId !== rowId) {
+        setActiveMetaRowId(targetRowId);
+      }
       runHistoryTransaction(() => {
         setMetaPanel((prev) => {
           const normalized = normalizeMetaPanelConfig(prev);
           const nextRows = normalized.rows.slice();
-          const currentRow = nextRows[0];
-          if (!currentRow) {
+          const targetRowIndex = nextRows.findIndex((row) => row.id === targetRowId);
+          if (targetRowIndex < 0) {
             return normalized;
           }
-          if (editingMetaColumn != null && currentRow.columns?.[editingMetaColumn]) {
+          const currentRow = nextRows[targetRowIndex];
+          if (activeMetaColIndex != null && currentRow.columns?.[activeMetaColIndex]) {
             const nextColumns = { ...(currentRow.columns ?? {}) };
-            nextColumns[editingMetaColumn] = {
+            nextColumns[activeMetaColIndex] = {
               ...cloneMetaCellConfig(nextCellConfig),
               label: nextOverrideLabel || undefined,
             };
-            nextRows[0] = {
+            nextRows[targetRowIndex] = {
               ...currentRow,
               columns: nextColumns,
             };
           } else {
-            nextRows[0] = {
+            nextRows[targetRowIndex] = {
               ...currentRow,
               label: nextRowLabel || undefined,
               defaultCell: cloneMetaCellConfig(nextCellConfig),
@@ -775,13 +998,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
           return { ...normalized, rows: nextRows };
         });
       });
-      setEditingMetaColumn(null);
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
       showToast('Calculo guardado', 'success');
     } catch (error) {
       console.error('[MetaCalc] Error saving cell config', error);
-      showToast('No se pudo guardar el calculo', 'error');
+      showToast('No se pudo guardar el cálculo', 'error');
     }
-  }, [cloneMetaCellConfig, editingMetaColumn, runHistoryTransaction, showToast]);
+  }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, showToast]);
 
   const zoomedGridWrapperStyle = useMemo(
     () =>
@@ -1867,21 +2092,74 @@ export const MallaEditorScreen: React.FC<Props> = ({
           right={
             <>
 
-              <label className={styles.blockMenuToggle}>
-                <span>Meta-cálculos:</span>
-                <span className={styles.blockMenuToggleControl}>
-                  <input
-                    type="checkbox"
-                    checked={metaPanel.enabled !== false}
-                    onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
-                    className={styles.blockMenuToggleInput}
-                  />
-                  <span className={styles.blockMenuToggleTrack} aria-hidden="true">
-                    <span className={styles.blockMenuToggleThumb} />
-                  </span>
-                </span>
-              </label>
-
+              <div className={styles.metaMenu} ref={metaMenuRef}>
+                <Button
+                  type="button"
+                  onClick={() => setIsMetaMenuOpen((prev) => !prev)}
+                  className={styles.metaMenuTrigger}
+                  aria-haspopup="menu"
+                  aria-expanded={isMetaMenuOpen}
+                  aria-label="Abrir menú de métricas por periodo"
+                >
+                  Métricas por periodo
+                </Button>
+                {isMetaMenuOpen ? (
+                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de métricas por periodo">
+                    <label className={styles.blockMenuToggle}>
+                      <span>Métricas por periodo</span>
+                      <span className={styles.blockMenuToggleControl}>
+                        <input
+                          type="checkbox"
+                          checked={metaPanel.enabled !== false}
+                          onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
+                          className={styles.blockMenuToggleInput}
+                        />
+                        <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                          <span className={styles.blockMenuToggleThumb} />
+                        </span>
+                      </span>
+                    </label>
+                    {metaPanel.enabled !== false ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.metaMenuAction}
+                          onClick={handleMetaAddRow}
+                        >
+                          Agregar fila de cálculo
+                        </button>
+                        <div className={styles.metaMenuSectionTitle}>Filas</div>
+                        <ul className={styles.metaMenuRows} aria-label="Lista de filas de cálculo">
+                          {normalizedMetaRows.map((row, index) => (
+                            <li key={row.id} className={styles.metaMenuRowItem}>
+                              <span className={styles.metaMenuRowLabel}>
+                                {row.label?.trim() || `Cálculo ${index + 1}`}
+                              </span>
+                              <div className={styles.metaMenuRowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => handleMetaDuplicateRow(row.id)}
+                                >
+                                  Duplicar
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => void handleMetaDeleteRow(row.id)}
+                                  disabled={normalizedMetaRows.length <= 1}
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
@@ -1916,7 +2194,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 className={styles.rowControls}
                 style={{
                   height: gridHeight * zoomScale,
-                  marginTop: metaPanel.enabled === false ? 0 : META_CALC_HEADER_HEIGHT,
+                  marginTop: metaCalcHeaderHeight,
                 }}
               >
                 {rowControlButtons.plusButtons.map((button) => (
@@ -1953,11 +2231,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
                   <MetaCalcHeader
                     columnCount={cols}
-                    rowConfig={activeMetaRow}
+                    rowsConfig={metaPanel.rows}
                     malla={mallaForMetaCalc}
                     deps={metaCalcDeps}
                     onCellClick={handleMetaCellClick}
-                    isOverrideColumn={(colIndex) => !!activeMetaRow.columns?.[colIndex]}
+                    isOverrideColumn={(rowConfig, colIndex) => !!rowConfig.columns?.[colIndex]}
+                    activeRowId={isMetaEditorOpen ? activeMetaRowId : null}
                     className={styles.metaCalcHeader}
                   />
                 </div>
@@ -1971,7 +2250,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onMouseUp={handleMouseUp}
                 >
                   {pieces.map((p) => {
-                    // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
+                    // --- cálculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
                     let pieceTemplate: BlockTemplate;
                     let pieceVisual: VisualTemplate;
                     let pieceAspect: BlockAspect;
@@ -2103,11 +2382,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
         </div>
       </div>
       <MetaCalcCellEditor
-        isOpen={metaPanel.enabled !== false && editingMetaColumn != null && activeMetaCellConfig != null}
-        colIndex={editingMetaColumn ?? 0}
-        rowConfig={activeMetaRow}
+        isOpen={metaPanel.enabled !== false && isMetaEditorOpen && activeMetaColIndex != null && activeMetaCellConfig != null}
+        colIndex={activeMetaColIndex ?? 0}
+        rowId={activeMetaRow.id}
+        rowLabel={activeMetaRow.label}
+        rowPosition={activeMetaRowPosition}
         isOverrideActive={isEditingOverrideActive}
-        initialCellConfig={activeMetaCellConfig ?? getCellConfigForColumn(activeMetaRow, 0)}
+        initialCellConfig={activeMetaCellConfig ?? activeMetaRow.defaultCell}
         catalog={activeMetaEditorCatalog}
         availabilityCatalog={columnMetaEditorCatalog}
         onToggleOverride={handleMetaOverrideToggle}

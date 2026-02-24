@@ -374,7 +374,7 @@ export function GlobalMenuBar({
                   onClick={handleToggleMetaPanelClick}
                   disabled={!hasProject || !canToggleMetaPanel}
                 >
-                  {isMetaPanelEnabled ? '✓ ' : ''}Meta-cálculos
+                  {isMetaPanelEnabled ? '✓ ' : ''}Métricas por periodo
                 </button>
               </li>
             </ul>
