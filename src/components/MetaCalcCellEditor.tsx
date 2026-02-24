@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from './Button';
+import { MetricExpressionEditor } from './MetricExpressionEditor';
 import type { MetaCellConfig, MetricExprToken, TermConfig } from '../types/meta-panel.ts';
 import { getTermAvailability, type MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
 import { deriveExprFromTerms, validateExprTokens } from '../utils/metrics-expr.ts';
@@ -81,12 +82,6 @@ const getInitialExprTokens = (cellConfig: MetaCellConfig): MetricExprToken[] => 
     return cloneExprTokens(cellConfig.expr);
   }
   return deriveExprFromTerms(cellConfig).map((token) => ({ ...token }));
-};
-
-const getExprOperatorLabel = (op: '+' | '-' | '*' | '/'): string => {
-  if (op === '*') return '×';
-  if (op === '/') return '÷';
-  return op;
 };
 
 const isOperandToken = (token: MetricExprToken | undefined): boolean =>
@@ -561,20 +556,6 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
       ),
     [catalog, draft.terms],
   );
-  const renderExprToken = (token: MetricExprToken, index: number): React.ReactNode => {
-    if (token.type === 'term') {
-      const label = termExpressionLabelById.get(token.termId) ?? `Termino ${token.termId}`;
-      return <span className={styles.exprTokenChip}>{label}</span>;
-    }
-    if (token.type === 'const') {
-      const label = getEditableConstText(token.value, pendingDecimalTokenIndex === index);
-      return <span className={styles.exprTokenConst}>{label}</span>;
-    }
-    if (token.type === 'op') {
-      return <span className={styles.exprTokenOp}>{getExprOperatorLabel(token.op)}</span>;
-    }
-    return <span className={styles.exprTokenParen}>{token.paren}</span>;
-  };
   const editingRowContext = useMemo(() => {
     const safeLabel = rowLabel?.trim();
     if (safeLabel) {
@@ -667,55 +648,22 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
 
           <section className={styles.section}>
             <h4 className={styles.sectionTitle}>Expresion</h4>
-            <div className={styles.keypad}>
-              <div className={styles.keypadGroup}>
-                <Button type="button" onClick={() => insertExprOperator('+')}>+</Button>
-                <Button type="button" onClick={() => insertExprOperator('-')}>-</Button>
-                <Button type="button" onClick={() => insertExprOperator('*')}>×</Button>
-                <Button type="button" onClick={() => insertExprOperator('/')}>÷</Button>
-              </div>
-              <div className={styles.keypadGroup}>
-                <Button type="button" onClick={insertOpenParen}>(</Button>
-                <Button type="button" onClick={insertCloseParen}>)</Button>
-              </div>
-              <div className={styles.keypadGroup}>
-                {['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'].map((key) => (
-                  <Button
-                    key={key}
-                    type="button"
-                    onClick={() => (key === '.' ? insertDecimalPoint() : insertDigit(key))}
-                  >
-                    {key}
-                  </Button>
-                ))}
-              </div>
-              <div className={styles.keypadGroup}>
-                <Button type="button" onClick={handleExprBackspace}>⌫</Button>
-                <Button type="button" onClick={clearExpr}>Clear</Button>
-              </div>
-            </div>
-
-            <div className={styles.expressionEditor} role="group" aria-label="Editor de expresion">
-              {Array.from({ length: draftExprTokens.length + 1 }, (_, slotIndex) => (
-                <React.Fragment key={`slot-${slotIndex}`}>
-                  <button
-                    type="button"
-                    className={`${styles.cursorSlot} ${cursorIndex === slotIndex ? styles.cursorSlotActive : ''}`}
-                    onClick={() => setCursorIndex(slotIndex)}
-                    aria-label={`Mover cursor a la posicion ${slotIndex + 1}`}
-                  >
-                    {cursorIndex === slotIndex ? '|' : ' '}
-                  </button>
-                  {slotIndex < draftExprTokens.length ? (
-                    <span className={styles.exprToken}>{renderExprToken(draftExprTokens[slotIndex]!, slotIndex)}</span>
-                  ) : null}
-                </React.Fragment>
-              ))}
-            </div>
-
-            {!exprValidation.isValid ? (
-              <p className={styles.error}>{exprValidation.message ?? 'Expresion incompleta.'}</p>
-            ) : null}
+            <MetricExpressionEditor
+              tokens={draftExprTokens}
+              cursorIndex={cursorIndex}
+              pendingDecimalTokenIndex={pendingDecimalTokenIndex}
+              termExpressionLabelById={termExpressionLabelById}
+              errorMessage={!exprValidation.isValid ? (exprValidation.message ?? 'Expresion incompleta.') : undefined}
+              errorClassName={styles.error}
+              onSetCursor={setCursorIndex}
+              onInsertOperator={insertExprOperator}
+              onInsertOpenParen={insertOpenParen}
+              onInsertCloseParen={insertCloseParen}
+              onInsertDigit={insertDigit}
+              onInsertDecimalPoint={insertDecimalPoint}
+              onBackspace={handleExprBackspace}
+              onClear={clearExpr}
+            />
           </section>
 
           <section className={styles.section}>
