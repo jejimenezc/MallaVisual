@@ -2,6 +2,7 @@
 import type { CurricularPiece, MasterBlockData } from '../types/curricular';
 import type {
   MetaCellConfig,
+  MetricExprToken,
   MetaPanelConfig,
   MetaPanelRowConfig,
   TermConditionConfig,
@@ -54,6 +55,7 @@ export type {
   MetaPanelConfig,
   MetaPanelRowConfig,
   MetaCellConfig,
+  MetricExprToken,
   TermConfig,
   TermOp,
   TermConditionConfig,
@@ -100,6 +102,7 @@ const normalizeMetaCellConfig = (
   const rawMode = value.mode === 'count' ? 'count' : undefined;
   const id = rawId.length > 0 ? rawId : fallbackId;
   const rawTerms = Array.isArray(value.terms) ? value.terms : [];
+  const rawExpr = Array.isArray(value.expr) ? normalizeMetricExprTokens(value.expr) : undefined;
   const terms = rawTerms
     .map((rawTerm, index) => normalizeMetaTermConfig(rawTerm, id, index))
     .filter((term): term is TermConfig => !!term);
@@ -108,7 +111,49 @@ const normalizeMetaCellConfig = (
     ...(label ? { label } : {}),
     mode: rawMode,
     terms,
+    ...(rawExpr !== undefined ? { expr: rawExpr } : {}),
   };
+};
+
+const normalizeMetricExprTokens = (tokens: unknown[]): MetricExprToken[] =>
+  tokens
+    .map((token) => normalizeMetricExprToken(token))
+    .filter((token): token is MetricExprToken => token != null);
+
+const normalizeMetricExprToken = (token: unknown): MetricExprToken | null => {
+  if (!isRecord(token) || typeof token.type !== 'string') {
+    return null;
+  }
+
+  if (token.type === 'term') {
+    const termId = typeof token.termId === 'string' ? token.termId.trim() : '';
+    if (!termId) return null;
+    return { type: 'term', termId };
+  }
+
+  if (token.type === 'const') {
+    const value = token.value;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return null;
+    }
+    return { type: 'const', value };
+  }
+
+  if (token.type === 'op') {
+    if (token.op !== '+' && token.op !== '-' && token.op !== '*' && token.op !== '/') {
+      return null;
+    }
+    return { type: 'op', op: token.op };
+  }
+
+  if (token.type === 'paren') {
+    if (token.paren !== '(' && token.paren !== ')') {
+      return null;
+    }
+    return { type: 'paren', paren: token.paren };
+  }
+
+  return null;
 };
 
 const normalizeMetaTermConfig = (

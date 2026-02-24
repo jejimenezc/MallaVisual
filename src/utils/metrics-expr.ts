@@ -1,0 +1,199 @@
+import type { MetaCellConfig, MetricExprToken, TermConfig } from '../types/meta-panel.ts';
+
+const precedence: Record<'+' | '-' | '*' | '/', number> = {
+  '+': 1,
+  '-': 1,
+  '*': 2,
+  '/': 2,
+};
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+const getSafeTermId = (term: Partial<TermConfig>, index: number): string => {
+  if (typeof term.id === 'string' && term.id.trim().length > 0) {
+    return term.id.trim();
+  }
+  return `legacy-term-${index + 1}`;
+};
+
+export function deriveExprFromTerms(cell: MetaCellConfig): MetricExprToken[] {
+  if (Array.isArray(cell.expr)) {
+    return cell.expr;
+  }
+
+  const terms = Array.isArray(cell.terms) ? cell.terms : [];
+  if (terms.length === 0) {
+    return [];
+  }
+
+  const tokens: MetricExprToken[] = [];
+  terms.forEach((term, index) => {
+    const termId = getSafeTermId(term, index);
+    const sign = term.sign === -1 ? -1 : 1;
+    if (index === 0) {
+      if (sign === -1) {
+        tokens.push({ type: 'const', value: 0 }, { type: 'op', op: '-' }, { type: 'term', termId });
+      } else {
+        tokens.push({ type: 'term', termId });
+      }
+      return;
+    }
+    tokens.push({ type: 'op', op: sign === -1 ? '-' : '+' }, { type: 'term', termId });
+  });
+
+  return tokens;
+}
+
+export function evaluateMetricExpr(
+  tokens: MetricExprToken[],
+  resolveTermValue: (termId: string) => number,
+): number | null {
+  try {
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      return null;
+    }
+
+    const postfix = toPostfix(tokens);
+    if (!postfix) {
+      return null;
+    }
+
+    const stack: number[] = [];
+    for (const token of postfix) {
+      if (token.type === 'const') {
+        if (!isFiniteNumber(token.value)) return null;
+        stack.push(token.value);
+        continue;
+      }
+
+      if (token.type === 'term') {
+        const resolved = resolveTermValue(token.termId);
+        if (!isFiniteNumber(resolved)) {
+          return null;
+        }
+        stack.push(resolved);
+        continue;
+      }
+
+      if (token.type !== 'op') {
+        return null;
+      }
+
+      const right = stack.pop();
+      const left = stack.pop();
+      if (!isFiniteNumber(left) || !isFiniteNumber(right)) {
+        return null;
+      }
+
+      let computed: number | null = null;
+      if (token.op === '+') computed = left + right;
+      if (token.op === '-') computed = left - right;
+      if (token.op === '*') computed = left * right;
+      if (token.op === '/') computed = right === 0 ? null : left / right;
+
+      if (!isFiniteNumber(computed)) {
+        return null;
+      }
+      stack.push(computed);
+    }
+
+    if (stack.length !== 1 || !isFiniteNumber(stack[0])) {
+      return null;
+    }
+    return stack[0];
+  } catch {
+    return null;
+  }
+}
+
+function toPostfix(tokens: MetricExprToken[]): Array<MetricExprToken & { type: 'const' | 'term' | 'op' }> | null {
+  const output: Array<MetricExprToken & { type: 'const' | 'term' | 'op' }> = [];
+  const operators: MetricExprToken[] = [];
+  let expectsOperand = true;
+
+  for (const token of tokens) {
+    if (token.type === 'const' || token.type === 'term') {
+      if (!expectsOperand) {
+        return null;
+      }
+      output.push(token);
+      expectsOperand = false;
+      continue;
+    }
+
+    if (token.type === 'paren') {
+      if (token.paren === '(') {
+        if (!expectsOperand) {
+          return null;
+        }
+        operators.push(token);
+        continue;
+      }
+
+      if (expectsOperand) {
+        return null;
+      }
+
+      let foundOpenParen = false;
+      while (operators.length > 0) {
+        const top = operators.pop()!;
+        if (top.type === 'paren' && top.paren === '(') {
+          foundOpenParen = true;
+          break;
+        }
+        if (top.type !== 'op') {
+          return null;
+        }
+        output.push(top);
+      }
+      if (!foundOpenParen) {
+        return null;
+      }
+      expectsOperand = false;
+      continue;
+    }
+
+    if (token.type !== 'op') {
+      return null;
+    }
+
+    if (expectsOperand) {
+      if (token.op === '+') {
+        continue;
+      }
+      if (token.op === '-') {
+        output.push({ type: 'const', value: 0 });
+      } else {
+        return null;
+      }
+    } else {
+      while (operators.length > 0) {
+        const top = operators[operators.length - 1]!;
+        if (top.type !== 'op') break;
+        if (precedence[top.op] < precedence[token.op]) break;
+        output.push(operators.pop() as MetricExprToken & { type: 'op' });
+      }
+    }
+
+    operators.push(token);
+    expectsOperand = true;
+  }
+
+  if (expectsOperand) {
+    return null;
+  }
+
+  while (operators.length > 0) {
+    const top = operators.pop()!;
+    if (top.type === 'paren') {
+      return null;
+    }
+    if (top.type !== 'op') {
+      return null;
+    }
+    output.push(top);
+  }
+
+  return output;
+}

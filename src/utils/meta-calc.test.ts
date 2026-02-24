@@ -121,6 +121,22 @@ describe('computeMetaCellValueForColumn', () => {
     };
     expect(computeMetaCellValueForColumn(malla, 0, config, deps)).toBe(28);
   });
+
+  test('prioritizes expr when present', () => {
+    const config: MetaCellConfig = {
+      id: 'cell-expr',
+      terms: [
+        buildTerm('sum'),
+        { ...buildTerm('count'), id: 'term-count', sign: 1 },
+      ],
+      expr: [
+        { type: 'term', termId: 'term-count' },
+        { type: 'op', op: '*' },
+        { type: 'const', value: 3 },
+      ],
+    };
+    expect(computeMetaCellValueForColumn(malla, 0, config, deps)).toBe(6);
+  });
 });
 
 describe('computeMetaRowValueForColumn', () => {
