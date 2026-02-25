@@ -7,6 +7,14 @@ export interface TermConditionConfig {
 
 export type TermOp = 'sum' | 'avg' | 'count' | 'countIf';
 
+export type MetricExprOp = '+' | '-' | '*' | '/';
+
+export type MetricExprToken =
+  | { type: 'term'; termId: string }
+  | { type: 'const'; value: number }
+  | { type: 'op'; op: MetricExprOp }
+  | { type: 'paren'; paren: '(' | ')' };
+
 export interface TermConfig {
   id: string;
   sign: 1 | -1;
@@ -21,6 +29,7 @@ export interface MetaCellConfig {
   label?: string;
   mode?: MetaCellMode;
   terms: TermConfig[];
+  expr?: MetricExprToken[];
 }
 
 export interface MetaPanelRowConfig {

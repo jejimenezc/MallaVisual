@@ -86,17 +86,6 @@
   color: var(--color-secondary);
 }
 
-.previewText {
-  margin: 0;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 0.55rem 0.65rem;
-  color: #334155;
-  font-size: 0.88rem;
-  line-height: 1.4;
-}
-
 .formRow {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -132,8 +121,8 @@
 
 .termMainRow {
   display: grid;
-  grid-template-columns: 76px 160px minmax(150px, 1fr) minmax(150px, 1fr) 188px;
-  grid-template-areas: 'sign operation template field delete';
+  grid-template-columns: 160px minmax(150px, 1fr) minmax(150px, 1fr) 280px;
+  grid-template-areas: 'operation template field delete';
   gap: 0.6rem;
   align-items: end;
 }
@@ -144,8 +133,9 @@
   min-width: 0;
 }
 
-.termSignControl {
-  grid-area: sign;
+.controlLabelSpacer {
+  display: block;
+  min-height: 1.05rem;
 }
 
 .termOperationControl {
@@ -164,32 +154,23 @@
   grid-area: delete;
 }
 
-.signGroup {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.25rem;
-}
-
-.signButton {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-muted, #f8fafc);
-  border-radius: 6px;
-  padding: 0.4rem 0;
-  cursor: pointer;
-}
-
-.signButtonActive {
-  border-color: var(--color-primary, #2563eb);
-  color: var(--color-primary, #2563eb);
-  background: #eff6ff;
-  font-weight: 600;
-}
-
 .termActions {
   display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  justify-content: flex-end;
   gap: 0.35rem;
+}
+
+.insertExprButton {
+  font-size: 0.8rem;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .actionIconButton {
@@ -274,10 +255,10 @@
 
 @media (max-width: 900px) {
   .termMainRow {
-    grid-template-columns: 84px minmax(0, 1fr) 188px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      'sign operation delete'
-      'template field field';
+      'operation template'
+      'field delete';
   }
 }
 

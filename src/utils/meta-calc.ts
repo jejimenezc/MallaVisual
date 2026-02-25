@@ -4,6 +4,7 @@ import type { MallaQuerySource } from './malla-queries.ts';
 import { getColumnCells } from './malla-queries.ts';
 import { resolveControlValue } from './piece-control-resolver.ts';
 import { getCellConfigForColumn } from './malla-io.ts';
+import { deriveExprFromTerms, evaluateMetricExpr } from './metrics-expr.ts';
 
 export interface MetaCalcDeps {
   valuesByPiece: Record<string, Record<string, string | number | boolean>>;
@@ -109,23 +110,38 @@ export function computeMetaCellValueForColumn(
   metaCellConfig: MetaCellConfig,
   deps: MetaCalcDeps,
 ): number | null {
-  const terms = metaCellConfig.terms ?? [];
-  if (terms.length === 0) {
+  const hasExpr = Array.isArray(metaCellConfig.expr) && metaCellConfig.expr.length > 0;
+  const exprTokens = hasExpr
+    ? metaCellConfig.expr!
+    : deriveExprFromTerms({ ...metaCellConfig, expr: undefined });
+  if (exprTokens.length === 0) {
     return null;
   }
 
-  let total = 0;
-  let validTermCount = 0;
-  for (const term of terms) {
-    const termValue = computeTermForColumn(malla, colIndex, term, deps);
-    if (termValue == null) {
-      continue;
+  const termsById = new Map<string, TermConfig>();
+  for (const term of metaCellConfig.terms ?? []) {
+    if (!termsById.has(term.id)) {
+      termsById.set(term.id, term);
     }
-    total += term.sign * termValue;
-    validTermCount += 1;
   }
+  const computedTermCache = new Map<string, number | null>();
 
-  return validTermCount > 0 ? total : null;
+  return evaluateMetricExpr(exprTokens, (termId) => {
+    if (computedTermCache.has(termId)) {
+      const cached = computedTermCache.get(termId);
+      return cached == null ? Number.NaN : cached;
+    }
+
+    const term = termsById.get(termId);
+    if (!term) {
+      computedTermCache.set(termId, null);
+      return Number.NaN;
+    }
+
+    const computed = computeTermForColumn(malla, colIndex, term, deps);
+    computedTermCache.set(termId, computed);
+    return computed == null ? Number.NaN : computed;
+  });
 }
 
 export function computeMetaRowValueForColumn(
