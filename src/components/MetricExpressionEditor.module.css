@@ -30,19 +30,47 @@
   min-height: 52px;
 }
 
+.expressionEditor:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
 .cursorSlot {
   border: none;
   background: transparent;
   color: #94a3b8;
   width: 10px;
   min-width: 10px;
+  height: 1.1rem;
   padding: 0;
   cursor: text;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cursorSlotActive {
   color: #2563eb;
   font-weight: 700;
+}
+
+.cursorCaret {
+  width: 2px;
+  height: 0.95rem;
+  background: #2563eb;
+  border-radius: 999px;
+  animation: cursorBlink 1s steps(1, end) infinite;
+}
+
+@keyframes cursorBlink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .exprToken {

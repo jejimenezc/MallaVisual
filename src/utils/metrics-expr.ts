@@ -22,6 +22,50 @@ export interface ExprValidationResult {
   message?: string;
 }
 
+export function areMetricExprTokensEqual(
+  leftTokens: MetricExprToken[] | undefined,
+  rightTokens: MetricExprToken[] | undefined,
+): boolean {
+  const left = leftTokens ?? [];
+  const right = rightTokens ?? [];
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftToken = left[index];
+    const rightToken = right[index];
+    if (!leftToken || !rightToken) {
+      return false;
+    }
+
+    if (leftToken.type !== rightToken.type) {
+      return false;
+    }
+
+    if (leftToken.type === 'const' && rightToken.type === 'const') {
+      if (leftToken.value !== rightToken.value) return false;
+      continue;
+    }
+    if (leftToken.type === 'term' && rightToken.type === 'term') {
+      if (leftToken.termId !== rightToken.termId) return false;
+      continue;
+    }
+    if (leftToken.type === 'op' && rightToken.type === 'op') {
+      if (leftToken.op !== rightToken.op) return false;
+      continue;
+    }
+    if (leftToken.type === 'paren' && rightToken.type === 'paren') {
+      if (leftToken.paren !== rightToken.paren) return false;
+      continue;
+    }
+
+    return false;
+  }
+
+  return true;
+}
+
 export function deriveExprFromTerms(cell: MetaCellConfig): MetricExprToken[] {
   if (Array.isArray(cell.expr)) {
     return cell.expr;

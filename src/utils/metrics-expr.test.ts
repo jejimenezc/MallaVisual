@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import type { MetaCellConfig, MetricExprToken } from '../types/meta-panel.ts';
-import { deriveExprFromTerms, evaluateMetricExpr, validateExprTokens } from './metrics-expr.ts';
+import {
+  areMetricExprTokensEqual,
+  deriveExprFromTerms,
+  evaluateMetricExpr,
+  validateExprTokens,
+} from './metrics-expr.ts';
 
 const buildCell = (overrides: Partial<MetaCellConfig> = {}): MetaCellConfig => ({
   id: 'cell-1',
@@ -108,5 +113,27 @@ describe('validateExprTokens', () => {
       isValid: false,
       message: 'Parentesis sin cerrar.',
     });
+  });
+});
+
+describe('areMetricExprTokensEqual', () => {
+  test('returns true for same token sequence', () => {
+    const left: MetricExprToken[] = [
+      { type: 'term', termId: 'a' },
+      { type: 'op', op: '+' },
+      { type: 'const', value: 2 },
+    ];
+    const right: MetricExprToken[] = [
+      { type: 'term', termId: 'a' },
+      { type: 'op', op: '+' },
+      { type: 'const', value: 2 },
+    ];
+    expect(areMetricExprTokensEqual(left, right)).toBe(true);
+  });
+
+  test('returns false for different token values', () => {
+    const left: MetricExprToken[] = [{ type: 'term', termId: 'a' }];
+    const right: MetricExprToken[] = [{ type: 'term', termId: 'b' }];
+    expect(areMetricExprTokensEqual(left, right)).toBe(false);
   });
 });
