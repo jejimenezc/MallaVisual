@@ -6,6 +6,7 @@ import { computeMetaRowValueForColumn, type MetaCalcDeps } from '../utils/meta-c
 
 interface Props {
   columnCount: number;
+  colWidths: number[];
   rowsConfig: MetaPanelRowConfig[];
   malla: MallaQuerySource;
   deps: MetaCalcDeps;
@@ -20,6 +21,7 @@ interface Props {
 
 export const MetaCalcHeader: React.FC<Props> = ({
   columnCount,
+  colWidths,
   rowsConfig,
   malla,
   deps,
@@ -35,14 +37,27 @@ export const MetaCalcHeader: React.FC<Props> = ({
     () => rowsConfig.filter((row) => !!row),
     [rowsConfig],
   );
+  const safeColumnCount = Math.max(0, columnCount);
+  const resolvedColWidths = React.useMemo(
+    () =>
+      Array.from({ length: safeColumnCount }, (_, colIndex) => {
+        const width = colWidths[colIndex];
+        return Number.isFinite(width) && width > 0 ? width : 0;
+      }),
+    [safeColumnCount, colWidths],
+  );
+  const rowGridTemplateColumns = React.useMemo(
+    () => (resolvedColWidths.length > 0 ? resolvedColWidths.map((w) => `${w}px`).join(' ') : 'none'),
+    [resolvedColWidths],
+  );
 
   const valuesByRow = React.useMemo(
     () =>
       safeRows.map((rowConfig) =>
-        Array.from({ length: Math.max(0, columnCount) }, (_, colIndex) =>
+        Array.from({ length: safeColumnCount }, (_, colIndex) =>
           computeMetaRowValueForColumn(malla, colIndex, rowConfig, deps),
         )),
-    [columnCount, safeRows, malla, deps],
+    [safeColumnCount, safeRows, malla, deps],
   );
 
   return (
@@ -66,11 +81,11 @@ export const MetaCalcHeader: React.FC<Props> = ({
             key={`meta-calc-header-row-${rowConfig.id}`}
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${Math.max(0, columnCount)}, minmax(0, 1fr))`,
+              gridTemplateColumns: rowGridTemplateColumns,
               borderBottom: rowIndex < safeRows.length - 1 ? '1px solid var(--color-border)' : undefined,
             }}
           >
-            {Array.from({ length: Math.max(0, columnCount) }, (_, colIndex) => {
+            {Array.from({ length: safeColumnCount }, (_, colIndex) => {
               const cellConfig = getCellConfigForColumn(rowConfig, colIndex);
               const value = rowValues[colIndex];
               const overrideLabel = rowConfig.columns?.[colIndex]?.label?.trim();

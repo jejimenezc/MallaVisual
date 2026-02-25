@@ -40,6 +40,7 @@ import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import { MetaCalcHeader } from '../components/MetaCalcHeader';
 import { MetaCalcCellEditor } from '../components/MetaCalcCellEditor';
+import { MallaGridOverlay } from '../components/MallaGridOverlay';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature } from '../utils/comparators.ts';
@@ -71,6 +72,7 @@ const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
 const META_CALC_HEADER_ROW_HEIGHT = 30;
+const REPO_MIN_OUTER_METRICS_FALLBACK = computeMetrics([[{ active: true }]], '1/1');
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -111,11 +113,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (!initialMalla) return null;
     return computeSignature(initialMalla);
   }, [initialMalla]);
-
-  // --- maestro + recorte activo
   const bounds = useMemo(() => getActiveBounds(template), [template]);
-  const subTemplate = useMemo(() => cropTemplate(template, bounds), [template, bounds]);
-  const baseMetrics = useMemo(() => computeMetrics(subTemplate, aspect), [subTemplate, aspect]);
 
   // --- malla y piezas
   const [cols, setCols] = useState(initialMalla?.grid?.cols ?? 5);
@@ -186,6 +184,38 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
   const selectedMasterIdRef = useRef(selectedMasterId);
+  const { repoMinOuterW, repoMinOuterH } = useMemo(() => {
+    const masters = Object.values(mastersById);
+    if (masters.length === 0) {
+      return {
+        repoMinOuterW: REPO_MIN_OUTER_METRICS_FALLBACK.outerW,
+        repoMinOuterH: REPO_MIN_OUTER_METRICS_FALLBACK.outerH,
+      };
+    }
+
+    let minOuterW = Number.POSITIVE_INFINITY;
+    let minOuterH = Number.POSITIVE_INFINITY;
+    for (const master of masters) {
+      const masterBounds = getActiveBounds(master.template);
+      const masterSubTemplate = cropTemplate(master.template, masterBounds);
+      const { outerW, outerH } = computeMetrics(masterSubTemplate, master.aspect);
+      if (outerW < minOuterW) {
+        minOuterW = outerW;
+      }
+      if (outerH < minOuterH) {
+        minOuterH = outerH;
+      }
+    }
+
+    return {
+      repoMinOuterW: Number.isFinite(minOuterW)
+        ? minOuterW
+        : REPO_MIN_OUTER_METRICS_FALLBACK.outerW,
+      repoMinOuterH: Number.isFinite(minOuterH)
+        ? minOuterH
+        : REPO_MIN_OUTER_METRICS_FALLBACK.outerH,
+    };
+  }, [mastersById]);
 
   const historyRef = useRef<MallaHistoryEntry[]>([]);
   const historySerializedRef = useRef<string[]>([]);
@@ -523,8 +553,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
     gridWidth,
     gridHeight,
   } = useMemo(() => {
-    const colWidths = Array(cols).fill(baseMetrics.outerW);
-    const rowHeights = Array(rows).fill(baseMetrics.outerH);
+    const colWidths = Array(cols).fill(repoMinOuterW);
+    const rowHeights = Array(rows).fill(repoMinOuterH);
     for (const p of pieces) {
       let tpl: BlockTemplate;
       let pieceAspect: BlockAspect;
@@ -552,7 +582,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const gridWidth = colWidths.reduce((a, b) => a + b, 0);
     const gridHeight = rowHeights.reduce((a, b) => a + b, 0);
     return { colWidths, rowHeights, colOffsets, rowOffsets, gridWidth, gridHeight };
-  }, [pieces, cols, rows, template, visual, aspect, mastersById, baseMetrics.outerW, baseMetrics.outerH]);
+  }, [pieces, cols, rows, template, visual, aspect, mastersById, repoMinOuterW, repoMinOuterH]);
 
   const gridAreaStyle = useMemo(
     () =>
@@ -619,6 +649,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
         width: gridWidth * zoomScale,
       }) as React.CSSProperties,
     [gridWidth, zoomScale],
+  );
+  const zoomedMetaCalcColWidths = useMemo(
+    () => colWidths.map((width) => width * zoomScale),
+    [colWidths, zoomScale],
   );
 
   useEffect(() => {
@@ -2236,6 +2270,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
                   <MetaCalcHeader
                     columnCount={cols}
+                    colWidths={zoomedMetaCalcColWidths}
                     rowsConfig={metaPanel.rows}
                     malla={mallaForMetaCalc}
                     deps={metaCalcDeps}
@@ -2254,6 +2289,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
                 >
+                  <MallaGridOverlay
+                    colOffsets={colOffsets}
+                    rowOffsets={rowOffsets}
+                    gridWidth={gridWidth}
+                    gridHeight={gridHeight}
+                    className={styles.mallaGridOverlay}
+                    lineClassName={styles.mallaGridOverlayLines}
+                  />
                   {pieces.map((p) => {
                     // --- cálculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
                     let pieceTemplate: BlockTemplate;
