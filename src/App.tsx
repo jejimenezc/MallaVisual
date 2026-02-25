@@ -15,10 +15,12 @@ import { AppHeader } from './components/AppHeader';
 import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { ColorPaletteModal } from './components/ColorPaletteModal';
 import {
+  createDefaultMetaPanel,
   type MallaExport,
   type MallaRepositoryEntry,
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
+  normalizeMetaPanelConfig,
   normalizeProjectTheme,
   type ProjectTheme,
 } from './utils/malla-io.ts';
@@ -73,10 +75,13 @@ interface AppLayoutProps {
   children: React.ReactNode;
   projectName: string;
   hasProject: boolean;
+  isMetaPanelEnabled: boolean;
+  canToggleMetaPanel: boolean;
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onCloseProject: () => void;
+  onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
   onOpenProjectById: (id: string) => void;
   onShowIntro: () => void;
@@ -89,10 +94,13 @@ function AppLayout({
   children,
   projectName,
   hasProject,
+  isMetaPanelEnabled,
+  canToggleMetaPanel,
   onNewProject,
   onImportProjectFile,
   onExportProject,
   onCloseProject,
+  onToggleMetaPanelEnabled,
   getRecentProjects,
   onOpenProjectById,
   onShowIntro,
@@ -160,10 +168,13 @@ function AppLayout({
           <AppHeader />
           <GlobalMenuBar
             hasProject={hasProject}
+            isMetaPanelEnabled={isMetaPanelEnabled}
+            canToggleMetaPanel={canToggleMetaPanel}
             onNewProject={onNewProject}
             onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
             onCloseProject={onCloseProject}
+            onToggleMetaPanelEnabled={onToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
             onOpenProjectById={onOpenProjectById}
             onShowIntro={onShowIntro}
@@ -663,10 +674,31 @@ export default function App(): JSX.Element | null {
         floatingPieces: [],
         activeMasterId: 'master',
         theme: projectThemeState,
+        metaPanel: createDefaultMetaPanel(false),
       };
     }
     return null;
   }, [malla, block, repositorySnapshot, projectThemeState]);
+
+  const isMetaPanelEnabled = currentProject ? currentProject.metaPanel?.enabled !== false : false;
+  const canToggleMetaPanel = Boolean(currentProject);
+
+  const handleToggleMetaPanelEnabled = useCallback(() => {
+    setMalla((prev) => {
+      const source = prev ?? currentProject;
+      if (!source) {
+        return prev;
+      }
+      const normalizedMetaPanel = normalizeMetaPanelConfig(source.metaPanel);
+      return {
+        ...source,
+        metaPanel: {
+          ...normalizedMetaPanel,
+          enabled: normalizedMetaPanel.enabled === false,
+        },
+      };
+    });
+  }, [currentProject]);
 
   useEffect(() => {
     if (!projectId || !currentProject) return;
@@ -1488,10 +1520,13 @@ export default function App(): JSX.Element | null {
           <AppLayout
             projectName={projectName}
             hasProject={hasProject}
+            isMetaPanelEnabled={isMetaPanelEnabled}
+            canToggleMetaPanel={canToggleMetaPanel}
             onNewProject={handleNewProject}
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
             onCloseProject={handleCloseProject}
+            onToggleMetaPanelEnabled={handleToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
             onOpenProjectById={openProjectById}
             onShowIntro={handleShowIntroOverlay}

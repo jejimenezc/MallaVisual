@@ -21,8 +21,14 @@ import { blockContentEquals } from '../utils/block-content.ts';
 import {
   type MallaExport,
   MALLA_SCHEMA_VERSION,
+  createDefaultMetaPanel,
   createDefaultProjectTheme,
+  getCellConfigForColumn,
+  normalizeMetaPanelConfig,
   normalizeProjectTheme,
+  type MetaCellConfig,
+  type MetaPanelConfig,
+  type MetaPanelRowConfig,
   type ProjectTheme,
 } from '../utils/malla-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -32,12 +38,21 @@ import styles from './MallaEditorScreen.module.css';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
+import { MetaCalcHeader } from '../components/MetaCalcHeader';
+import { MetaCalcCellEditor } from '../components/MetaCalcCellEditor';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature } from '../utils/comparators.ts';
 import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
+import type { MallaQuerySource } from '../utils/malla-queries.ts';
+import type { MetaCalcDeps } from '../utils/meta-calc.ts';
+import {
+  buildMetaPanelCatalogForColumn,
+  buildMetaPanelCatalogForMalla,
+  type MetaPanelCatalog,
+} from '../utils/meta-panel-catalog.ts';
 import {
   type MallaHistoryEntry,
   boundsEqual,
@@ -55,6 +70,7 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
+const META_CALC_HEADER_ROW_HEIGHT = 30;
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -110,6 +126,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
   >(initialMalla?.values ?? {});
   const [floatingPieces, setFloatingPieces] = useState<string[]>(
     initialMalla?.floatingPieces ?? []);
+  const [metaPanel, setMetaPanel] = useState<MetaPanelConfig>(
+    initialMalla
+      ? normalizeMetaPanelConfig(initialMalla.metaPanel)
+      : createDefaultMetaPanel(false),
+  );
   const [theme, setTheme] = useState<ProjectTheme>(
     initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
   );
@@ -118,6 +139,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isRepositoryCollapsed, setIsRepositoryCollapsed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [isMetaEditorOpen, setIsMetaEditorOpen] = useState(false);
+  const [activeMetaRowId, setActiveMetaRowId] = useState<string | null>(null);
+  const [activeMetaColIndex, setActiveMetaColIndex] = useState<number | null>(null);
+  const [isMetaMenuOpen, setIsMetaMenuOpen] = useState(false);
   const { autoSave, clearDraft, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
     projectId,
@@ -211,9 +236,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces,
       mastersById,
       selectedMasterId,
+      metaPanel,
       theme,
     }),
-    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, theme],
+    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, metaPanel, theme],
   );
 
   const historySnapshotSerialized = useMemo(
@@ -349,6 +375,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const metaMenuRef = useRef<HTMLDivElement>(null);
   const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({
@@ -387,6 +414,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId(nextSelectedId);
       setDraggingId(null);
       setDragPos({ x: 0, y: 0 });
+      setMetaPanel(clone.metaPanel);
       setTheme(clone.theme);
       const restoredMaster = nextSelectedId ? nextMasters[nextSelectedId] : undefined;
       if (restoredMaster) {
@@ -408,6 +436,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setSelectedMasterId,
       setDraggingId,
       setDragPos,
+      setMetaPanel,
       setTheme,
       onUpdateMaster,
     ],
@@ -456,6 +485,36 @@ export const MallaEditorScreen: React.FC<Props> = ({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleUndo, handleRedo]);
+
+  useEffect(() => {
+    if (!isMetaMenuOpen) {
+      return;
+    }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (metaMenuRef.current?.contains(target)) {
+        return;
+      }
+      setIsMetaMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMetaMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isMetaMenuOpen]);
   const {
     colWidths,
     rowHeights,
@@ -533,14 +592,424 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const sliderMin = Math.round(MIN_ZOOM * 100);
   const sliderMax = Math.round(MAX_ZOOM * 100);
   const sliderStep = Math.round(ZOOM_STEP * 100);
+  const normalizedMetaPanel = useMemo(() => normalizeMetaPanelConfig(metaPanel), [metaPanel]);
+  const normalizedMetaRows = normalizedMetaPanel.rows;
+  const metaCalcRowCount = useMemo(() => {
+    if (normalizedMetaPanel.enabled === false) {
+      return 0;
+    }
+    return normalizedMetaRows.length;
+  }, [normalizedMetaPanel.enabled, normalizedMetaRows]);
+  const metaCalcHeaderHeight = useMemo(
+    () => metaCalcRowCount * META_CALC_HEADER_ROW_HEIGHT,
+    [metaCalcRowCount],
+  );
 
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        height: gridHeight * zoomScale,
+        height: gridHeight * zoomScale + metaCalcHeaderHeight,
       }) as React.CSSProperties,
-    [gridHeight, zoomScale],
+    [gridHeight, metaCalcHeaderHeight, zoomScale],
   );
+
+  const zoomedMetaCalcHeaderWrapperStyle = useMemo(
+    () =>
+      ({
+        width: gridWidth * zoomScale,
+      }) as React.CSSProperties,
+    [gridWidth, zoomScale],
+  );
+
+  useEffect(() => {
+    if (normalizedMetaPanel.enabled === false) {
+      return;
+    }
+    const fallbackRow = normalizedMetaRows[0];
+    if (!fallbackRow) {
+      return;
+    }
+    const hasActiveRow =
+      activeMetaRowId != null && normalizedMetaRows.some((row) => row.id === activeMetaRowId);
+    if (hasActiveRow) {
+      return;
+    }
+    setActiveMetaRowId(fallbackRow.id);
+  }, [activeMetaRowId, normalizedMetaPanel.enabled, normalizedMetaRows]);
+
+  const activeMetaRow = useMemo<MetaPanelRowConfig>(() => {
+    const fallbackRow = normalizedMetaRows[0]!;
+    if (activeMetaRowId == null) {
+      return fallbackRow;
+    }
+    return normalizedMetaRows.find((row) => row.id === activeMetaRowId) ?? fallbackRow;
+  }, [activeMetaRowId, normalizedMetaRows]);
+
+  const activeMetaRowPosition = useMemo(() => {
+    const index = normalizedMetaRows.findIndex((row) => row.id === activeMetaRow.id);
+    return index >= 0 ? index + 1 : 1;
+  }, [activeMetaRow.id, normalizedMetaRows]);
+
+  const mallaForMetaCalc = useMemo<MallaQuerySource>(
+    () => ({
+      grid: { cols, rows },
+      pieces,
+    }),
+    [cols, rows, pieces],
+  );
+
+  const resolveTemplateForPiece = useCallback(
+    (piece: CurricularPiece): BlockTemplate | null => {
+      if (piece.kind === 'ref') {
+        const master = mastersById[piece.ref.sourceId] ?? { template, visual, aspect };
+        const safeBounds = expandBoundsToMerges(master.template, piece.ref.bounds);
+        return cropTemplate(master.template, safeBounds);
+      }
+      return piece.template;
+    },
+    [mastersById, template, visual, aspect],
+  );
+
+  const metaCalcDeps = useMemo<MetaCalcDeps>(
+    () => ({
+      valuesByPiece: pieceValues,
+      resolveTemplateForPiece,
+    }),
+    [pieceValues, resolveTemplateForPiece],
+  );
+
+  const templateLabelById = useMemo<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        availableMasters
+          .map((entry) => [entry.metadata.uuid, formatMasterDisplayName(entry.metadata, entry.metadata.uuid)]),
+      ),
+    [availableMasters],
+  );
+
+  const activeMetaCellConfig = useMemo(() => {
+    if (activeMetaColIndex == null) return activeMetaRow.defaultCell;
+    return getCellConfigForColumn(activeMetaRow, activeMetaColIndex);
+  }, [activeMetaColIndex, activeMetaRow]);
+
+  const isEditingOverrideActive = useMemo(
+    () =>
+      activeMetaColIndex != null
+        ? !!activeMetaRow.columns?.[activeMetaColIndex]
+        : false,
+    [activeMetaColIndex, activeMetaRow],
+  );
+
+  const globalMetaEditorCatalog = useMemo<MetaPanelCatalog>(
+    () =>
+      buildMetaPanelCatalogForMalla({
+        malla: mallaForMetaCalc,
+        resolveTemplateForPiece,
+        resolveTemplateLabel: (templateId) => templateLabelById[templateId] ?? templateId,
+      }),
+    [mallaForMetaCalc, resolveTemplateForPiece, templateLabelById],
+  );
+
+  const columnMetaEditorCatalog = useMemo<MetaPanelCatalog>(() => {
+    if (activeMetaColIndex == null) {
+      return { templates: [], controlsByTemplateId: {} };
+    }
+    return buildMetaPanelCatalogForColumn({
+      malla: mallaForMetaCalc,
+      colIndex: activeMetaColIndex,
+      resolveTemplateForPiece,
+      resolveTemplateLabel: (templateId) => templateLabelById[templateId] ?? templateId,
+    });
+  }, [activeMetaColIndex, mallaForMetaCalc, resolveTemplateForPiece, templateLabelById]);
+
+  const activeMetaEditorCatalog = isEditingOverrideActive
+    ? columnMetaEditorCatalog
+    : globalMetaEditorCatalog;
+
+  const handleMetaCellClick = useCallback((rowId: string, colIndex: number) => {
+    if (metaPanel.enabled === false) {
+      return;
+    }
+    setActiveMetaRowId(rowId);
+    setActiveMetaColIndex(colIndex);
+    setIsMetaEditorOpen(true);
+  }, [metaPanel.enabled]);
+
+  useEffect(() => {
+    if (metaPanel.enabled === false && isMetaEditorOpen) {
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
+    }
+  }, [isMetaEditorOpen, metaPanel.enabled]);
+
+  const handleMetaPanelEnabledChange = useCallback((nextEnabled: boolean) => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.enabled === nextEnabled) {
+          return normalized;
+        }
+        const nextRows = nextEnabled && normalized.rows.length === 0
+          ? createDefaultMetaPanel(true).rows
+          : normalized.rows;
+        return {
+          ...normalized,
+          enabled: nextEnabled,
+          rows: nextRows,
+        };
+      });
+    });
+    if (!nextEnabled) {
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
+    }
+  }, [runHistoryTransaction]);
+
+  const handleMetaEditorCancel = useCallback(() => {
+    setIsMetaEditorOpen(false);
+    setActiveMetaRowId(null);
+    setActiveMetaColIndex(null);
+  }, []);
+
+  const cloneMetaCellConfig = useCallback((config: MetaCellConfig): MetaCellConfig => ({
+    ...config,
+    terms: (config.terms ?? []).map((term) => ({
+      ...term,
+      ...(term.condition ? { condition: { ...term.condition } } : {}),
+    })),
+  }), []);
+
+  const createMetaConfigId = useCallback(
+    (prefix: string) =>
+      (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    [],
+  );
+
+  const cloneMetaCellConfigWithNewIds = useCallback((config: MetaCellConfig): MetaCellConfig => {
+    const clonedConfig = cloneMetaCellConfig(config);
+    return {
+      ...clonedConfig,
+      id: createMetaConfigId('meta-cell'),
+      terms: (clonedConfig.terms ?? []).map((term) => ({
+        ...term,
+        id: createMetaConfigId('meta-term'),
+      })),
+    };
+  }, [cloneMetaCellConfig, createMetaConfigId]);
+
+  const createEmptyMetaRow = useCallback((): MetaPanelRowConfig => ({
+    id: createMetaConfigId('meta-row'),
+    defaultCell: {
+      id: createMetaConfigId('meta-cell'),
+      mode: 'count',
+      terms: [],
+    },
+    columns: {},
+  }), [createMetaConfigId]);
+
+  const cloneMetaRowWithNewIds = useCallback((row: MetaPanelRowConfig): MetaPanelRowConfig => {
+    const nextColumns: Record<number, MetaCellConfig> = {};
+    for (const [rawColIndex, cell] of Object.entries(row.columns ?? {})) {
+      const colIndex = Number(rawColIndex);
+      if (!Number.isInteger(colIndex) || colIndex < 0) {
+        continue;
+      }
+      nextColumns[colIndex] = cloneMetaCellConfigWithNewIds(cell);
+    }
+
+    return {
+      ...row,
+      id: createMetaConfigId('meta-row'),
+      defaultCell: cloneMetaCellConfigWithNewIds(row.defaultCell),
+      columns: nextColumns,
+    };
+  }, [cloneMetaCellConfigWithNewIds, createMetaConfigId]);
+
+  const handleMetaAddRow = useCallback(() => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.enabled === false) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          rows: [...normalized.rows, createEmptyMetaRow()],
+        };
+      });
+    });
+  }, [createEmptyMetaRow, runHistoryTransaction]);
+
+  const handleMetaDuplicateRow = useCallback((rowId: string) => {
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        const targetIndex = normalized.rows.findIndex((row) => row.id === rowId);
+        if (targetIndex < 0) {
+          return normalized;
+        }
+        const nextRows = normalized.rows.slice();
+        nextRows.splice(targetIndex + 1, 0, cloneMetaRowWithNewIds(nextRows[targetIndex]!));
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+  }, [cloneMetaRowWithNewIds, runHistoryTransaction]);
+
+  const handleMetaDeleteRow = useCallback(async (rowId: string) => {
+    if (normalizedMetaRows.length <= 1) {
+      return;
+    }
+    const rowLabel = normalizedMetaRows.find((row) => row.id === rowId)?.label?.trim();
+    const deleteTitle = rowLabel ? `Eliminar métrica: ${rowLabel}` : 'Eliminar métrica';
+
+    const confirmed = await confirmAsync({
+      title: deleteTitle,
+      message: 'Se eliminara esta métrica y su configuracion. Continuar?',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        if (normalized.rows.length <= 1) {
+          return normalized;
+        }
+        const nextRows = normalized.rows.filter((row) => row.id !== rowId);
+        if (nextRows.length === normalized.rows.length) {
+          return normalized;
+        }
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+
+    if (activeMetaRowId === rowId) {
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
+    }
+    showToast(deleteTitle, 'success');
+  }, [activeMetaRowId, normalizedMetaRows, runHistoryTransaction, showToast]);
+
+  const handleMetaOverrideToggle = useCallback(async (rowId: string, active: boolean) => {
+    if (activeMetaColIndex == null) {
+      return;
+    }
+    const fallbackRow = normalizedMetaRows[0];
+    if (!fallbackRow) {
+      return;
+    }
+    const resolvedRow = normalizedMetaRows.find((row) => row.id === rowId) ?? fallbackRow;
+    const targetRowId = resolvedRow.id;
+    if (targetRowId !== rowId) {
+      setActiveMetaRowId(targetRowId);
+    }
+    const hasOverride = !!resolvedRow.columns?.[activeMetaColIndex];
+    if (!active && hasOverride) {
+      const confirmed = await confirmAsync({
+        title: 'Volver a la métrica general',
+        message:
+          'Volver a la métrica general?\nSe perdera la configuracion personalizada de este periodo.',
+        confirmLabel: 'Si, volver',
+        cancelLabel: 'Cancelar',
+        variant: 'destructive',
+      });
+      if (!confirmed) {
+        return;
+      }
+    }
+    runHistoryTransaction(() => {
+      setMetaPanel((prev) => {
+        const normalized = normalizeMetaPanelConfig(prev);
+        const nextRows = normalized.rows.slice();
+        const targetRowIndex = nextRows.findIndex((row) => row.id === targetRowId);
+        if (targetRowIndex < 0) {
+          return normalized;
+        }
+        const currentRow = nextRows[targetRowIndex];
+        const nextColumns = { ...(currentRow.columns ?? {}) };
+        if (active) {
+          nextColumns[activeMetaColIndex] = cloneMetaCellConfig(currentRow.defaultCell);
+        } else {
+          delete nextColumns[activeMetaColIndex];
+        }
+        nextRows[targetRowIndex] = {
+          ...currentRow,
+          columns: nextColumns,
+        };
+        return { ...normalized, rows: nextRows };
+      });
+    });
+  }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction]);
+
+  const handleMetaEditorSave = useCallback((
+    rowId: string,
+    nextCellConfig: MetaCellConfig,
+    nextRowLabel: string,
+    nextOverrideLabel: string,
+  ) => {
+    try {
+      const fallbackRow = normalizedMetaRows[0];
+      if (!fallbackRow) {
+        return;
+      }
+      const resolvedRow = normalizedMetaRows.find((row) => row.id === rowId) ?? fallbackRow;
+      const targetRowId = resolvedRow.id;
+      if (targetRowId !== rowId) {
+        setActiveMetaRowId(targetRowId);
+      }
+      runHistoryTransaction(() => {
+        setMetaPanel((prev) => {
+          const normalized = normalizeMetaPanelConfig(prev);
+          const nextRows = normalized.rows.slice();
+          const targetRowIndex = nextRows.findIndex((row) => row.id === targetRowId);
+          if (targetRowIndex < 0) {
+            return normalized;
+          }
+          const currentRow = nextRows[targetRowIndex];
+          if (activeMetaColIndex != null && currentRow.columns?.[activeMetaColIndex]) {
+            const nextColumns = { ...(currentRow.columns ?? {}) };
+            nextColumns[activeMetaColIndex] = {
+              ...cloneMetaCellConfig(nextCellConfig),
+              label: nextOverrideLabel || undefined,
+            };
+            nextRows[targetRowIndex] = {
+              ...currentRow,
+              columns: nextColumns,
+            };
+          } else {
+            nextRows[targetRowIndex] = {
+              ...currentRow,
+              label: nextRowLabel || undefined,
+              defaultCell: cloneMetaCellConfig(nextCellConfig),
+            };
+          }
+          return { ...normalized, rows: nextRows };
+        });
+      });
+      setIsMetaEditorOpen(false);
+      setActiveMetaRowId(null);
+      setActiveMetaColIndex(null);
+      showToast('Métrica guardada', 'success');
+    } catch (error) {
+      console.error('[MetaCalc] Error saving cell config', error);
+      showToast('No se pudo guardar la métrica', 'error');
+    }
+  }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, showToast]);
 
   const zoomedGridWrapperStyle = useMemo(
     () =>
@@ -789,6 +1258,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       values,
       floatingPieces: nextFloating,
       activeMasterId,
+      metaPanel: nextMetaPanel,
       theme: nextTheme,
     } = normalizedInitial;
 
@@ -804,6 +1274,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(nextPieces);
     setPieceValues(values);
     setFloatingPieces(nextFloating);
+    setMetaPanel(nextMetaPanel);
     setSelectedMasterId(activeMasterId);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
@@ -822,6 +1293,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       activeMasterId: selectedMasterId,
       repository: repositoryEntries,
       theme,
+      metaPanel,
     };
     const serialized = computeSignature(project);
     const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
@@ -862,6 +1334,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     pieces,
     pieceValues,
     floatingPieces,
+    metaPanel,
     selectedMasterId,
     repositoryEntries,
     theme,
@@ -928,6 +1401,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(data?.pieces ?? []);
     setPieceValues(data?.values ?? {});
     setFloatingPieces(data?.floatingPieces ?? []);
+    setMetaPanel(data ? normalizeMetaPanelConfig(data.metaPanel) : createDefaultMetaPanel(false));
     setTheme(normalizeProjectTheme(data?.theme));
     setIsHistoryInitialized(false);
   }, [
@@ -967,6 +1441,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const nextPieces = initialMalla?.pieces ?? [];
     const nextValues = initialMalla?.values ?? {};
     const nextFloatingPieces = initialMalla?.floatingPieces ?? [];
+    const nextMetaPanel = initialMalla
+      ? normalizeMetaPanelConfig(initialMalla.metaPanel)
+      : createDefaultMetaPanel(false);
     const nextTheme = initialMalla
       ? normalizeProjectTheme(initialMalla.theme)
       : createDefaultProjectTheme();
@@ -981,6 +1458,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieces(nextPieces);
     setPieceValues(nextValues);
     setFloatingPieces(nextFloatingPieces);
+    setMetaPanel(nextMetaPanel);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
 
@@ -1002,7 +1480,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (ignoreDraftForProjectChangeRef.current && !isResetting) {
       ignoreDraftForProjectChangeRef.current = false;
     }
-  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces]);
+  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces, metaPanel]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
@@ -1617,6 +2095,76 @@ export const MallaEditorScreen: React.FC<Props> = ({
           right={
             <>
 
+              <div className={styles.metaMenu} ref={metaMenuRef}>
+                <Button
+                  type="button"
+                  onClick={() => setIsMetaMenuOpen((prev) => !prev)}
+                  className={styles.metaMenuTrigger}
+                  aria-haspopup="menu"
+                  aria-expanded={isMetaMenuOpen}
+                  aria-label="Abrir menú de métricas por periodo"
+                >
+                  Métricas por periodo
+                </Button>
+                {isMetaMenuOpen ? (
+                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de métricas por periodo">
+                    <label className={styles.blockMenuToggle}>
+                      <span>Métricas por periodo</span>
+                      <span className={styles.blockMenuToggleControl}>
+                        <input
+                          type="checkbox"
+                          checked={metaPanel.enabled !== false}
+                          onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
+                          className={styles.blockMenuToggleInput}
+                        />
+                        <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                          <span className={styles.blockMenuToggleThumb} />
+                        </span>
+                      </span>
+                    </label>
+                    {metaPanel.enabled !== false ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.metaMenuAction}
+                          onClick={handleMetaAddRow}
+                        >
+                          Agregar métrica
+                        </button>
+                        <div className={styles.metaMenuSectionTitle}>Métricas</div>
+                        <ul className={styles.metaMenuRows} aria-label="Lista de métricas">
+                          {normalizedMetaRows.map((row, index) => (
+                            <li key={row.id} className={styles.metaMenuRowItem}>
+                              <span className={styles.metaMenuRowLabel}>
+                                {row.label?.trim() || `Métrica ${index + 1}`}
+                              </span>
+                              <div className={styles.metaMenuRowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => handleMetaDuplicateRow(row.id)}
+                                  aria-label="Duplicar métrica"
+                                >
+                                  Duplicar
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => void handleMetaDeleteRow(row.id)}
+                                  disabled={normalizedMetaRows.length <= 1}
+                                  aria-label="Eliminar métrica"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <label className={styles.blockMenuToggle}>
                 <span>Menú de bloques:</span>
                 <span className={styles.blockMenuToggleControl}>
@@ -1649,7 +2197,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
             >
               <div
                 className={styles.rowControls}
-                style={{ height: gridHeight * zoomScale }}
+                style={{
+                  height: gridHeight * zoomScale,
+                  marginTop: metaCalcHeaderHeight,
+                }}
               >
                 {rowControlButtons.plusButtons.map((button) => (
                   <button
@@ -1681,6 +2232,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
               </div>
             </div>
             <div className={styles.mallaViewportGridContent}>
+              {metaPanel.enabled !== false ? (
+                <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
+                  <MetaCalcHeader
+                    columnCount={cols}
+                    rowsConfig={metaPanel.rows}
+                    malla={mallaForMetaCalc}
+                    deps={metaCalcDeps}
+                    onCellClick={handleMetaCellClick}
+                    isOverrideColumn={(rowConfig, colIndex) => !!rowConfig.columns?.[colIndex]}
+                    activeRowId={isMetaEditorOpen ? activeMetaRowId : null}
+                    className={styles.metaCalcHeader}
+                  />
+                </div>
+              ) : null}
               <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
                   className={mallaAreaClassName}
@@ -1690,7 +2255,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onMouseUp={handleMouseUp}
                 >
                   {pieces.map((p) => {
-                    // --- calculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
+                    // --- cálculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
                     let pieceTemplate: BlockTemplate;
                     let pieceVisual: VisualTemplate;
                     let pieceAspect: BlockAspect;
@@ -1821,6 +2386,20 @@ export const MallaEditorScreen: React.FC<Props> = ({
           </div>
         </div>
       </div>
+      <MetaCalcCellEditor
+        isOpen={metaPanel.enabled !== false && isMetaEditorOpen && activeMetaColIndex != null && activeMetaCellConfig != null}
+        colIndex={activeMetaColIndex ?? 0}
+        rowId={activeMetaRow.id}
+        rowLabel={activeMetaRow.label}
+        rowPosition={activeMetaRowPosition}
+        isOverrideActive={isEditingOverrideActive}
+        initialCellConfig={activeMetaCellConfig ?? activeMetaRow.defaultCell}
+        catalog={activeMetaEditorCatalog}
+        availabilityCatalog={columnMetaEditorCatalog}
+        onToggleOverride={handleMetaOverrideToggle}
+        onSave={handleMetaEditorSave}
+        onCancel={handleMetaEditorCancel}
+      />
     </div>
   );
 };

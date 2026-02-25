@@ -330,6 +330,15 @@
   position: relative;
 }
 
+.metaCalcHeaderWrapper {
+  position: relative;
+  z-index: 2;
+}
+
+.metaCalcHeader {
+  box-sizing: border-box;
+}
+
 .mallaArea {
   flex: 0 0 auto;
   position: relative;
@@ -492,6 +501,114 @@
   gap: var(--space-xs);
   font-size: 0.875rem;
   white-space: nowrap;
+}
+
+.metaMenu {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: var(--space-md);
+}
+
+.metaMenuTrigger {
+  white-space: nowrap;
+}
+
+.metaMenuPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 260px;
+  max-width: min(90vw, 320px);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  z-index: 1400;
+}
+
+.metaMenuAction {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary-10, rgba(37, 99, 235, 0.1));
+  color: var(--color-primary);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.metaMenuAction:not(:disabled):hover {
+  background: var(--color-primary-20, rgba(37, 99, 235, 0.2));
+}
+
+.metaMenuAction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.metaMenuSectionTitle {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-secondary);
+}
+
+.metaMenuRows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.metaMenuRowItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.metaMenuRowLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.metaMenuRowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.metaMenuInlineAction {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.metaMenuInlineAction:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .blockMenuToggleControl {

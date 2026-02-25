@@ -1,0 +1,287 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 1rem;
+}
+
+.modal {
+  width: min(900px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+.header {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.headerTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.headerSubtext {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+}
+
+.toggleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.modeChip {
+  width: fit-content;
+  margin: 0.45rem 0 0;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.body {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.section {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.sectionHint {
+  margin: -0.1rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-secondary);
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.formRow label,
+.termControl label {
+  font-size: 0.82rem;
+  color: var(--color-secondary);
+}
+
+.formRow select,
+.formRow input,
+.termControl select,
+.termControl input {
+  width: 100%;
+}
+
+.termCard {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.termCardInvalid {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.termMainRow {
+  display: grid;
+  grid-template-columns: 160px minmax(150px, 1fr) minmax(150px, 1fr) 280px;
+  grid-template-areas: 'operation template field delete';
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.termControl {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.controlLabelSpacer {
+  display: block;
+  min-height: 1.05rem;
+}
+
+.termOperationControl {
+  grid-area: operation;
+}
+
+.termTemplateControl {
+  grid-area: template;
+}
+
+.termFieldControl {
+  grid-area: field;
+}
+
+.termDeleteControl {
+  grid-area: delete;
+}
+
+.termActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.insertExprButton {
+  font-size: 0.8rem;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.actionIconButton {
+  width: 38px;
+  min-width: 38px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.actionIconButton svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.termConditionRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.builderFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.counterText {
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+}
+
+.limitInfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.limitReachedText {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.error {
+  color: #b91c1c;
+  margin: 0;
+}
+
+.termError {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.82rem;
+}
+
+.warning {
+  color: #6b7280;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 900px) {
+  .termMainRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'operation template'
+      'field delete';
+  }
+}
+
+@media (max-width: 640px) {
+  .headerTop {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toggleRow {
+    white-space: normal;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+
+  .termConditionRow {
+    grid-template-columns: 1fr;
+  }
+
+  .builderFooter {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -14,6 +14,8 @@ import type { ActiveBounds } from './block-active.ts';
 import { getCellAt } from './malla-queries.ts';
 import {
   MALLA_SCHEMA_VERSION,
+  normalizeMetaPanelConfig,
+  type MetaPanelConfig,
   normalizeProjectTheme,
   type MallaExport,
   type ProjectTheme,
@@ -27,6 +29,7 @@ export interface MallaHistoryEntry {
   floatingPieces: string[];
   mastersById: Record<string, MasterBlockData>;
   selectedMasterId: string;
+  metaPanel: MetaPanelConfig;
   theme: ProjectTheme;
 }
 
@@ -39,6 +42,7 @@ export interface NormalizedInitialMalla {
   floatingPieces: string[];
   activeMasterId: string;
   theme: ProjectTheme;
+  metaPanel: MetaPanelConfig;
 }
 
 export const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
@@ -155,6 +159,7 @@ export function buildNormalizedInitialMalla(params: {
   const fallbackActiveId = initialMalla.activeMasterId ?? Object.keys(nextMasters)[0] ?? '';
   const nextActiveId = repoId ?? fallbackActiveId;
   const nextTheme = normalizeProjectTheme(initialMalla.theme);
+  const nextMetaPanel = normalizeMetaPanelConfig(initialMalla.metaPanel);
 
   const project: MallaExport = {
     version: MALLA_SCHEMA_VERSION,
@@ -166,6 +171,7 @@ export function buildNormalizedInitialMalla(params: {
     activeMasterId: nextActiveId,
     repository: initialMalla.repository ?? {},
     theme: nextTheme,
+    metaPanel: nextMetaPanel,
   };
 
   return {
@@ -177,5 +183,6 @@ export function buildNormalizedInitialMalla(params: {
     floatingPieces: nextFloating,
     activeMasterId: nextActiveId,
     theme: nextTheme,
+    metaPanel: nextMetaPanel,
   };
 }

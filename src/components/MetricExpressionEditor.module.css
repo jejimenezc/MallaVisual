@@ -1,0 +1,94 @@
+.keypad {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.keypadGroup {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+}
+
+.keypadGroup button {
+  min-width: 30px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.expressionEditor {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 52px;
+}
+
+.expressionEditor:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.cursorSlot {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  width: 10px;
+  min-width: 10px;
+  height: 1.1rem;
+  padding: 0;
+  cursor: text;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cursorSlotActive {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.cursorCaret {
+  width: 2px;
+  height: 0.95rem;
+  background: #2563eb;
+  border-radius: 999px;
+  animation: cursorBlink 1s steps(1, end) infinite;
+}
+
+@keyframes cursorBlink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.exprToken {
+  display: inline-flex;
+}
+
+.exprTokenChip {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 0.22rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.exprTokenConst,
+.exprTokenOp,
+.exprTokenParen {
+  font-size: 0.9rem;
+  color: #1f2937;
+}

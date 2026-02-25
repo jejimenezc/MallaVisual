@@ -2,7 +2,9 @@
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {
+  createDefaultMetaPanel,
   exportMalla,
+  getActiveMetaPanelRow,
   importMalla,
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
@@ -67,6 +69,17 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
     floatingPieces: ['p1'],
     activeMasterId: 'm1',
     theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-main',
+          defaultCell: { id: 'row-main-default', mode: 'count', terms: [] },
+          columns: {
+            0: { id: 'row-main-col-0', mode: 'count', terms: [] },
+          },
+        },
+      ],
+    },
   });
 
   const result = importMalla(json);
@@ -80,6 +93,18 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
   assert.deepEqual(result.floatingPieces, ['p1']);
   assert.equal(result.activeMasterId, 'm1');
   assert.deepEqual(result.theme, createDefaultProjectTheme());
+  assert.deepEqual(result.metaPanel, {
+    enabled: true,
+    rows: [
+      {
+        id: 'row-main',
+        defaultCell: { id: 'row-main-default', mode: 'count', terms: [] },
+        columns: {
+          0: { id: 'row-main-col-0', mode: 'count', terms: [] },
+        },
+      },
+    ],
+  });
 });
 
 test('importMalla migrates legacy schema and remaps references with duplicated names', () => {
@@ -193,4 +218,155 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
   assert.equal(remappedPiece.ref.sourceId, masterEntry.metadata.uuid);
   assert.equal(result.activeMasterId, generatedEntry.metadata.uuid);
   assert.deepEqual(result.theme, createDefaultProjectTheme());
+  assert.deepEqual(result.metaPanel, createDefaultMetaPanel());
+});
+
+test('importMalla adds default metaPanel when absent', () => {
+  const payload = {
+    version: 4,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.enabled, true);
+  assert.equal(result.metaPanel?.rows.length, 1);
+  const activeRow = getActiveMetaPanelRow(result.metaPanel);
+  assert.equal(activeRow.id, 'meta-row-main');
+  assert.deepEqual(activeRow.defaultCell.terms, []);
+  assert.deepEqual(activeRow.columns, {});
+});
+
+test('importMalla migrates legacy row config (columns-only) into defaultCell and preserves overrides', () => {
+  const payload = {
+    version: 6,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-1',
+          columns: {
+            0: { id: 'row-1-col-0', mode: 'count', terms: [{ id: 't-1', sign: 1, op: 'count', templateId: 'm1', controlKey: '' }] },
+            2: { id: 'row-1-col-2', mode: 'count', terms: [{ id: 't-2', sign: 1, op: 'count', templateId: 'm2', controlKey: '' }] },
+          },
+        },
+        {
+          id: 'row-2',
+          label: 'Secundaria',
+          defaultCell: { id: 'row-2-default', mode: 'count', terms: [] },
+          columns: {
+            1: { id: 'row-2-col-1', mode: 'count', terms: [] },
+          },
+        },
+      ],
+    },
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.rows.length, 2);
+  assert.equal(result.metaPanel?.rows[0]?.id, 'row-1');
+  assert.equal(result.metaPanel?.rows[0]?.defaultCell.id, 'row-1-col-0');
+  assert.equal(result.metaPanel?.rows[0]?.defaultCell.terms[0]?.id, 't-1');
+  assert.equal(result.metaPanel?.rows[0]?.columns?.[2]?.id, 'row-1-col-2');
+  assert.equal(result.metaPanel?.rows[1]?.id, 'row-2');
+  assert.equal(result.metaPanel?.rows[1]?.label, 'Secundaria');
+  assert.deepEqual(result.metaPanel?.rows[1]?.columns?.[1], {
+    id: 'row-2-col-1',
+    mode: 'count',
+    terms: [],
+  });
+});
+
+test('export/import roundtrip preserves defaultCell and columns overrides', () => {
+  const payload = {
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-main',
+          defaultCell: {
+            id: 'row-main-default',
+            terms: [{ id: 'tt', sign: 1, op: 'count', templateId: 'master-a', controlKey: '' }],
+          },
+          columns: {
+            1: {
+              id: 'row-main-col-1',
+              terms: [{ id: 'ov', sign: -1, op: 'count', templateId: 'master-b', controlKey: '' }],
+            },
+          },
+        },
+      ],
+    },
+  } as const;
+
+  const json = exportMalla(payload as unknown as Parameters<typeof exportMalla>[0]);
+  const result = importMalla(json);
+
+  const row = result.metaPanel?.rows[0];
+  assert(row);
+  assert.equal(row.defaultCell.id, 'row-main-default');
+  assert.equal(row.defaultCell.terms[0]?.id, 'tt');
+  assert.equal(row.columns?.[1]?.id, 'row-main-col-1');
+  assert.equal(row.columns?.[1]?.terms[0]?.id, 'ov');
+});
+
+test('importMalla defaults enabled=true when metaPanel exists without enabled', () => {
+  const payload = {
+    version: 6,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      rows: [
+        {
+          id: 'row-main',
+          defaultCell: { id: 'row-main-default', mode: 'count', terms: [] },
+        },
+      ],
+    },
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.metaPanel?.enabled, true);
+});
+
+test('export/import roundtrip preserves metaPanel enabled=false', () => {
+  const payload = {
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      enabled: false,
+      rows: [
+        {
+          id: 'row-main',
+          defaultCell: { id: 'row-main-default', mode: 'count', terms: [] },
+        },
+      ],
+    },
+  } as const;
+
+  const json = exportMalla(payload as unknown as Parameters<typeof exportMalla>[0]);
+  const result = importMalla(json);
+  assert.equal(result.metaPanel?.enabled, false);
 });
