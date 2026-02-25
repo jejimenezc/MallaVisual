@@ -71,6 +71,7 @@ const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
 const META_CALC_HEADER_ROW_HEIGHT = 30;
+const REPO_MIN_OUTER_W_FALLBACK = computeMetrics([[{ active: true }]], '1/1').outerW;
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -186,6 +187,22 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
   const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
   const selectedMasterIdRef = useRef(selectedMasterId);
+  const repoMinOuterW = useMemo(() => {
+    const masters = Object.values(mastersById);
+    if (masters.length === 0) return REPO_MIN_OUTER_W_FALLBACK;
+
+    let minOuterW = Number.POSITIVE_INFINITY;
+    for (const master of masters) {
+      const masterBounds = getActiveBounds(master.template);
+      const masterSubTemplate = cropTemplate(master.template, masterBounds);
+      const { outerW } = computeMetrics(masterSubTemplate, master.aspect);
+      if (outerW < minOuterW) {
+        minOuterW = outerW;
+      }
+    }
+
+    return Number.isFinite(minOuterW) ? minOuterW : REPO_MIN_OUTER_W_FALLBACK;
+  }, [mastersById]);
 
   const historyRef = useRef<MallaHistoryEntry[]>([]);
   const historySerializedRef = useRef<string[]>([]);
@@ -523,7 +540,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     gridWidth,
     gridHeight,
   } = useMemo(() => {
-    const colWidths = Array(cols).fill(baseMetrics.outerW);
+    const colWidths = Array(cols).fill(repoMinOuterW);
     const rowHeights = Array(rows).fill(baseMetrics.outerH);
     for (const p of pieces) {
       let tpl: BlockTemplate;
@@ -552,7 +569,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const gridWidth = colWidths.reduce((a, b) => a + b, 0);
     const gridHeight = rowHeights.reduce((a, b) => a + b, 0);
     return { colWidths, rowHeights, colOffsets, rowOffsets, gridWidth, gridHeight };
-  }, [pieces, cols, rows, template, visual, aspect, mastersById, baseMetrics.outerW, baseMetrics.outerH]);
+  }, [pieces, cols, rows, template, visual, aspect, mastersById, repoMinOuterW, baseMetrics.outerH]);
 
   const gridAreaStyle = useMemo(
     () =>
@@ -619,6 +636,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
         width: gridWidth * zoomScale,
       }) as React.CSSProperties,
     [gridWidth, zoomScale],
+  );
+  const zoomedMetaCalcColWidths = useMemo(
+    () => colWidths.map((width) => width * zoomScale),
+    [colWidths, zoomScale],
   );
 
   useEffect(() => {
@@ -2236,6 +2257,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
                   <MetaCalcHeader
                     columnCount={cols}
+                    colWidths={zoomedMetaCalcColWidths}
                     rowsConfig={metaPanel.rows}
                     malla={mallaForMetaCalc}
                     deps={metaCalcDeps}
