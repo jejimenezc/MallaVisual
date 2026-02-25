@@ -1,16 +1,21 @@
 .keypad {
-  display: grid;
-  gap: 0.55rem;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .keypadGroup {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
 }
 
 .keypadGroup button {
-  min-width: 42px;
+  min-width: 30px;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 .expressionEditor {

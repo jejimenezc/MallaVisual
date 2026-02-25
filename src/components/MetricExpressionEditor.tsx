@@ -80,7 +80,7 @@ export const MetricExpressionEditor: React.FC<Props> = ({
           <Button type="button" onClick={onInsertCloseParen}>)</Button>
         </div>
         <div className={styles.keypadGroup}>
-          {['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'].map((key) => (
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.'].map((key) => (
             <Button
               key={key}
               type="button"
@@ -92,7 +92,7 @@ export const MetricExpressionEditor: React.FC<Props> = ({
         </div>
         <div className={styles.keypadGroup}>
           <Button type="button" onClick={onBackspace}>⌫</Button>
-          <Button type="button" onClick={onClear}>Clear</Button>
+          <Button type="button" onClick={onClear}>Limpiar</Button>
         </div>
       </div>
 
