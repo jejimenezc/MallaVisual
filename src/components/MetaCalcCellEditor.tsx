@@ -157,23 +157,6 @@ const cloneCellConfig = (config: MetaCellConfig): MetaCellConfig => ({
   ...(Array.isArray(config.expr) ? { expr: cloneExprTokens(config.expr) } : {}),
 });
 
-const moveItem = <T,>(arr: T[], fromIndex: number, toIndex: number): T[] => {
-  if (
-    fromIndex < 0
-    || toIndex < 0
-    || fromIndex >= arr.length
-    || toIndex >= arr.length
-    || fromIndex === toIndex
-  ) {
-    return arr;
-  }
-
-  const next = arr.slice();
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-};
-
 const duplicateTermAt = (terms: TermConfig[], index: number): TermConfig[] => {
   if (index < 0 || index >= terms.length || terms.length >= MAX_TERMS) {
     return terms;
@@ -183,6 +166,7 @@ const duplicateTermAt = (terms: TermConfig[], index: number): TermConfig[] => {
   const duplicated: TermConfig = {
     ...cloneTerm(source),
     id: createTermId(),
+    sign: 1,
   };
   const nextTerms = terms.slice();
   nextTerms.splice(index + 1, 0, duplicated);
@@ -318,20 +302,6 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
       nextTerms[index] = updater(current);
       return { ...prev, terms: nextTerms };
     });
-  };
-
-  const moveTermUp = (index: number) => {
-    setDraft((prev) => ({
-      ...prev,
-      terms: moveItem(prev.terms, index, index - 1),
-    }));
-  };
-
-  const moveTermDown = (index: number) => {
-    setDraft((prev) => ({
-      ...prev,
-      terms: moveItem(prev.terms, index, index + 1),
-    }));
   };
 
   const duplicateTerm = (index: number) => {
@@ -777,9 +747,6 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                 (control) => control.controlKey === term.condition?.controlKey,
               )?.type;
               const isInvalid = invalidTermIndexes.has(termIndex);
-              const isFirstTerm = termIndex === 0;
-              const isLastTerm = termIndex === draft.terms.length - 1;
-
               return (
                 <div
                   key={term.id}
@@ -789,28 +756,6 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                   }}
                 >
                   <div className={styles.termMainRow}>
-                    <div className={`${styles.termControl} ${styles.termSignControl}`}>
-                      <label>Signo</label>
-                      <div className={styles.signGroup} role="group" aria-label={`Signo del término ${termIndex + 1}`}>
-                        <button
-                          type="button"
-                          className={`${styles.signButton} ${term.sign === 1 ? styles.signButtonActive : ''}`}
-                          onClick={() => updateTerm(termIndex, (prev) => ({ ...prev, sign: 1 }))}
-                          aria-pressed={term.sign === 1}
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.signButton} ${term.sign === -1 ? styles.signButtonActive : ''}`}
-                          onClick={() => updateTerm(termIndex, (prev) => ({ ...prev, sign: -1 }))}
-                          aria-pressed={term.sign === -1}
-                        >
-                          -
-                        </button>
-                      </div>
-                    </div>
-
                     <div className={`${styles.termControl} ${styles.termOperationControl}`}>
                       <label>Operacion</label>
                       <select
@@ -897,34 +842,23 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                     </div>
 
                     <div className={`${styles.termControl} ${styles.termDeleteControl}`}>
-                      <label>Acciones</label>
+                      <span className={styles.controlLabelSpacer} aria-hidden="true" />
                       <div className={styles.termActions}>
                         <Button
                           type="button"
-                          className={styles.actionIconButton}
-                          onClick={() => moveTermUp(termIndex)}
-                          disabled={isFirstTerm}
-                          aria-label={`Mover término ${termIndex + 1} arriba`}
-                          title="Mover arriba"
+                          className={styles.insertExprButton}
+                          onClick={() => insertTermIntoExpr(term.id)}
+                          aria-label={`Insertar término ${termIndex + 1} en la expresión de métricas por periodo`}
+                          title="Insertar en expresión"
                         >
-                          ↑
-                        </Button>
-                        <Button
-                          type="button"
-                          className={styles.actionIconButton}
-                          onClick={() => moveTermDown(termIndex)}
-                          disabled={isLastTerm}
-                          aria-label={`Mover término ${termIndex + 1} abajo`}
-                          title="Mover abajo"
-                        >
-                          ↓
+                          Insertar en expresion
                         </Button>
                         <Button
                           type="button"
                           className={styles.actionIconButton}
                           onClick={() => duplicateTerm(termIndex)}
                           disabled={!canAddTerm}
-                          aria-label={`Duplicar término ${termIndex + 1}`}
+                          aria-label={`Duplicar término ${termIndex + 1} en métricas por periodo`}
                           title="Duplicar"
                         >
                           <DuplicateIcon />
@@ -933,24 +867,13 @@ export const MetaCalcCellEditor: React.FC<Props> = ({
                           type="button"
                           className={styles.actionIconButton}
                           onClick={() => { void removeTerm(termIndex); }}
-                          aria-label={`Eliminar término ${termIndex + 1}`}
+                          aria-label={`Eliminar término ${termIndex + 1} de métricas por periodo`}
                           title="Eliminar"
                         >
                           <TrashIcon />
                         </Button>
                       </div>
                     </div>
-                  </div>
-
-                  <div className={styles.termInsertRow}>
-                    <Button
-                      type="button"
-                      className={styles.insertExprButton}
-                      onClick={() => insertTermIntoExpr(term.id)}
-                      title="Insertar en expresion"
-                    >
-                      Insertar en expresion
-                    </Button>
                   </div>
 
                   {term.op === 'countIf' ? (
