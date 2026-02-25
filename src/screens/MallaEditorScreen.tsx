@@ -40,6 +40,7 @@ import { Header } from '../components/Header';
 import { ActionPillButton } from '../components/ActionPillButton/ActionPillButton';
 import { MetaCalcHeader } from '../components/MetaCalcHeader';
 import { MetaCalcCellEditor } from '../components/MetaCalcCellEditor';
+import { MallaGridOverlay } from '../components/MallaGridOverlay';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature } from '../utils/comparators.ts';
@@ -2276,6 +2277,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
                 >
+                  <MallaGridOverlay
+                    colOffsets={colOffsets}
+                    rowOffsets={rowOffsets}
+                    gridWidth={gridWidth}
+                    gridHeight={gridHeight}
+                    className={styles.mallaGridOverlay}
+                    lineClassName={styles.mallaGridOverlayLines}
+                  />
                   {pieces.map((p) => {
                     // --- cálculo de template/visual/aspect por pieza (con expansión de merges para referenciadas)
                     let pieceTemplate: BlockTemplate;
