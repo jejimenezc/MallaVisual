@@ -140,6 +140,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const [isMetaEditorOpen, setIsMetaEditorOpen] = useState(false);
   const [activeMetaRowId, setActiveMetaRowId] = useState<string | null>(null);
   const [activeMetaColIndex, setActiveMetaColIndex] = useState<number | null>(null);
+  const [isStructureMenuOpen, setIsStructureMenuOpen] = useState(false);
+  const [isGlobalToolsMenuOpen, setIsGlobalToolsMenuOpen] = useState(false);
   const [isMetaMenuOpen, setIsMetaMenuOpen] = useState(false);
   const { autoSave, clearDraft, flushAutoSave, loadDraft } = useProject({
     storageKey: STORAGE_KEY,
@@ -405,6 +407,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const dragPieceOuter = useRef({ w: 0, h: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const structureMenuRef = useRef<HTMLDivElement>(null);
+  const globalToolsMenuRef = useRef<HTMLDivElement>(null);
   const metaMenuRef = useRef<HTMLDivElement>(null);
   const [pointerMode, setPointerMode] = useState<'select' | 'pan'>('select');
   const [isPanning, setIsPanning] = useState(false);
@@ -545,6 +549,66 @@ export const MallaEditorScreen: React.FC<Props> = ({
       window.removeEventListener('keydown', handleEscape);
     };
   }, [isMetaMenuOpen]);
+
+  useEffect(() => {
+    if (!isStructureMenuOpen) {
+      return;
+    }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (structureMenuRef.current?.contains(target)) {
+        return;
+      }
+      setIsStructureMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsStructureMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isStructureMenuOpen]);
+
+  useEffect(() => {
+    if (!isGlobalToolsMenuOpen) {
+      return;
+    }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (globalToolsMenuRef.current?.contains(target)) {
+        return;
+      }
+      setIsGlobalToolsMenuOpen(false);
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsGlobalToolsMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isGlobalToolsMenuOpen]);
   const {
     colWidths,
     rowHeights,
@@ -2023,42 +2087,81 @@ export const MallaEditorScreen: React.FC<Props> = ({
           title="Editor de Malla"
           left={
             <div className={styles.gridSizeControls}>
-              <label className={styles.gridSizeControl}>
-                <span>Filas</span>
-                <input
-                  className={styles.gridSizeInput}
-                  type="number"
-                  min={1}
-                  value={rows}
-                  onChange={(e) => handleRowsChange(Number(e.target.value))}
-                />
-              </label>
-              <label className={styles.gridSizeControl}>
-                <span>Columnas</span>
-                <input
-                  className={styles.gridSizeInput}
-                  type="number"
-                  min={1}
-                  value={cols}
-                  onChange={(e) => handleColsChange(Number(e.target.value))}
-                />
-              </label>
-              <>
+              <div className={styles.headerPopoverMenu} ref={structureMenuRef}>
                 <Button
                   type="button"
-                  onClick={handleFillGrid}
-                  title="Completar todas las posiciones vacías"
+                  onClick={() => setIsStructureMenuOpen((prev) => !prev)}
+                  className={styles.headerPopoverTrigger}
+                  aria-haspopup="menu"
+                  aria-expanded={isStructureMenuOpen}
+                  aria-label="Estructura de la malla"
+                  title="Estructura de la malla"
                 >
-                  Autocompletar
+                  Estructura general
                 </Button>
+                {isStructureMenuOpen ? (
+                  <div className={styles.headerPopover} role="menu" aria-label="Estructura de la malla">
+                    <div className={styles.headerPopoverHint}>Ajusta la estructura base de la malla.</div>
+                    <label className={styles.headerPopoverField}>
+                      <span>Líneas</span>
+                      <input
+                        className={styles.gridSizeInput}
+                        type="number"
+                        min={1}
+                        value={rows}
+                        onChange={(e) => handleRowsChange(Number(e.target.value))}
+                      />
+                    </label>
+                    <label className={styles.headerPopoverField}>
+                      <span>Periodos</span>
+                      <input
+                        className={styles.gridSizeInput}
+                        type="number"
+                        min={1}
+                        value={cols}
+                        onChange={(e) => handleColsChange(Number(e.target.value))}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+              <div className={styles.headerPopoverMenu} ref={globalToolsMenuRef}>
                 <Button
                   type="button"
-                  onClick={handleClearGrid}
-                  title="Eliminar todas las piezas de la malla"
+                  onClick={() => setIsGlobalToolsMenuOpen((prev) => !prev)}
+                  className={styles.headerPopoverTrigger}
+                  aria-haspopup="menu"
+                  aria-expanded={isGlobalToolsMenuOpen}
+                  aria-label="Herramientas globales"
+                  title="Herramientas globales"
                 >
-                  Borrar todo
+                  {'\u22EE'}
                 </Button>
-              </>
+                {isGlobalToolsMenuOpen ? (
+                  <div className={styles.headerPopover} role="menu" aria-label="Herramientas globales">
+                    <button
+                      type="button"
+                      className={styles.metaMenuAction}
+                      onClick={() => {
+                        handleFillGrid();
+                        setIsGlobalToolsMenuOpen(false);
+                      }}
+                    >
+                      Autocompletar
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.metaMenuAction} ${styles.headerPopoverDangerAction}`}
+                      onClick={() => {
+                        void handleClearGrid();
+                        setIsGlobalToolsMenuOpen(false);
+                      }}
+                    >
+                      Borrar todo
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
           }
           center={
