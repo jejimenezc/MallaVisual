@@ -50,6 +50,59 @@
   flex-wrap: wrap;
 }
 
+.headerPopoverMenu {
+  position: relative;
+  display: inline-flex;
+}
+
+.headerPopoverTrigger {
+  white-space: nowrap;
+}
+
+.headerPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  max-width: min(90vw, 320px);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  z-index: 1400;
+}
+
+.headerPopoverHint {
+  font-size: 0.75rem;
+  color: var(--color-secondary);
+}
+
+.headerPopoverField {
+  display: grid;
+  grid-template-columns: 72px auto;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.875rem;
+}
+
+.headerPopoverField span {
+  white-space: nowrap;
+}
+
+.headerPopoverDangerAction {
+  border-color: var(--color-danger, #b91c1c);
+  color: var(--color-danger, #b91c1c);
+  background: rgba(185, 28, 28, 0.1);
+}
+
+.headerPopoverDangerAction:not(:disabled):hover {
+  background: rgba(185, 28, 28, 0.2);
+}
+
 .mallaHeader {
   --header-gap: var(--space-xs);
   --header-left-grow: 1.35;
