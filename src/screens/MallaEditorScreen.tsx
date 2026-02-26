@@ -2515,76 +2515,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
           right={
             <>
 
-              <div className={styles.metaMenu} ref={metaMenuRef}>
-                <Button
-                  type="button"
-                  onClick={() => setIsMetaMenuOpen((prev) => !prev)}
-                  className={styles.metaMenuTrigger}
-                  aria-haspopup="menu"
-                  aria-expanded={isMetaMenuOpen}
-                  aria-label="Abrir menú de métricas por periodo"
-                >
-                  Métricas por periodo
-                </Button>
-                {isMetaMenuOpen ? (
-                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de métricas por periodo">
-                    <label className={styles.blockMenuToggle}>
-                      <span>Métricas por periodo</span>
-                      <span className={styles.blockMenuToggleControl}>
-                        <input
-                          type="checkbox"
-                          checked={metaPanel.enabled !== false}
-                          onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
-                          className={styles.blockMenuToggleInput}
-                        />
-                        <span className={styles.blockMenuToggleTrack} aria-hidden="true">
-                          <span className={styles.blockMenuToggleThumb} />
-                        </span>
-                      </span>
-                    </label>
-                    {metaPanel.enabled !== false ? (
-                      <>
-                        <button
-                          type="button"
-                          className={styles.metaMenuAction}
-                          onClick={handleMetaAddRow}
-                        >
-                          Agregar métrica
-                        </button>
-                        <div className={styles.metaMenuSectionTitle}>Métricas</div>
-                        <ul className={styles.metaMenuRows} aria-label="Lista de métricas">
-                          {normalizedMetaRows.map((row, index) => (
-                            <li key={row.id} className={styles.metaMenuRowItem}>
-                              <span className={styles.metaMenuRowLabel}>
-                                {row.label?.trim() || `Métrica ${index + 1}`}
-                              </span>
-                              <div className={styles.metaMenuRowActions}>
-                                <button
-                                  type="button"
-                                  className={styles.metaMenuInlineAction}
-                                  onClick={() => handleMetaDuplicateRow(row.id)}
-                                  aria-label="Duplicar métrica"
-                                >
-                                  Duplicar
-                                </button>
-                                <button
-                                  type="button"
-                                  className={styles.metaMenuInlineAction}
-                                  onClick={() => void handleMetaDeleteRow(row.id)}
-                                  disabled={normalizedMetaRows.length <= 1}
-                                  aria-label="Eliminar métrica"
-                                >
-                                  Eliminar
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
               <div className={styles.metaMenu} ref={headersMenuRef}>
                 <Button
                   type="button"
@@ -2594,7 +2524,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   aria-expanded={isHeadersMenuOpen}
                   aria-label="Encabezados por periodo"
                 >
-                  Encabezados ▾
+                  Encabezados
                 </Button>
                 {isHeadersMenuOpen ? (
                   <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de encabezados por periodo">
@@ -2663,8 +2593,78 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   </div>
                 ) : null}
               </div>
+              <div className={styles.metaMenu} ref={metaMenuRef}>
+                <Button
+                  type="button"
+                  onClick={() => setIsMetaMenuOpen((prev) => !prev)}
+                  className={styles.metaMenuTrigger}
+                  aria-haspopup="menu"
+                  aria-expanded={isMetaMenuOpen}
+                  aria-label="Abrir menú de métricas por periodo"
+                >
+                  Métricas
+                </Button>
+                {isMetaMenuOpen ? (
+                  <div className={styles.metaMenuPopover} role="menu" aria-label="Opciones de métricas por periodo">
+                    <label className={styles.blockMenuToggle}>
+                      <span>Métricas por periodo</span>
+                      <span className={styles.blockMenuToggleControl}>
+                        <input
+                          type="checkbox"
+                          checked={metaPanel.enabled !== false}
+                          onChange={(event) => handleMetaPanelEnabledChange(event.target.checked)}
+                          className={styles.blockMenuToggleInput}
+                        />
+                        <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                          <span className={styles.blockMenuToggleThumb} />
+                        </span>
+                      </span>
+                    </label>
+                    {metaPanel.enabled !== false ? (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.metaMenuAction}
+                          onClick={handleMetaAddRow}
+                        >
+                          Agregar métrica
+                        </button>
+                        <div className={styles.metaMenuSectionTitle}>Métricas</div>
+                        <ul className={styles.metaMenuRows} aria-label="Lista de métricas">
+                          {normalizedMetaRows.map((row, index) => (
+                            <li key={row.id} className={styles.metaMenuRowItem}>
+                              <span className={styles.metaMenuRowLabel}>
+                                {row.label?.trim() || `Métrica ${index + 1}`}
+                              </span>
+                              <div className={styles.metaMenuRowActions}>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => handleMetaDuplicateRow(row.id)}
+                                  aria-label="Duplicar métrica"
+                                >
+                                  Duplicar
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.metaMenuInlineAction}
+                                  onClick={() => void handleMetaDeleteRow(row.id)}
+                                  disabled={normalizedMetaRows.length <= 1}
+                                  aria-label="Eliminar métrica"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <label className={styles.blockMenuToggle}>
-                <span>Menú de bloques:</span>
+                <span className={styles.blockMenuToggleLabel}>Menú de bloques</span>
                 <span className={styles.blockMenuToggleControl}>
                   <input
                     type="checkbox"
