@@ -34,6 +34,7 @@ import {
 } from '../utils/malla-io.ts';
 import {
   createDefaultColumnHeaders,
+  ensureHeaderInvariants,
   normalizeColumnHeadersConfig,
 } from '../utils/column-headers.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -46,6 +47,7 @@ import { ActionPillButton } from '../components/ActionPillButton/ActionPillButto
 import { MetaCalcHeader } from '../components/MetaCalcHeader';
 import { MetaCalcCellEditor } from '../components/MetaCalcCellEditor';
 import { MallaGridOverlay } from '../components/MallaGridOverlay';
+import { ColumnHeadersBand } from '../components/ColumnHeadersBand';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
 import { computeSignature } from '../utils/comparators.ts';
@@ -76,6 +78,7 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 const CONTROL_COLUMN_WIDTH = 56;
+const COLUMN_HEADER_ROW_HEIGHT = 28;
 const META_CALC_HEADER_ROW_HEIGHT = 30;
 const REPO_MIN_OUTER_METRICS_FALLBACK = computeMetrics([[{ active: true }]], '1/1');
 
@@ -700,7 +703,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const sliderMax = Math.round(MAX_ZOOM * 100);
   const sliderStep = Math.round(ZOOM_STEP * 100);
   const normalizedMetaPanel = useMemo(() => normalizeMetaPanelConfig(metaPanel), [metaPanel]);
+  const normalizedColumnHeaders = useMemo(() => ensureHeaderInvariants(columnHeaders), [columnHeaders]);
   const normalizedMetaRows = normalizedMetaPanel.rows;
+  const columnHeaderRowCount = useMemo(() => {
+    if (normalizedColumnHeaders.enabled === false) {
+      return 0;
+    }
+    return normalizedColumnHeaders.rows.length > 0 ? normalizedColumnHeaders.rows.length : 1;
+  }, [normalizedColumnHeaders]);
+  const columnHeadersBandHeight = useMemo(
+    () => columnHeaderRowCount * COLUMN_HEADER_ROW_HEIGHT,
+    [columnHeaderRowCount],
+  );
   const metaCalcRowCount = useMemo(() => {
     if (normalizedMetaPanel.enabled === false) {
       return 0;
@@ -711,13 +725,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
     () => metaCalcRowCount * META_CALC_HEADER_ROW_HEIGHT,
     [metaCalcRowCount],
   );
+  const topBandsHeight = columnHeadersBandHeight + metaCalcHeaderHeight;
 
   const zoomedGridContainerStyle = useMemo(
     () =>
       ({
-        height: gridHeight * zoomScale + metaCalcHeaderHeight,
+        height: gridHeight * zoomScale + topBandsHeight,
       }) as React.CSSProperties,
-    [gridHeight, metaCalcHeaderHeight, zoomScale],
+    [gridHeight, topBandsHeight, zoomScale],
   );
 
   const zoomedMetaCalcHeaderWrapperStyle = useMemo(
@@ -2360,7 +2375,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 className={styles.rowControls}
                 style={{
                   height: gridHeight * zoomScale,
-                  marginTop: metaCalcHeaderHeight,
+                  marginTop: topBandsHeight,
                 }}
               >
                 {rowControlButtons.plusButtons.map((button) => (
@@ -2393,21 +2408,32 @@ export const MallaEditorScreen: React.FC<Props> = ({
               </div>
             </div>
             <div className={styles.mallaViewportGridContent}>
-              {metaPanel.enabled !== false ? (
-                <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
-                  <MetaCalcHeader
-                    columnCount={cols}
-                    colWidths={zoomedMetaCalcColWidths}
-                    rowsConfig={metaPanel.rows}
-                    malla={mallaForMetaCalc}
-                    deps={metaCalcDeps}
-                    onCellClick={handleMetaCellClick}
-                    isOverrideColumn={(rowConfig, colIndex) => !!rowConfig.columns?.[colIndex]}
-                    activeRowId={isMetaEditorOpen ? activeMetaRowId : null}
-                    className={styles.metaCalcHeader}
-                  />
-                </div>
-              ) : null}
+              <div className={styles.mallaTopBands}>
+                {normalizedColumnHeaders.enabled !== false ? (
+                  <div className={styles.columnHeadersBandWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
+                    <ColumnHeadersBand
+                      headers={normalizedColumnHeaders}
+                      columnCount={cols}
+                      colWidths={zoomedMetaCalcColWidths}
+                    />
+                  </div>
+                ) : null}
+                {metaPanel.enabled !== false ? (
+                  <div className={styles.metaCalcHeaderWrapper} style={zoomedMetaCalcHeaderWrapperStyle}>
+                    <MetaCalcHeader
+                      columnCount={cols}
+                      colWidths={zoomedMetaCalcColWidths}
+                      rowsConfig={metaPanel.rows}
+                      malla={mallaForMetaCalc}
+                      deps={metaCalcDeps}
+                      onCellClick={handleMetaCellClick}
+                      isOverrideColumn={(rowConfig, colIndex) => !!rowConfig.columns?.[colIndex]}
+                      activeRowId={isMetaEditorOpen ? activeMetaRowId : null}
+                      className={styles.metaCalcHeader}
+                    />
+                  </div>
+                ) : null}
+              </div>
               <div className={styles.mallaAreaWrapper} style={zoomedGridWrapperStyle}>
                 <div
                   className={mallaAreaClassName}
