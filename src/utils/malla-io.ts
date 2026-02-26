@@ -1,5 +1,6 @@
 // src/utils/malla-io.ts
 import type { CurricularPiece, MasterBlockData } from '../types/curricular';
+import type { ColumnHeadersConfig } from '../types/column-headers.ts';
 import type {
   MetaCellConfig,
   MetricExprToken,
@@ -9,6 +10,9 @@ import type {
   TermConfig,
   TermOp,
 } from '../types/meta-panel.ts';
+import {
+  normalizeColumnHeadersConfig,
+} from './column-headers.ts';
 import { buildBlockId, parseBlockId, type BlockId, type BlockMetadata } from '../types/block.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './block-io.ts';
 import {
@@ -43,6 +47,7 @@ export interface MallaExport {
   activeMasterId?: string;
   theme: ProjectTheme;
   metaPanel?: MetaPanelConfig;
+  columnHeaders?: ColumnHeadersConfig;
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,6 +57,7 @@ export const MALLA_SCHEMA_VERSION = 6;
 export { createDefaultProjectTheme, normalizeProjectTheme };
 export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
 export type {
+  ColumnHeadersConfig,
   MetaPanelConfig,
   MetaPanelRowConfig,
   MetaCellConfig,
@@ -494,6 +500,7 @@ export function exportMalla(data: Omit<MallaExport, 'version'>): string {
     repository: serializedRepository,
     theme: normalizeProjectTheme(data.theme),
     metaPanel: normalizeMetaPanelConfig(data.metaPanel),
+    columnHeaders: normalizeColumnHeadersConfig(data.columnHeaders),
     version: MALLA_SCHEMA_VERSION,
   };
   return JSON.stringify(payload, null, 2);
@@ -565,5 +572,6 @@ export function importMalla(json: string): MallaExport {
     activeMasterId,
     theme: normalizeProjectTheme((data as { theme?: unknown }).theme),
     metaPanel: normalizeMetaPanelConfig((data as { metaPanel?: unknown }).metaPanel),
+    columnHeaders: normalizeColumnHeadersConfig((data as { columnHeaders?: unknown }).columnHeaders),
   };
 }

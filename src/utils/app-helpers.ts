@@ -4,6 +4,7 @@ import type { BlockMetadata } from '../types/block.ts';
 import { cloneBlockContent, toBlockContent, type BlockContent } from './block-content.ts';
 import type { MallaExport } from './malla-io.ts';
 import { MALLA_SCHEMA_VERSION, normalizeMetaPanelConfig, normalizeProjectTheme } from './malla-io.ts';
+import { normalizeColumnHeadersConfig } from './column-headers.ts';
 import type { RepositorySnapshot } from './repository-snapshot.ts';
 import {
   remapPiecesWithMapping,
@@ -239,6 +240,7 @@ export function prepareMallaProjectState(
     repository: repositoryEntries,
     theme: normalizeProjectTheme(data.theme),
     metaPanel: normalizeMetaPanelConfig(data.metaPanel),
+    columnHeaders: normalizeColumnHeadersConfig(data.columnHeaders),
   };
 
   return { block, malla: mallaState };

@@ -26,11 +26,16 @@ import {
   getCellConfigForColumn,
   normalizeMetaPanelConfig,
   normalizeProjectTheme,
+  type ColumnHeadersConfig,
   type MetaCellConfig,
   type MetaPanelConfig,
   type MetaPanelRowConfig,
   type ProjectTheme,
 } from '../utils/malla-io.ts';
+import {
+  createDefaultColumnHeaders,
+  normalizeColumnHeadersConfig,
+} from '../utils/column-headers.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
 import { blocksToRepository } from '../utils/repository-snapshot.ts';
@@ -128,6 +133,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
     initialMalla
       ? normalizeMetaPanelConfig(initialMalla.metaPanel)
       : createDefaultMetaPanel(false),
+  );
+  const [columnHeaders, setColumnHeaders] = useState<ColumnHeadersConfig>(
+    initialMalla
+      ? normalizeColumnHeadersConfig(initialMalla.columnHeaders)
+      : createDefaultColumnHeaders(false),
   );
   const [theme, setTheme] = useState<ProjectTheme>(
     initialMalla ? normalizeProjectTheme(initialMalla.theme) : createDefaultProjectTheme(),
@@ -269,9 +279,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
       mastersById,
       selectedMasterId,
       metaPanel,
+      columnHeaders,
       theme,
     }),
-    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, metaPanel, theme],
+    [cols, rows, pieces, pieceValues, floatingPieces, mastersById, selectedMasterId, metaPanel, columnHeaders, theme],
   );
 
   const historySnapshotSerialized = useMemo(
@@ -449,6 +460,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setDraggingId(null);
       setDragPos({ x: 0, y: 0 });
       setMetaPanel(clone.metaPanel);
+      setColumnHeaders(clone.columnHeaders);
       setTheme(clone.theme);
       const restoredMaster = nextSelectedId ? nextMasters[nextSelectedId] : undefined;
       if (restoredMaster) {
@@ -471,6 +483,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setDraggingId,
       setDragPos,
       setMetaPanel,
+      setColumnHeaders,
       setTheme,
       onUpdateMaster,
     ],
@@ -1357,6 +1370,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       floatingPieces: nextFloating,
       activeMasterId,
       metaPanel: nextMetaPanel,
+      columnHeaders: nextColumnHeaders,
       theme: nextTheme,
     } = normalizedInitial;
 
@@ -1373,6 +1387,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(values);
     setFloatingPieces(nextFloating);
     setMetaPanel(nextMetaPanel);
+    setColumnHeaders(nextColumnHeaders);
     setSelectedMasterId(activeMasterId);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
@@ -1392,6 +1407,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
       repository: repositoryEntries,
       theme,
       metaPanel,
+      columnHeaders,
     };
     const serialized = computeSignature(project);
     const shouldRunInitialPersist = initialPersistenceSignatureRef.current === serialized;
@@ -1433,6 +1449,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     pieceValues,
     floatingPieces,
     metaPanel,
+    columnHeaders,
     selectedMasterId,
     repositoryEntries,
     theme,
@@ -1500,6 +1517,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(data?.values ?? {});
     setFloatingPieces(data?.floatingPieces ?? []);
     setMetaPanel(data ? normalizeMetaPanelConfig(data.metaPanel) : createDefaultMetaPanel(false));
+    setColumnHeaders(
+      data ? normalizeColumnHeadersConfig(data.columnHeaders) : createDefaultColumnHeaders(false),
+    );
     setTheme(normalizeProjectTheme(data?.theme));
     setIsHistoryInitialized(false);
   }, [
@@ -1542,6 +1562,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     const nextMetaPanel = initialMalla
       ? normalizeMetaPanelConfig(initialMalla.metaPanel)
       : createDefaultMetaPanel(false);
+    const nextColumnHeaders = initialMalla
+      ? normalizeColumnHeadersConfig(initialMalla.columnHeaders)
+      : createDefaultColumnHeaders(false);
     const nextTheme = initialMalla
       ? normalizeProjectTheme(initialMalla.theme)
       : createDefaultProjectTheme();
@@ -1557,6 +1580,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setPieceValues(nextValues);
     setFloatingPieces(nextFloatingPieces);
     setMetaPanel(nextMetaPanel);
+    setColumnHeaders(nextColumnHeaders);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
 
@@ -1578,7 +1602,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (ignoreDraftForProjectChangeRef.current && !isResetting) {
       ignoreDraftForProjectChangeRef.current = false;
     }
-  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces, metaPanel]);
+  }, [isResetting, mastersById, cols, rows, pieces, pieceValues, floatingPieces, metaPanel, columnHeaders]);
 
   useEffect(() => {
     const nextBounds = expandBoundsToMerges(template, getActiveBounds(template));
