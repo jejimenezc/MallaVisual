@@ -383,9 +383,17 @@
   position: relative;
 }
 
-.metaCalcHeaderWrapper {
+.mallaTopBands {
   position: relative;
   z-index: 2;
+}
+
+.columnHeadersBandWrapper {
+  position: relative;
+}
+
+.metaCalcHeaderWrapper {
+  position: relative;
 }
 
 .metaCalcHeader {
