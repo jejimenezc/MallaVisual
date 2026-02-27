@@ -27,6 +27,8 @@ export const createHeaderRow = (): ColumnHeaderRowConfig => ({
   columns: {},
 });
 
+export const isHeaderRowVisible = (row: ColumnHeaderRowConfig): boolean => row.hidden !== true;
+
 const normalizeHeaderOverride = (
   value: unknown,
   fallbackId: string,
@@ -64,6 +66,7 @@ const normalizeHeaderRowConfig = (
   return {
     id,
     defaultText,
+    hidden: value.hidden === true ? true : undefined,
     columns,
   };
 };
@@ -83,6 +86,7 @@ export const cloneHeaderRow = (row: ColumnHeaderRowConfig): ColumnHeaderRowConfi
   return {
     id: createId(),
     defaultText: typeof row.defaultText === 'string' ? row.defaultText : '',
+    hidden: row.hidden === true ? true : undefined,
     columns,
   };
 };

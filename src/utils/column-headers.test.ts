@@ -5,6 +5,7 @@ import {
   createHeaderRow,
   ensureHeaderInvariants,
   getHeaderTextForColumn,
+  isHeaderRowVisible,
   normalizeColumnHeadersConfig,
 } from './column-headers.ts';
 
@@ -23,6 +24,7 @@ test('createHeaderRow creates empty row with id and empty columns', () => {
     defaultText: '',
     columns: {},
   });
+  assert.equal(isHeaderRowVisible(row), true);
 });
 
 test('cloneHeaderRow deep clones row and regenerates ids', () => {
@@ -33,6 +35,7 @@ test('cloneHeaderRow deep clones row and regenerates ids', () => {
   const cloned = cloneHeaderRow({
     id: 'old-row',
     defaultText: 'General',
+    hidden: true,
     columns: {
       2: { id: 'old-override', text: 'Periodo 3' },
     },
@@ -43,6 +46,7 @@ test('cloneHeaderRow deep clones row and regenerates ids', () => {
   assert.notEqual(cloned.columns?.[2]?.id, 'old-override');
   assert.notEqual(cloned.columns?.[2]?.id, cloned.id);
   assert.equal(cloned.columns?.[2]?.text, 'Periodo 3');
+  assert.equal(cloned.hidden, true);
 });
 
 test('ensureHeaderInvariants enforces min and max row constraints', () => {
@@ -83,4 +87,20 @@ test('getHeaderTextForColumn resolves overrides and falls back to default text',
 
   assert.equal(getHeaderTextForColumn(headers, row, 1), 'P2');
   assert.equal(getHeaderTextForColumn(headers, row, 3), 'General');
+});
+
+test('normalizeColumnHeadersConfig preserves hidden rows and defaults visibility', () => {
+  const hiddenResult = normalizeColumnHeadersConfig({
+    enabled: true,
+    rows: [{ id: 'r1', defaultText: 'A', hidden: true }],
+  });
+  assert.equal(hiddenResult.rows[0]?.hidden, true);
+  assert.equal(isHeaderRowVisible(hiddenResult.rows[0]!), false);
+
+  const visibleResult = normalizeColumnHeadersConfig({
+    enabled: true,
+    rows: [{ id: 'r2', defaultText: 'B' }],
+  });
+  assert.equal(visibleResult.rows[0]?.hidden, undefined);
+  assert.equal(isHeaderRowVisible(visibleResult.rows[0]!), true);
 });

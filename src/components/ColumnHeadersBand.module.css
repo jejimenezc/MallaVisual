@@ -33,3 +33,16 @@
 .columnHeadersBandCell:last-child {
   border-right: none;
 }
+
+.columnHeadersBandCellInteractive {
+  cursor: pointer;
+}
+
+.columnHeadersBandCellInteractive:hover {
+  background: var(--color-primary-10, rgba(37, 99, 235, 0.1));
+}
+
+.columnHeadersBandCellInteractive:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: -2px;
+}
