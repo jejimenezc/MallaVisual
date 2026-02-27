@@ -105,6 +105,10 @@ test('exportMalla followed by importMalla preserves repository metadata', () => 
       },
     ],
   });
+  assert.deepEqual(result.columnHeaders, {
+    enabled: false,
+    rows: [],
+  });
 });
 
 test('importMalla migrates legacy schema and remaps references with duplicated names', () => {
@@ -219,6 +223,7 @@ test('importMalla migrates legacy schema and remaps references with duplicated n
   assert.equal(result.activeMasterId, generatedEntry.metadata.uuid);
   assert.deepEqual(result.theme, createDefaultProjectTheme());
   assert.deepEqual(result.metaPanel, createDefaultMetaPanel());
+  assert.deepEqual(result.columnHeaders, { enabled: false, rows: [] });
 });
 
 test('importMalla adds default metaPanel when absent', () => {
@@ -239,6 +244,7 @@ test('importMalla adds default metaPanel when absent', () => {
   assert.equal(activeRow.id, 'meta-row-main');
   assert.deepEqual(activeRow.defaultCell.terms, []);
   assert.deepEqual(activeRow.columns, {});
+  assert.deepEqual(result.columnHeaders, { enabled: false, rows: [] });
 });
 
 test('importMalla migrates legacy row config (columns-only) into defaultCell and preserves overrides', () => {
@@ -311,6 +317,18 @@ test('export/import roundtrip preserves defaultCell and columns overrides', () =
         },
       ],
     },
+    columnHeaders: {
+      enabled: true,
+      rows: [
+        {
+          id: 'hdr-main',
+          defaultText: 'General',
+          columns: {
+            1: { id: 'hdr-main-col-1', text: 'Semestre 2' },
+          },
+        },
+      ],
+    },
   } as const;
 
   const json = exportMalla(payload as unknown as Parameters<typeof exportMalla>[0]);
@@ -322,6 +340,9 @@ test('export/import roundtrip preserves defaultCell and columns overrides', () =
   assert.equal(row.defaultCell.terms[0]?.id, 'tt');
   assert.equal(row.columns?.[1]?.id, 'row-main-col-1');
   assert.equal(row.columns?.[1]?.terms[0]?.id, 'ov');
+  assert.equal(result.columnHeaders?.enabled, true);
+  assert.equal(result.columnHeaders?.rows[0]?.id, 'hdr-main');
+  assert.equal(result.columnHeaders?.rows[0]?.columns?.[1]?.text, 'Semestre 2');
 });
 
 test('importMalla defaults enabled=true when metaPanel exists without enabled', () => {
@@ -369,4 +390,29 @@ test('export/import roundtrip preserves metaPanel enabled=false', () => {
   const json = exportMalla(payload as unknown as Parameters<typeof exportMalla>[0]);
   const result = importMalla(json);
   assert.equal(result.metaPanel?.enabled, false);
+});
+
+test('importMalla ensures one header row when columnHeaders.enabled=true and rows is empty', () => {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValue('generated-header-row-id'),
+  });
+
+  const payload = {
+    version: 6,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    theme: createDefaultProjectTheme(),
+    columnHeaders: {
+      enabled: true,
+      rows: [],
+    },
+  };
+
+  const result = importMalla(JSON.stringify(payload));
+  assert.equal(result.columnHeaders?.enabled, true);
+  assert.equal(result.columnHeaders?.rows.length, 1);
+  assert.equal(result.columnHeaders?.rows[0]?.id, 'generated-header-row-id');
 });

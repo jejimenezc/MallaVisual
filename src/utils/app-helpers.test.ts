@@ -95,5 +95,6 @@ describe('prepareMallaProjectState', () => {
     expect(result.malla.activeMasterId).toBe(repoId);
     expect(result.malla.masters[repoId]).toBeDefined();
     expect(result.malla.repository).toEqual(snapshot.entries);
+    expect(result.malla.columnHeaders).toEqual({ enabled: false, rows: [] });
   });
 });
