@@ -133,4 +133,31 @@ export const getHeaderTextForColumn = (
   return row.columns?.[colIndex]?.text ?? row.defaultText;
 };
 
+export const rowHasAnyOverrides = (row: ColumnHeaderRowConfig): boolean =>
+  Object.values(row.columns ?? {}).some(
+    (override) => typeof override?.text === 'string' && override.text.trim().length > 0,
+  );
+
+export const applySequentialOverrides = (
+  row: ColumnHeaderRowConfig,
+  numColumns: number,
+  makeText: (colIndex: number) => string,
+): ColumnHeaderRowConfig => {
+  const safeNumColumns = Number.isInteger(numColumns) ? Math.max(0, numColumns) : 0;
+  const nextColumns: Record<number, ColumnHeaderTextOverride> = {};
+
+  for (let colIndex = 0; colIndex < safeNumColumns; colIndex += 1) {
+    const current = row.columns?.[colIndex];
+    nextColumns[colIndex] = {
+      id: current?.id ?? createId(),
+      text: makeText(colIndex),
+    };
+  }
+
+  return {
+    ...row,
+    columns: nextColumns,
+  };
+};
+
 export const createHeaderOverride = createDefaultOverride;
