@@ -716,6 +716,16 @@
   gap: 0.25rem;
 }
 
+.metaMenuRowVisibility {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.metaMenuRowVisibilityLabel {
+  font-size: 0.75rem;
+}
+
 .metaMenuInlineAction {
   border: 1px solid var(--color-border);
   background: var(--color-surface);

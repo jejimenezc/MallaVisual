@@ -6,6 +6,7 @@ export interface ColumnHeaderTextOverride {
 export interface ColumnHeaderRowConfig {
   id: string;
   defaultText: string;
+  hidden?: boolean;
   columns?: Record<number, ColumnHeaderTextOverride>;
 }
 

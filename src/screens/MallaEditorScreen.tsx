@@ -38,6 +38,7 @@ import {
   createHeaderOverride,
   createHeaderRow,
   ensureHeaderInvariants,
+  isHeaderRowVisible,
   normalizeColumnHeadersConfig,
 } from '../utils/column-headers.ts';
 import type { ColumnHeaderRowConfig } from '../types/column-headers.ts';
@@ -749,7 +750,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     if (normalizedColumnHeaders.enabled === false) {
       return 0;
     }
-    return normalizedColumnHeaders.rows.length > 0 ? normalizedColumnHeaders.rows.length : 1;
+    return normalizedColumnHeaders.rows.filter((row) => isHeaderRowVisible(row)).length;
   }, [normalizedColumnHeaders]);
   const columnHeadersBandHeight = useMemo(
     () => columnHeaderRowCount * COLUMN_HEADER_ROW_HEIGHT,
@@ -946,18 +947,25 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setActiveMetaColIndex(null);
   }, []);
 
-  const headerEditorDefaultColIndex = useMemo(() => {
-    const fallbackMax = Math.max(cols - 1, 0);
-    if (activeMetaColIndex == null) {
-      return 0;
-    }
-    return Math.min(Math.max(activeMetaColIndex, 0), fallbackMax);
-  }, [activeMetaColIndex, cols]);
-
   const closeHeaderRowEditor = useCallback(() => {
     setIsHeaderEditorOpen(false);
     setActiveHeaderRowId(null);
   }, []);
+
+  useEffect(() => {
+    if (!isHeaderEditorOpen) {
+      return;
+    }
+    const activeRow = normalizedColumnHeaders.rows.find((row) => row.id === activeHeaderRowId);
+    if (!activeRow || activeRow.hidden === true) {
+      closeHeaderRowEditor();
+    }
+  }, [
+    activeHeaderRowId,
+    closeHeaderRowEditor,
+    isHeaderEditorOpen,
+    normalizedColumnHeaders.rows,
+  ]);
 
   const handleColumnHeadersEnabledChange = useCallback((nextEnabled: boolean) => {
     runHistoryTransaction(() => {
@@ -998,14 +1006,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
     });
   }, [runHistoryTransaction]);
 
-  const handleColumnHeaderEditRow = useCallback((rowId: string) => {
+  const handleColumnHeaderCellClick = useCallback((rowId: string, colIndex: number) => {
     if (normalizedColumnHeaders.enabled === false) {
       return;
     }
     setActiveHeaderRowId(rowId);
-    setActiveHeaderColIndex(headerEditorDefaultColIndex);
+    setActiveHeaderColIndex(Math.max(colIndex, 0));
     setIsHeaderEditorOpen(true);
-  }, [headerEditorDefaultColIndex, normalizedColumnHeaders.enabled]);
+  }, [normalizedColumnHeaders.enabled]);
 
   const handleColumnHeaderDuplicateRow = useCallback((rowId: string) => {
     runHistoryTransaction(() => {
@@ -1073,6 +1081,34 @@ export const MallaEditorScreen: React.FC<Props> = ({
     showToast,
   ]);
 
+  const handleColumnHeaderRowVisibilityChange = useCallback((rowId: string, isVisible: boolean) => {
+    runHistoryTransaction(() => {
+      setColumnHeaders((prev) => {
+        const normalized = ensureHeaderInvariants(normalizeColumnHeadersConfig(prev));
+        if (normalized.enabled === false) {
+          return normalized;
+        }
+        const targetIndex = normalized.rows.findIndex((row) => row.id === rowId);
+        if (targetIndex < 0) {
+          return normalized;
+        }
+        const targetRow = normalized.rows[targetIndex]!;
+        const nextRows = normalized.rows.slice();
+        nextRows[targetIndex] = {
+          ...targetRow,
+          hidden: isVisible ? undefined : true,
+        };
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+    if (!isVisible && activeHeaderRowId === rowId) {
+      closeHeaderRowEditor();
+    }
+  }, [activeHeaderRowId, closeHeaderRowEditor, runHistoryTransaction]);
+
   const handleColumnHeaderEditorSave = useCallback((
     rowId: string,
     text: string,
@@ -1103,9 +1139,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
             columns: nextColumns,
           };
         } else {
+          const nextColumns = { ...(targetRow.columns ?? {}) };
+          if (Number.isInteger(colIndex) && colIndex >= 0) {
+            delete nextColumns[colIndex];
+          }
           nextRows[targetIndex] = {
             ...targetRow,
             defaultText: safeText,
+            columns: nextColumns,
           };
         }
         return {
@@ -2559,15 +2600,23 @@ export const MallaEditorScreen: React.FC<Props> = ({
                         <li key={row.id} className={styles.metaMenuRowItem}>
                           <span className={styles.metaMenuRowLabel}>{getHeaderRowPreview(row, index)}</span>
                           <div className={styles.metaMenuRowActions}>
-                            <button
-                              type="button"
-                              className={styles.metaMenuInlineAction}
-                              onClick={() => handleColumnHeaderEditRow(row.id)}
-                              disabled={!canEditColumnHeaders}
-                              aria-label={`Editar encabezado ${index + 1}`}
-                            >
-                              Editar
-                            </button>
+                            <label className={styles.metaMenuRowVisibility}>
+                              <span className={styles.metaMenuRowVisibilityLabel}>Mostrar</span>
+                              <span className={styles.blockMenuToggleControl}>
+                                <input
+                                  type="checkbox"
+                                  checked={row.hidden !== true}
+                                  onChange={(event) =>
+                                    handleColumnHeaderRowVisibilityChange(row.id, event.target.checked)}
+                                  className={styles.blockMenuToggleInput}
+                                  disabled={!canEditColumnHeaders}
+                                  aria-label={`Mostrar encabezado ${index + 1}`}
+                                />
+                                <span className={styles.blockMenuToggleTrack} aria-hidden="true">
+                                  <span className={styles.blockMenuToggleThumb} />
+                                </span>
+                              </span>
+                            </label>
                             <button
                               type="button"
                               className={styles.metaMenuInlineAction}
@@ -2737,6 +2786,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       headers={normalizedColumnHeaders}
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
+                      onCellClick={handleColumnHeaderCellClick}
                     />
                   </div>
                 ) : null}
