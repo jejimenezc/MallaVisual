@@ -4,6 +4,8 @@ import { getCellConfigForColumn } from '../utils/malla-io.ts';
 import type { MallaQuerySource } from '../utils/malla-queries.ts';
 import { computeMetaRowValueForColumn, type MetaCalcDeps } from '../utils/meta-calc.ts';
 
+const EMPTY_METRIC_HINT = 'Click para editar';
+
 interface Props {
   columnCount: number;
   colWidths: number[];
@@ -93,8 +95,10 @@ export const MetaCalcHeader: React.FC<Props> = ({
               const rowLabel = overrideLabel || generalLabel || undefined;
               const hasTerms = cellConfig.terms.length > 0;
               const hasOverride = isOverrideColumn?.(rowConfig, colIndex) ?? false;
+              const hasRowLabel = typeof rowLabel === 'string' && rowLabel.trim().length > 0;
+              const showEmptyHint = value == null && !hasTerms && !hasRowLabel;
               const displayValue = value == null
-                ? (hasTerms ? invalidPlaceholder : placeholder)
+                ? (showEmptyHint ? EMPTY_METRIC_HINT : (hasTerms ? invalidPlaceholder : placeholder))
                 : `#${value}`;
 
               return (
@@ -120,25 +124,37 @@ export const MetaCalcHeader: React.FC<Props> = ({
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      gridTemplateColumns: showEmptyHint ? '1fr' : 'minmax(0, 1fr) auto',
                       alignItems: 'center',
                       columnGap: 6,
                       width: '100%',
                       lineHeight: 1.1,
                     }}
                   >
+                    {!showEmptyHint ? (
+                      <span
+                        style={{
+                          fontSize: '0.62rem',
+                          opacity: 0.8,
+                          textAlign: 'left',
+                          whiteSpace: 'normal',
+                          overflowWrap: 'anywhere',
+                        }}
+                      >
+                        {rowLabel ?? ''}
+                      </span>
+                    ) : null}
                     <span
                       style={{
-                        fontSize: '0.62rem',
-                        opacity: 0.8,
-                        textAlign: 'left',
-                        whiteSpace: 'normal',
-                        overflowWrap: 'anywhere',
+                        textAlign: showEmptyHint ? 'center' : 'right',
+                        whiteSpace: showEmptyHint ? 'normal' : 'nowrap',
+                        fontStyle: showEmptyHint ? 'italic' : 'normal',
+                        fontSize: showEmptyHint ? '0.78rem' : undefined,
+                        color: showEmptyHint
+                          ? 'color-mix(in srgb, var(--color-secondary) 75%, transparent)'
+                          : 'inherit',
                       }}
                     >
-                      {rowLabel ?? ''}
-                    </span>
-                    <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {displayValue}
                       {hasOverride ? <span style={{ marginLeft: 4, fontSize: '0.65rem' }}>*</span> : null}
                     </span>

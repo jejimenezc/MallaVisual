@@ -33,6 +33,7 @@ import {
   type ProjectTheme,
 } from '../utils/malla-io.ts';
 import {
+  applySequentialOverrides,
   createDefaultColumnHeaders,
   cloneHeaderRow,
   createHeaderOverride,
@@ -40,6 +41,7 @@ import {
   ensureHeaderInvariants,
   isHeaderRowVisible,
   normalizeColumnHeadersConfig,
+  rowHasAnyOverrides,
 } from '../utils/column-headers.ts';
 import type { ColumnHeaderRowConfig } from '../types/column-headers.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
@@ -1158,6 +1160,64 @@ export const MallaEditorScreen: React.FC<Props> = ({
     closeHeaderRowEditor();
     showToast('Encabezado guardado', 'success');
   }, [closeHeaderRowEditor, runHistoryTransaction, showToast]);
+
+  const handleColumnHeaderEditorApplySeries = useCallback(async (
+    rowId: string,
+    makeText: (colIndex: number) => string,
+  ): Promise<boolean> => {
+    if (normalizedColumnHeaders.enabled === false) {
+      return false;
+    }
+
+    const currentRow = normalizedColumnHeaders.rows.find((row) => row.id === rowId);
+    if (!currentRow) {
+      return false;
+    }
+
+    if (rowHasAnyOverrides(currentRow)) {
+      const confirmed = await confirmAsync({
+        title: 'Reemplazar encabezados personalizados',
+        message:
+          'Esto reemplazara los encabezados personalizados existentes en esta fila. ¿Continuar?',
+        confirmLabel: 'Reemplazar',
+        cancelLabel: 'Cancelar',
+      });
+      if (!confirmed) {
+        return false;
+      }
+    }
+
+    runHistoryTransaction(() => {
+      setColumnHeaders((prev) => {
+        const normalized = ensureHeaderInvariants(normalizeColumnHeadersConfig(prev));
+        if (normalized.enabled === false) {
+          return normalized;
+        }
+        const targetIndex = normalized.rows.findIndex((row) => row.id === rowId);
+        if (targetIndex < 0) {
+          return normalized;
+        }
+        const targetRow = normalized.rows[targetIndex]!;
+        const nextRows = normalized.rows.slice();
+        nextRows[targetIndex] = applySequentialOverrides(targetRow, cols, makeText);
+        return {
+          ...normalized,
+          rows: nextRows,
+        };
+      });
+    });
+
+    closeHeaderRowEditor();
+    showToast('Encabezado guardado', 'success');
+    return true;
+  }, [
+    closeHeaderRowEditor,
+    cols,
+    normalizedColumnHeaders.enabled,
+    normalizedColumnHeaders.rows,
+    runHistoryTransaction,
+    showToast,
+  ]);
 
   const cloneMetaCellConfig = useCallback((config: MetaCellConfig): MetaCellConfig => ({
     ...config,
@@ -2787,6 +2847,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
                       onCellClick={handleColumnHeaderCellClick}
+                      activeRowId={isHeaderEditorOpen ? activeHeaderRowId : null}
                     />
                   </div>
                 ) : null}
@@ -2973,8 +3034,10 @@ export const MallaEditorScreen: React.FC<Props> = ({
         row={activeHeaderRow}
         rowPosition={activeHeaderRowPosition}
         colIndex={activeHeaderColIndex}
+        columnCount={cols}
         onCancel={closeHeaderRowEditor}
         onSave={handleColumnHeaderEditorSave}
+        onApplySeries={handleColumnHeaderEditorApplySeries}
       />
     </div>
   );

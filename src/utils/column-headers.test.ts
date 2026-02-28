@@ -1,12 +1,14 @@
 import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import {
+  applySequentialOverrides,
   cloneHeaderRow,
   createHeaderRow,
   ensureHeaderInvariants,
   getHeaderTextForColumn,
   isHeaderRowVisible,
   normalizeColumnHeadersConfig,
+  rowHasAnyOverrides,
 } from './column-headers.ts';
 
 afterEach(() => {
@@ -103,4 +105,55 @@ test('normalizeColumnHeadersConfig preserves hidden rows and defaults visibility
   });
   assert.equal(visibleResult.rows[0]?.hidden, undefined);
   assert.equal(isHeaderRowVisible(visibleResult.rows[0]!), true);
+});
+
+test('rowHasAnyOverrides detects only non-empty override texts', () => {
+  assert.equal(
+    rowHasAnyOverrides({
+      id: 'r1',
+      defaultText: 'General',
+      columns: {
+        0: { id: 'o1', text: '' },
+        1: { id: 'o2', text: '  ' },
+      },
+    }),
+    false,
+  );
+
+  assert.equal(
+    rowHasAnyOverrides({
+      id: 'r2',
+      defaultText: 'General',
+      columns: {
+        0: { id: 'o1', text: '' },
+        1: { id: 'o2', text: 'Periodo 2' },
+      },
+    }),
+    true,
+  );
+});
+
+test('applySequentialOverrides replaces row columns for every period and preserves existing ids', () => {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValue('new-generated-id'),
+  });
+
+  const updated = applySequentialOverrides(
+    {
+      id: 'row-1',
+      defaultText: 'General',
+      columns: {
+        1: { id: 'existing-col-1', text: 'Old P2' },
+        9: { id: 'stale-col-9', text: 'Old P10' },
+      },
+    },
+    3,
+    (colIndex) => `Periodo ${colIndex + 1}`,
+  );
+
+  assert.deepEqual(updated.columns, {
+    0: { id: 'new-generated-id', text: 'Periodo 1' },
+    1: { id: 'existing-col-1', text: 'Periodo 2' },
+    2: { id: 'new-generated-id', text: 'Periodo 3' },
+  });
 });
