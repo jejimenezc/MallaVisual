@@ -40,7 +40,6 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
   const [counterTemplate, setCounterTemplate] = useState('Modulo [n]');
   const [counterStart, setCounterStart] = useState(1);
   const [counterStyle, setCounterStyle] = useState<SequenceCounterStyle>('arabic');
-  const [applyNotice, setApplyNotice] = useState('');
 
   useEffect(() => {
     if (!isOpen) {
@@ -55,7 +54,6 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
     setCounterTemplate('Modulo [n]');
     setCounterStart(1);
     setCounterStyle('arabic');
-    setApplyNotice('');
   }, [colIndex, isOpen, row]);
 
   if (!isOpen || !row) {
@@ -115,17 +113,11 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
   const hasHiddenPreviewColumns = safeColumnCount > MAX_PREVIEW_COLUMNS;
 
   const handleApplyStandard = async (): Promise<void> => {
-    const applied = await onApplySeries(row.id, makeStandardText);
-    if (applied) {
-      setApplyNotice('Se aplico una serie a todos los periodos.');
-    }
+    await onApplySeries(row.id, makeStandardText);
   };
 
   const handleApplyCounter = async (): Promise<void> => {
-    const applied = await onApplySeries(row.id, makeCounterText);
-    if (applied) {
-      setApplyNotice('Se aplico una serie a todos los periodos.');
-    }
+    await onApplySeries(row.id, makeCounterText);
   };
 
   return (
@@ -328,8 +320,6 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
             </button>
           </section>
         ) : null}
-
-        {applyNotice ? <p className={styles.inlineNotice}>{applyNotice}</p> : null}
 
         <div className={styles.actions}>
           <button type="button" className={styles.button} onClick={onCancel}>
