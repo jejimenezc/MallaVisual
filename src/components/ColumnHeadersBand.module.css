@@ -42,6 +42,7 @@
 .columnHeadersBandCellHint {
   color: color-mix(in srgb, var(--color-secondary) 75%, transparent);
   font-style: italic;
+  font-size: 0.78rem;
 }
 
 .columnHeadersBandCellInteractive {
