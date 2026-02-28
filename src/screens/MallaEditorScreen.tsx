@@ -2847,6 +2847,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
                       onCellClick={handleColumnHeaderCellClick}
+                      activeRowId={isHeaderEditorOpen ? activeHeaderRowId : null}
                     />
                   </div>
                 ) : null}

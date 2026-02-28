@@ -8,6 +8,7 @@ interface Props {
   columnCount: number;
   colWidths: number[];
   onCellClick?: (rowId: string, colIndex: number) => void;
+  activeRowId?: string | null;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -17,6 +18,7 @@ export const ColumnHeadersBand: React.FC<Props> = ({
   columnCount,
   colWidths,
   onCellClick,
+  activeRowId,
   className,
   style,
 }) => {
@@ -53,7 +55,10 @@ export const ColumnHeadersBand: React.FC<Props> = ({
       {rowsToRender.map((row, rowIndex) => (
         <div
           key={`column-headers-row-${row.id}`}
-          className={styles.columnHeadersBandRow}
+          className={[
+            styles.columnHeadersBandRow,
+            activeRowId === row.id ? styles.columnHeadersBandRowActive : '',
+          ].filter(Boolean).join(' ')}
           style={{ gridTemplateColumns: rowGridTemplateColumns }}
         >
           {Array.from({ length: safeColumnCount }, (_, colIndex) => (
