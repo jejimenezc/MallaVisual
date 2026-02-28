@@ -39,6 +39,11 @@
   border-right: none;
 }
 
+.columnHeadersBandCellHint {
+  color: color-mix(in srgb, var(--color-secondary) 75%, transparent);
+  font-style: italic;
+}
+
 .columnHeadersBandCellInteractive {
   cursor: pointer;
 }

@@ -3,6 +3,8 @@ import type { ColumnHeadersConfig } from '../types/column-headers.ts';
 import { ensureHeaderInvariants, getHeaderTextForColumn, isHeaderRowVisible } from '../utils/column-headers.ts';
 import styles from './ColumnHeadersBand.module.css';
 
+const EMPTY_HEADER_HINT = 'Click para editar';
+
 interface Props {
   headers: ColumnHeadersConfig;
   columnCount: number;
@@ -61,30 +63,36 @@ export const ColumnHeadersBand: React.FC<Props> = ({
           ].filter(Boolean).join(' ')}
           style={{ gridTemplateColumns: rowGridTemplateColumns }}
         >
-          {Array.from({ length: safeColumnCount }, (_, colIndex) => (
-            <div
-              key={`column-headers-cell-${row.id}-${colIndex}`}
-              className={[
-                styles.columnHeadersBandCell,
-                canEditCells ? styles.columnHeadersBandCellInteractive : '',
-              ].filter(Boolean).join(' ')}
-              title={getHeaderTextForColumn(normalizedHeaders, row, colIndex)}
-              role={canEditCells ? 'button' : undefined}
-              tabIndex={canEditCells ? 0 : undefined}
-              aria-label={canEditCells ? `Editar encabezado, fila ${rowIndex + 1}, periodo ${colIndex + 1}` : undefined}
-              onClick={canEditCells ? () => onCellClick(row.id, colIndex) : undefined}
-              onKeyDown={canEditCells
-                ? (event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onCellClick(row.id, colIndex);
+          {Array.from({ length: safeColumnCount }, (_, colIndex) => {
+            const headerText = getHeaderTextForColumn(normalizedHeaders, row, colIndex);
+            const showHint = headerText.trim().length === 0;
+
+            return (
+              <div
+                key={`column-headers-cell-${row.id}-${colIndex}`}
+                className={[
+                  styles.columnHeadersBandCell,
+                  canEditCells ? styles.columnHeadersBandCellInteractive : '',
+                  showHint ? styles.columnHeadersBandCellHint : '',
+                ].filter(Boolean).join(' ')}
+                title={showHint ? EMPTY_HEADER_HINT : headerText}
+                role={canEditCells ? 'button' : undefined}
+                tabIndex={canEditCells ? 0 : undefined}
+                aria-label={canEditCells ? `Editar encabezado, fila ${rowIndex + 1}, periodo ${colIndex + 1}` : undefined}
+                onClick={canEditCells ? () => onCellClick(row.id, colIndex) : undefined}
+                onKeyDown={canEditCells
+                  ? (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onCellClick(row.id, colIndex);
+                    }
                   }
-                }
-                : undefined}
-            >
-              {getHeaderTextForColumn(normalizedHeaders, row, colIndex)}
-            </div>
-          ))}
+                  : undefined}
+              >
+                {showHint ? EMPTY_HEADER_HINT : headerText}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
