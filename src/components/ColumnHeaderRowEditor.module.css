@@ -145,10 +145,21 @@
   background: var(--color-bg);
 }
 
+.controlsRow {
+  display: grid;
+  grid-template-columns: minmax(30ch, 1.8fr) minmax(8.5rem, 0.8fr) minmax(12rem, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.fieldPrimary {
+  min-width: 30ch;
 }
 
 .label {
@@ -195,6 +206,16 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .controlsRow {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldPrimary {
+    min-width: 0;
+  }
 }
 
 .button {

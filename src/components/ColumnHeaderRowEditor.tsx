@@ -229,46 +229,48 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
 
         {headerType === 'standard' ? (
           <section className={styles.controlsPanel}>
-            <label className={styles.field}>
-              <span className={styles.label}>Preset</span>
-              <select
-                className={styles.select}
-                value={standardPreset}
-                onChange={(event) => setStandardPreset(event.target.value as StandardPreset)}
-              >
-                <option value="periodo">Periodo 1..N</option>
-                <option value="semestre">Semestre 1..N</option>
-                <option value="trimestre">Trimestre 1..N</option>
-                <option value="bimestre">Bimestre 1..N</option>
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Iniciar en</span>
-              <input
-                className={styles.input}
-                type="number"
-                min={1}
-                step={1}
-                value={standardStart}
-                onChange={(event) => {
-                  const nextValue = Number.parseInt(event.target.value, 10);
-                  setStandardStart(Number.isFinite(nextValue) && nextValue > 0 ? nextValue : 1);
-                }}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Estilo contador</span>
-              <select
-                className={styles.select}
-                value={counterStyle}
-                onChange={(event) => setCounterStyle(event.target.value as SequenceCounterStyle)}
-              >
-                <option value="arabic">1, 2, 3, ...</option>
-                <option value="roman">I, II, III, ...</option>
-                <option value="alpha-lower">a, b, c, ...</option>
-                <option value="alpha-upper">A, B, C, ...</option>
-              </select>
-            </label>
+            <div className={styles.controlsRow}>
+              <label className={`${styles.field} ${styles.fieldPrimary}`}>
+                <span className={styles.label}>Preset</span>
+                <select
+                  className={styles.select}
+                  value={standardPreset}
+                  onChange={(event) => setStandardPreset(event.target.value as StandardPreset)}
+                >
+                  <option value="periodo">Periodo 1..N</option>
+                  <option value="semestre">Semestre 1..N</option>
+                  <option value="trimestre">Trimestre 1..N</option>
+                  <option value="bimestre">Bimestre 1..N</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Iniciar en</span>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={standardStart}
+                  onChange={(event) => {
+                    const nextValue = Number.parseInt(event.target.value, 10);
+                    setStandardStart(Number.isFinite(nextValue) && nextValue > 0 ? nextValue : 1);
+                  }}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Estilo contador</span>
+                <select
+                  className={styles.select}
+                  value={counterStyle}
+                  onChange={(event) => setCounterStyle(event.target.value as SequenceCounterStyle)}
+                >
+                  <option value="arabic">1, 2, 3, ...</option>
+                  <option value="roman">I, II, III, ...</option>
+                  <option value="alpha-lower">a, b, c, ...</option>
+                  <option value="alpha-upper">A, B, C, ...</option>
+                </select>
+              </label>
+            </div>
             <button type="button" className={`${styles.button} ${styles.primary}`} onClick={handleApplyStandard}>
               Aplicar a todos los periodos
             </button>
@@ -277,44 +279,46 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
 
         {headerType === 'counter' ? (
           <section className={styles.controlsPanel}>
-            <label className={styles.field}>
-              <span className={styles.label}>Plantilla o prefijo</span>
-              <input
-                className={styles.input}
-                value={counterTemplate}
-                maxLength={MAX_COUNTER_TEMPLATE_LENGTH}
-                onChange={(event) => setCounterTemplate((event.target.value ?? '').slice(0, MAX_COUNTER_TEMPLATE_LENGTH))}
-                placeholder="Modulo [n]"
-              />
-              <span className={styles.hint}>Soporta [n] o {'{n}'} como placeholder.</span>
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Iniciar en</span>
-              <input
-                className={styles.input}
-                type="number"
-                min={1}
-                step={1}
-                value={counterStart}
-                onChange={(event) => {
-                  const nextValue = Number.parseInt(event.target.value, 10);
-                  setCounterStart(Number.isFinite(nextValue) && nextValue > 0 ? nextValue : 1);
-                }}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Estilo contador</span>
-              <select
-                className={styles.select}
-                value={counterStyle}
-                onChange={(event) => setCounterStyle(event.target.value as SequenceCounterStyle)}
-              >
-                <option value="arabic">1, 2, 3, ...</option>
-                <option value="roman">I, II, III, ...</option>
-                <option value="alpha-lower">a, b, c, ...</option>
-                <option value="alpha-upper">A, B, C, ...</option>
-              </select>
-            </label>
+            <div className={styles.controlsRow}>
+              <label className={`${styles.field} ${styles.fieldPrimary}`}>
+                <span className={styles.label}>Plantilla o prefijo</span>
+                <input
+                  className={styles.input}
+                  value={counterTemplate}
+                  maxLength={MAX_COUNTER_TEMPLATE_LENGTH}
+                  onChange={(event) => setCounterTemplate((event.target.value ?? '').slice(0, MAX_COUNTER_TEMPLATE_LENGTH))}
+                  placeholder="Modulo [n]"
+                />
+                <span className={styles.hint}>Soporta [n] o {'{n}'} como placeholder.</span>
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Iniciar en</span>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={counterStart}
+                  onChange={(event) => {
+                    const nextValue = Number.parseInt(event.target.value, 10);
+                    setCounterStart(Number.isFinite(nextValue) && nextValue > 0 ? nextValue : 1);
+                  }}
+                />
+              </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Estilo contador</span>
+                <select
+                  className={styles.select}
+                  value={counterStyle}
+                  onChange={(event) => setCounterStyle(event.target.value as SequenceCounterStyle)}
+                >
+                  <option value="arabic">1, 2, 3, ...</option>
+                  <option value="roman">I, II, III, ...</option>
+                  <option value="alpha-lower">a, b, c, ...</option>
+                  <option value="alpha-upper">A, B, C, ...</option>
+                </select>
+              </label>
+            </div>
             <button type="button" className={`${styles.button} ${styles.primary}`} onClick={handleApplyCounter}>
               Aplicar a todos los periodos
             </button>
