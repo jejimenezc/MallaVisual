@@ -1207,8 +1207,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
       });
     });
 
+    closeHeaderRowEditor();
+    showToast('Encabezado guardado', 'success');
     return true;
-  }, [cols, normalizedColumnHeaders.enabled, normalizedColumnHeaders.rows, runHistoryTransaction]);
+  }, [
+    closeHeaderRowEditor,
+    cols,
+    normalizedColumnHeaders.enabled,
+    normalizedColumnHeaders.rows,
+    runHistoryTransaction,
+    showToast,
+  ]);
 
   const cloneMetaCellConfig = useCallback((config: MetaCellConfig): MetaCellConfig => ({
     ...config,
@@ -2838,6 +2847,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
                       onCellClick={handleColumnHeaderCellClick}
+                      activeRowId={isHeaderEditorOpen ? activeHeaderRowId : null}
                     />
                   </div>
                 ) : null}

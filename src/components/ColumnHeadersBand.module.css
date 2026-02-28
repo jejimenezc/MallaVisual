@@ -11,6 +11,11 @@
   display: grid;
 }
 
+.columnHeadersBandRowActive .columnHeadersBandCell {
+  background: color-mix(in srgb, var(--color-primary-10, rgba(37, 99, 235, 0.1)) 55%, var(--color-surface));
+  box-shadow: inset 0 1px 0 rgba(37, 99, 235, 0.25), inset 0 -1px 0 rgba(37, 99, 235, 0.25);
+}
+
 .columnHeadersBandRow + .columnHeadersBandRow {
   border-top: 1px solid var(--color-border);
 }
@@ -32,6 +37,12 @@
 
 .columnHeadersBandCell:last-child {
   border-right: none;
+}
+
+.columnHeadersBandCellHint {
+  color: color-mix(in srgb, var(--color-secondary) 75%, transparent);
+  font-style: italic;
+  font-size: 0.78rem;
 }
 
 .columnHeadersBandCellInteractive {
