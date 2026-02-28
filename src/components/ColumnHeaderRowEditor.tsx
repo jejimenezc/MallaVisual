@@ -145,11 +145,10 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
         }}
       >
         <h3 id="column-header-row-editor-title" className={styles.title}>
-          Editar encabezado
+          Editar fila {rowPosition} de encabezado - Periodo {colIndex + 1}
         </h3>
-        <p className={styles.subtext}>Fila {rowPosition} - Periodo {colIndex + 1}</p>
         <section className={styles.previewPanel}>
-          <p className={styles.previewTitle}>Vista previa - Encabezado {rowPosition}</p>
+          <p className={styles.previewTitle}>Vista previa - Encabezado (fila {rowPosition})</p>
           <div className={styles.previewStrip}>
             {visiblePreviewColumns.map((text, index) => {
               const col = index;
@@ -166,7 +165,9 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
               <div className={styles.previewExtra}>+{safeColumnCount - MAX_PREVIEW_COLUMNS}</div>
             ) : null}
           </div>
-          <p className={styles.previewMeta}>Overrides existentes: {existingOverrideCount}</p>
+          <p className={styles.previewMeta}>
+            Encabezados personalizados existentes en la fila {rowPosition}: {existingOverrideCount}
+          </p>
         </section>
 
         <section className={styles.headerTypeSection}>
