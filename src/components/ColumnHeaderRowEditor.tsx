@@ -263,10 +263,10 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
                 value={counterStyle}
                 onChange={(event) => setCounterStyle(event.target.value as SequenceCounterStyle)}
               >
-                <option value="arabic">Arabigos (1, 2, 3)</option>
-                <option value="roman">Romanos (I, II, III)</option>
-                <option value="alpha-lower">Letras min (a, b, c)</option>
-                <option value="alpha-upper">Letras may (A, B, C)</option>
+                <option value="arabic">1, 2, 3, ...</option>
+                <option value="roman">I, II, III, ...</option>
+                <option value="alpha-lower">a, b, c, ...</option>
+                <option value="alpha-upper">A, B, C, ...</option>
               </select>
             </label>
             <button type="button" className={`${styles.button} ${styles.primary}`} onClick={handleApplyStandard}>
@@ -309,10 +309,10 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
                 value={counterStyle}
                 onChange={(event) => setCounterStyle(event.target.value as SequenceCounterStyle)}
               >
-                <option value="arabic">Arabigos (1, 2, 3)</option>
-                <option value="roman">Romanos (I, II, III)</option>
-                <option value="alpha-lower">Letras min (a, b, c)</option>
-                <option value="alpha-upper">Letras may (A, B, C)</option>
+                <option value="arabic">1, 2, 3, ...</option>
+                <option value="roman">I, II, III, ...</option>
+                <option value="alpha-lower">a, b, c, ...</option>
+                <option value="alpha-upper">A, B, C, ...</option>
               </select>
             </label>
             <button type="button" className={`${styles.button} ${styles.primary}`} onClick={handleApplyCounter}>
