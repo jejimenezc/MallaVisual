@@ -281,7 +281,9 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
           <section className={styles.controlsPanel}>
             <div className={styles.controlsRow}>
               <label className={`${styles.field} ${styles.fieldPrimary}`}>
-                <span className={styles.label}>Plantilla o prefijo</span>
+                <span className={styles.label}>
+                  Plantilla o prefijo ({counterTemplate.length}/{MAX_COUNTER_TEMPLATE_LENGTH})
+                </span>
                 <input
                   className={styles.input}
                   value={counterTemplate}
@@ -289,7 +291,7 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
                   onChange={(event) => setCounterTemplate((event.target.value ?? '').slice(0, MAX_COUNTER_TEMPLATE_LENGTH))}
                   placeholder="Modulo [n]"
                 />
-                <span className={styles.hint}>Soporta [n] o {'{n}'} como placeholder.</span>
+                <span className={styles.hint}>[n] o {'{n}'} corresponde al contador de la serie.</span>
               </label>
               <label className={styles.field}>
                 <span className={styles.label}>Iniciar en</span>
