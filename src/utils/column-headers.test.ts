@@ -26,6 +26,7 @@ test('createHeaderRow creates empty row with id and empty columns', () => {
     id: 'row-id-1',
     defaultText: '',
     defaultBold: false,
+    usePaletteBg: false,
     columns: {},
   });
   assert.equal(isHeaderRowVisible(row), true);
@@ -39,6 +40,7 @@ test('cloneHeaderRow deep clones row and regenerates ids', () => {
   const cloned = cloneHeaderRow({
     id: 'old-row',
     defaultText: 'General',
+    usePaletteBg: true,
     hidden: true,
     columns: {
       2: { id: 'old-override', text: 'Periodo 3' },
@@ -47,6 +49,7 @@ test('cloneHeaderRow deep clones row and regenerates ids', () => {
 
   assert.notEqual(cloned.id, 'old-row');
   assert.equal(cloned.defaultText, 'General');
+  assert.equal(cloned.usePaletteBg, true);
   assert.notEqual(cloned.columns?.[2]?.id, 'old-override');
   assert.notEqual(cloned.columns?.[2]?.id, cloned.id);
   assert.equal(cloned.columns?.[2]?.text, 'Periodo 3');
@@ -123,6 +126,14 @@ test('normalizeColumnHeadersConfig preserves hidden rows and defaults visibility
   });
   assert.equal(visibleResult.rows[0]?.hidden, undefined);
   assert.equal(isHeaderRowVisible(visibleResult.rows[0]!), true);
+});
+
+test('normalizeColumnHeadersConfig keeps usePaletteBg flag when present', () => {
+  const result = normalizeColumnHeadersConfig({
+    enabled: true,
+    rows: [{ id: 'r1', defaultText: 'A', usePaletteBg: true }],
+  });
+  assert.equal(result.rows[0]?.usePaletteBg, true);
 });
 
 test('rowHasAnyOverrides detects only non-empty override texts', () => {

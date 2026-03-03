@@ -26,6 +26,7 @@ export const createHeaderRow = (): ColumnHeaderRowConfig => ({
   id: createId(),
   defaultText: '',
   defaultBold: false,
+  usePaletteBg: false,
   columns: {},
 });
 
@@ -58,6 +59,7 @@ const normalizeHeaderRowConfig = (
   const id = rawId.length > 0 ? rawId : fallbackId;
   const defaultText = typeof value.defaultText === 'string' ? value.defaultText : '';
   const defaultBold = typeof value.defaultBold === 'boolean' ? value.defaultBold : false;
+  const usePaletteBg = typeof value.usePaletteBg === 'boolean' ? value.usePaletteBg : false;
   const rawColumns = isRecord(value.columns) ? value.columns : {};
   const columns: Record<number, ColumnHeaderTextOverride> = {};
 
@@ -71,6 +73,7 @@ const normalizeHeaderRowConfig = (
     id,
     defaultText,
     defaultBold,
+    usePaletteBg,
     hidden: value.hidden === true ? true : undefined,
     columns,
   };
@@ -93,6 +96,7 @@ export const cloneHeaderRow = (row: ColumnHeaderRowConfig): ColumnHeaderRowConfi
     id: createId(),
     defaultText: typeof row.defaultText === 'string' ? row.defaultText : '',
     defaultBold: typeof row.defaultBold === 'boolean' ? row.defaultBold : false,
+    usePaletteBg: typeof row.usePaletteBg === 'boolean' ? row.usePaletteBg : false,
     hidden: row.hidden === true ? true : undefined,
     columns,
   };

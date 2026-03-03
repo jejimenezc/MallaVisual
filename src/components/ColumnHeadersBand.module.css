@@ -31,6 +31,7 @@
   line-height: 1.2;
   color: var(--color-secondary);
   border-right: 1px solid var(--color-border);
+  background: var(--column-header-cell-bg, transparent);
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -54,7 +55,11 @@
 }
 
 .columnHeadersBandCellInteractive:hover {
-  background: var(--color-primary-10, rgba(37, 99, 235, 0.1));
+  background: color-mix(
+    in srgb,
+    var(--column-header-cell-bg, var(--color-surface)) 70%,
+    var(--color-primary-10, rgba(37, 99, 235, 0.1)) 30%
+  );
 }
 
 .columnHeadersBandCellInteractive:focus-visible {
