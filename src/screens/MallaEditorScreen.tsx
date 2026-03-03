@@ -1133,11 +1133,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
     rowId: string,
     text: string,
     bold: boolean,
+    usePaletteBg: boolean,
     useOverride: boolean,
     colIndex: number,
   ) => {
     const safeText = typeof text === 'string' ? text : '';
     const safeBold = bold === true;
+    const safeUsePaletteBg = usePaletteBg === true;
     runHistoryTransaction(() => {
       setColumnHeaders((prev) => {
         const normalized = ensureHeaderInvariants(normalizeColumnHeadersConfig(prev));
@@ -1159,6 +1161,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           };
           nextRows[targetIndex] = {
             ...targetRow,
+            usePaletteBg: safeUsePaletteBg,
             columns: nextColumns,
           };
         } else {
@@ -1170,6 +1173,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
             ...targetRow,
             defaultText: safeText,
             defaultBold: safeBold,
+            usePaletteBg: safeUsePaletteBg,
             columns: nextColumns,
           };
         }
@@ -2865,6 +2869,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       headers={normalizedColumnHeaders}
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
+                      paletteTokens={theme.tokens}
                       onCellClick={handleColumnHeaderCellClick}
                       activeRowId={isHeaderEditorOpen ? activeHeaderRowId : null}
                     />

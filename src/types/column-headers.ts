@@ -8,6 +8,7 @@ export interface ColumnHeaderRowConfig {
   id: string;
   defaultText: string;
   defaultBold?: boolean;
+  usePaletteBg?: boolean;
   hidden?: boolean;
   columns?: Record<number, ColumnHeaderTextOverride>;
 }
