@@ -1,5 +1,6 @@
 // src/screens/MallaEditorScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -2664,23 +2665,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
                         <li key={row.id} className={styles.metaMenuRowItem}>
                           <span className={styles.metaMenuRowLabel}>{getHeaderRowPreview(row, index)}</span>
                           <div className={styles.metaMenuRowActions}>
-                            <label className={styles.metaMenuRowVisibility}>
-                              <span className={styles.metaMenuRowVisibilityLabel}>Mostrar</span>
-                              <span className={styles.blockMenuToggleControl}>
-                                <input
-                                  type="checkbox"
-                                  checked={row.hidden !== true}
-                                  onChange={(event) =>
-                                    handleColumnHeaderRowVisibilityChange(row.id, event.target.checked)}
-                                  className={styles.blockMenuToggleInput}
-                                  disabled={!canEditColumnHeaders}
-                                  aria-label={`Mostrar encabezado ${index + 1}`}
-                                />
-                                <span className={styles.blockMenuToggleTrack} aria-hidden="true">
-                                  <span className={styles.blockMenuToggleThumb} />
-                                </span>
-                              </span>
-                            </label>
+                            <button
+                              type="button"
+                              className={styles.metaMenuIconToggle}
+                              onClick={() => handleColumnHeaderRowVisibilityChange(row.id, row.hidden === true)}
+                              disabled={!canEditColumnHeaders}
+                              aria-label={`${row.hidden === true ? 'Mostrar' : 'Ocultar'} encabezado ${index + 1}`}
+                              title={row.hidden === true ? 'no visible' : 'visible'}
+                            >
+                              {row.hidden === true ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                            </button>
                             <button
                               type="button"
                               className={styles.metaMenuInlineAction}

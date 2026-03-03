@@ -716,14 +716,33 @@
   gap: 0.25rem;
 }
 
-.metaMenuRowVisibility {
+.metaMenuIconToggle {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-secondary);
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
 }
 
-.metaMenuRowVisibilityLabel {
-  font-size: 0.75rem;
+.metaMenuIconToggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.metaMenuIconToggle:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  color: var(--color-primary);
+}
+
+.metaMenuIconToggle:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 1px;
 }
 
 .metaMenuInlineAction {
