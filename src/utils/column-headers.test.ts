@@ -5,6 +5,7 @@ import {
   cloneHeaderRow,
   createHeaderRow,
   ensureHeaderInvariants,
+  getHeaderBoldForColumn,
   getHeaderTextForColumn,
   isHeaderRowVisible,
   normalizeColumnHeadersConfig,
@@ -24,6 +25,7 @@ test('createHeaderRow creates empty row with id and empty columns', () => {
   assert.deepEqual(row, {
     id: 'row-id-1',
     defaultText: '',
+    defaultBold: false,
     columns: {},
   });
   assert.equal(isHeaderRowVisible(row), true);
@@ -89,6 +91,22 @@ test('getHeaderTextForColumn resolves overrides and falls back to default text',
 
   assert.equal(getHeaderTextForColumn(headers, row, 1), 'P2');
   assert.equal(getHeaderTextForColumn(headers, row, 3), 'General');
+});
+
+test('getHeaderBoldForColumn resolves override bold and falls back to default bold', () => {
+  const row = {
+    id: 'row-1',
+    defaultText: 'General',
+    defaultBold: true,
+    columns: {
+      1: { id: 'row-1-col-1', text: 'P2', bold: false },
+      2: { id: 'row-1-col-2', text: 'P3' },
+    },
+  };
+
+  assert.equal(getHeaderBoldForColumn(row, 0), true);
+  assert.equal(getHeaderBoldForColumn(row, 1), false);
+  assert.equal(getHeaderBoldForColumn(row, 2), true);
 });
 
 test('normalizeColumnHeadersConfig preserves hidden rows and defaults visibility', () => {

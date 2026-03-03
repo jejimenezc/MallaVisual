@@ -35,6 +35,10 @@
   overflow-wrap: anywhere;
 }
 
+.columnHeadersBandCellBold {
+  font-weight: 700;
+}
+
 .columnHeadersBandCell:last-child {
   border-right: none;
 }

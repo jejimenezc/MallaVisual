@@ -1,11 +1,13 @@
 export interface ColumnHeaderTextOverride {
   id: string;
   text: string;
+  bold?: boolean;
 }
 
 export interface ColumnHeaderRowConfig {
   id: string;
   defaultText: string;
+  defaultBold?: boolean;
   hidden?: boolean;
   columns?: Record<number, ColumnHeaderTextOverride>;
 }

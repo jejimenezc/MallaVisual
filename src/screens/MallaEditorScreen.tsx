@@ -1114,10 +1114,12 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const handleColumnHeaderEditorSave = useCallback((
     rowId: string,
     text: string,
+    bold: boolean,
     useOverride: boolean,
     colIndex: number,
   ) => {
     const safeText = typeof text === 'string' ? text : '';
+    const safeBold = bold === true;
     runHistoryTransaction(() => {
       setColumnHeaders((prev) => {
         const normalized = ensureHeaderInvariants(normalizeColumnHeadersConfig(prev));
@@ -1135,6 +1137,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           nextColumns[colIndex] = {
             id: nextColumns[colIndex]?.id ?? createHeaderOverride().id,
             text: safeText,
+            bold: safeBold,
           };
           nextRows[targetIndex] = {
             ...targetRow,
@@ -1148,6 +1151,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
           nextRows[targetIndex] = {
             ...targetRow,
             defaultText: safeText,
+            defaultBold: safeBold,
             columns: nextColumns,
           };
         }

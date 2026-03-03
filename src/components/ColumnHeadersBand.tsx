@@ -1,6 +1,11 @@
 import React from 'react';
 import type { ColumnHeadersConfig } from '../types/column-headers.ts';
-import { ensureHeaderInvariants, getHeaderTextForColumn, isHeaderRowVisible } from '../utils/column-headers.ts';
+import {
+  ensureHeaderInvariants,
+  getHeaderBoldForColumn,
+  getHeaderTextForColumn,
+  isHeaderRowVisible,
+} from '../utils/column-headers.ts';
 import styles from './ColumnHeadersBand.module.css';
 
 const EMPTY_HEADER_HINT = 'Click para editar';
@@ -65,6 +70,7 @@ export const ColumnHeadersBand: React.FC<Props> = ({
         >
           {Array.from({ length: safeColumnCount }, (_, colIndex) => {
             const headerText = getHeaderTextForColumn(normalizedHeaders, row, colIndex);
+            const isBold = getHeaderBoldForColumn(row, colIndex);
             const showHint = headerText.trim().length === 0;
 
             return (
@@ -72,6 +78,7 @@ export const ColumnHeadersBand: React.FC<Props> = ({
                 key={`column-headers-cell-${row.id}-${colIndex}`}
                 className={[
                   styles.columnHeadersBandCell,
+                  isBold ? styles.columnHeadersBandCellBold : '',
                   canEditCells ? styles.columnHeadersBandCellInteractive : '',
                   showHint ? styles.columnHeadersBandCellHint : '',
                 ].filter(Boolean).join(' ')}

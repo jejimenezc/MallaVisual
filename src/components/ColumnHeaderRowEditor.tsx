@@ -16,7 +16,7 @@ interface Props {
   colIndex: number;
   columnCount: number;
   onCancel: () => void;
-  onSave: (rowId: string, text: string, useOverride: boolean, colIndex: number) => void;
+  onSave: (rowId: string, text: string, bold: boolean, useOverride: boolean, colIndex: number) => void;
   onApplySeries: (rowId: string, makeText: (colIndex: number) => string) => Promise<boolean>;
 }
 
@@ -35,6 +35,7 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
   const [headerType, setHeaderType] = useState<HeaderType>('text');
   const [isOverrideActive, setIsOverrideActive] = useState(false);
   const [draftText, setDraftText] = useState('');
+  const [draftBold, setDraftBold] = useState(false);
   const [standardPreset, setStandardPreset] = useState<StandardPreset>('periodo');
   const [standardStart, setStandardStart] = useState(1);
   const [counterTemplate, setCounterTemplate] = useState('Modulo [n]');
@@ -46,9 +47,13 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
       return;
     }
     const nextOverrideActive = !!row?.columns?.[colIndex];
+    const nextBold = nextOverrideActive
+      ? (row?.columns?.[colIndex]?.bold ?? row?.defaultBold ?? false)
+      : (row?.defaultBold ?? false);
     setHeaderType('text');
     setIsOverrideActive(nextOverrideActive);
     setDraftText(nextOverrideActive ? (row?.columns?.[colIndex]?.text ?? '') : (row?.defaultText ?? ''));
+    setDraftBold(nextBold);
     setStandardPreset('periodo');
     setStandardStart(1);
     setCounterTemplate('Modulo [n]');
@@ -133,7 +138,7 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
           if (headerType !== 'text') {
             return;
           }
-          onSave(row.id, draftText ?? '', isOverrideActive, colIndex);
+          onSave(row.id, draftText ?? '', draftBold, isOverrideActive, colIndex);
         }}
       >
         <h3 id="column-header-row-editor-title" className={styles.title}>
@@ -211,6 +216,9 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
                   const nextActive = event.target.checked;
                   setIsOverrideActive(nextActive);
                   setDraftText(nextActive ? (row.columns?.[colIndex]?.text ?? '') : (row.defaultText ?? ''));
+                  setDraftBold(nextActive
+                    ? (row.columns?.[colIndex]?.bold ?? row.defaultBold ?? false)
+                    : (row.defaultBold ?? false));
                 }}
               />
               <span>Personalizar este periodo</span>
@@ -224,6 +232,16 @@ export const ColumnHeaderRowEditor: React.FC<Props> = ({
                 onChange={(event) => setDraftText(event.target.value ?? '')}
               />
             </label>
+            <section className={styles.emphasisPanel}>
+              <label className={styles.toggleRow}>
+                <input
+                  type="checkbox"
+                  checked={draftBold}
+                  onChange={(event) => setDraftBold(event.target.checked)}
+                />
+                <span>Estilo destacado (negrita)</span>
+              </label>
+            </section>
           </>
         ) : null}
 

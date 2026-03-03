@@ -14,6 +14,7 @@ const createId = (): string => crypto.randomUUID();
 const createDefaultOverride = (): ColumnHeaderTextOverride => ({
   id: createId(),
   text: '',
+  bold: false,
 });
 
 export const createDefaultColumnHeaders = (enabled = false): ColumnHeadersConfig => ({
@@ -24,6 +25,7 @@ export const createDefaultColumnHeaders = (enabled = false): ColumnHeadersConfig
 export const createHeaderRow = (): ColumnHeaderRowConfig => ({
   id: createId(),
   defaultText: '',
+  defaultBold: false,
   columns: {},
 });
 
@@ -40,6 +42,7 @@ const normalizeHeaderOverride = (
   return {
     id: rawId.length > 0 ? rawId : fallbackId,
     text: typeof value.text === 'string' ? value.text : '',
+    bold: typeof value.bold === 'boolean' ? value.bold : undefined,
   };
 };
 
@@ -54,6 +57,7 @@ const normalizeHeaderRowConfig = (
   const rawId = typeof value.id === 'string' ? value.id.trim() : '';
   const id = rawId.length > 0 ? rawId : fallbackId;
   const defaultText = typeof value.defaultText === 'string' ? value.defaultText : '';
+  const defaultBold = typeof value.defaultBold === 'boolean' ? value.defaultBold : false;
   const rawColumns = isRecord(value.columns) ? value.columns : {};
   const columns: Record<number, ColumnHeaderTextOverride> = {};
 
@@ -66,6 +70,7 @@ const normalizeHeaderRowConfig = (
   return {
     id,
     defaultText,
+    defaultBold,
     hidden: value.hidden === true ? true : undefined,
     columns,
   };
@@ -80,12 +85,14 @@ export const cloneHeaderRow = (row: ColumnHeaderRowConfig): ColumnHeaderRowConfi
     columns[colIndex] = {
       id: createId(),
       text: typeof rawOverride?.text === 'string' ? rawOverride.text : '',
+      bold: typeof rawOverride?.bold === 'boolean' ? rawOverride.bold : undefined,
     };
   }
 
   return {
     id: createId(),
     defaultText: typeof row.defaultText === 'string' ? row.defaultText : '',
+    defaultBold: typeof row.defaultBold === 'boolean' ? row.defaultBold : false,
     hidden: row.hidden === true ? true : undefined,
     columns,
   };
@@ -133,6 +140,23 @@ export const getHeaderTextForColumn = (
   return row.columns?.[colIndex]?.text ?? row.defaultText;
 };
 
+export const getHeaderBoldForColumn = (
+  row: ColumnHeaderRowConfig,
+  colIndex: number,
+): boolean => {
+  if (!Number.isInteger(colIndex) || colIndex < 0) {
+    return row.defaultBold === true;
+  }
+  const override = row.columns?.[colIndex];
+  if (!override) {
+    return row.defaultBold === true;
+  }
+  if (typeof override.bold === 'boolean') {
+    return override.bold;
+  }
+  return row.defaultBold === true;
+};
+
 export const rowHasAnyOverrides = (row: ColumnHeaderRowConfig): boolean =>
   Object.values(row.columns ?? {}).some(
     (override) => typeof override?.text === 'string' && override.text.trim().length > 0,
@@ -151,6 +175,7 @@ export const applySequentialOverrides = (
     nextColumns[colIndex] = {
       id: current?.id ?? createId(),
       text: makeText(colIndex),
+      ...(typeof current?.bold === 'boolean' ? { bold: current.bold } : {}),
     };
   }
 
