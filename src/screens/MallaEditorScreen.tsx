@@ -1,5 +1,6 @@
 // src/screens/MallaEditorScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -89,6 +90,23 @@ const CONTROL_COLUMN_WIDTH = 56;
 const COLUMN_HEADER_ROW_HEIGHT = 28;
 const META_CALC_HEADER_ROW_HEIGHT = 30;
 const REPO_MIN_OUTER_METRICS_FALLBACK = computeMetrics([[{ active: true }]], '1/1');
+
+const DuplicateIcon: React.FC = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <rect x="3" y="6" width="9" height="9" rx="1.5" />
+    <rect x="7" y="2" width="9" height="9" rx="1.5" />
+    <path d="M15.5 13v5M13 15.5h5" />
+  </svg>
+);
+
+const TrashIcon: React.FC = () => (
+  <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <path d="M4 6h12" />
+    <path d="M8 6V4h4v2" />
+    <path d="M6.5 6l.7 10h5.6l.7-10" />
+    <path d="M8.5 9v5M11.5 9v5" />
+  </svg>
+);
 
 interface Props {
   /** Maestro actual (10x10) */
@@ -1114,10 +1132,14 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const handleColumnHeaderEditorSave = useCallback((
     rowId: string,
     text: string,
+    bold: boolean,
+    usePaletteBg: boolean,
     useOverride: boolean,
     colIndex: number,
   ) => {
     const safeText = typeof text === 'string' ? text : '';
+    const safeBold = bold === true;
+    const safeUsePaletteBg = usePaletteBg === true;
     runHistoryTransaction(() => {
       setColumnHeaders((prev) => {
         const normalized = ensureHeaderInvariants(normalizeColumnHeadersConfig(prev));
@@ -1135,9 +1157,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
           nextColumns[colIndex] = {
             id: nextColumns[colIndex]?.id ?? createHeaderOverride().id,
             text: safeText,
+            bold: safeBold,
           };
           nextRows[targetIndex] = {
             ...targetRow,
+            usePaletteBg: safeUsePaletteBg,
             columns: nextColumns,
           };
         } else {
@@ -1148,6 +1172,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
           nextRows[targetIndex] = {
             ...targetRow,
             defaultText: safeText,
+            defaultBold: safeBold,
+            usePaletteBg: safeUsePaletteBg,
             columns: nextColumns,
           };
         }
@@ -2660,40 +2686,35 @@ export const MallaEditorScreen: React.FC<Props> = ({
                         <li key={row.id} className={styles.metaMenuRowItem}>
                           <span className={styles.metaMenuRowLabel}>{getHeaderRowPreview(row, index)}</span>
                           <div className={styles.metaMenuRowActions}>
-                            <label className={styles.metaMenuRowVisibility}>
-                              <span className={styles.metaMenuRowVisibilityLabel}>Mostrar</span>
-                              <span className={styles.blockMenuToggleControl}>
-                                <input
-                                  type="checkbox"
-                                  checked={row.hidden !== true}
-                                  onChange={(event) =>
-                                    handleColumnHeaderRowVisibilityChange(row.id, event.target.checked)}
-                                  className={styles.blockMenuToggleInput}
-                                  disabled={!canEditColumnHeaders}
-                                  aria-label={`Mostrar encabezado ${index + 1}`}
-                                />
-                                <span className={styles.blockMenuToggleTrack} aria-hidden="true">
-                                  <span className={styles.blockMenuToggleThumb} />
-                                </span>
-                              </span>
-                            </label>
                             <button
                               type="button"
-                              className={styles.metaMenuInlineAction}
-                              onClick={() => handleColumnHeaderDuplicateRow(row.id)}
-                              disabled={!canEditColumnHeaders || normalizedColumnHeaders.rows.length >= 5}
-                              aria-label={`Duplicar encabezado ${index + 1}`}
+                              className={styles.metaMenuIconToggle}
+                              onClick={() => handleColumnHeaderRowVisibilityChange(row.id, row.hidden === true)}
+                              disabled={!canEditColumnHeaders}
+                              aria-label={`${row.hidden === true ? 'Mostrar' : 'Ocultar'} encabezado ${index + 1}`}
+                              title={row.hidden === true ? 'no visible' : 'visible'}
                             >
-                              Duplicar
+                              {row.hidden === true ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
                             </button>
                             <button
                               type="button"
-                              className={styles.metaMenuInlineAction}
+                              className={styles.metaMenuIconAction}
+                              onClick={() => handleColumnHeaderDuplicateRow(row.id)}
+                              disabled={!canEditColumnHeaders || normalizedColumnHeaders.rows.length >= 5}
+                              aria-label={`Duplicar encabezado ${index + 1}`}
+                              title="Duplicar"
+                            >
+                              <DuplicateIcon />
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.metaMenuIconAction}
                               onClick={() => void handleColumnHeaderDeleteRow(row.id)}
                               disabled={!canEditColumnHeaders || normalizedColumnHeaders.rows.length <= 1}
                               aria-label={`Eliminar encabezado ${index + 1}`}
+                              title="Eliminar"
                             >
-                              Eliminar
+                              <TrashIcon />
                             </button>
                           </div>
                         </li>
@@ -2748,20 +2769,22 @@ export const MallaEditorScreen: React.FC<Props> = ({
                               <div className={styles.metaMenuRowActions}>
                                 <button
                                   type="button"
-                                  className={styles.metaMenuInlineAction}
+                                  className={styles.metaMenuIconAction}
                                   onClick={() => handleMetaDuplicateRow(row.id)}
+                                  title="Duplicar"
                                   aria-label="Duplicar métrica"
                                 >
-                                  Duplicar
+                                  <DuplicateIcon />
                                 </button>
                                 <button
                                   type="button"
-                                  className={styles.metaMenuInlineAction}
+                                  className={styles.metaMenuIconAction}
                                   onClick={() => void handleMetaDeleteRow(row.id)}
                                   disabled={normalizedMetaRows.length <= 1}
+                                  title="Eliminar"
                                   aria-label="Eliminar métrica"
                                 >
-                                  Eliminar
+                                  <TrashIcon />
                                 </button>
                               </div>
                             </li>
@@ -2846,6 +2869,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                       headers={normalizedColumnHeaders}
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
+                      paletteTokens={theme.tokens}
                       onCellClick={handleColumnHeaderCellClick}
                       activeRowId={isHeaderEditorOpen ? activeHeaderRowId : null}
                     />
