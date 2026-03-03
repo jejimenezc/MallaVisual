@@ -1,0 +1,85 @@
+.metaCalcHeader {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.metaCalcHeaderRow {
+  display: grid;
+}
+
+.metaCalcHeaderRow + .metaCalcHeaderRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.metaCalcHeaderCell {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  border-right: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+  background: var(--color-surface);
+  padding: 0 6px;
+}
+
+.metaCalcHeaderCell:last-child {
+  border-right: none;
+}
+
+.metaCalcHeaderCellActive {
+  background: var(--color-primary-10, rgba(37, 99, 235, 0.1));
+}
+
+.metaCalcHeaderCellInteractive {
+  cursor: pointer;
+}
+
+.metaCalcHeaderCellInteractive:hover {
+  background: var(--color-primary-10, rgba(37, 99, 235, 0.1));
+}
+
+.metaCalcHeaderCellContent {
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  width: 100%;
+  line-height: 1.1;
+}
+
+.metaCalcHeaderCellContentWithLabel {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.metaCalcHeaderCellContentHint {
+  grid-template-columns: 1fr;
+}
+
+.metaCalcHeaderCellLabel {
+  font-size: 0.62rem;
+  opacity: 0.8;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.metaCalcHeaderCellValue {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metaCalcHeaderCellValueHint {
+  text-align: center;
+  white-space: normal;
+  font-style: italic;
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--color-secondary) 75%, transparent);
+}
+
+.metaCalcHeaderOverrideMark {
+  margin-left: 4px;
+  font-size: 0.65rem;
+}
