@@ -7,6 +7,7 @@ import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { coordKey } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
+import { MallaViewerScreen } from './screens/MallaViewerScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
@@ -220,7 +221,7 @@ export default function App(): JSX.Element | null {
   const storedActiveProjectRef = useRef(readStoredActiveProject(getSafeLocalStorage()));
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
-  const [, setViewerSnapshotDraft] = useState<MallaSnapshot | null>(null);
+  const [viewerSnapshotDraft, setViewerSnapshotDraft] = useState<MallaSnapshot | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -774,19 +775,22 @@ export default function App(): JSX.Element | null {
         }
         const normalized = validation.normalizedSnapshot;
         setViewerSnapshotDraft(normalized);
-        await confirmAsync({
+        const shouldOpenViewer = await confirmAsync({
           title: 'Snapshot viewer cargado',
           message: `Proyecto: ${normalized.projectName}\nFecha: ${normalized.createdAt}\nFormato: v${normalized.formatVersion}\nItems: ${normalized.items.length}`,
-          confirmLabel: 'OK',
+          confirmLabel: 'Ver en viewer',
           cancelLabel: 'Cerrar',
           variant: 'info',
         });
+        if (shouldOpenViewer) {
+          navigate('/malla/viewer');
+        }
         pushToast('Snapshot viewer listo para render', 'success');
       } catch {
         pushToast('No se pudo abrir el snapshot viewer', 'error');
       }
     },
-    [confirmAsync, pushToast],
+    [confirmAsync, navigate, pushToast],
   );
 
   const handleCloseProject = useCallback(async () => {
@@ -1711,6 +1715,15 @@ export default function App(): JSX.Element | null {
                   ) : (
                     <Navigate to="/" replace />
                   )
+                }
+              />
+              <Route
+                path="/malla/viewer"
+                element={
+                  <MallaViewerScreen
+                    snapshot={viewerSnapshotDraft}
+                    onImportSnapshotFile={handleImportViewerSnapshotFile}
+                  />
                 }
               />
               <Route path="*" element={<Navigate to="/" />} />

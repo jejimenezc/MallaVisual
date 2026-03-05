@@ -1,0 +1,198 @@
+.viewerScreen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.viewerHeader {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.viewerTitleWrap {
+  min-width: 0;
+}
+
+.viewerTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  color: #0f172a;
+}
+
+.snapshotMeta {
+  display: block;
+  margin-top: 0.2rem;
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.viewerActions {
+  display: inline-flex;
+  gap: var(--space-xs);
+}
+
+.viewerBody {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.appearancePanel {
+  flex: 0 0 auto;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-right: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  transition: width 0.2s ease, opacity 0.2s ease;
+  padding: 0;
+}
+
+.appearanceOpen {
+  width: 300px;
+  opacity: 1;
+  pointer-events: auto;
+  padding: var(--space-md);
+}
+
+.appearancePanel h3 {
+  margin: 0 0 var(--space-sm);
+  color: #0f172a;
+}
+
+.field {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: var(--space-sm);
+  color: #334155;
+  font-size: 0.8125rem;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.toggleField {
+  display: inline-flex;
+  gap: var(--space-xs);
+  align-items: center;
+  margin-bottom: var(--space-sm);
+}
+
+.viewerMain {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-sm);
+  gap: var(--space-sm);
+}
+
+.viewerToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.zoomControl {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.zoomControl input {
+  width: 8rem;
+}
+
+.panHint {
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.runtimeHeader,
+.runtimeFooter {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  color: #0f172a;
+  font-size: 0.875rem;
+}
+
+.viewerViewport {
+  flex: 1;
+  min-height: 320px;
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  padding: 1rem;
+}
+
+.viewerViewportPanning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.viewerCanvasScaled {
+  position: relative;
+  transform-origin: top left;
+}
+
+.viewerPiece {
+  position: absolute;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.viewerPieceGrid {
+  display: grid;
+}
+
+.viewerCell {
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.viewerEmpty {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: var(--space-sm);
+  text-align: center;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .viewerBody {
+    flex-direction: column;
+  }
+
+  .appearancePanel {
+    width: 100%;
+    max-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  }
+
+  .appearanceOpen {
+    width: 100%;
+    max-height: 70vh;
+    overflow: auto;
+  }
+}
