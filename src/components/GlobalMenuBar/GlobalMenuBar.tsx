@@ -17,6 +17,8 @@ interface GlobalMenuBarProps {
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
+  onImportViewerSnapshotFile: (file: File) => Promise<void> | void;
+  onExportViewerSnapshot: () => void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => RecentProject[];
@@ -44,6 +46,8 @@ export function GlobalMenuBar({
   onNewProject,
   onImportProjectFile,
   onExportProject,
+  onImportViewerSnapshotFile,
+  onExportViewerSnapshot,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -55,6 +59,7 @@ export function GlobalMenuBar({
   const [openSubmenu, setOpenSubmenu] = useState<SubmenuKey | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const snapshotInputRef = useRef<HTMLInputElement>(null);
   const { commands, executeCommand } = useAppCommands();
 
   const undoCommand = commands.undo;
@@ -140,6 +145,32 @@ export function GlobalMenuBar({
     [handleCloseMenu, onImportProjectFile],
   );
 
+  const handleOpenSnapshotFromDisk = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      snapshotInputRef.current?.click();
+    },
+    [handleCloseMenu],
+  );
+
+  const handleSnapshotInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      handleCloseMenu();
+      void (async () => {
+        try {
+          await onImportViewerSnapshotFile(file);
+        } finally {
+          event.target.value = '';
+        }
+      })();
+    },
+    [handleCloseMenu, onImportViewerSnapshotFile],
+  );
+
   const handleCloseProject = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -160,6 +191,17 @@ export function GlobalMenuBar({
       onExportProject();
     },
     [handleCloseMenu, hasProject, onExportProject],
+  );
+
+  const handleExportViewerSnapshotClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) return;
+      onExportViewerSnapshot();
+    },
+    [handleCloseMenu, hasProject, onExportViewerSnapshot],
   );
 
   const handleOpenRecent = useCallback(
@@ -328,8 +370,26 @@ export function GlobalMenuBar({
                       Exportar proyecto…
                     </button>
                   </li>
+                  <li className={styles.dropdownItemWrapper}>
+                    <button
+                      type="button"
+                      className={styles.dropdownItem}
+                      onClick={handleExportViewerSnapshotClick}
+                    >
+                      Exportar malla (snapshot viewer)
+                    </button>
+                  </li>
                 </>
               ) : null}
+              <li className={styles.dropdownItemWrapper}>
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenSnapshotFromDisk}
+                >
+                  Abrir snapshot viewer…
+                </button>
+              </li>
               <li className={styles.dropdownSeparator} aria-hidden="true" />
               <li className={styles.dropdownItemWrapper}>
                 <button type="button" className={styles.dropdownItem} disabled>
@@ -597,6 +657,13 @@ export function GlobalMenuBar({
         type="file"
         ref={fileInputRef}
         onChange={handleFileInputChange}
+        accept="application/json"
+        className={styles.hiddenInput}
+      />
+      <input
+        type="file"
+        ref={snapshotInputRef}
+        onChange={handleSnapshotInputChange}
         accept="application/json"
         className={styles.hiddenInput}
       />

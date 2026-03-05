@@ -51,6 +51,11 @@ import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
+import type { MallaSnapshot } from './types/malla-snapshot.ts';
+import {
+  buildMallaSnapshotFromState,
+  validateAndNormalizeMallaSnapshot,
+} from './utils/malla-snapshot.ts';
 import {
   type BlockState,
   type ControlDataClearRequest,
@@ -84,6 +89,8 @@ interface AppLayoutProps {
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
+  onImportViewerSnapshotFile: (file: File) => Promise<void> | void;
+  onExportViewerSnapshot: () => void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
@@ -103,6 +110,8 @@ function AppLayout({
   onNewProject,
   onImportProjectFile,
   onExportProject,
+  onImportViewerSnapshotFile,
+  onExportViewerSnapshot,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -177,6 +186,8 @@ function AppLayout({
             onNewProject={onNewProject}
             onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
+            onImportViewerSnapshotFile={onImportViewerSnapshotFile}
+            onExportViewerSnapshot={onExportViewerSnapshot}
             onCloseProject={onCloseProject}
             onToggleMetaPanelEnabled={onToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
@@ -209,6 +220,7 @@ export default function App(): JSX.Element | null {
   const storedActiveProjectRef = useRef(readStoredActiveProject(getSafeLocalStorage()));
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
+  const [, setViewerSnapshotDraft] = useState<MallaSnapshot | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -729,6 +741,53 @@ export default function App(): JSX.Element | null {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleExportViewerSnapshot = useCallback(() => {
+    if (!currentProject) return;
+    try {
+      const snapshot = buildMallaSnapshotFromState(currentProject, {
+        projectName: projectName || 'Proyecto',
+      });
+      const json = JSON.stringify(snapshot, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectName || 'proyecto'}-snapshot-v1.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      pushToast('Snapshot viewer exportado', 'success');
+    } catch {
+      pushToast('No se pudo exportar el snapshot viewer', 'error');
+    }
+  }, [currentProject, projectName, pushToast]);
+
+  const handleImportViewerSnapshotFile = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const parsed: unknown = JSON.parse(text);
+        const validation = validateAndNormalizeMallaSnapshot(parsed);
+        if (!validation.ok) {
+          pushToast(validation.error, 'error');
+          return;
+        }
+        const normalized = validation.normalizedSnapshot;
+        setViewerSnapshotDraft(normalized);
+        await confirmAsync({
+          title: 'Snapshot viewer cargado',
+          message: `Proyecto: ${normalized.projectName}\nFecha: ${normalized.createdAt}\nFormato: v${normalized.formatVersion}\nItems: ${normalized.items.length}`,
+          confirmLabel: 'OK',
+          cancelLabel: 'Cerrar',
+          variant: 'info',
+        });
+        pushToast('Snapshot viewer listo para render', 'success');
+      } catch {
+        pushToast('No se pudo abrir el snapshot viewer', 'error');
+      }
+    },
+    [confirmAsync, pushToast],
+  );
 
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
@@ -1531,6 +1590,8 @@ export default function App(): JSX.Element | null {
             onNewProject={handleNewProject}
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
+            onImportViewerSnapshotFile={handleImportViewerSnapshotFile}
+            onExportViewerSnapshot={handleExportViewerSnapshot}
             onCloseProject={handleCloseProject}
             onToggleMetaPanelEnabled={handleToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
