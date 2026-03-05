@@ -3,6 +3,9 @@ import type { MetaPanelRowConfig } from '../types/meta-panel.ts';
 import { getCellConfigForColumn } from '../utils/malla-io.ts';
 import type { MallaQuerySource } from '../utils/malla-queries.ts';
 import { computeMetaRowValueForColumn, type MetaCalcDeps } from '../utils/meta-calc.ts';
+import styles from './MetaCalcHeader.module.css';
+
+const EMPTY_METRIC_HINT = 'Click para editar';
 
 interface Props {
   columnCount: number;
@@ -62,15 +65,8 @@ export const MetaCalcHeader: React.FC<Props> = ({
 
   return (
     <div
-      className={className}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        border: '1px solid var(--color-border)',
-        borderBottom: '1px solid var(--color-border)',
-        overflow: 'hidden',
-        ...style,
-      }}
+      className={[styles.metaCalcHeader, className].filter(Boolean).join(' ')}
+      style={style}
     >
       {safeRows.map((rowConfig, rowIndex) => {
         const rowValues = valuesByRow[rowIndex] ?? [];
@@ -79,11 +75,8 @@ export const MetaCalcHeader: React.FC<Props> = ({
         return (
           <div
             key={`meta-calc-header-row-${rowConfig.id}`}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: rowGridTemplateColumns,
-              borderBottom: rowIndex < safeRows.length - 1 ? '1px solid var(--color-border)' : undefined,
-            }}
+            className={styles.metaCalcHeaderRow}
+            style={{ gridTemplateColumns: rowGridTemplateColumns }}
           >
             {Array.from({ length: safeColumnCount }, (_, colIndex) => {
               const cellConfig = getCellConfigForColumn(rowConfig, colIndex);
@@ -93,54 +86,37 @@ export const MetaCalcHeader: React.FC<Props> = ({
               const rowLabel = overrideLabel || generalLabel || undefined;
               const hasTerms = cellConfig.terms.length > 0;
               const hasOverride = isOverrideColumn?.(rowConfig, colIndex) ?? false;
+              const hasRowLabel = typeof rowLabel === 'string' && rowLabel.trim().length > 0;
+              const showEmptyHint = value == null && !hasTerms && !hasRowLabel;
               const displayValue = value == null
-                ? (hasTerms ? invalidPlaceholder : placeholder)
+                ? (showEmptyHint ? EMPTY_METRIC_HINT : (hasTerms ? invalidPlaceholder : placeholder))
                 : `#${value}`;
 
               return (
                 <div
                   key={`meta-calc-header-cell-${rowConfig.id}-${colIndex}`}
-                  style={{
-                    minHeight: 28,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'stretch',
-                    borderRight: '1px solid var(--color-border)',
-                    fontSize: '0.85rem',
-                    color: 'var(--color-secondary)',
-                    background: isActiveRow
-                      ? 'var(--color-primary-10, rgba(37, 99, 235, 0.1))'
-                      : 'var(--color-surface)',
-                    cursor: onCellClick ? 'pointer' : 'default',
-                    padding: '0 6px',
-                  }}
+                  className={[
+                    styles.metaCalcHeaderCell,
+                    isActiveRow ? styles.metaCalcHeaderCellActive : '',
+                    onCellClick ? styles.metaCalcHeaderCellInteractive : '',
+                  ].filter(Boolean).join(' ')}
                   title={rowLabel ? `${rowLabel} (${cellConfig.id})` : cellConfig.id}
                   onClick={onCellClick ? () => onCellClick(rowConfig.id, colIndex) : undefined}
                 >
                   <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) auto',
-                      alignItems: 'center',
-                      columnGap: 6,
-                      width: '100%',
-                      lineHeight: 1.1,
-                    }}
+                    className={[
+                      styles.metaCalcHeaderCellContent,
+                      showEmptyHint ? styles.metaCalcHeaderCellContentHint : styles.metaCalcHeaderCellContentWithLabel,
+                    ].join(' ')}
                   >
-                    <span
-                      style={{
-                        fontSize: '0.62rem',
-                        opacity: 0.8,
-                        textAlign: 'left',
-                        whiteSpace: 'normal',
-                        overflowWrap: 'anywhere',
-                      }}
-                    >
-                      {rowLabel ?? ''}
-                    </span>
-                    <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {!showEmptyHint ? (
+                      <span className={styles.metaCalcHeaderCellLabel}>
+                        {rowLabel ?? ''}
+                      </span>
+                    ) : null}
+                    <span className={showEmptyHint ? styles.metaCalcHeaderCellValueHint : styles.metaCalcHeaderCellValue}>
                       {displayValue}
-                      {hasOverride ? <span style={{ marginLeft: 4, fontSize: '0.65rem' }}>*</span> : null}
+                      {hasOverride ? <span className={styles.metaCalcHeaderOverrideMark}>*</span> : null}
                     </span>
                   </div>
                 </div>

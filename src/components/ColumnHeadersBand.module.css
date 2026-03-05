@@ -1,0 +1,68 @@
+.columnHeadersBand {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-surface) 86%, var(--color-primary-10, rgba(37, 99, 235, 0.1)));
+}
+
+.columnHeadersBandRow {
+  display: grid;
+}
+
+.columnHeadersBandRowActive .columnHeadersBandCell {
+  background: color-mix(in srgb, var(--color-primary-10, rgba(37, 99, 235, 0.1)) 55%, var(--color-surface));
+  box-shadow: inset 0 1px 0 rgba(37, 99, 235, 0.25), inset 0 -1px 0 rgba(37, 99, 235, 0.25);
+}
+
+.columnHeadersBandRow + .columnHeadersBandRow {
+  border-top: 1px solid var(--color-border);
+}
+
+.columnHeadersBandCell {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 6px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  color: var(--color-secondary);
+  border-right: 1px solid var(--color-border);
+  background: var(--column-header-cell-bg, transparent);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.columnHeadersBandCellBold {
+  font-weight: 700;
+}
+
+.columnHeadersBandCell:last-child {
+  border-right: none;
+}
+
+.columnHeadersBandCellHint {
+  color: color-mix(in srgb, var(--color-secondary) 75%, transparent);
+  font-style: italic;
+  font-size: 0.78rem;
+}
+
+.columnHeadersBandCellInteractive {
+  cursor: pointer;
+}
+
+.columnHeadersBandCellInteractive:hover {
+  background: color-mix(
+    in srgb,
+    var(--column-header-cell-bg, var(--color-surface)) 70%,
+    var(--color-primary-10, rgba(37, 99, 235, 0.1)) 30%
+  );
+}
+
+.columnHeadersBandCellInteractive:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: -2px;
+}

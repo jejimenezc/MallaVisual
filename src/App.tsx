@@ -24,6 +24,10 @@ import {
   normalizeProjectTheme,
   type ProjectTheme,
 } from './utils/malla-io.ts';
+import {
+  createDefaultColumnHeaders,
+  normalizeColumnHeadersConfig,
+} from './utils/column-headers.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
@@ -655,6 +659,7 @@ export default function App(): JSX.Element | null {
         version: MALLA_SCHEMA_VERSION,
         repository: repositorySnapshot.entries,
         theme: projectThemeState,
+        columnHeaders: normalizeColumnHeadersConfig(malla.columnHeaders),
       };
     }
     if (block) {
@@ -675,6 +680,7 @@ export default function App(): JSX.Element | null {
         activeMasterId: 'master',
         theme: projectThemeState,
         metaPanel: createDefaultMetaPanel(false),
+        columnHeaders: createDefaultColumnHeaders(false),
       };
     }
     return null;

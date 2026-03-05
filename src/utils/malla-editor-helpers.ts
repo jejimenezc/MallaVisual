@@ -16,10 +16,12 @@ import {
   MALLA_SCHEMA_VERSION,
   normalizeMetaPanelConfig,
   type MetaPanelConfig,
+  type ColumnHeadersConfig,
   normalizeProjectTheme,
   type MallaExport,
   type ProjectTheme,
 } from './malla-io.ts';
+import { normalizeColumnHeadersConfig } from './column-headers.ts';
 
 export interface MallaHistoryEntry {
   cols: number;
@@ -30,6 +32,7 @@ export interface MallaHistoryEntry {
   mastersById: Record<string, MasterBlockData>;
   selectedMasterId: string;
   metaPanel: MetaPanelConfig;
+  columnHeaders: ColumnHeadersConfig;
   theme: ProjectTheme;
 }
 
@@ -43,6 +46,7 @@ export interface NormalizedInitialMalla {
   activeMasterId: string;
   theme: ProjectTheme;
   metaPanel: MetaPanelConfig;
+  columnHeaders: ColumnHeadersConfig;
 }
 
 export const cloneMallaHistoryEntry = (entry: MallaHistoryEntry): MallaHistoryEntry => {
@@ -160,6 +164,7 @@ export function buildNormalizedInitialMalla(params: {
   const nextActiveId = repoId ?? fallbackActiveId;
   const nextTheme = normalizeProjectTheme(initialMalla.theme);
   const nextMetaPanel = normalizeMetaPanelConfig(initialMalla.metaPanel);
+  const nextColumnHeaders = normalizeColumnHeadersConfig(initialMalla.columnHeaders);
 
   const project: MallaExport = {
     version: MALLA_SCHEMA_VERSION,
@@ -172,6 +177,7 @@ export function buildNormalizedInitialMalla(params: {
     repository: initialMalla.repository ?? {},
     theme: nextTheme,
     metaPanel: nextMetaPanel,
+    columnHeaders: nextColumnHeaders,
   };
 
   return {
@@ -184,5 +190,6 @@ export function buildNormalizedInitialMalla(params: {
     activeMasterId: nextActiveId,
     theme: nextTheme,
     metaPanel: nextMetaPanel,
+    columnHeaders: nextColumnHeaders,
   };
 }
