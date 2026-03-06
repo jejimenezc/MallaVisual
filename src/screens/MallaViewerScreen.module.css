@@ -31,6 +31,10 @@
   gap: var(--space-xs);
 }
 
+.viewerHeader :global(.header-center) {
+  min-width: 0;
+}
+
 .viewerBody {
   display: flex;
   min-height: 0;
@@ -91,27 +95,102 @@
   gap: var(--space-sm);
 }
 
-.viewerToolbar {
+.zoomControl {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-xs);
+  row-gap: var(--space-xs);
+  min-width: 0;
 }
 
-.zoomControl {
+.zoomControlGroup {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
+  min-width: 0;
+  flex: 0 0 auto;
 }
 
-.zoomControl input {
-  width: 8rem;
+.zoomSlider {
+  width: 7rem;
+  accent-color: var(--color-accent, var(--color-primary));
 }
 
-.panHint {
-  color: #475569;
-  font-size: 0.8rem;
+.zoomButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.zoomButton:not(:disabled):hover {
+  background: var(--color-primary-10, rgba(37, 99, 235, 0.1));
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.zoomButton:disabled {
+  background: var(--color-border);
+  border-color: var(--color-border);
+  color: var(--color-secondary);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.zoomValue {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pointerToggle {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-surface);
+  flex: 0 0 auto;
+}
+
+.pointerToggleButton {
+  border: none;
+  background: none;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pointerToggleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pointerToggleButton + .pointerToggleButton {
+  border-left: 1px solid var(--color-border);
+}
+
+.pointerToggleButtonActive {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 .runtimeHeader,
@@ -240,5 +319,11 @@
     width: 100%;
     max-height: 70vh;
     overflow: auto;
+  }
+}
+
+@media (max-width: 960px) {
+  .zoomSlider {
+    width: 5.5rem;
   }
 }

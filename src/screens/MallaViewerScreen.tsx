@@ -63,6 +63,7 @@ export function MallaViewerScreen({
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
   const renderModel = useMemo(() => {
@@ -116,7 +117,7 @@ export function MallaViewerScreen({
   );
 
   const handleViewportMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!event.altKey || event.button !== 0) return;
+    if (pointerMode !== 'pan' || event.button !== 0) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
     panStartRef.current = {
@@ -128,7 +129,7 @@ export function MallaViewerScreen({
     setIsPanning(true);
     window.getSelection()?.removeAllRanges();
     event.preventDefault();
-  }, []);
+  }, [pointerMode]);
 
   useEffect(() => {
     if (!isPanning) return;
@@ -196,6 +197,60 @@ export function MallaViewerScreen({
               {formatSnapshotDate(snapshot.createdAt)}
             </span>
           </div>
+        }
+        center={
+          <label className={styles.zoomControl}>
+            <div className={styles.zoomControlGroup}>
+              <button
+                type="button"
+                className={styles.zoomButton}
+                onClick={handleZoomOut}
+                disabled={zoom <= VIEWER_MIN_ZOOM}
+                aria-label="Reducir zoom"
+              >
+                -
+              </button>
+              <input
+                className={styles.zoomSlider}
+                type="range"
+                min={VIEWER_MIN_ZOOM}
+                max={VIEWER_MAX_ZOOM}
+                step={VIEWER_ZOOM_STEP}
+                value={zoom}
+                onChange={(event) => setZoomSafe(Number(event.target.value))}
+                aria-label="Nivel de zoom de la publicacion"
+              />
+              <button
+                type="button"
+                className={styles.zoomButton}
+                onClick={handleZoomIn}
+                disabled={zoom >= VIEWER_MAX_ZOOM}
+                aria-label="Aumentar zoom"
+              >
+                +
+              </button>
+              <span className={styles.zoomValue}>{zoomPct}</span>
+            </div>
+            <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+              <button
+                type="button"
+                className={styles.pointerToggleButton}
+                aria-pressed={false}
+                disabled
+                title="Seleccion deshabilitada en vista previa/publicacion"
+              >
+                👉🏻
+              </button>
+              <button
+                type="button"
+                className={`${styles.pointerToggleButton} ${styles.pointerToggleButtonActive}`}
+                aria-pressed={true}
+                title="Arrastre activo"
+              >
+                🤚🏻
+              </button>
+            </div>
+          </label>
         }
         right={
           <div className={styles.viewerActions}>
@@ -362,27 +417,6 @@ export function MallaViewerScreen({
         </aside>
 
         <div className={styles.viewerMain}>
-          <div className={styles.viewerToolbar}>
-            <div className={styles.zoomControl}>
-              <Button type="button" onClick={handleZoomOut} disabled={zoom <= VIEWER_MIN_ZOOM}>
-                -
-              </Button>
-              <input
-                type="range"
-                min={VIEWER_MIN_ZOOM}
-                max={VIEWER_MAX_ZOOM}
-                step={VIEWER_ZOOM_STEP}
-                value={zoom}
-                onChange={(event) => setZoomSafe(Number(event.target.value))}
-              />
-              <Button type="button" onClick={handleZoomIn} disabled={zoom >= VIEWER_MAX_ZOOM}>
-                +
-              </Button>
-              <span>{zoomPct}</span>
-            </div>
-            <span className={styles.panHint}>Paneo: scroll o Alt+arrastrar</span>
-          </div>
-
           {renderModel.theme.showHeaderFooter && renderModel.theme.headerText.trim() ? (
             <div className={styles.runtimeHeader}>{renderModel.theme.headerText}</div>
           ) : null}
