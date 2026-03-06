@@ -50,6 +50,38 @@ export interface MallaSnapshotItem {
   cells: MallaSnapshotCell[];
 }
 
+export interface SnapshotBandCell {
+  col: number;
+  text: string;
+  label?: string;
+  bold?: boolean;
+  style: SnapshotCellStyle;
+}
+
+export interface SnapshotHeaderRow {
+  id: string;
+  cells: SnapshotBandCell[];
+}
+
+export interface SnapshotMetricRow {
+  id: string;
+  label?: string;
+  cells: SnapshotBandCell[];
+}
+
+export interface SnapshotHeaderBand {
+  rows: SnapshotHeaderRow[];
+}
+
+export interface SnapshotMetricsBand {
+  rows: SnapshotMetricRow[];
+}
+
+export interface SnapshotBands {
+  headers?: SnapshotHeaderBand;
+  metrics?: SnapshotMetricsBand;
+}
+
 export interface MallaSnapshotV1 {
   formatVersion: typeof MALLA_SNAPSHOT_FORMAT_VERSION;
   createdAt: string;
@@ -61,6 +93,7 @@ export interface MallaSnapshotV1 {
     cols: number;
   };
   items: MallaSnapshotItem[];
+  bands?: SnapshotBands;
 }
 
 export type MallaSnapshot = MallaSnapshotV1;

@@ -3,21 +3,60 @@ import type { VisualTemplate } from '../types/visual.ts';
 import {
   MALLA_SNAPSHOT_FORMAT_VERSION,
   type MallaSnapshot,
+  type SnapshotBandCell,
+  type SnapshotBands,
+  type SnapshotHeaderBand,
+  type SnapshotHeaderRow,
+  type SnapshotMetricRow,
+  type SnapshotMetricsBand,
   type MallaSnapshotCell,
   type MallaSnapshotItem,
   type MallaSnapshotMerge,
   type MallaSnapshotValidationResult,
   type SnapshotCellStyle,
 } from '../types/malla-snapshot.ts';
-import type { MallaExport } from './malla-io.ts';
+import {
+  type MallaExport,
+  getCellConfigForColumn,
+  normalizeMetaPanelConfig,
+} from './malla-io.ts';
 import { cropTemplate, cropVisualTemplate, expandBoundsToMerges } from './block-active.ts';
 import { collectSelectControls } from './selectControls.ts';
 import { evaluateExpression } from './calc.ts';
 import { normalizeProjectTheme } from './project-theme.ts';
+import {
+  ensureHeaderInvariants,
+  getHeaderBoldForColumn,
+  getHeaderTextForColumn,
+  isHeaderRowVisible,
+} from './column-headers.ts';
+import {
+  computeMetaRowValueForColumn,
+  type MetaCalcDeps,
+} from './meta-calc.ts';
 
 const DEFAULT_BG_COLOR = '#ffffff';
 const DEFAULT_TEXT_COLOR = '#111827';
 const DEFAULT_CHECKBOX_ACTIVE_COLOR = '#2dd4bf';
+const HEADER_BAND_BG_COLOR = '#f8fafc';
+const HEADER_BAND_TEXT_COLOR = '#475569';
+const METRIC_BAND_BG_COLOR = '#ffffff';
+const METRIC_BAND_TEXT_COLOR = '#6b7280';
+const EMPTY_HEADER_HINT = 'Click para editar';
+const EMPTY_METRIC_HINT = 'Click para editar';
+const BAND_FONT_SIZE_PX = 12;
+
+const createBandCellStyle = (input?: Partial<SnapshotCellStyle>): SnapshotCellStyle => ({
+  backgroundColor: input?.backgroundColor ?? DEFAULT_BG_COLOR,
+  textColor: input?.textColor ?? DEFAULT_TEXT_COLOR,
+  textAlign: input?.textAlign ?? 'center',
+  border: input?.border ?? 'thin',
+  fontSizePx: input?.fontSizePx ?? BAND_FONT_SIZE_PX,
+  paddingX: input?.paddingX ?? 6,
+  paddingY: input?.paddingY ?? 4,
+  bold: input?.bold ?? false,
+  italic: input?.italic ?? false,
+});
 
 interface BuildSnapshotOptions {
   projectName: string;
@@ -295,6 +334,148 @@ const buildPieceRenderData = (
   };
 };
 
+const getPieceTemplateForMetaCalc = (
+  piece: CurricularPiece,
+  masters: Record<string, MasterBlockData>,
+): BlockTemplate | null => {
+  if (piece.kind === 'ref') {
+    const source = masters[piece.ref.sourceId];
+    if (!source) {
+      return null;
+    }
+    const bounds = expandBoundsToMerges(source.template, piece.ref.bounds);
+    return cropTemplate(source.template, bounds);
+  }
+  return piece.template;
+};
+
+const getPaletteHeaderColors = (tokens: Record<string, string>): string[] => {
+  const optionEntries = Object.entries(tokens)
+    .map(([key, value]) => {
+      const match = key.match(/^--option-(\d+)$/);
+      if (!match || !value) return null;
+      const index = Number(match[1]);
+      if (!Number.isFinite(index)) return null;
+      return { index, value };
+    })
+    .filter((entry): entry is { index: number; value: string } => entry !== null)
+    .sort((a, b) => a.index - b.index);
+  if (optionEntries.length > 0) {
+    return optionEntries.map((entry) => entry.value);
+  }
+  const activeCell = tokens['--cell-active'];
+  return activeCell ? [activeCell] : [];
+};
+
+const buildHeaderBand = (malla: MallaExport, tokens: Record<string, string>): SnapshotHeaderBand | null => {
+  const columnHeaders = ensureHeaderInvariants(malla.columnHeaders ?? { enabled: false, rows: [] });
+  if (columnHeaders.enabled === false) {
+    return null;
+  }
+  const visibleRows = columnHeaders.rows.filter((row) => isHeaderRowVisible(row));
+  if (visibleRows.length === 0) {
+    return null;
+  }
+
+  const paletteColors = getPaletteHeaderColors(tokens);
+  const columnCount = Math.max(1, malla.grid?.cols ?? 1);
+  const rows: SnapshotHeaderRow[] = visibleRows.map((row) => {
+    const cells: SnapshotBandCell[] = Array.from({ length: columnCount }, (_, colIndex) => {
+      const text = getHeaderTextForColumn(columnHeaders, row, colIndex);
+      const bold = getHeaderBoldForColumn(row, colIndex);
+      const paletteBackground =
+        row.usePaletteBg === true && paletteColors.length > 0
+          ? paletteColors[colIndex % paletteColors.length]
+          : undefined;
+      return {
+        col: colIndex,
+        text: text.trim().length > 0 ? text : EMPTY_HEADER_HINT,
+        bold,
+        style: createBandCellStyle({
+          backgroundColor: paletteBackground ?? HEADER_BAND_BG_COLOR,
+          textColor: HEADER_BAND_TEXT_COLOR,
+          textAlign: 'center',
+          border: 'thin',
+          fontSizePx: BAND_FONT_SIZE_PX,
+          paddingX: 6,
+          paddingY: 4,
+          bold,
+          italic: text.trim().length === 0,
+        }),
+      };
+    });
+    return {
+      id: row.id,
+      cells,
+    };
+  });
+
+  return { rows };
+};
+
+const buildMetricsBand = (
+  malla: MallaExport,
+  masters: Record<string, MasterBlockData>,
+): SnapshotMetricsBand | null => {
+  const metaPanel = normalizeMetaPanelConfig(malla.metaPanel);
+  if (metaPanel.enabled === false) {
+    return null;
+  }
+  const rowsConfig = metaPanel.rows ?? [];
+  if (rowsConfig.length === 0) {
+    return null;
+  }
+  const columnCount = Math.max(1, malla.grid?.cols ?? 1);
+  const querySource = {
+    grid: { cols: columnCount, rows: Math.max(1, malla.grid?.rows ?? 1) },
+    pieces: malla.pieces ?? [],
+  };
+  const deps: MetaCalcDeps = {
+    valuesByPiece: malla.values ?? {},
+    resolveTemplateForPiece: (piece) => getPieceTemplateForMetaCalc(piece, masters),
+  };
+
+  const rows: SnapshotMetricRow[] = rowsConfig.map((rowConfig) => {
+    const cells: SnapshotBandCell[] = Array.from({ length: columnCount }, (_, colIndex) => {
+      const cellConfig = getCellConfigForColumn(rowConfig, colIndex);
+      const value = computeMetaRowValueForColumn(querySource, colIndex, rowConfig, deps);
+      const overrideLabel = rowConfig.columns?.[colIndex]?.label?.trim();
+      const generalLabel = rowConfig.label?.trim();
+      const rowLabel = overrideLabel || generalLabel || undefined;
+      const hasTerms = cellConfig.terms.length > 0;
+      const hasOverride = !!rowConfig.columns?.[colIndex];
+      const hasRowLabel = typeof rowLabel === 'string' && rowLabel.trim().length > 0;
+      const showEmptyHint = value == null && !hasTerms && !hasRowLabel;
+      const displayValue = value == null
+        ? (showEmptyHint ? EMPTY_METRIC_HINT : '-')
+        : `#${value}${hasOverride ? '*' : ''}`;
+
+      return {
+        col: colIndex,
+        text: displayValue,
+        ...(rowLabel ? { label: rowLabel } : {}),
+        style: createBandCellStyle({
+          backgroundColor: METRIC_BAND_BG_COLOR,
+          textColor: METRIC_BAND_TEXT_COLOR,
+          textAlign: showEmptyHint ? 'center' : 'right',
+          border: 'thin',
+          fontSizePx: BAND_FONT_SIZE_PX,
+          paddingX: 6,
+          paddingY: 4,
+          italic: showEmptyHint,
+        }),
+      };
+    });
+    return {
+      id: rowConfig.id,
+      ...(rowConfig.label?.trim() ? { label: rowConfig.label.trim() } : {}),
+      cells,
+    };
+  });
+
+  return { rows };
+};
+
 export const buildMallaSnapshotFromState = (
   malla: MallaExport,
   options: BuildSnapshotOptions,
@@ -321,6 +502,15 @@ export const buildMallaSnapshotFromState = (
   const items = (malla.pieces ?? []).map((piece) =>
     buildPieceRenderData(piece, masters, pieceValues[piece.id] ?? {}, normalizedTheme.tokens),
   );
+  const headersBand = buildHeaderBand(malla, normalizedTheme.tokens);
+  const metricsBand = buildMetricsBand(malla, masters);
+  const bands: SnapshotBands | undefined =
+    headersBand || metricsBand
+      ? {
+        ...(headersBand ? { headers: headersBand } : {}),
+        ...(metricsBand ? { metrics: metricsBand } : {}),
+      }
+      : undefined;
 
   return {
     formatVersion: MALLA_SNAPSHOT_FORMAT_VERSION,
@@ -333,6 +523,7 @@ export const buildMallaSnapshotFromState = (
       cols: Math.max(1, malla.grid?.cols ?? 1),
     },
     items,
+    ...(bands ? { bands } : {}),
   };
 };
 
@@ -440,49 +631,157 @@ const normalizeSnapshotItem = (value: unknown): MallaSnapshotItem | null => {
   };
 };
 
+const normalizeSnapshotBandCell = (value: unknown): SnapshotBandCell | null => {
+  if (!isRecord(value)) return null;
+  const col = Number(value.col);
+  if (!Number.isInteger(col) || col < 0) return null;
+  const text = typeof value.text === 'string' ? value.text : '';
+  const label = typeof value.label === 'string' ? value.label : undefined;
+  const bold = typeof value.bold === 'boolean' ? value.bold : undefined;
+  const styleRecord = isRecord(value.style) ? value.style : {};
+  const style = createBandCellStyle({
+    backgroundColor:
+      typeof styleRecord.backgroundColor === 'string'
+        ? styleRecord.backgroundColor
+        : DEFAULT_BG_COLOR,
+    textColor: typeof styleRecord.textColor === 'string' ? styleRecord.textColor : DEFAULT_TEXT_COLOR,
+    textAlign:
+      styleRecord.textAlign === 'center' ||
+      styleRecord.textAlign === 'right' ||
+      styleRecord.textAlign === 'justify'
+        ? styleRecord.textAlign
+        : 'left',
+    border:
+      styleRecord.border === 'none' || styleRecord.border === 'strong'
+        ? styleRecord.border
+        : 'thin',
+    fontSizePx: clampFontSize(styleRecord.fontSizePx, BAND_FONT_SIZE_PX),
+    paddingX: Math.max(0, Math.min(64, Number(styleRecord.paddingX ?? 6))),
+    paddingY: Math.max(0, Math.min(64, Number(styleRecord.paddingY ?? 4))),
+    bold: typeof styleRecord.bold === 'boolean' ? styleRecord.bold : Boolean(bold),
+    italic: Boolean(styleRecord.italic),
+  });
+
+  return {
+    col,
+    text,
+    ...(label !== undefined ? { label } : {}),
+    ...(bold !== undefined ? { bold } : {}),
+    style,
+  };
+};
+
+const normalizeSnapshotHeaderRow = (value: unknown): SnapshotHeaderRow | null => {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  if (!id) return null;
+  const rawCells = Array.isArray(value.cells) ? value.cells : [];
+  const cells = rawCells
+    .map(normalizeSnapshotBandCell)
+    .filter((cell): cell is SnapshotBandCell => cell !== null);
+  if (cells.length !== rawCells.length) return null;
+  return { id, cells };
+};
+
+const normalizeSnapshotMetricRow = (value: unknown): SnapshotMetricRow | null => {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  if (!id) return null;
+  const label = typeof value.label === 'string' ? value.label : undefined;
+  const rawCells = Array.isArray(value.cells) ? value.cells : [];
+  const cells = rawCells
+    .map(normalizeSnapshotBandCell)
+    .filter((cell): cell is SnapshotBandCell => cell !== null);
+  if (cells.length !== rawCells.length) return null;
+  return {
+    id,
+    ...(label !== undefined ? { label } : {}),
+    cells,
+  };
+};
+
+const normalizeSnapshotBands = (value: unknown): SnapshotBands | null => {
+  if (!isRecord(value)) return null;
+  let hasAny = false;
+  let headers: SnapshotHeaderBand | undefined;
+  let metrics: SnapshotMetricsBand | undefined;
+
+  if (isRecord(value.headers)) {
+    const rawRows = Array.isArray(value.headers.rows) ? value.headers.rows : [];
+    const rows = rawRows
+      .map(normalizeSnapshotHeaderRow)
+      .filter((row): row is SnapshotHeaderRow => row !== null);
+    if (rows.length !== rawRows.length) return null;
+    headers = { rows };
+    hasAny = true;
+  }
+
+  if (isRecord(value.metrics)) {
+    const rawRows = Array.isArray(value.metrics.rows) ? value.metrics.rows : [];
+    const rows = rawRows
+      .map(normalizeSnapshotMetricRow)
+      .filter((row): row is SnapshotMetricRow => row !== null);
+    if (rows.length !== rawRows.length) return null;
+    metrics = { rows };
+    hasAny = true;
+  }
+
+  if (!hasAny) return null;
+  return {
+    ...(headers ? { headers } : {}),
+    ...(metrics ? { metrics } : {}),
+  };
+};
+
 export const validateAndNormalizeMallaSnapshot = (
   snapshot: unknown,
 ): MallaSnapshotValidationResult => {
   if (!isRecord(snapshot)) {
-    return { ok: false, error: 'Snapshot inválido: se esperaba un objeto JSON.' };
+    return { ok: false, error: 'Snapshot invalido: se esperaba un objeto JSON.' };
   }
 
   if (snapshot.formatVersion !== MALLA_SNAPSHOT_FORMAT_VERSION) {
     return {
       ok: false,
-      error: `Versión de snapshot no soportada: ${String(snapshot.formatVersion)}`,
+      error: `Version de snapshot no soportada: ${String(snapshot.formatVersion)}`,
     };
   }
 
   const createdAt = typeof snapshot.createdAt === 'string' ? snapshot.createdAt.trim() : '';
   if (!createdAt || !isIsoDateString(createdAt)) {
-    return { ok: false, error: 'Snapshot inválido: createdAt debe ser un ISO string válido.' };
+    return { ok: false, error: 'Snapshot invalido: createdAt debe ser un ISO string valido.' };
   }
 
   const projectName = typeof snapshot.projectName === 'string' ? snapshot.projectName.trim() : '';
   if (!projectName) {
-    return { ok: false, error: 'Snapshot inválido: projectName es obligatorio.' };
+    return { ok: false, error: 'Snapshot invalido: projectName es obligatorio.' };
   }
 
   const gridRecord = isRecord(snapshot.grid) ? snapshot.grid : null;
   if (!gridRecord) {
-    return { ok: false, error: 'Snapshot inválido: falta la definición de grid.' };
+    return { ok: false, error: 'Snapshot invalido: falta la definicion de grid.' };
   }
   const rows = Number(gridRecord.rows);
   const cols = Number(gridRecord.cols);
   if (!Number.isInteger(rows) || rows < 1 || !Number.isInteger(cols) || cols < 1) {
-    return { ok: false, error: 'Snapshot inválido: grid.rows y grid.cols deben ser enteros positivos.' };
+    return { ok: false, error: 'Snapshot invalido: grid.rows y grid.cols deben ser enteros positivos.' };
   }
 
   const rawItems = Array.isArray(snapshot.items) ? snapshot.items : null;
   if (!rawItems) {
-    return { ok: false, error: 'Snapshot inválido: items debe ser un arreglo.' };
+    return { ok: false, error: 'Snapshot invalido: items debe ser un arreglo.' };
   }
   const items = rawItems
     .map(normalizeSnapshotItem)
     .filter((item): item is MallaSnapshotItem => item !== null);
   if (items.length !== rawItems.length) {
-    return { ok: false, error: 'Snapshot inválido: hay items con formato incorrecto.' };
+    return { ok: false, error: 'Snapshot invalido: hay items con formato incorrecto.' };
+  }
+
+  const hasBands = snapshot.bands !== undefined;
+  const bands = hasBands ? normalizeSnapshotBands(snapshot.bands) : undefined;
+  if (hasBands && !bands) {
+    return { ok: false, error: 'Snapshot invalido: bandas con formato incorrecto.' };
   }
 
   const normalizedSnapshot: MallaSnapshot = {
@@ -500,6 +799,7 @@ export const validateAndNormalizeMallaSnapshot = (
       cols,
     },
     items,
+    ...(bands ? { bands } : {}),
   };
 
   return {

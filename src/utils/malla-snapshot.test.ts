@@ -82,12 +82,65 @@ test('buildMallaSnapshotFromState creates v1 snapshot and excludes editor reposi
   assert.equal(snapshot.items.length, 1);
   assert.equal(snapshot.items[0]?.cells[0]?.text, 'Introducción');
   assert.equal(snapshot.items[0]?.cells[1]?.text, 'Texto visible');
+  assert.equal(snapshot.bands, undefined);
   assert.ok(!('repository' in snapshot));
   assert.ok(!('masters' in snapshot));
   const serialized = JSON.stringify(snapshot);
   assert.equal(serialized.includes('"repository"'), false);
   assert.equal(serialized.includes('"draft"'), false);
   assert.equal(serialized.includes('"undo"'), false);
+});
+
+test('buildMallaSnapshotFromState includes only visible header rows and enabled metrics rows', () => {
+  const template: BlockTemplate = [[{ active: true, type: 'staticText', label: 'A' }]];
+  const visual: VisualTemplate = {
+    '0-0': { backgroundColor: '#ffffff', textColor: '#111827', border: true },
+  };
+  const aspect: BlockAspect = '1/1';
+  const masters: Record<string, MasterBlockData> = {
+    masterA: { template, visual, aspect },
+  };
+
+  const malla: MallaExport = {
+    version: 6,
+    masters,
+    repository: {},
+    grid: { cols: 3, rows: 2 },
+    pieces: [],
+    values: {},
+    floatingPieces: [],
+    activeMasterId: 'masterA',
+    theme: createDefaultProjectTheme(),
+    metaPanel: {
+      enabled: true,
+      rows: [
+        {
+          id: 'metric-row-1',
+          label: 'Creditos',
+          defaultCell: { id: 'metric-cell-1', mode: 'count', terms: [] },
+          columns: {},
+        },
+      ],
+    },
+    columnHeaders: {
+      enabled: true,
+      rows: [
+        { id: 'hdr-visible', defaultText: 'Semestre', columns: {} },
+        { id: 'hdr-hidden', defaultText: 'Oculto', hidden: true, columns: {} },
+      ],
+    },
+  };
+
+  const snapshot = buildMallaSnapshotFromState(malla, {
+    projectName: 'Plan bandas',
+    createdAt: '2026-03-06T10:00:00.000Z',
+  });
+
+  assert.equal(snapshot.bands?.headers?.rows.length, 1);
+  assert.equal(snapshot.bands?.headers?.rows[0]?.id, 'hdr-visible');
+  assert.equal(snapshot.bands?.metrics?.rows.length, 1);
+  assert.equal(snapshot.bands?.metrics?.rows[0]?.id, 'metric-row-1');
+  assert.equal(snapshot.bands?.metrics?.rows[0]?.cells.length, 3);
 });
 
 test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () => {
@@ -97,12 +150,39 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
     projectName: 'Plan 2026',
     grid: { rows: 3, cols: 4 },
     items: [],
+    bands: {
+      headers: {
+        rows: [
+          {
+            id: 'hdr-1',
+            cells: [
+              {
+                col: 0,
+                text: 'Sem 1',
+                style: {
+                  backgroundColor: '#fff',
+                  textColor: '#111827',
+                  textAlign: 'center',
+                  border: 'thin',
+                  fontSizePx: 12,
+                  paddingX: 4,
+                  paddingY: 2,
+                  bold: true,
+                  italic: false,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
   });
   assert.equal(okResult.ok, true);
   if (okResult.ok) {
     assert.equal(okResult.normalizedSnapshot.formatVersion, 1);
     assert.equal(okResult.normalizedSnapshot.grid.rows, 3);
     assert.equal(okResult.normalizedSnapshot.items.length, 0);
+    assert.equal(okResult.normalizedSnapshot.bands?.headers?.rows.length, 1);
   }
 
   const invalidVersion = validateAndNormalizeMallaSnapshot({
@@ -116,4 +196,23 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
   if (!invalidVersion.ok) {
     assert.equal(invalidVersion.error.includes('no soportada'), true);
   }
+
+  const invalidBands = validateAndNormalizeMallaSnapshot({
+    formatVersion: 1,
+    createdAt: '2026-03-05T12:00:00.000Z',
+    projectName: 'Plan 2026',
+    grid: { rows: 3, cols: 4 },
+    items: [],
+    bands: {
+      headers: {
+        rows: [
+          {
+            id: 'hdr-invalid',
+            cells: [{ col: -1, text: 'bad', style: {} }],
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(invalidBands.ok, false);
 });
