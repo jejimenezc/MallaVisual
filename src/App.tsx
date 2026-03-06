@@ -58,6 +58,11 @@ import {
   validateAndNormalizeMallaSnapshot,
 } from './utils/malla-snapshot.ts';
 import {
+  createDefaultViewerTheme,
+  normalizeViewerTheme,
+} from './utils/viewer-theme.ts';
+import type { ViewerTheme } from './types/viewer-theme.ts';
+import {
   type BlockState,
   type ControlDataClearRequest,
   type TemplateControlSnapshot,
@@ -90,8 +95,9 @@ interface AppLayoutProps {
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
-  onImportViewerSnapshotFile: (file: File) => Promise<void> | void;
-  onExportViewerSnapshot: () => void;
+  onOpenPreview: () => void;
+  onGeneratePublication: () => Promise<void> | void;
+  onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
@@ -111,8 +117,9 @@ function AppLayout({
   onNewProject,
   onImportProjectFile,
   onExportProject,
-  onImportViewerSnapshotFile,
-  onExportViewerSnapshot,
+  onOpenPreview,
+  onGeneratePublication,
+  onImportPublicationFile,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -187,8 +194,9 @@ function AppLayout({
             onNewProject={onNewProject}
             onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
-            onImportViewerSnapshotFile={onImportViewerSnapshotFile}
-            onExportViewerSnapshot={onExportViewerSnapshot}
+            onOpenPreview={onOpenPreview}
+            onGeneratePublication={onGeneratePublication}
+            onImportPublicationFile={onImportPublicationFile}
             onCloseProject={onCloseProject}
             onToggleMetaPanelEnabled={onToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
@@ -215,13 +223,17 @@ function AppLayout({
   );
 }
 
+type ViewerMode = 'preview' | 'publication';
+
 export default function App(): JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
   const storedActiveProjectRef = useRef(readStoredActiveProject(getSafeLocalStorage()));
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
-  const [viewerSnapshotDraft, setViewerSnapshotDraft] = useState<MallaSnapshot | null>(null);
+  const [publicationSnapshot, setPublicationSnapshot] = useState<MallaSnapshot | null>(null);
+  const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null);
+  const [previewAppearance, setPreviewAppearance] = useState<ViewerTheme | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -433,6 +445,9 @@ export default function App(): JSX.Element | null {
   const resetWorkspaceState = useCallback(() => {
     setBlock(null);
     loadMallaState(null);
+    setPublicationSnapshot(null);
+    setViewerMode(null);
+    setPreviewAppearance(null);
     setProjectId(null);
     setProjectName('');
     pendingControlDataClearsRef.current = [];
@@ -743,27 +758,88 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportViewerSnapshot = useCallback(() => {
-    if (!currentProject) return;
+  const resolvePreviewAppearance = useCallback(
+    () => normalizeViewerTheme(previewAppearance ?? createDefaultViewerTheme()),
+    [previewAppearance],
+  );
+
+  const previewSnapshot = useMemo<MallaSnapshot | null>(() => {
+    if (!currentProject) return null;
     try {
-      const snapshot = buildMallaSnapshotFromState(currentProject, {
+      return buildMallaSnapshotFromState(currentProject, {
         projectName: projectName || 'Proyecto',
       });
-      const json = JSON.stringify(snapshot, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectName || 'proyecto'}-snapshot-v1.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      pushToast('Snapshot viewer exportado', 'success');
     } catch {
-      pushToast('No se pudo exportar el snapshot viewer', 'error');
+      return null;
     }
-  }, [currentProject, projectName, pushToast]);
+  }, [currentProject, projectName]);
 
-  const handleImportViewerSnapshotFile = useCallback(
+  const handleOpenPreview = useCallback(() => {
+    if (!currentProject) return;
+    setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
+    setViewerMode('preview');
+    navigate('/malla/viewer');
+  }, [currentProject, navigate]);
+
+  const createPublicationSnapshot = useCallback(
+    (appearance: ViewerTheme): MallaSnapshot | null => {
+      if (!currentProject) return null;
+      try {
+        return buildMallaSnapshotFromState(currentProject, {
+          projectName: projectName || 'Proyecto',
+          appearance,
+        });
+      } catch {
+        return null;
+      }
+    },
+    [currentProject, projectName],
+  );
+
+  const downloadPublication = useCallback((snapshot: MallaSnapshot) => {
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${snapshot.projectName || 'proyecto'}-publicacion-v1.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleGeneratePublication = useCallback(async () => {
+    const appearance = resolvePreviewAppearance();
+    const snapshot = createPublicationSnapshot(appearance);
+    if (!snapshot) {
+      pushToast('No se pudo generar la publicacion', 'error');
+      return;
+    }
+
+    downloadPublication(snapshot);
+    setPublicationSnapshot(snapshot);
+    pushToast('Publicacion generada', 'success');
+
+    const shouldOpen = await confirmAsync({
+      title: 'Publicacion generada',
+      message: '¿Deseas ver la version publicada?',
+      confirmLabel: 'Ver version publicada',
+      cancelLabel: 'Cerrar',
+      variant: 'info',
+    });
+    if (shouldOpen) {
+      setViewerMode('publication');
+      navigate('/malla/viewer');
+    }
+  }, [
+    confirmAsync,
+    createPublicationSnapshot,
+    downloadPublication,
+    navigate,
+    pushToast,
+    resolvePreviewAppearance,
+  ]);
+
+  const handleImportPublicationFile = useCallback(
     async (file: File) => {
       try {
         const text = await file.text();
@@ -774,24 +850,33 @@ export default function App(): JSX.Element | null {
           return;
         }
         const normalized = validation.normalizedSnapshot;
-        setViewerSnapshotDraft(normalized);
-        const shouldOpenViewer = await confirmAsync({
-          title: 'Snapshot viewer cargado',
-          message: `Proyecto: ${normalized.projectName}\nFecha: ${normalized.createdAt}\nFormato: v${normalized.formatVersion}\nItems: ${normalized.items.length}`,
-          confirmLabel: 'Ver en viewer',
-          cancelLabel: 'Cerrar',
-          variant: 'info',
-        });
-        if (shouldOpenViewer) {
-          navigate('/malla/viewer');
-        }
-        pushToast('Snapshot viewer listo para render', 'success');
+        setPublicationSnapshot(normalized);
+        setViewerMode('publication');
+        navigate('/malla/viewer');
+        pushToast('Version publicada abierta', 'success');
       } catch {
-        pushToast('No se pudo abrir el snapshot viewer', 'error');
+        pushToast('No se pudo abrir la version publicada', 'error');
       }
     },
-    [confirmAsync, navigate, pushToast],
+    [navigate, pushToast],
   );
+
+  const handleBackToEditorFromViewer = useCallback(() => {
+    setViewerMode(null);
+    navigate('/malla/design');
+  }, [navigate]);
+
+  const handleViewerThemeChange = useCallback(
+    (next: ViewerTheme) => {
+      if (viewerMode !== 'preview') return;
+      setPreviewAppearance(normalizeViewerTheme(next));
+    },
+    [viewerMode],
+  );
+
+  const handlePublishFromPreview = useCallback(async () => {
+    await handleGeneratePublication();
+  }, [handleGeneratePublication]);
 
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
@@ -823,6 +908,9 @@ export default function App(): JSX.Element | null {
     setProjectId(null);
     setProjectName('');
     setShouldPersistProject(false);
+    setViewerMode(null);
+    setPublicationSnapshot(null);
+    setPreviewAppearance(null);
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id: null, name: '' };
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
@@ -1573,6 +1661,16 @@ export default function App(): JSX.Element | null {
   const projectTheme = projectThemeState;
 
   const hasProject = !!currentProject;
+  const activeViewerSnapshot = viewerMode === 'preview' ? previewSnapshot : publicationSnapshot;
+  const activeViewerTheme = useMemo<ViewerTheme>(() => {
+    if (viewerMode === 'preview') {
+      return resolvePreviewAppearance();
+    }
+    if (publicationSnapshot?.appearance) {
+      return normalizeViewerTheme(publicationSnapshot.appearance);
+    }
+    return createDefaultViewerTheme();
+  }, [publicationSnapshot?.appearance, resolvePreviewAppearance, viewerMode]);
 
   if (!isHydrated) {
     return null;
@@ -1594,8 +1692,9 @@ export default function App(): JSX.Element | null {
             onNewProject={handleNewProject}
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
-            onImportViewerSnapshotFile={handleImportViewerSnapshotFile}
-            onExportViewerSnapshot={handleExportViewerSnapshot}
+            onOpenPreview={handleOpenPreview}
+            onGeneratePublication={handleGeneratePublication}
+            onImportPublicationFile={handleImportPublicationFile}
             onCloseProject={handleCloseProject}
             onToggleMetaPanelEnabled={handleToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
@@ -1721,8 +1820,13 @@ export default function App(): JSX.Element | null {
                 path="/malla/viewer"
                 element={
                   <MallaViewerScreen
-                    snapshot={viewerSnapshotDraft}
-                    onImportSnapshotFile={handleImportViewerSnapshotFile}
+                    snapshot={activeViewerSnapshot}
+                    mode={viewerMode}
+                    theme={activeViewerTheme}
+                    onThemeChange={handleViewerThemeChange}
+                    onBackToEditor={handleBackToEditorFromViewer}
+                    onPublish={handlePublishFromPreview}
+                    onImportPublicationFile={handleImportPublicationFile}
                   />
                 }
               />

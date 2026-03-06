@@ -17,8 +17,9 @@ interface GlobalMenuBarProps {
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
-  onImportViewerSnapshotFile: (file: File) => Promise<void> | void;
-  onExportViewerSnapshot: () => void;
+  onOpenPreview: () => void;
+  onGeneratePublication: () => Promise<void> | void;
+  onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => RecentProject[];
@@ -46,8 +47,9 @@ export function GlobalMenuBar({
   onNewProject,
   onImportProjectFile,
   onExportProject,
-  onImportViewerSnapshotFile,
-  onExportViewerSnapshot,
+  onOpenPreview,
+  onGeneratePublication,
+  onImportPublicationFile,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -59,7 +61,7 @@ export function GlobalMenuBar({
   const [openSubmenu, setOpenSubmenu] = useState<SubmenuKey | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const snapshotInputRef = useRef<HTMLInputElement>(null);
+  const publicationInputRef = useRef<HTMLInputElement>(null);
   const { commands, executeCommand } = useAppCommands();
 
   const undoCommand = commands.undo;
@@ -145,30 +147,30 @@ export function GlobalMenuBar({
     [handleCloseMenu, onImportProjectFile],
   );
 
-  const handleOpenSnapshotFromDisk = useCallback(
+  const handleOpenPublicationFromDisk = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
       handleCloseMenu();
-      snapshotInputRef.current?.click();
+      publicationInputRef.current?.click();
     },
     [handleCloseMenu],
   );
 
-  const handleSnapshotInputChange = useCallback(
+  const handlePublicationInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
       handleCloseMenu();
       void (async () => {
         try {
-          await onImportViewerSnapshotFile(file);
+          await onImportPublicationFile(file);
         } finally {
           event.target.value = '';
         }
       })();
     },
-    [handleCloseMenu, onImportViewerSnapshotFile],
+    [handleCloseMenu, onImportPublicationFile],
   );
 
   const handleCloseProject = useCallback(
@@ -193,15 +195,26 @@ export function GlobalMenuBar({
     [handleCloseMenu, hasProject, onExportProject],
   );
 
-  const handleExportViewerSnapshotClick = useCallback(
+  const handleOpenPreviewClick = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
       handleCloseMenu();
       if (!hasProject) return;
-      onExportViewerSnapshot();
+      onOpenPreview();
     },
-    [handleCloseMenu, hasProject, onExportViewerSnapshot],
+    [handleCloseMenu, hasProject, onOpenPreview],
+  );
+
+  const handleGeneratePublicationClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) return;
+      void onGeneratePublication();
+    },
+    [handleCloseMenu, hasProject, onGeneratePublication],
   );
 
   const handleOpenRecent = useCallback(
@@ -370,26 +383,8 @@ export function GlobalMenuBar({
                       Exportar proyecto…
                     </button>
                   </li>
-                  <li className={styles.dropdownItemWrapper}>
-                    <button
-                      type="button"
-                      className={styles.dropdownItem}
-                      onClick={handleExportViewerSnapshotClick}
-                    >
-                      Exportar malla (snapshot viewer)
-                    </button>
-                  </li>
                 </>
               ) : null}
-              <li className={styles.dropdownItemWrapper}>
-                <button
-                  type="button"
-                  className={styles.dropdownItem}
-                  onClick={handleOpenSnapshotFromDisk}
-                >
-                  Abrir snapshot viewer…
-                </button>
-              </li>
               <li className={styles.dropdownSeparator} aria-hidden="true" />
               <li className={styles.dropdownItemWrapper}>
                 <button type="button" className={styles.dropdownItem} disabled>
@@ -515,24 +510,32 @@ export function GlobalMenuBar({
               onClick={(event) => event.stopPropagation()}
             >
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Generar PDF
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPreviewClick}
+                  disabled={!hasProject}
+                >
+                  Vista previa
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Generar imagen
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleGeneratePublicationClick}
+                  disabled={!hasProject}
+                >
+                  Generar publicacion
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Obtener enlace (HTML)
-                </button>
-              </li>
-              <li className={styles.dropdownSeparator} aria-hidden="true" />
-              <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Configuración de salida…
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPublicationFromDisk}
+                >
+                  Ver version publicada...
                 </button>
               </li>
             </ul>
@@ -662,8 +665,8 @@ export function GlobalMenuBar({
       />
       <input
         type="file"
-        ref={snapshotInputRef}
-        onChange={handleSnapshotInputChange}
+        ref={publicationInputRef}
+        onChange={handlePublicationInputChange}
         accept="application/json"
         className={styles.hiddenInput}
       />

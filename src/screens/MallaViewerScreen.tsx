@@ -7,17 +7,20 @@ import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
   applyViewerTheme,
   createDefaultViewerTheme,
-  normalizeViewerTheme,
   VIEWER_MAX_ZOOM,
   VIEWER_MIN_ZOOM,
-  VIEWER_THEME_STORAGE_KEY,
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
 import styles from './MallaViewerScreen.module.css';
 
 interface Props {
   snapshot: MallaSnapshot | null;
-  onImportSnapshotFile: (file: File) => Promise<void> | void;
+  mode: 'preview' | 'publication' | null;
+  theme: ViewerTheme;
+  onThemeChange: (theme: ViewerTheme) => void;
+  onBackToEditor: () => void;
+  onPublish: () => Promise<void> | void;
+  onImportPublicationFile: (file: File) => Promise<void> | void;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -46,32 +49,21 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
-export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JSX.Element {
+export function MallaViewerScreen({
+  snapshot,
+  mode,
+  theme,
+  onThemeChange,
+  onBackToEditor,
+  onPublish,
+  onImportPublicationFile,
+}: Props): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
-  const [theme, setTheme] = useState<ViewerTheme>(() => {
-    if (typeof window === 'undefined') return createDefaultViewerTheme();
-    try {
-      const raw = window.localStorage.getItem(VIEWER_THEME_STORAGE_KEY);
-      if (!raw) return createDefaultViewerTheme();
-      return normalizeViewerTheme(JSON.parse(raw));
-    } catch {
-      return createDefaultViewerTheme();
-    }
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(VIEWER_THEME_STORAGE_KEY, JSON.stringify(theme));
-    } catch {
-      // no-op: localStorage can fail in restricted environments
-    }
-  }, [theme]);
 
   const renderModel = useMemo(() => {
     if (!snapshot) return null;
@@ -83,6 +75,18 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
   }, []);
+
+  const setThemeSafe = useCallback(
+    (next: ViewerTheme | ((prev: ViewerTheme) => ViewerTheme)) => {
+      if (typeof next === 'function') {
+        const updater = next as (prev: ViewerTheme) => ViewerTheme;
+        onThemeChange(updater(theme));
+        return;
+      }
+      onThemeChange(next);
+    },
+    [onThemeChange, theme],
+  );
 
   const handleZoomIn = useCallback(() => {
     setZoomSafe(zoom + VIEWER_ZOOM_STEP);
@@ -102,26 +106,14 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
       if (!file) return;
       void (async () => {
         try {
-          await onImportSnapshotFile(file);
+          await onImportPublicationFile(file);
         } finally {
           event.target.value = '';
         }
       })();
     },
-    [onImportSnapshotFile],
+    [onImportPublicationFile],
   );
-
-  const handleExportSnapshot = useCallback(() => {
-    if (!snapshot) return;
-    const json = JSON.stringify(snapshot, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${snapshot.projectName || 'malla'}-snapshot-v1.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [snapshot]);
 
   const handleViewportMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!event.altKey || event.button !== 0) return;
@@ -161,11 +153,21 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
-        <h2>Viewer de malla</h2>
-        <p>No hay snapshot cargado.</p>
-        <Button type="button" variant="primary" onClick={handleOpenImporter}>
-          Cargar snapshot
-        </Button>
+        <h2>{mode === 'publication' ? 'Version publicada' : 'Vista previa de malla'}</h2>
+        <p>
+          {mode === 'publication'
+            ? 'No hay una version publicada cargada.'
+            : 'No hay datos para vista previa.'}
+        </p>
+        {mode === 'publication' ? (
+          <Button type="button" variant="primary" onClick={handleOpenImporter}>
+            Abrir version publicada
+          </Button>
+        ) : (
+          <Button type="button" variant="primary" onClick={onBackToEditor}>
+            Volver al editor
+          </Button>
+        )}
         <input
           type="file"
           ref={fileInputRef}
@@ -190,18 +192,28 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               {renderModel.projectName}
             </h2>
             <span className={styles.snapshotMeta}>
-              Snapshot {formatSnapshotDate(snapshot.createdAt)}
+              {mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} -{' '}
+              {formatSnapshotDate(snapshot.createdAt)}
             </span>
           </div>
         }
         right={
           <div className={styles.viewerActions}>
+            <Button type="button" onClick={onBackToEditor}>
+              Volver al editor
+            </Button>
             <Button type="button" onClick={() => setAppearanceOpen((prev) => !prev)}>
               Apariencia
             </Button>
-            <Button type="button" onClick={handleExportSnapshot}>
-              Exportar
-            </Button>
+            {mode === 'preview' ? (
+              <Button type="button" onClick={() => void onPublish()}>
+                Publicar esta version
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleOpenImporter}>
+                Abrir publicacion
+              </Button>
+            )}
           </div>
         }
       />
@@ -215,7 +227,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               min={0}
               max={96}
               value={theme.gapX}
-              onChange={(event) => setTheme((prev) => ({ ...prev, gapX: Number(event.target.value) }))}
+              onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapX: Number(event.target.value) }))}
             />
           </label>
           <label className={styles.field}>
@@ -225,7 +237,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               min={0}
               max={96}
               value={theme.gapY}
-              onChange={(event) => setTheme((prev) => ({ ...prev, gapY: Number(event.target.value) }))}
+              onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapY: Number(event.target.value) }))}
             />
           </label>
           <label className={styles.field}>
@@ -237,7 +249,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               step={5}
               value={theme.minColumnWidth}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, minColumnWidth: Number(event.target.value) }))
+                setThemeSafe((prev) => ({ ...prev, minColumnWidth: Number(event.target.value) }))
               }
             />
           </label>
@@ -250,7 +262,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               step={5}
               value={theme.minRowHeight}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, minRowHeight: Number(event.target.value) }))
+                setThemeSafe((prev) => ({ ...prev, minRowHeight: Number(event.target.value) }))
               }
             />
           </label>
@@ -262,7 +274,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               max={32}
               value={theme.cellPadding}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, cellPadding: Number(event.target.value) }))
+                setThemeSafe((prev) => ({ ...prev, cellPadding: Number(event.target.value) }))
               }
             />
           </label>
@@ -274,7 +286,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               max={8}
               value={theme.blockBorderWidth}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, blockBorderWidth: Number(event.target.value) }))
+                setThemeSafe((prev) => ({ ...prev, blockBorderWidth: Number(event.target.value) }))
               }
             />
           </label>
@@ -286,7 +298,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               max={32}
               value={theme.blockBorderRadius}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, blockBorderRadius: Number(event.target.value) }))
+                setThemeSafe((prev) => ({ ...prev, blockBorderRadius: Number(event.target.value) }))
               }
             />
           </label>
@@ -299,7 +311,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               step={0.05}
               value={theme.typographyScale}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, typographyScale: Number(event.target.value) }))
+                setThemeSafe((prev) => ({ ...prev, typographyScale: Number(event.target.value) }))
               }
             />
           </label>
@@ -308,7 +320,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
             <select
               value={theme.titleWeight}
               onChange={(event) =>
-                setTheme((prev) => ({
+                setThemeSafe((prev) => ({
                   ...prev,
                   titleWeight: event.target.value === 'normal' ? 'normal' : 'bold',
                 }))
@@ -323,7 +335,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
             <input
               type="text"
               value={theme.headerText}
-              onChange={(event) => setTheme((prev) => ({ ...prev, headerText: event.target.value }))}
+              onChange={(event) => setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))}
             />
           </label>
           <label className={styles.field}>
@@ -331,7 +343,7 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
             <input
               type="text"
               value={theme.footerText}
-              onChange={(event) => setTheme((prev) => ({ ...prev, footerText: event.target.value }))}
+              onChange={(event) => setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))}
             />
           </label>
           <label className={styles.toggleField}>
@@ -339,12 +351,12 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
               type="checkbox"
               checked={theme.showHeaderFooter}
               onChange={(event) =>
-                setTheme((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
+                setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
               }
             />
             <span>Mostrar header/footer</span>
           </label>
-          <Button type="button" onClick={() => setTheme(createDefaultViewerTheme())}>
+          <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
             Restablecer
           </Button>
         </aside>
