@@ -7,6 +7,7 @@ import { createDefaultMetaPanel, createDefaultProjectTheme } from './malla-io.ts
 import { createDefaultColumnHeaders } from './column-headers.ts';
 import { buildBlockId } from '../types/block.ts';
 import { BLOCK_SCHEMA_VERSION } from './block-io.ts';
+import { createDefaultViewerTheme } from './viewer-theme.ts';
 import {
   buildMallaSnapshotFromState,
   validateAndNormalizeMallaSnapshot,
@@ -215,4 +216,39 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
     },
   });
   assert.equal(invalidBands.ok, false);
+});
+
+test('snapshot publication appearance is normalized and preserved', () => {
+  const malla: MallaExport = {
+    version: 6,
+    masters: {},
+    repository: {},
+    grid: { cols: 2, rows: 2 },
+    pieces: [],
+    values: {},
+    floatingPieces: [],
+    activeMasterId: '',
+    theme: createDefaultProjectTheme(),
+    metaPanel: createDefaultMetaPanel(false),
+    columnHeaders: createDefaultColumnHeaders(false),
+  };
+
+  const snapshot = buildMallaSnapshotFromState(malla, {
+    projectName: 'Plan publicacion',
+    appearance: {
+      ...createDefaultViewerTheme(),
+      gapX: 999,
+      showHeaderFooter: true,
+    },
+  });
+
+  assert.equal(snapshot.appearance?.gapX, 96);
+  assert.equal(snapshot.appearance?.showHeaderFooter, true);
+
+  const normalized = validateAndNormalizeMallaSnapshot(snapshot);
+  assert.equal(normalized.ok, true);
+  if (normalized.ok) {
+    assert.equal(normalized.normalizedSnapshot.appearance?.gapX, 96);
+    assert.equal(normalized.normalizedSnapshot.appearance?.showHeaderFooter, true);
+  }
 });

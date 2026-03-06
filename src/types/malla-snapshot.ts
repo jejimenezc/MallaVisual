@@ -1,4 +1,5 @@
 import type { InputType } from './curricular.ts';
+import type { ViewerTheme } from './viewer-theme.ts';
 
 /**
  * Formato portable para Viewer:
@@ -94,6 +95,7 @@ export interface MallaSnapshotV1 {
   };
   items: MallaSnapshotItem[];
   bands?: SnapshotBands;
+  appearance?: ViewerTheme;
 }
 
 export type MallaSnapshot = MallaSnapshotV1;

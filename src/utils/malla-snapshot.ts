@@ -34,6 +34,8 @@ import {
   computeMetaRowValueForColumn,
   type MetaCalcDeps,
 } from './meta-calc.ts';
+import { normalizeViewerTheme } from './viewer-theme.ts';
+import type { ViewerTheme } from '../types/viewer-theme.ts';
 
 const DEFAULT_BG_COLOR = '#ffffff';
 const DEFAULT_TEXT_COLOR = '#111827';
@@ -63,6 +65,7 @@ interface BuildSnapshotOptions {
   createdAt?: string;
   snapshotId?: string;
   appVersion?: string;
+  appearance?: ViewerTheme;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -524,6 +527,7 @@ export const buildMallaSnapshotFromState = (
     },
     items,
     ...(bands ? { bands } : {}),
+    ...(options.appearance ? { appearance: normalizeViewerTheme(options.appearance) } : {}),
   };
 };
 
@@ -800,6 +804,9 @@ export const validateAndNormalizeMallaSnapshot = (
     },
     items,
     ...(bands ? { bands } : {}),
+    ...(snapshot.appearance !== undefined
+      ? { appearance: normalizeViewerTheme(snapshot.appearance) }
+      : {}),
   };
 
   return {
