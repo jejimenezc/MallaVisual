@@ -41,6 +41,11 @@ const cellTextFromType = (text: string, type: string, checked?: boolean): string
   return text;
 };
 
+const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify') => {
+  if (align === 'justify') return 'left';
+  return align;
+};
+
 export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -383,6 +388,46 @@ export function MallaViewerScreen({ snapshot, onImportSnapshotFile }: Props): JS
                 transform: `scale(${zoom})`,
               }}
             >
+              {renderModel.bandsRenderRows.map((row) => (
+                <div
+                  key={`band-row-${row.kind}-${row.id}`}
+                  className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
+                  style={{
+                    top: `${row.top}px`,
+                    height: `${row.height}px`,
+                    width: `${Math.max(renderModel.width, 1)}px`,
+                  }}
+                >
+                  {row.cells.map((cell, index) => (
+                    <div
+                      key={`band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
+                      className={styles.viewerBandCell}
+                      style={{
+                        left: `${cell.left}px`,
+                        width: `${cell.width}px`,
+                        height: `${row.height}px`,
+                        backgroundColor: cell.style.backgroundColor,
+                        color: cell.style.textColor,
+                        border: borderStyleFromSnapshot(cell.style.border),
+                        textAlign: resolveBandCellTextAlign(cell.style.textAlign),
+                        fontSize: `${cell.style.fontSizePx}px`,
+                        padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
+                        fontWeight: cell.bold || cell.style.bold ? 700 : 400,
+                        fontStyle: cell.style.italic ? 'italic' : 'normal',
+                      }}
+                    >
+                      {cell.label ? (
+                        <div className={styles.viewerBandCellMetric}>
+                          <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
+                          <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
+                        </div>
+                      ) : (
+                        <span>{cell.text}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
               {renderModel.items.map((item) => (
                 <article
                   key={item.id}

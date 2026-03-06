@@ -1,5 +1,9 @@
 import type { CSSProperties } from 'react';
-import type { MallaSnapshot, MallaSnapshotCell } from '../types/malla-snapshot.ts';
+import type {
+  MallaSnapshot,
+  MallaSnapshotCell,
+  SnapshotBandCell,
+} from '../types/malla-snapshot.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
 import { getCellSizeByAspect } from '../components/BlockSnapshot.tsx';
 
@@ -70,14 +74,35 @@ export interface ViewerRenderItem {
   cells: ViewerRenderCell[];
 }
 
+export interface ViewerRenderBandCell extends SnapshotBandCell {
+  left: number;
+  width: number;
+  style: SnapshotBandCell['style'] & {
+    fontSizePx: number;
+    paddingX: number;
+    paddingY: number;
+  };
+}
+
+export interface ViewerRenderBandRow {
+  id: string;
+  kind: 'header' | 'metric';
+  top: number;
+  height: number;
+  cells: ViewerRenderBandCell[];
+}
+
 export interface ViewerRenderModel {
   projectName: string;
   gridRows: number;
   gridCols: number;
   width: number;
   height: number;
+  columnWidths: number[];
   colOffsets: number[];
   rowOffsets: number[];
+  bandsHeight: number;
+  bandsRenderRows: ViewerRenderBandRow[];
   items: ViewerRenderItem[];
   theme: ViewerTheme;
 }
@@ -97,6 +122,24 @@ const scaleCellStyle = (cell: MallaSnapshotCell, theme: ViewerTheme): ViewerRend
       paddingY: nextPaddingY,
       fontSizePx: nextFontSize,
     },
+  };
+};
+
+const scaleBandCellStyle = (cell: SnapshotBandCell, theme: ViewerTheme): ViewerRenderBandCell => {
+  const extraPadding = normalizeCellPadding(theme.cellPadding);
+  const nextPaddingX = clamp(cell.style.paddingX + extraPadding, 0, 64);
+  const nextPaddingY = clamp(cell.style.paddingY + extraPadding, 0, 64);
+  const nextFontSize = clamp(cell.style.fontSizePx * theme.typographyScale, 8, 96);
+  return {
+    ...cell,
+    style: {
+      ...cell.style,
+      paddingX: nextPaddingX,
+      paddingY: nextPaddingY,
+      fontSizePx: nextFontSize,
+    },
+    left: 0,
+    width: 0,
   };
 };
 
@@ -139,7 +182,52 @@ export const applyViewerTheme = (
   }
 
   const width = colWidths.reduce((sum, value) => sum + value, 0) + Math.max(0, colWidths.length - 1) * theme.gapX;
-  const height = rowHeights.reduce((sum, value) => sum + value, 0) + Math.max(0, rowHeights.length - 1) * theme.gapY;
+  const gridHeight = rowHeights.reduce((sum, value) => sum + value, 0) + Math.max(0, rowHeights.length - 1) * theme.gapY;
+
+  const bandsRenderRows: ViewerRenderBandRow[] = [];
+  let currentBandTop = 0;
+  const headerRows = snapshot.bands?.headers?.rows ?? [];
+  for (const row of headerRows) {
+    const cells = row.cells.map((cell) => {
+      const scaled = scaleBandCellStyle(cell, theme);
+      const col = Math.max(0, Math.min(colOffsets.length - 1, cell.col));
+      return {
+        ...scaled,
+        left: colOffsets[col] ?? 0,
+        width: colWidths[col] ?? 0,
+      };
+    });
+    bandsRenderRows.push({
+      id: row.id,
+      kind: 'header',
+      top: currentBandTop,
+      height: 28,
+      cells,
+    });
+    currentBandTop += 28;
+  }
+  const metricRows = snapshot.bands?.metrics?.rows ?? [];
+  for (const row of metricRows) {
+    const cells = row.cells.map((cell) => {
+      const scaled = scaleBandCellStyle(cell, theme);
+      const col = Math.max(0, Math.min(colOffsets.length - 1, cell.col));
+      return {
+        ...scaled,
+        left: colOffsets[col] ?? 0,
+        width: colWidths[col] ?? 0,
+      };
+    });
+    bandsRenderRows.push({
+      id: row.id,
+      kind: 'metric',
+      top: currentBandTop,
+      height: 30,
+      cells,
+    });
+    currentBandTop += 30;
+  }
+  const bandsHeight = currentBandTop;
+  const height = bandsHeight + gridHeight;
 
   const items: ViewerRenderItem[] = measuredPieces.map(({ item, cellW, cellH, pieceWidth, pieceHeight }) => {
     const pieceCells = item.cells.map((cell) => scaleCellStyle(cell, theme));
@@ -147,7 +235,7 @@ export const applyViewerTheme = (
     return {
       id: item.id,
       left: colOffsets[item.col] ?? 0,
-      top: rowOffsets[item.row] ?? 0,
+      top: bandsHeight + (rowOffsets[item.row] ?? 0),
       width: pieceWidth,
       height: pieceHeight,
       cols: item.cols,
@@ -172,8 +260,11 @@ export const applyViewerTheme = (
     gridCols: snapshot.grid.cols,
     width,
     height,
+    columnWidths: colWidths,
     colOffsets,
     rowOffsets,
+    bandsHeight,
+    bandsRenderRows,
     items,
     theme,
   };

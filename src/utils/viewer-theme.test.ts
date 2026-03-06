@@ -11,6 +11,89 @@ const buildSnapshotFixture = (): MallaSnapshot => ({
   createdAt: '2026-03-05T12:00:00.000Z',
   projectName: 'Plan 2026',
   grid: { rows: 2, cols: 2 },
+  bands: {
+    headers: {
+      rows: [
+        {
+          id: 'hdr-1',
+          cells: [
+            {
+              col: 0,
+              text: 'Sem 1',
+              style: {
+                backgroundColor: '#f8fafc',
+                textColor: '#475569',
+                textAlign: 'center',
+                border: 'thin',
+                fontSizePx: 12,
+                paddingX: 6,
+                paddingY: 4,
+                bold: true,
+                italic: false,
+              },
+            },
+            {
+              col: 1,
+              text: 'Sem 2',
+              style: {
+                backgroundColor: '#f8fafc',
+                textColor: '#475569',
+                textAlign: 'center',
+                border: 'thin',
+                fontSizePx: 12,
+                paddingX: 6,
+                paddingY: 4,
+                bold: true,
+                italic: false,
+              },
+            },
+          ],
+        },
+      ],
+    },
+    metrics: {
+      rows: [
+        {
+          id: 'metric-1',
+          label: 'Creditos',
+          cells: [
+            {
+              col: 0,
+              label: 'Creditos',
+              text: '#3',
+              style: {
+                backgroundColor: '#fff',
+                textColor: '#6b7280',
+                textAlign: 'right',
+                border: 'thin',
+                fontSizePx: 12,
+                paddingX: 6,
+                paddingY: 4,
+                bold: false,
+                italic: false,
+              },
+            },
+            {
+              col: 1,
+              label: 'Creditos',
+              text: '#4',
+              style: {
+                backgroundColor: '#fff',
+                textColor: '#6b7280',
+                textAlign: 'right',
+                border: 'thin',
+                fontSizePx: 12,
+                paddingX: 6,
+                paddingY: 4,
+                bold: false,
+                italic: false,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  },
   items: [
     {
       id: 'piece-1',
@@ -147,5 +230,17 @@ describe('viewer-theme', () => {
 
     expect(model.colOffsets[1]).toBe(310);
     expect(model.rowOffsets[1]).toBe(192);
+  });
+
+  test('applyViewerTheme renders aligned bands and offsets pieces below bands', () => {
+    const snapshot = buildSnapshotFixture();
+    const model = applyViewerTheme(snapshot, createDefaultViewerTheme());
+    expect(model.bandsRenderRows.length).toBe(2);
+    expect(model.bandsHeight).toBe(58);
+    expect(model.columnWidths.length).toBe(2);
+    expect(model.bandsRenderRows[0]?.cells[0]?.left).toBe(model.colOffsets[0]);
+    expect(model.bandsRenderRows[0]?.cells[1]?.left).toBe(model.colOffsets[1]);
+    const firstPiece = model.items.find((item) => item.id === 'piece-1');
+    expect(firstPiece?.top).toBeGreaterThanOrEqual(model.bandsHeight);
   });
 });

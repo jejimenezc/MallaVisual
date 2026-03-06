@@ -144,6 +144,52 @@
   transform-origin: top left;
 }
 
+.viewerBandRow {
+  position: absolute;
+  left: 0;
+}
+
+.viewerBandRowHeader {
+  z-index: 2;
+}
+
+.viewerBandRowMetric {
+  z-index: 2;
+}
+
+.viewerBandCell {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  user-select: text;
+}
+
+.viewerBandCellMetric {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 6px;
+  line-height: 1.15;
+}
+
+.viewerBandCellMetricLabel {
+  text-align: left;
+  font-size: 0.72em;
+  opacity: 0.86;
+  overflow-wrap: anywhere;
+}
+
+.viewerBandCellMetricValue {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .viewerPiece {
   position: absolute;
   border-style: solid;
