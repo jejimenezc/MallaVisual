@@ -128,6 +128,7 @@ interface Props {
   projectId?: string;
   projectName?: string;
   suspendAutosave?: boolean;
+  onOpenPublicationPreview?: () => void;
 }
 
 export const MallaEditorScreen: React.FC<Props> = ({
@@ -142,6 +143,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   projectId,
   projectName,
   suspendAutosave = false,
+  onOpenPublicationPreview,
 }) => {
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
@@ -2572,6 +2574,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   </div>
                 ) : null}
               </div>
+              <Button
+                type="button"
+                onClick={onOpenPublicationPreview}
+                className={styles.headerPopoverTrigger}
+                aria-label="Vista previa de publicacion"
+                title="Vista previa de publicacion"
+                disabled={!onOpenPublicationPreview}
+              >
+                Vista previa de publicacion
+              </Button>
             </div>
           }
           center={

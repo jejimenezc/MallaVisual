@@ -1804,6 +1804,7 @@ export default function App(): JSX.Element | null {
                       aspect={block.published?.aspect ?? block.draft.aspect}
                       repoId={block.repoId ?? null}
                       onBack={() => navigate('/block/design')}
+                      onOpenPublicationPreview={handleOpenPreview}
                       onUpdateMaster={handleUpdateMaster}
                       initialMalla={malla ?? undefined}
                       onMallaChange={handleMallaChange}
