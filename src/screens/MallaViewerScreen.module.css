@@ -6,7 +6,7 @@
 }
 
 .viewerHeader {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .viewerTitleWrap {
@@ -39,6 +39,17 @@
   display: flex;
   min-height: 0;
   flex: 1;
+  position: relative;
+}
+
+.appearanceCollapsed .appearancePanel {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition-delay: 0s, 0s, 0.1s;
 }
 
 .appearancePanel {
@@ -51,10 +62,11 @@
   background: rgba(255, 255, 255, 0.92);
   transition: width 0.2s ease, opacity 0.2s ease;
   padding: 0;
+  position: relative;
 }
 
 .appearanceOpen {
-  width: 300px;
+  width: 260px;
   opacity: 1;
   pointer-events: auto;
   padding: var(--space-md);
@@ -63,6 +75,60 @@
 .appearancePanel h3 {
   margin: 0 0 var(--space-sm);
   color: #0f172a;
+}
+
+.appearanceToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  color: inherit;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  z-index: 1200;
+  transition: background-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+  width: 1.125rem;
+  min-width: 1.125rem;
+  height: 2.25rem;
+}
+
+.appearanceToggleRow {
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.appearanceToggleHide {
+  margin-left: auto;
+  border-radius: var(--space-xs) 0 0 var(--space-xs);
+  border-right: none;
+}
+
+.appearanceToggleRestore {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  border-radius: 0 var(--space-xs) var(--space-xs) 0;
+  width: 1.125rem;
+  min-width: 1.125rem;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  border-left: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  opacity: 0.5;
+}
+
+.appearanceToggleRestore:hover,
+.appearanceToggleRestore:focus-visible {
+  opacity: 1;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
 }
 
 .field {
@@ -319,6 +385,34 @@
     width: 100%;
     max-height: 70vh;
     overflow: auto;
+  }
+
+  .appearanceToggleRow {
+    top: auto;
+    bottom: -1px;
+    right: 50%;
+    transform: translateX(50%);
+  }
+
+  .appearanceToggleHide {
+    border-right: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--space-xs) var(--space-xs);
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 1.125rem;
+  }
+
+  .appearanceToggleRestore {
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, 0);
+    border-left: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--space-xs) var(--space-xs);
+    width: 2.25rem;
+    min-width: 2.25rem;
+    height: 1.125rem;
   }
 }
 

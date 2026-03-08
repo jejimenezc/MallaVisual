@@ -61,7 +61,7 @@ export function MallaViewerScreen({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
-  const [isAppearanceOpen, setAppearanceOpen] = useState(false);
+  const [isAppearanceOpen, setAppearanceOpen] = useState(true);
   const [isPanning, setIsPanning] = useState(false);
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -257,9 +257,6 @@ export function MallaViewerScreen({
             <Button type="button" onClick={onBackToEditor}>
               Volver al editor
             </Button>
-            <Button type="button" onClick={() => setAppearanceOpen((prev) => !prev)}>
-              Apariencia
-            </Button>
             {mode === 'preview' ? (
               <Button type="button" onClick={() => void onPublish()}>
                 Publicar esta version
@@ -272,8 +269,30 @@ export function MallaViewerScreen({
           </div>
         }
       />
-      <div className={styles.viewerBody}>
+      <div className={`${styles.viewerBody} ${!isAppearanceOpen ? styles.appearanceCollapsed : ''}`}>
+        {!isAppearanceOpen ? (
+          <Button
+            type="button"
+            className={`${styles.appearanceToggle} ${styles.appearanceToggleRestore}`}
+            onClick={() => setAppearanceOpen(true)}
+            aria-label="Mostrar panel de apariencia"
+            title="Mostrar panel de apariencia"
+          >
+            ›
+          </Button>
+        ) : null}
         <aside className={`${styles.appearancePanel} ${isAppearanceOpen ? styles.appearanceOpen : ''}`}>
+          <div className={styles.appearanceToggleRow}>
+            <Button
+              type="button"
+              className={`${styles.appearanceToggle} ${styles.appearanceToggleHide}`}
+              onClick={() => setAppearanceOpen(false)}
+              aria-label="Ocultar panel de apariencia"
+              title="Ocultar panel de apariencia"
+            >
+              ‹
+            </Button>
+          </div>
           <h3>Apariencia v1</h3>
           <label className={styles.field}>
             <span>Gap columnas</span>
