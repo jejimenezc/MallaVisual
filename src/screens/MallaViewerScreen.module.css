@@ -145,11 +145,21 @@
   box-sizing: border-box;
 }
 
+.fieldHint {
+  font-size: 0.75rem;
+  color: #475569;
+}
+
 .toggleField {
   display: inline-flex;
   gap: var(--space-xs);
   align-items: center;
   margin-bottom: var(--space-sm);
+}
+
+.printActions {
+  display: grid;
+  gap: var(--space-xs);
 }
 
 .viewerMain {
@@ -282,6 +292,17 @@
 .viewerViewportPanning {
   cursor: grabbing;
   user-select: none;
+}
+
+.viewerCanvasFrame {
+  width: max-content;
+}
+
+.viewerCanvasFramePrint {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
 
 .viewerCanvasScaled {
@@ -419,5 +440,41 @@
 @media (max-width: 960px) {
   .zoomSlider {
     width: 5.5rem;
+  }
+}
+
+@media print {
+  .viewerHeader,
+  .appearancePanel,
+  .appearanceToggleRestore,
+  .runtimeHeader,
+  .runtimeFooter {
+    display: none !important;
+  }
+
+  .viewerScreen {
+    background: #ffffff;
+  }
+
+  .viewerMain {
+    padding: 0;
+  }
+
+  .viewerViewport {
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .viewerCanvasFramePrint {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    margin: 0 !important;
+    width: auto !important;
+    min-height: auto !important;
+    padding: 0 !important;
   }
 }

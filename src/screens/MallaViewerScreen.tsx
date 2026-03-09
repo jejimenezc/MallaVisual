@@ -11,6 +11,16 @@ import {
   VIEWER_MIN_ZOOM,
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
+import {
+  createDefaultViewerPrintSettings,
+  resolveViewerPanelMode,
+  VIEWER_PRINT_MAX_SCALE,
+  VIEWER_PRINT_MIN_SCALE,
+  VIEWER_PRINT_SCALE_STEP,
+  type ViewerPanelMode,
+  type ViewerPrintMargins,
+  type ViewerPrintPaperSize,
+} from '../utils/viewer-print.ts';
 import styles from './MallaViewerScreen.module.css';
 
 interface Props {
@@ -49,6 +59,21 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
+const MM_TO_PX = 3.7795;
+
+const PAPER_MM: Record<ViewerPrintPaperSize, { width: number; height: number }> = {
+  A2: { width: 420, height: 594 },
+  A3: { width: 297, height: 420 },
+  carta: { width: 215.9, height: 279.4 },
+  oficio: { width: 215.9, height: 330 },
+};
+
+const MARGINS_MM: Record<ViewerPrintMargins, number> = {
+  narrow: 8,
+  normal: 12,
+  wide: 18,
+};
+
 export function MallaViewerScreen({
   snapshot,
   mode,
@@ -62,6 +87,8 @@ export function MallaViewerScreen({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
+  const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('preview');
+  const [printSettings, setPrintSettings] = useState(() => createDefaultViewerPrintSettings());
   const [isPanning, setIsPanning] = useState(false);
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -72,6 +99,34 @@ export function MallaViewerScreen({
   }, [snapshot, theme]);
 
   const zoomPct = `${Math.round(zoom * 100)}%`;
+  const isPrintPreview = viewerPanelMode === 'print-preview';
+  const panelMode = resolveViewerPanelMode(isPrintPreview);
+  const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
+
+  const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (!isPrintPreview) return undefined;
+    const paper = PAPER_MM[printSettings.paperSize];
+    const marginMm = MARGINS_MM[printSettings.margins];
+    const isLandscape = printSettings.orientation === 'landscape';
+    const widthMm = isLandscape ? paper.height : paper.width;
+    const heightMm = isLandscape ? paper.width : paper.height;
+    return {
+      width: `${Math.round(widthMm * MM_TO_PX)}px`,
+      minHeight: `${Math.round(heightMm * MM_TO_PX)}px`,
+      padding: `${Math.round(marginMm * MM_TO_PX)}px`,
+      margin: '0 auto',
+    };
+  }, [isPrintPreview, printSettings.margins, printSettings.orientation, printSettings.paperSize]);
+
+  const effectiveZoom = isPrintPreview ? zoom * printSettings.scale : zoom;
+  const printStyleText = useMemo(() => {
+    if (!isPrintPreview) return '';
+    const paper = PAPER_MM[printSettings.paperSize];
+    const isLandscape = printSettings.orientation === 'landscape';
+    const widthMm = isLandscape ? paper.height : paper.width;
+    const heightMm = isLandscape ? paper.width : paper.height;
+    return `@media print { @page { size: ${widthMm}mm ${heightMm}mm; margin: ${MARGINS_MM[printSettings.margins]}mm; } }`;
+  }, [isPrintPreview, printSettings.margins, printSettings.orientation, printSettings.paperSize]);
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -151,6 +206,23 @@ export function MallaViewerScreen({
     };
   }, [isPanning]);
 
+  useEffect(() => {
+    setViewerPanelMode('preview');
+  }, [mode]);
+
+  const handleEnterPrintPreview = useCallback(() => {
+    setViewerPanelMode('print-preview');
+    setAppearanceOpen(true);
+  }, []);
+
+  const handleExitPrintPreview = useCallback(() => {
+    setViewerPanelMode('preview');
+  }, []);
+
+  const handlePrintNow = useCallback(() => {
+    window.print();
+  }, []);
+
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
@@ -195,77 +267,95 @@ export function MallaViewerScreen({
             <span className={styles.snapshotMeta}>
               {mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} -{' '}
               {formatSnapshotDate(snapshot.createdAt)}
+              {isPrintPreview ? ' - Modo impresion' : ''}
             </span>
           </div>
         }
         center={
-          <label className={styles.zoomControl}>
-            <div className={styles.zoomControlGroup}>
-              <button
-                type="button"
-                className={styles.zoomButton}
-                onClick={handleZoomOut}
-                disabled={zoom <= VIEWER_MIN_ZOOM}
-                aria-label="Reducir zoom"
-              >
-                -
-              </button>
-              <input
-                className={styles.zoomSlider}
-                type="range"
-                min={VIEWER_MIN_ZOOM}
-                max={VIEWER_MAX_ZOOM}
-                step={VIEWER_ZOOM_STEP}
-                value={zoom}
-                onChange={(event) => setZoomSafe(Number(event.target.value))}
-                aria-label="Nivel de zoom de la publicacion"
-              />
-              <button
-                type="button"
-                className={styles.zoomButton}
-                onClick={handleZoomIn}
-                disabled={zoom >= VIEWER_MAX_ZOOM}
-                aria-label="Aumentar zoom"
-              >
-                +
-              </button>
-              <span className={styles.zoomValue}>{zoomPct}</span>
-            </div>
-            <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
-              <button
-                type="button"
-                className={styles.pointerToggleButton}
-                aria-pressed={false}
-                disabled
-                title="Seleccion deshabilitada en vista previa/publicacion"
-              >
-                👉🏻
-              </button>
-              <button
-                type="button"
-                className={`${styles.pointerToggleButton} ${styles.pointerToggleButtonActive}`}
-                aria-pressed={true}
-                title="Arrastre activo"
-              >
-                🤚🏻
-              </button>
-            </div>
-          </label>
+          isPrintPreview ? null : (
+            <label className={styles.zoomControl}>
+              <div className={styles.zoomControlGroup}>
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={handleZoomOut}
+                  disabled={zoom <= VIEWER_MIN_ZOOM}
+                  aria-label="Reducir zoom"
+                >
+                  -
+                </button>
+                <input
+                  className={styles.zoomSlider}
+                  type="range"
+                  min={VIEWER_MIN_ZOOM}
+                  max={VIEWER_MAX_ZOOM}
+                  step={VIEWER_ZOOM_STEP}
+                  value={zoom}
+                  onChange={(event) => setZoomSafe(Number(event.target.value))}
+                  aria-label="Nivel de zoom de la publicacion"
+                />
+                <button
+                  type="button"
+                  className={styles.zoomButton}
+                  onClick={handleZoomIn}
+                  disabled={zoom >= VIEWER_MAX_ZOOM}
+                  aria-label="Aumentar zoom"
+                >
+                  +
+                </button>
+                <span className={styles.zoomValue}>{zoomPct}</span>
+              </div>
+              <div className={styles.pointerToggle} role="group" aria-label="Modo del puntero">
+                <button
+                  type="button"
+                  className={styles.pointerToggleButton}
+                  aria-pressed={false}
+                  disabled
+                  title="Seleccion deshabilitada en vista previa/publicacion"
+                >
+                  👉🏻
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.pointerToggleButton} ${styles.pointerToggleButtonActive}`}
+                  aria-pressed={true}
+                  title="Arrastre activo"
+                >
+                  🤚🏻
+                </button>
+              </div>
+            </label>
+          )
         }
         right={
           <div className={styles.viewerActions}>
             <Button type="button" onClick={onBackToEditor}>
               Volver al editor
             </Button>
-            {mode === 'preview' ? (
+            {isPrintPreview ? (
+              <>
+                <Button type="button" onClick={handleExitPrintPreview}>
+                  Volver a vista previa
+                </Button>
+                <Button type="button" variant="primary" onClick={handlePrintNow}>
+                  Imprimir ahora
+                </Button>
+              </>
+            ) : (
+              <Button type="button" onClick={handleEnterPrintPreview}>
+                Vista de impresion
+              </Button>
+            )}
+            {!isPrintPreview && mode === 'preview' ? (
               <Button type="button" onClick={() => void onPublish()}>
                 Publicar esta version
               </Button>
-            ) : (
+            ) : null}
+            {!isPrintPreview && mode !== 'preview' ? (
               <Button type="button" onClick={handleOpenImporter}>
                 Abrir publicacion
               </Button>
-            )}
+            ) : null}
           </div>
         }
       />
@@ -275,8 +365,8 @@ export function MallaViewerScreen({
             type="button"
             className={`${styles.appearanceToggle} ${styles.appearanceToggleRestore}`}
             onClick={() => setAppearanceOpen(true)}
-            aria-label="Mostrar panel de apariencia"
-            title="Mostrar panel de apariencia"
+            aria-label="Mostrar panel lateral"
+            title="Mostrar panel lateral"
           >
             ›
           </Button>
@@ -287,152 +377,233 @@ export function MallaViewerScreen({
               type="button"
               className={`${styles.appearanceToggle} ${styles.appearanceToggleHide}`}
               onClick={() => setAppearanceOpen(false)}
-              aria-label="Ocultar panel de apariencia"
-              title="Ocultar panel de apariencia"
+              aria-label="Ocultar panel lateral"
+              title="Ocultar panel lateral"
             >
               ‹
             </Button>
           </div>
-          <h3>Apariencia v1</h3>
-          <label className={styles.field}>
-            <span>Gap columnas</span>
-            <input
-              type="range"
-              min={0}
-              max={96}
-              value={theme.gapX}
-              onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapX: Number(event.target.value) }))}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Gap filas</span>
-            <input
-              type="range"
-              min={0}
-              max={96}
-              value={theme.gapY}
-              onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapY: Number(event.target.value) }))}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Ancho minimo columna</span>
-            <input
-              type="range"
-              min={0}
-              max={500}
-              step={5}
-              value={theme.minColumnWidth}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, minColumnWidth: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Alto minimo fila</span>
-            <input
-              type="range"
-              min={0}
-              max={500}
-              step={5}
-              value={theme.minRowHeight}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, minRowHeight: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Padding celdas</span>
-            <input
-              type="range"
-              min={0}
-              max={32}
-              value={theme.cellPadding}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, cellPadding: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Borde bloques</span>
-            <input
-              type="range"
-              min={0}
-              max={8}
-              value={theme.blockBorderWidth}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, blockBorderWidth: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Radio borde</span>
-            <input
-              type="range"
-              min={0}
-              max={32}
-              value={theme.blockBorderRadius}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, blockBorderRadius: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Escala tipografica</span>
-            <input
-              type="range"
-              min={0.5}
-              max={2}
-              step={0.05}
-              value={theme.typographyScale}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, typographyScale: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Peso titulo</span>
-            <select
-              value={theme.titleWeight}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({
-                  ...prev,
-                  titleWeight: event.target.value === 'normal' ? 'normal' : 'bold',
-                }))
-              }
-            >
-              <option value="bold">Bold</option>
-              <option value="normal">Normal</option>
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span>Header text</span>
-            <input
-              type="text"
-              value={theme.headerText}
-              onChange={(event) => setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))}
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Footer text</span>
-            <input
-              type="text"
-              value={theme.footerText}
-              onChange={(event) => setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))}
-            />
-          </label>
-          <label className={styles.toggleField}>
-            <input
-              type="checkbox"
-              checked={theme.showHeaderFooter}
-              onChange={(event) =>
-                setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
-              }
-            />
-            <span>Mostrar header/footer</span>
-          </label>
-          <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
-            Restablecer
-          </Button>
+          {panelMode === 'preview' ? (
+            <>
+              <h3>Apariencia v1</h3>
+              <label className={styles.field}>
+                <span>Gap columnas</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={96}
+                  value={theme.gapX}
+                  onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapX: Number(event.target.value) }))}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Gap filas</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={96}
+                  value={theme.gapY}
+                  onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapY: Number(event.target.value) }))}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Ancho minimo columna</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={500}
+                  step={5}
+                  value={theme.minColumnWidth}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, minColumnWidth: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Alto minimo fila</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={500}
+                  step={5}
+                  value={theme.minRowHeight}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, minRowHeight: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Padding celdas</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={32}
+                  value={theme.cellPadding}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, cellPadding: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Borde bloques</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={8}
+                  value={theme.blockBorderWidth}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, blockBorderWidth: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Radio borde</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={32}
+                  value={theme.blockBorderRadius}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, blockBorderRadius: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Escala tipografica</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2}
+                  step={0.05}
+                  value={theme.typographyScale}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, typographyScale: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Peso titulo</span>
+                <select
+                  value={theme.titleWeight}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({
+                      ...prev,
+                      titleWeight: event.target.value === 'normal' ? 'normal' : 'bold',
+                    }))
+                  }
+                >
+                  <option value="bold">Bold</option>
+                  <option value="normal">Normal</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Header text</span>
+                <input
+                  type="text"
+                  value={theme.headerText}
+                  onChange={(event) => setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Footer text</span>
+                <input
+                  type="text"
+                  value={theme.footerText}
+                  onChange={(event) => setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))}
+                />
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={theme.showHeaderFooter}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
+                  }
+                />
+                <span>Mostrar header/footer</span>
+              </label>
+              <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
+                Restablecer
+              </Button>
+            </>
+          ) : (
+            <>
+              <h3>Configuracion de impresion</h3>
+              <label className={styles.field}>
+                <span>Tamano de papel</span>
+                <select
+                  value={printSettings.paperSize}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({
+                      ...prev,
+                      paperSize: event.target.value as ViewerPrintPaperSize,
+                    }))
+                  }
+                >
+                  <option value="A2">A2</option>
+                  <option value="A3">A3</option>
+                  <option value="carta">Carta</option>
+                  <option value="oficio">Oficio</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Orientacion</span>
+                <select
+                  value={printSettings.orientation}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({
+                      ...prev,
+                      orientation: event.target.value === 'landscape' ? 'landscape' : 'portrait',
+                    }))
+                  }
+                >
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Escala</span>
+                <input
+                  type="range"
+                  min={VIEWER_PRINT_MIN_SCALE}
+                  max={VIEWER_PRINT_MAX_SCALE}
+                  step={VIEWER_PRINT_SCALE_STEP}
+                  value={printSettings.scale}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, scale: Number(event.target.value) }))
+                  }
+                />
+                <span className={styles.fieldHint}>{printScalePct}</span>
+              </label>
+              <label className={styles.field}>
+                <span>Margenes</span>
+                <select
+                  value={printSettings.margins}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({
+                      ...prev,
+                      margins:
+                        event.target.value === 'narrow' || event.target.value === 'wide'
+                          ? event.target.value
+                          : 'normal',
+                    }))
+                  }
+                >
+                  <option value="narrow">Narrow</option>
+                  <option value="normal">Normal</option>
+                  <option value="wide">Wide</option>
+                </select>
+              </label>
+              <div className={styles.printActions}>
+                <Button type="button" onClick={handleExitPrintPreview}>
+                  Volver a vista previa
+                </Button>
+                <Button type="button" variant="primary" onClick={handlePrintNow}>
+                  Imprimir ahora
+                </Button>
+              </div>
+            </>
+          )}
         </aside>
 
         <div className={styles.viewerMain}>
@@ -446,91 +617,96 @@ export function MallaViewerScreen({
             onMouseDown={handleViewportMouseDown}
           >
             <div
-              className={styles.viewerCanvasScaled}
-              style={{
-                width: `${Math.max(renderModel.width, 1)}px`,
-                height: `${Math.max(renderModel.height, 1)}px`,
-                transform: `scale(${zoom})`,
-              }}
+              className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
+              style={printFrameStyle}
             >
-              {renderModel.bandsRenderRows.map((row) => (
-                <div
-                  key={`band-row-${row.kind}-${row.id}`}
-                  className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
-                  style={{
-                    top: `${row.top}px`,
-                    height: `${row.height}px`,
-                    width: `${Math.max(renderModel.width, 1)}px`,
-                  }}
-                >
-                  {row.cells.map((cell, index) => (
-                    <div
-                      key={`band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
-                      className={styles.viewerBandCell}
-                      style={{
-                        left: `${cell.left}px`,
-                        width: `${cell.width}px`,
-                        height: `${row.height}px`,
-                        backgroundColor: cell.style.backgroundColor,
-                        color: cell.style.textColor,
-                        border: borderStyleFromSnapshot(cell.style.border),
-                        textAlign: resolveBandCellTextAlign(cell.style.textAlign),
-                        fontSize: `${cell.style.fontSizePx}px`,
-                        padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
-                        fontWeight: cell.bold || cell.style.bold ? 700 : 400,
-                        fontStyle: cell.style.italic ? 'italic' : 'normal',
-                      }}
-                    >
-                      {cell.label ? (
-                        <div className={styles.viewerBandCellMetric}>
-                          <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
-                          <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
-                        </div>
-                      ) : (
-                        <span>{cell.text}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {renderModel.items.map((item) => (
-                <article
-                  key={item.id}
-                  className={styles.viewerPiece}
-                  style={{
-                    left: `${item.left}px`,
-                    top: `${item.top}px`,
-                    width: `${item.width}px`,
-                    height: `${item.height}px`,
-                    borderWidth: `${renderModel.theme.blockBorderWidth}px`,
-                    borderRadius: `${renderModel.theme.blockBorderRadius}px`,
-                  }}
-                >
-                  <div className={styles.viewerPieceGrid} style={item.gridStyle}>
-                    {item.cells.map((cell) => (
+              <div
+                className={styles.viewerCanvasScaled}
+                style={{
+                  width: `${Math.max(renderModel.width, 1)}px`,
+                  height: `${Math.max(renderModel.height, 1)}px`,
+                  transform: `scale(${effectiveZoom})`,
+                }}
+              >
+                {renderModel.bandsRenderRows.map((row) => (
+                  <div
+                    key={`band-row-${row.kind}-${row.id}`}
+                    className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
+                    style={{
+                      top: `${row.top}px`,
+                      height: `${row.height}px`,
+                      width: `${Math.max(renderModel.width, 1)}px`,
+                    }}
+                  >
+                    {row.cells.map((cell, index) => (
                       <div
-                        key={`${item.id}-${cell.row}-${cell.col}`}
-                        className={styles.viewerCell}
+                        key={`band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
+                        className={styles.viewerBandCell}
                         style={{
-                          gridRow: `${cell.row + 1} / ${cell.row + cell.rowSpan + 1}`,
-                          gridColumn: `${cell.col + 1} / ${cell.col + cell.colSpan + 1}`,
+                          left: `${cell.left}px`,
+                          width: `${cell.width}px`,
+                          height: `${row.height}px`,
                           backgroundColor: cell.style.backgroundColor,
                           color: cell.style.textColor,
                           border: borderStyleFromSnapshot(cell.style.border),
-                          textAlign: cell.style.textAlign,
+                          textAlign: resolveBandCellTextAlign(cell.style.textAlign),
                           fontSize: `${cell.style.fontSizePx}px`,
                           padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
-                          fontWeight: cell.style.bold ? 700 : 400,
+                          fontWeight: cell.bold || cell.style.bold ? 700 : 400,
                           fontStyle: cell.style.italic ? 'italic' : 'normal',
                         }}
-                        title={cell.text}
                       >
-                        <span>{cellTextFromType(cell.text, cell.type, cell.checked)}</span>
+                        {cell.label ? (
+                          <div className={styles.viewerBandCellMetric}>
+                            <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
+                            <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
+                          </div>
+                        ) : (
+                          <span>{cell.text}</span>
+                        )}
                       </div>
                     ))}
                   </div>
-                </article>
-              ))}
+                ))}
+                {renderModel.items.map((item) => (
+                  <article
+                    key={item.id}
+                    className={styles.viewerPiece}
+                    style={{
+                      left: `${item.left}px`,
+                      top: `${item.top}px`,
+                      width: `${item.width}px`,
+                      height: `${item.height}px`,
+                      borderWidth: `${renderModel.theme.blockBorderWidth}px`,
+                      borderRadius: `${renderModel.theme.blockBorderRadius}px`,
+                    }}
+                  >
+                    <div className={styles.viewerPieceGrid} style={item.gridStyle}>
+                      {item.cells.map((cell) => (
+                        <div
+                          key={`${item.id}-${cell.row}-${cell.col}`}
+                          className={styles.viewerCell}
+                          style={{
+                            gridRow: `${cell.row + 1} / ${cell.row + cell.rowSpan + 1}`,
+                            gridColumn: `${cell.col + 1} / ${cell.col + cell.colSpan + 1}`,
+                            backgroundColor: cell.style.backgroundColor,
+                            color: cell.style.textColor,
+                            border: borderStyleFromSnapshot(cell.style.border),
+                            textAlign: cell.style.textAlign,
+                            fontSize: `${cell.style.fontSizePx}px`,
+                            padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
+                            fontWeight: cell.style.bold ? 700 : 400,
+                            fontStyle: cell.style.italic ? 'italic' : 'normal',
+                          }}
+                          title={cell.text}
+                        >
+                          <span>{cellTextFromType(cell.text, cell.type, cell.checked)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -546,6 +722,8 @@ export function MallaViewerScreen({
         accept="application/json"
         className={styles.hiddenInput}
       />
+      {printStyleText ? <style>{printStyleText}</style> : null}
     </section>
   );
 }
+
