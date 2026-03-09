@@ -162,6 +162,9 @@
   gap: var(--space-xs);
 }
 
+.noPrint {
+}
+
 .viewerMain {
   flex: 1;
   display: flex;
@@ -169,6 +172,14 @@
   min-height: 0;
   padding: var(--space-sm);
   gap: var(--space-sm);
+}
+
+.viewerPrintableRoot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 0;
+  flex: 1;
 }
 
 .zoomControl {
@@ -444,20 +455,27 @@
 }
 
 @media print {
-  .viewerHeader,
-  .appearancePanel,
-  .appearanceToggleRestore,
-  .runtimeHeader,
-  .runtimeFooter {
+  .noPrint {
     display: none !important;
   }
 
   .viewerScreen {
     background: #ffffff;
+    min-height: auto;
+  }
+
+  .viewerBody {
+    display: block;
+    min-height: auto;
   }
 
   .viewerMain {
     padding: 0;
+    gap: 0;
+  }
+
+  .viewerPrintableRoot {
+    gap: 0;
   }
 
   .viewerViewport {
@@ -466,15 +484,35 @@
     background: #ffffff;
     overflow: visible;
     padding: 0;
+    min-height: 0;
   }
 
   .viewerCanvasFramePrint {
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    margin: 0 !important;
-    width: auto !important;
-    min-height: auto !important;
-    padding: 0 !important;
+    margin: 0 auto !important;
+  }
+
+  .runtimeHeader,
+  .runtimeFooter {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    margin-bottom: 0.35rem;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .runtimeFooter {
+    margin-top: 0.35rem;
+    margin-bottom: 0;
+  }
+
+  .viewerBandRow,
+  .viewerPiece {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
   }
 }

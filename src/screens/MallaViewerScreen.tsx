@@ -13,12 +13,13 @@ import {
 } from '../utils/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
+  resolveViewerPrintLayout,
   resolveViewerPanelMode,
+  VIEWER_PRINT_MM_TO_PX,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
   VIEWER_PRINT_SCALE_STEP,
   type ViewerPanelMode,
-  type ViewerPrintMargins,
   type ViewerPrintPaperSize,
 } from '../utils/viewer-print.ts';
 import styles from './MallaViewerScreen.module.css';
@@ -59,21 +60,6 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
-const MM_TO_PX = 3.7795;
-
-const PAPER_MM: Record<ViewerPrintPaperSize, { width: number; height: number }> = {
-  A2: { width: 420, height: 594 },
-  A3: { width: 297, height: 420 },
-  carta: { width: 215.9, height: 279.4 },
-  oficio: { width: 215.9, height: 330 },
-};
-
-const MARGINS_MM: Record<ViewerPrintMargins, number> = {
-  narrow: 8,
-  normal: 12,
-  wide: 18,
-};
-
 export function MallaViewerScreen({
   snapshot,
   mode,
@@ -102,31 +88,22 @@ export function MallaViewerScreen({
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
+  const printLayout = useMemo(() => resolveViewerPrintLayout(printSettings), [printSettings]);
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
-    const paper = PAPER_MM[printSettings.paperSize];
-    const marginMm = MARGINS_MM[printSettings.margins];
-    const isLandscape = printSettings.orientation === 'landscape';
-    const widthMm = isLandscape ? paper.height : paper.width;
-    const heightMm = isLandscape ? paper.width : paper.height;
     return {
-      width: `${Math.round(widthMm * MM_TO_PX)}px`,
-      minHeight: `${Math.round(heightMm * MM_TO_PX)}px`,
-      padding: `${Math.round(marginMm * MM_TO_PX)}px`,
+      width: `${Math.round(printLayout.pageWidthMm * VIEWER_PRINT_MM_TO_PX)}px`,
+      minHeight: `${Math.round(printLayout.pageHeightMm * VIEWER_PRINT_MM_TO_PX)}px`,
+      padding: `${Math.round(printLayout.marginMm * VIEWER_PRINT_MM_TO_PX)}px`,
       margin: '0 auto',
     };
-  }, [isPrintPreview, printSettings.margins, printSettings.orientation, printSettings.paperSize]);
+  }, [isPrintPreview, printLayout]);
 
-  const effectiveZoom = isPrintPreview ? zoom * printSettings.scale : zoom;
+  const effectiveZoom = isPrintPreview ? printSettings.scale : zoom;
   const printStyleText = useMemo(() => {
-    if (!isPrintPreview) return '';
-    const paper = PAPER_MM[printSettings.paperSize];
-    const isLandscape = printSettings.orientation === 'landscape';
-    const widthMm = isLandscape ? paper.height : paper.width;
-    const heightMm = isLandscape ? paper.width : paper.height;
-    return `@media print { @page { size: ${widthMm}mm ${heightMm}mm; margin: ${MARGINS_MM[printSettings.margins]}mm; } }`;
-  }, [isPrintPreview, printSettings.margins, printSettings.orientation, printSettings.paperSize]);
+    return `@media print { @page { size: ${printLayout.pageWidthMm}mm ${printLayout.pageHeightMm}mm; margin: ${printLayout.marginMm}mm; } }`;
+  }, [printLayout.marginMm, printLayout.pageHeightMm, printLayout.pageWidthMm]);
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -172,7 +149,7 @@ export function MallaViewerScreen({
   );
 
   const handleViewportMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (pointerMode !== 'pan' || event.button !== 0) return;
+    if (isPrintPreview || pointerMode !== 'pan' || event.button !== 0) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
     panStartRef.current = {
@@ -184,7 +161,7 @@ export function MallaViewerScreen({
     setIsPanning(true);
     window.getSelection()?.removeAllRanges();
     event.preventDefault();
-  }, [pointerMode]);
+  }, [isPrintPreview, pointerMode]);
 
   useEffect(() => {
     if (!isPanning) return;
@@ -223,6 +200,92 @@ export function MallaViewerScreen({
     window.print();
   }, []);
 
+  const canvasContent = useMemo(() => {
+    if (!renderModel) return null;
+    return (
+      <>
+        {renderModel.bandsRenderRows.map((row) => (
+          <div
+            key={`band-row-${row.kind}-${row.id}`}
+            className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
+            style={{
+              top: `${row.top}px`,
+              height: `${row.height}px`,
+              width: `${Math.max(renderModel.width, 1)}px`,
+            }}
+          >
+            {row.cells.map((cell, index) => (
+              <div
+                key={`band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
+                className={styles.viewerBandCell}
+                style={{
+                  left: `${cell.left}px`,
+                  width: `${cell.width}px`,
+                  height: `${row.height}px`,
+                  backgroundColor: cell.style.backgroundColor,
+                  color: cell.style.textColor,
+                  border: borderStyleFromSnapshot(cell.style.border),
+                  textAlign: resolveBandCellTextAlign(cell.style.textAlign),
+                  fontSize: `${cell.style.fontSizePx}px`,
+                  padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
+                  fontWeight: cell.bold || cell.style.bold ? 700 : 400,
+                  fontStyle: cell.style.italic ? 'italic' : 'normal',
+                }}
+              >
+                {cell.label ? (
+                  <div className={styles.viewerBandCellMetric}>
+                    <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
+                    <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
+                  </div>
+                ) : (
+                  <span>{cell.text}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
+        {renderModel.items.map((item) => (
+          <article
+            key={item.id}
+            className={styles.viewerPiece}
+            style={{
+              left: `${item.left}px`,
+              top: `${item.top}px`,
+              width: `${item.width}px`,
+              height: `${item.height}px`,
+              borderWidth: `${renderModel.theme.blockBorderWidth}px`,
+              borderRadius: `${renderModel.theme.blockBorderRadius}px`,
+            }}
+          >
+            <div className={styles.viewerPieceGrid} style={item.gridStyle}>
+              {item.cells.map((cell) => (
+                <div
+                  key={`${item.id}-${cell.row}-${cell.col}`}
+                  className={styles.viewerCell}
+                  style={{
+                    gridRow: `${cell.row + 1} / ${cell.row + cell.rowSpan + 1}`,
+                    gridColumn: `${cell.col + 1} / ${cell.col + cell.colSpan + 1}`,
+                    backgroundColor: cell.style.backgroundColor,
+                    color: cell.style.textColor,
+                    border: borderStyleFromSnapshot(cell.style.border),
+                    textAlign: cell.style.textAlign,
+                    fontSize: `${cell.style.fontSizePx}px`,
+                    padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
+                    fontWeight: cell.style.bold ? 700 : 400,
+                    fontStyle: cell.style.italic ? 'italic' : 'normal',
+                  }}
+                  title={cell.text}
+                >
+                  <span>{cellTextFromType(cell.text, cell.type, cell.checked)}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </>
+    );
+  }, [renderModel]);
+
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
@@ -255,7 +318,7 @@ export function MallaViewerScreen({
   return (
     <section className={styles.viewerScreen}>
       <Header
-        className={styles.viewerHeader}
+        className={`${styles.viewerHeader} ${styles.noPrint}`}
         left={
           <div className={styles.viewerTitleWrap}>
             <h2
@@ -363,7 +426,7 @@ export function MallaViewerScreen({
         {!isAppearanceOpen ? (
           <Button
             type="button"
-            className={`${styles.appearanceToggle} ${styles.appearanceToggleRestore}`}
+            className={`${styles.appearanceToggle} ${styles.appearanceToggleRestore} ${styles.noPrint}`}
             onClick={() => setAppearanceOpen(true)}
             aria-label="Mostrar panel lateral"
             title="Mostrar panel lateral"
@@ -371,7 +434,9 @@ export function MallaViewerScreen({
             ›
           </Button>
         ) : null}
-        <aside className={`${styles.appearancePanel} ${isAppearanceOpen ? styles.appearanceOpen : ''}`}>
+        <aside
+          className={`${styles.appearancePanel} ${isAppearanceOpen ? styles.appearanceOpen : ''} ${styles.noPrint}`}
+        >
           <div className={styles.appearanceToggleRow}>
             <Button
               type="button"
@@ -607,112 +672,37 @@ export function MallaViewerScreen({
         </aside>
 
         <div className={styles.viewerMain}>
-          {renderModel.theme.showHeaderFooter && renderModel.theme.headerText.trim() ? (
-            <div className={styles.runtimeHeader}>{renderModel.theme.headerText}</div>
-          ) : null}
+          <div className={styles.viewerPrintableRoot} data-print-root>
+            {renderModel.theme.showHeaderFooter && renderModel.theme.headerText.trim() ? (
+              <div className={styles.runtimeHeader}>{renderModel.theme.headerText}</div>
+            ) : null}
 
-          <div
-            ref={viewportRef}
-            className={`${styles.viewerViewport} ${isPanning ? styles.viewerViewportPanning : ''}`}
-            onMouseDown={handleViewportMouseDown}
-          >
             <div
-              className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
-              style={printFrameStyle}
+              ref={viewportRef}
+              className={`${styles.viewerViewport} ${isPanning ? styles.viewerViewportPanning : ''}`}
+              onMouseDown={handleViewportMouseDown}
             >
               <div
-                className={styles.viewerCanvasScaled}
-                style={{
-                  width: `${Math.max(renderModel.width, 1)}px`,
-                  height: `${Math.max(renderModel.height, 1)}px`,
-                  transform: `scale(${effectiveZoom})`,
-                }}
+                className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
+                style={printFrameStyle}
               >
-                {renderModel.bandsRenderRows.map((row) => (
-                  <div
-                    key={`band-row-${row.kind}-${row.id}`}
-                    className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
-                    style={{
-                      top: `${row.top}px`,
-                      height: `${row.height}px`,
-                      width: `${Math.max(renderModel.width, 1)}px`,
-                    }}
-                  >
-                    {row.cells.map((cell, index) => (
-                      <div
-                        key={`band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
-                        className={styles.viewerBandCell}
-                        style={{
-                          left: `${cell.left}px`,
-                          width: `${cell.width}px`,
-                          height: `${row.height}px`,
-                          backgroundColor: cell.style.backgroundColor,
-                          color: cell.style.textColor,
-                          border: borderStyleFromSnapshot(cell.style.border),
-                          textAlign: resolveBandCellTextAlign(cell.style.textAlign),
-                          fontSize: `${cell.style.fontSizePx}px`,
-                          padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
-                          fontWeight: cell.bold || cell.style.bold ? 700 : 400,
-                          fontStyle: cell.style.italic ? 'italic' : 'normal',
-                        }}
-                      >
-                        {cell.label ? (
-                          <div className={styles.viewerBandCellMetric}>
-                            <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
-                            <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
-                          </div>
-                        ) : (
-                          <span>{cell.text}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-                {renderModel.items.map((item) => (
-                  <article
-                    key={item.id}
-                    className={styles.viewerPiece}
-                    style={{
-                      left: `${item.left}px`,
-                      top: `${item.top}px`,
-                      width: `${item.width}px`,
-                      height: `${item.height}px`,
-                      borderWidth: `${renderModel.theme.blockBorderWidth}px`,
-                      borderRadius: `${renderModel.theme.blockBorderRadius}px`,
-                    }}
-                  >
-                    <div className={styles.viewerPieceGrid} style={item.gridStyle}>
-                      {item.cells.map((cell) => (
-                        <div
-                          key={`${item.id}-${cell.row}-${cell.col}`}
-                          className={styles.viewerCell}
-                          style={{
-                            gridRow: `${cell.row + 1} / ${cell.row + cell.rowSpan + 1}`,
-                            gridColumn: `${cell.col + 1} / ${cell.col + cell.colSpan + 1}`,
-                            backgroundColor: cell.style.backgroundColor,
-                            color: cell.style.textColor,
-                            border: borderStyleFromSnapshot(cell.style.border),
-                            textAlign: cell.style.textAlign,
-                            fontSize: `${cell.style.fontSizePx}px`,
-                            padding: `${cell.style.paddingY}px ${cell.style.paddingX}px`,
-                            fontWeight: cell.style.bold ? 700 : 400,
-                            fontStyle: cell.style.italic ? 'italic' : 'normal',
-                          }}
-                          title={cell.text}
-                        >
-                          <span>{cellTextFromType(cell.text, cell.type, cell.checked)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                ))}
+                <div
+                  className={styles.viewerCanvasScaled}
+                  style={{
+                    width: `${Math.max(renderModel.width, 1)}px`,
+                    height: `${Math.max(renderModel.height, 1)}px`,
+                    transform: `scale(${effectiveZoom})`,
+                  }}
+                >
+                  {canvasContent}
+                </div>
               </div>
             </div>
-          </div>
 
-          {renderModel.theme.showHeaderFooter && renderModel.theme.footerText.trim() ? (
-            <div className={styles.runtimeFooter}>{renderModel.theme.footerText}</div>
-          ) : null}
+            {renderModel.theme.showHeaderFooter && renderModel.theme.footerText.trim() ? (
+              <div className={styles.runtimeFooter}>{renderModel.theme.footerText}</div>
+            ) : null}
+          </div>
         </div>
       </div>
       <input
