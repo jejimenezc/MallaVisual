@@ -3,6 +3,7 @@ import { test } from 'vitest';
 import {
   createDefaultViewerPrintSettings,
   normalizeViewerPrintSettings,
+  resolveViewerPrintLayout,
   resolveViewerPanelMode,
 } from './viewer-print.ts';
 
@@ -49,4 +50,28 @@ test('viewer print settings normalization accepts carta and oficio sizes', () =>
 test('viewer side panel mode is resolved from print-preview state', () => {
   assert.equal(resolveViewerPanelMode(false), 'preview');
   assert.equal(resolveViewerPanelMode(true), 'print-preview');
+});
+
+test('viewer print layout resolves orientation and margins', () => {
+  const portrait = resolveViewerPrintLayout({
+    paperSize: 'A3',
+    orientation: 'portrait',
+    margins: 'normal',
+    scale: 1,
+  });
+  assert.equal(portrait.pageWidthMm, 297);
+  assert.equal(portrait.pageHeightMm, 420);
+  assert.equal(portrait.marginMm, 12);
+
+  const landscape = resolveViewerPrintLayout({
+    paperSize: 'A3',
+    orientation: 'landscape',
+    margins: 'wide',
+    scale: 1,
+  });
+  assert.equal(landscape.pageWidthMm, 420);
+  assert.equal(landscape.pageHeightMm, 297);
+  assert.equal(landscape.marginMm, 18);
+  assert.ok(landscape.pageInnerHeightPx > 0);
+  assert.ok(landscape.pageInnerWidthPx > landscape.pageInnerHeightPx);
 });
