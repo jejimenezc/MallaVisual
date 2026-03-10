@@ -33,6 +33,12 @@ import {
   createViewerPrintFrameDocument,
   measureEffectivePrintPage,
 } from '../utils/viewer-print-page-measure.ts';
+import {
+  buildViewerPrintDiagnosticsSnapshot,
+  measureRenderedPreviewRects,
+  type ViewerPrintDiagnosticsMeasurementLike,
+  type ViewerPrintDiagnosticsSnapshot,
+} from '../utils/viewer-print-diagnostics.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
 import styles from './MallaViewerScreen.module.css';
 
@@ -72,25 +78,20 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
-const logPrintPreviewMeasurementDiagnostics = (input: {
-  pageMetrics: ReturnType<typeof resolveViewerPageMetrics>;
-  nominalPreviewMetrics: ReturnType<typeof resolveViewerPreviewPageMetrics>;
-  measurementResult: Awaited<ReturnType<typeof measureEffectivePrintPage>>;
-  finalPreviewMetrics: ReturnType<typeof resolveViewerEffectivePreviewPageMetrics>;
-}) => {
-  const { pageMetrics, nominalPreviewMetrics, measurementResult, finalPreviewMetrics } = input;
+const logPrintPreviewMeasurementDiagnostics = (snapshot: ViewerPrintDiagnosticsSnapshot) => {
   console.groupCollapsed('[PrintPreview] page measurement diagnostics');
-  console.log('nominal', {
-    pageMetrics,
-    previewMetrics: nominalPreviewMetrics,
-  });
-  console.log('effective raw', measurementResult.rawMeasurement);
+  console.log('settings', snapshot.settings);
+  console.log('nominal', snapshot.nominal);
+  console.log('effective raw', snapshot.effectiveRaw);
   console.log(
     'effective accepted/rejected',
-    measurementResult.validation.accepted ? 'accepted' : 'rejected',
+    snapshot.effectiveValidation.accepted ? 'accepted' : 'rejected',
   );
-  console.log('validation rejection reason', measurementResult.validation.reason);
-  console.log('final preview metrics', finalPreviewMetrics);
+  console.log('validation rejection reason', snapshot.effectiveValidation.reason);
+  console.log('final preview metrics', snapshot.finalPreviewMetrics);
+  console.log('rendered preview rects', snapshot.renderedPreviewRects);
+  console.log('diffs', snapshot.diffs);
+  console.log('diagnostics snapshot', snapshot);
   console.groupEnd();
 };
 
@@ -107,6 +108,8 @@ export function MallaViewerScreen({
   const viewportRef = useRef<HTMLDivElement>(null);
   const printableRootRef = useRef<HTMLDivElement>(null);
   const printIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const sheetFrameRef = useRef<HTMLDivElement>(null);
+  const contentBoxRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
   const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('preview');
@@ -371,6 +374,32 @@ export function MallaViewerScreen({
     printMeasurementRequestRef.current = requestId;
     setEffectivePrintMeasurement(null);
 
+    const logDiagnosticsSnapshot = (
+      measurementResult: ViewerPrintDiagnosticsMeasurementLike,
+      finalPreviewMetrics: ReturnType<typeof resolveViewerEffectivePreviewPageMetrics>,
+    ) => {
+      requestAnimationFrame(() => {
+        if (printMeasurementRequestRef.current !== requestId) return;
+        const snapshot = buildViewerPrintDiagnosticsSnapshot({
+          settings: {
+            paperSize: printSettings.paperSize,
+            orientation: printSettings.orientation,
+            margins: printSettings.margins,
+            scale: printSettings.scale,
+          },
+          pageMetrics,
+          nominalPreviewMetrics,
+          measurementResult,
+          finalPreviewMetrics,
+          renderedPreviewRects: measureRenderedPreviewRects({
+            sheetFrameElement: sheetFrameRef.current,
+            contentBoxElement: contentBoxRef.current,
+          }),
+        });
+        logPrintPreviewMeasurementDiagnostics(snapshot);
+      });
+    };
+
     void measureEffectivePrintPage({
       pageMetrics,
       printCssText: printStyleText,
@@ -382,28 +411,24 @@ export function MallaViewerScreen({
           nominalMetrics: nominalPreviewMetrics,
           effectiveMeasurement: acceptedMeasurement,
         });
-        logPrintPreviewMeasurementDiagnostics({
-          pageMetrics,
-          nominalPreviewMetrics,
-          measurementResult,
-          finalPreviewMetrics,
-        });
         setEffectivePrintMeasurement(acceptedMeasurement);
+        logDiagnosticsSnapshot(measurementResult, finalPreviewMetrics);
       })
       .catch((error) => {
         if (printMeasurementRequestRef.current !== requestId) return;
-        console.groupCollapsed('[PrintPreview] page measurement diagnostics');
-        console.log('nominal', {
-          pageMetrics,
-          previewMetrics: nominalPreviewMetrics,
-        });
-        console.log('effective raw', null);
-        console.log('effective accepted/rejected', 'rejected');
-        console.log('validation rejection reason', 'measurement-threw');
-        console.log('measurement error', error);
-        console.log('final preview metrics', nominalPreviewMetrics);
-        console.groupEnd();
         setEffectivePrintMeasurement(null);
+        logDiagnosticsSnapshot(
+          {
+            rawMeasurement: null,
+            validation: {
+              accepted: false,
+              reason: 'measurement-threw',
+              tolerancePx: 0,
+            },
+          },
+          nominalPreviewMetrics,
+        );
+        console.error('[PrintPreview] page measurement error', error);
       });
   }, [
     isPrintPreview,
@@ -416,6 +441,10 @@ export function MallaViewerScreen({
     pageMetrics.marginTopMm,
     pageMetrics.paperHeightMm,
     pageMetrics.paperWidthMm,
+    printSettings.margins,
+    printSettings.orientation,
+    printSettings.paperSize,
+    printSettings.scale,
     printStyleText,
   ]);
 
@@ -952,10 +981,15 @@ export function MallaViewerScreen({
               onMouseDown={handleViewportMouseDown}
             >
               <div
+                ref={sheetFrameRef}
                 className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
                 style={printFrameStyle}
               >
-                <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+                <div
+                  ref={contentBoxRef}
+                  className={styles.viewerPageContentBox}
+                  style={printContentBoxStyle}
+                >
                   <div className={styles.viewerPrintDocumentFlow}>
                     {printableTextLayout.headerText ? (
                       <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
