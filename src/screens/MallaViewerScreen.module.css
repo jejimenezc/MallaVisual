@@ -288,6 +288,17 @@
   padding: 0.4rem 0.6rem;
   color: #0f172a;
   font-size: 0.875rem;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.runtimeDocumentTitle {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.125rem;
+  line-height: 1.2;
 }
 
 .viewerViewport {
@@ -309,11 +320,56 @@
   width: max-content;
 }
 
+.viewerPageContentBox {
+  box-sizing: border-box;
+  width: max-content;
+}
+
+.viewerPrintDocumentFlow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: max-content;
+}
+
 .viewerCanvasFramePrint {
+  position: relative;
+  display: flow-root;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.viewerCanvasFramePrint::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--print-paper-width-mm, 0) * 1mm * var(--viewer-preview-sheet-scale-x, 1));
+  height: calc(var(--print-paper-height-mm, 0) * 1mm * var(--viewer-preview-sheet-scale-y, 1));
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.16);
   border-radius: 10px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+}
+
+.viewerCanvasFramePrint .viewerPageContentBox {
+  position: relative;
+  z-index: 1;
+}
+
+.viewerCanvasFramePrint .viewerPrintDocumentFlow {
+  width: 100%;
+  max-width: 100%;
+}
+
+.viewerCanvasFramePrint .runtimeHeader,
+.viewerCanvasFramePrint .runtimeFooter {
+  width: calc(var(--viewer-preview-content-width-mm, var(--print-content-width-mm, 0)) * 1mm);
+  max-width: calc(var(--viewer-preview-content-width-mm, var(--print-content-width-mm, 0)) * 1mm);
 }
 
 .viewerCanvasScaled {
@@ -488,10 +544,27 @@
   }
 
   .viewerCanvasFramePrint {
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    margin: 0 auto !important;
+    margin: 0 !important;
+    width: auto !important;
+    transform: none !important;
+    transform-origin: top left !important;
+  }
+
+  .viewerCanvasFramePrint::before {
+    content: none !important;
+  }
+
+  .viewerPageContentBox {
+    margin: 0 !important;
+    width: auto !important;
+    min-height: 0 !important;
+    background: transparent;
+  }
+
+  .viewerPrintDocumentFlow {
+    gap: 0.35rem;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .runtimeHeader,
@@ -503,11 +576,22 @@
     margin-bottom: 0.35rem;
     break-inside: avoid-page;
     page-break-inside: avoid;
+    width: 100% !important;
+    max-width: 100% !important;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-sizing: border-box;
   }
 
   .runtimeFooter {
     margin-top: 0.35rem;
     margin-bottom: 0;
+  }
+
+  .runtimeDocumentTitle {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
   }
 
   .viewerBandRow,
