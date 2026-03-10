@@ -18,6 +18,16 @@ export interface ViewerResolvedPrintLayout {
   pageInnerHeightPx: number;
 }
 
+export interface ViewerPrintableLayoutModel {
+  pageWidthMm: number;
+  pageHeightMm: number;
+  marginMm: number;
+  frameWidthPx: number;
+  frameMinHeightPx: number;
+  framePaddingPx: number;
+  contentScale: number;
+}
+
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
 export const VIEWER_PRINT_MIN_SCALE = 0.5;
@@ -87,3 +97,21 @@ export const resolveViewerPrintLayout = (
     pageInnerHeightPx: Math.round(pageInnerHeightMm * VIEWER_PRINT_MM_TO_PX),
   };
 };
+
+export const resolveViewerPrintableLayoutModel = (
+  settings: ViewerPrintSettings,
+): ViewerPrintableLayoutModel => {
+  const layout = resolveViewerPrintLayout(settings);
+  return {
+    pageWidthMm: layout.pageWidthMm,
+    pageHeightMm: layout.pageHeightMm,
+    marginMm: layout.marginMm,
+    frameWidthPx: Math.round(layout.pageWidthMm * VIEWER_PRINT_MM_TO_PX),
+    frameMinHeightPx: Math.round(layout.pageHeightMm * VIEWER_PRINT_MM_TO_PX),
+    framePaddingPx: Math.round(layout.marginMm * VIEWER_PRINT_MM_TO_PX),
+    contentScale: settings.scale,
+  };
+};
+
+export const resolveViewerPrintPageCss = (model: ViewerPrintableLayoutModel): string =>
+  `@media print { @page { size: ${model.pageWidthMm}mm ${model.pageHeightMm}mm; margin: ${model.marginMm}mm; } }`;

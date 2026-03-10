@@ -3,7 +3,9 @@ import { test } from 'vitest';
 import {
   createDefaultViewerPrintSettings,
   normalizeViewerPrintSettings,
+  resolveViewerPrintPageCss,
   resolveViewerPrintLayout,
+  resolveViewerPrintableLayoutModel,
   resolveViewerPanelMode,
 } from './viewer-print.ts';
 
@@ -74,4 +76,32 @@ test('viewer print layout resolves orientation and margins', () => {
   assert.equal(landscape.marginMm, 18);
   assert.ok(landscape.pageInnerHeightPx > 0);
   assert.ok(landscape.pageInnerWidthPx > landscape.pageInnerHeightPx);
+});
+
+test('viewer printable layout model maps page and scale for preview/print parity', () => {
+  const model = resolveViewerPrintableLayoutModel({
+    paperSize: 'A3',
+    orientation: 'landscape',
+    margins: 'narrow',
+    scale: 1.25,
+  });
+  assert.equal(model.pageWidthMm, 420);
+  assert.equal(model.pageHeightMm, 297);
+  assert.equal(model.marginMm, 8);
+  assert.equal(model.contentScale, 1.25);
+  assert.ok(model.frameWidthPx > model.frameMinHeightPx);
+  assert.ok(model.framePaddingPx > 0);
+});
+
+test('viewer print page css is derived from printable model', () => {
+  const css = resolveViewerPrintPageCss({
+    pageWidthMm: 297,
+    pageHeightMm: 420,
+    marginMm: 12,
+    frameWidthPx: 0,
+    frameMinHeightPx: 0,
+    framePaddingPx: 0,
+    contentScale: 1,
+  });
+  assert.equal(css, '@media print { @page { size: 297mm 420mm; margin: 12mm; } }');
 });
