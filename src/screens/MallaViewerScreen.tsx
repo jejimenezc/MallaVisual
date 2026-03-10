@@ -13,9 +13,9 @@ import {
 } from '../utils/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
-  resolveViewerPrintLayout,
+  resolveViewerPrintPageCss,
+  resolveViewerPrintableLayoutModel,
   resolveViewerPanelMode,
-  VIEWER_PRINT_MM_TO_PX,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
   VIEWER_PRINT_SCALE_STEP,
@@ -71,6 +71,8 @@ export function MallaViewerScreen({
 }: Props): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const printableRootRef = useRef<HTMLDivElement>(null);
+  const printIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
   const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('preview');
@@ -88,22 +90,25 @@ export function MallaViewerScreen({
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
-  const printLayout = useMemo(() => resolveViewerPrintLayout(printSettings), [printSettings]);
+  const printLayoutModel = useMemo(
+    () => resolveViewerPrintableLayoutModel(printSettings),
+    [printSettings],
+  );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
-      width: `${Math.round(printLayout.pageWidthMm * VIEWER_PRINT_MM_TO_PX)}px`,
-      minHeight: `${Math.round(printLayout.pageHeightMm * VIEWER_PRINT_MM_TO_PX)}px`,
-      padding: `${Math.round(printLayout.marginMm * VIEWER_PRINT_MM_TO_PX)}px`,
+      width: `${printLayoutModel.frameWidthPx}px`,
+      minHeight: `${printLayoutModel.frameMinHeightPx}px`,
+      padding: `${printLayoutModel.framePaddingPx}px`,
       margin: '0 auto',
     };
-  }, [isPrintPreview, printLayout]);
+  }, [isPrintPreview, printLayoutModel.frameMinHeightPx, printLayoutModel.framePaddingPx, printLayoutModel.frameWidthPx]);
 
-  const effectiveZoom = isPrintPreview ? printSettings.scale : zoom;
+  const effectiveZoom = isPrintPreview ? printLayoutModel.contentScale : zoom;
   const printStyleText = useMemo(() => {
-    return `@media print { @page { size: ${printLayout.pageWidthMm}mm ${printLayout.pageHeightMm}mm; margin: ${printLayout.marginMm}mm; } }`;
-  }, [printLayout.marginMm, printLayout.pageHeightMm, printLayout.pageWidthMm]);
+    return resolveViewerPrintPageCss(printLayoutModel);
+  }, [printLayoutModel]);
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -196,9 +201,105 @@ export function MallaViewerScreen({
     setViewerPanelMode('preview');
   }, []);
 
-  const handlePrintNow = useCallback(() => {
-    window.print();
+  const cleanupPrintIframe = useCallback(() => {
+    const iframe = printIframeRef.current;
+    if (!iframe) return;
+    iframe.remove();
+    printIframeRef.current = null;
   }, []);
+
+  useEffect(() => cleanupPrintIframe, [cleanupPrintIframe]);
+
+  const handlePrintNow = useCallback(() => {
+    const sourceRoot = printableRootRef.current;
+    if (!sourceRoot) return;
+
+    cleanupPrintIframe();
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.tabIndex = -1;
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+    printIframeRef.current = iframe;
+
+    const frameWindow = iframe.contentWindow;
+    const frameDocument = iframe.contentDocument;
+    if (!frameWindow || !frameDocument) {
+      cleanupPrintIframe();
+      return;
+    }
+
+    frameDocument.open();
+    frameDocument.write(
+      '<!doctype html><html><head><meta charset="utf-8"><title>MallaVisual Print</title></head><body></body></html>',
+    );
+    frameDocument.close();
+
+    const { head, body } = frameDocument;
+    const stylesheetNodes = Array.from(
+      document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'),
+    );
+    const inlineStyleNodes = Array.from(document.querySelectorAll<HTMLStyleElement>('style'));
+
+    const stylesheetPromises = stylesheetNodes.map((source) => {
+      const target = frameDocument.createElement('link');
+      target.rel = 'stylesheet';
+      target.href = source.href;
+      head.appendChild(target);
+      return new Promise<void>((resolve) => {
+        target.addEventListener('load', () => resolve(), { once: true });
+        target.addEventListener('error', () => resolve(), { once: true });
+        window.setTimeout(() => resolve(), 1200);
+      });
+    });
+
+    inlineStyleNodes.forEach((source) => {
+      const target = frameDocument.createElement('style');
+      target.textContent = source.textContent;
+      head.appendChild(target);
+    });
+
+    const pageStyle = frameDocument.createElement('style');
+    pageStyle.textContent = `${printStyleText}
+html, body { margin: 0; padding: 0; background: #fff; }
+body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
+    head.appendChild(pageStyle);
+
+    const printRootClone = sourceRoot.cloneNode(true);
+    body.appendChild(printRootClone);
+
+    void Promise.all(stylesheetPromises).finally(() => {
+      const printNow = () => {
+        if (printIframeRef.current !== iframe) return;
+        frameWindow.focus();
+        frameWindow.print();
+      };
+      const finish = () => {
+        window.setTimeout(() => {
+          if (printIframeRef.current === iframe) {
+            cleanupPrintIframe();
+          }
+        }, 0);
+      };
+      frameWindow.onafterprint = finish;
+
+      void frameDocument.fonts.ready
+        .catch(() => undefined)
+        .finally(() => window.requestAnimationFrame(printNow));
+
+      window.setTimeout(() => {
+        if (printIframeRef.current === iframe) {
+          cleanupPrintIframe();
+        }
+      }, 4000);
+    });
+  }, [cleanupPrintIframe, printStyleText]);
 
   const canvasContent = useMemo(() => {
     if (!renderModel) return null;
@@ -672,7 +773,7 @@ export function MallaViewerScreen({
         </aside>
 
         <div className={styles.viewerMain}>
-          <div className={styles.viewerPrintableRoot} data-print-root>
+          <div ref={printableRootRef} className={styles.viewerPrintableRoot} data-print-root>
             {renderModel.theme.showHeaderFooter && renderModel.theme.headerText.trim() ? (
               <div className={styles.runtimeHeader}>{renderModel.theme.headerText}</div>
             ) : null}
