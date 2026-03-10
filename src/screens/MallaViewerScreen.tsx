@@ -179,7 +179,9 @@ export function MallaViewerScreen({
       ...(printCssVars as React.CSSProperties),
       ...(previewCssVars as React.CSSProperties),
       width: `${effectivePreviewMetrics.paperWidthPx}px`,
+      height: `${effectivePreviewMetrics.paperHeightPx}px`,
       minHeight: `${effectivePreviewMetrics.paperHeightPx}px`,
+      maxHeight: `${effectivePreviewMetrics.paperHeightPx}px`,
       margin: '0 auto',
     };
   }, [
@@ -194,7 +196,9 @@ export function MallaViewerScreen({
     if (!isPrintPreview) return undefined;
     return {
       width: `${effectivePreviewMetrics.contentWidthPx}px`,
+      height: `${effectivePreviewMetrics.contentHeightPx}px`,
       minHeight: `${effectivePreviewMetrics.contentHeightPx}px`,
+      maxHeight: `${effectivePreviewMetrics.contentHeightPx}px`,
       margin: `${effectivePreviewMetrics.marginTopPx}px ${effectivePreviewMetrics.marginRightPx}px ${effectivePreviewMetrics.marginBottomPx}px ${effectivePreviewMetrics.marginLeftPx}px`,
     };
   }, [
