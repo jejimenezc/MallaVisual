@@ -107,6 +107,7 @@ export function MallaViewerScreen({
       ...(pageCssVars as React.CSSProperties),
       '--viewer-preview-sheet-scale-x': `${printSettings.previewSheetScaleX}`,
       '--viewer-preview-sheet-scale-y': `${printSettings.previewSheetScaleY}`,
+      '--viewer-preview-content-width-mm': `${pageMetrics.contentWidthMm * printSettings.previewSheetScaleX}`,
       width: `${pageMetrics.paperWidthMm}mm`,
       minHeight: `${pageMetrics.paperHeightMm}mm`,
       margin: '0 auto',

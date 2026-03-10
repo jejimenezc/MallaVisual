@@ -366,6 +366,12 @@
   max-width: 100%;
 }
 
+.viewerCanvasFramePrint .runtimeHeader,
+.viewerCanvasFramePrint .runtimeFooter {
+  width: calc(var(--viewer-preview-content-width-mm, var(--print-content-width-mm, 0)) * 1mm);
+  max-width: calc(var(--viewer-preview-content-width-mm, var(--print-content-width-mm, 0)) * 1mm);
+}
+
 .viewerCanvasScaled {
   position: relative;
   transform-origin: top left;
