@@ -359,11 +359,13 @@
 .viewerCanvasFramePrint .viewerPageContentBox {
   position: relative;
   z-index: 1;
+  overflow: hidden;
 }
 
 .viewerCanvasFramePrint .viewerPrintDocumentFlow {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
 }
 
 .viewerCanvasFramePrint .runtimeHeader,
@@ -375,6 +377,19 @@
 .viewerCanvasScaled {
   position: relative;
   transform-origin: top left;
+}
+
+.viewerCanvasScaledViewport {
+  position: relative;
+  width: max-content;
+  height: max-content;
+  min-width: 0;
+  min-height: 0;
+}
+
+.viewerCanvasFramePrint .viewerCanvasScaledViewport {
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .viewerBandRow {
@@ -545,7 +560,8 @@
 
   .viewerCanvasFramePrint {
     margin: 0 !important;
-    width: auto !important;
+    width: calc(var(--print-paper-width-mm, 0) * 1mm) !important;
+    min-height: calc(var(--print-paper-height-mm, 0) * 1mm) !important;
     transform: none !important;
     transform-origin: top left !important;
   }
@@ -555,16 +571,26 @@
   }
 
   .viewerPageContentBox {
-    margin: 0 !important;
-    width: auto !important;
-    min-height: 0 !important;
+    box-sizing: border-box;
+    margin: calc(var(--print-margin-top-mm, 0) * 1mm)
+      calc(var(--print-margin-right-mm, 0) * 1mm)
+      calc(var(--print-margin-bottom-mm, 0) * 1mm)
+      calc(var(--print-margin-left-mm, 0) * 1mm) !important;
+    width: calc(var(--print-content-width-mm, 0) * 1mm) !important;
+    min-height: calc(var(--print-content-height-mm, 0) * 1mm) !important;
     background: transparent;
+    overflow: hidden;
   }
 
   .viewerPrintDocumentFlow {
     gap: 0.35rem;
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  .viewerCanvasScaledViewport {
+    overflow: hidden;
+    max-width: 100%;
   }
 
   .runtimeHeader,

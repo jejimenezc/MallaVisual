@@ -13,7 +13,9 @@ import {
 } from '../utils/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
+  resolveViewerContentPlacementMetrics,
   resolveViewerPageMetrics,
+  resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
   resolveViewerPrintPageCss,
@@ -103,14 +105,36 @@ export function MallaViewerScreen({
     () => resolveViewerPreviewPageMetrics(pageMetrics, measuredPxPerMm),
     [measuredPxPerMm, pageMetrics],
   );
+  const printCssVars = useMemo(
+    () => resolveViewerPrintCssVars(pageMetrics),
+    [pageMetrics],
+  );
   const previewCssVars = useMemo(
     () => resolveViewerPreviewCssVars(previewMetrics),
     [previewMetrics],
+  );
+  const contentPlacementMetrics = useMemo(
+    () =>
+      resolveViewerContentPlacementMetrics({
+        baseContentWidthPx: renderModel?.width ?? 1,
+        baseContentHeightPx: renderModel?.height ?? 1,
+        previewContentWidthPx: previewMetrics.contentWidthPx,
+        previewContentHeightPx: previewMetrics.contentHeightPx,
+        scale: pageMetrics.contentScale,
+      }),
+    [
+      pageMetrics.contentScale,
+      previewMetrics.contentHeightPx,
+      previewMetrics.contentWidthPx,
+      renderModel?.height,
+      renderModel?.width,
+    ],
   );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
+      ...(printCssVars as React.CSSProperties),
       ...(previewCssVars as React.CSSProperties),
       width: `${previewMetrics.paperWidthPx}px`,
       minHeight: `${previewMetrics.paperHeightPx}px`,
@@ -118,6 +142,7 @@ export function MallaViewerScreen({
     };
   }, [
     isPrintPreview,
+    printCssVars,
     previewCssVars,
     previewMetrics.paperHeightPx,
     previewMetrics.paperWidthPx,
@@ -140,7 +165,41 @@ export function MallaViewerScreen({
     previewMetrics.marginTopPx,
   ]);
 
-  const effectiveZoom = isPrintPreview ? pageMetrics.contentScale : zoom;
+  const previewCanvasViewportStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (!isPrintPreview) return undefined;
+    return {
+      width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+      height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
+    };
+  }, [
+    contentPlacementMetrics.scaledContentHeightPx,
+    contentPlacementMetrics.scaledContentWidthPx,
+    isPrintPreview,
+  ]);
+
+  const previewCanvasInnerStyle = useMemo<React.CSSProperties>(() => {
+    const width = `${contentPlacementMetrics.baseContentWidthPx}px`;
+    const height = `${contentPlacementMetrics.baseContentHeightPx}px`;
+    if (!isPrintPreview) {
+      return {
+        width,
+        height,
+        transform: `scale(${zoom})`,
+      };
+    }
+    return {
+      width,
+      height,
+      transform: `scale(${contentPlacementMetrics.scale})`,
+    };
+  }, [
+    contentPlacementMetrics.baseContentHeightPx,
+    contentPlacementMetrics.baseContentWidthPx,
+    contentPlacementMetrics.scale,
+    isPrintPreview,
+    zoom,
+  ]);
+
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
@@ -858,15 +917,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                         {printableTextLayout.documentTitle}
                       </h1>
                     ) : null}
-                    <div
-                      className={styles.viewerCanvasScaled}
-                      style={{
-                        width: `${Math.max(renderModel.width, 1)}px`,
-                        height: `${Math.max(renderModel.height, 1)}px`,
-                        transform: `scale(${effectiveZoom})`,
-                      }}
-                    >
-                      {canvasContent}
+                    <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
+                      <div
+                        className={styles.viewerCanvasScaled}
+                        style={previewCanvasInnerStyle}
+                      >
+                        {canvasContent}
+                      </div>
                     </div>
                     {printableTextLayout.footerText ? (
                       <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>

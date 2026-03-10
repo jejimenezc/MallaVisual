@@ -45,6 +45,27 @@ export interface ViewerPreviewCssVars {
   '--viewer-preview-content-width-px': string;
 }
 
+export interface ViewerPrintCssVars {
+  '--print-paper-width-mm': string;
+  '--print-paper-height-mm': string;
+  '--print-margin-top-mm': string;
+  '--print-margin-right-mm': string;
+  '--print-margin-bottom-mm': string;
+  '--print-margin-left-mm': string;
+  '--print-content-width-mm': string;
+  '--print-content-height-mm': string;
+}
+
+export interface ViewerContentPlacementMetrics {
+  baseContentWidthPx: number;
+  baseContentHeightPx: number;
+  scaledContentWidthPx: number;
+  scaledContentHeightPx: number;
+  scale: number;
+  overflowsHorizontally: boolean;
+  overflowsVertically: boolean;
+}
+
 export type ViewerPrintableTextBlock = 'header' | 'title' | 'grid' | 'footer';
 
 export interface ViewerPrintableTextLayoutInput {
@@ -177,6 +198,19 @@ export const resolveViewerPreviewPageMetrics = (
 
 export const resolveViewerPrintableLayoutModel = resolveViewerPageMetrics;
 
+export const resolveViewerPrintCssVars = (
+  metrics: ViewerResolvedPageMetrics,
+): ViewerPrintCssVars => ({
+  '--print-paper-width-mm': `${metrics.paperWidthMm}`,
+  '--print-paper-height-mm': `${metrics.paperHeightMm}`,
+  '--print-margin-top-mm': `${metrics.marginTopMm}`,
+  '--print-margin-right-mm': `${metrics.marginRightMm}`,
+  '--print-margin-bottom-mm': `${metrics.marginBottomMm}`,
+  '--print-margin-left-mm': `${metrics.marginLeftMm}`,
+  '--print-content-width-mm': `${metrics.contentWidthMm}`,
+  '--print-content-height-mm': `${metrics.contentHeightMm}`,
+});
+
 export const resolveViewerPreviewCssVars = (
   metrics: ViewerPreviewPageMetrics,
 ): ViewerPreviewCssVars => ({
@@ -184,6 +218,34 @@ export const resolveViewerPreviewCssVars = (
   '--viewer-preview-paper-height-px': `${metrics.paperHeightPx}px`,
   '--viewer-preview-content-width-px': `${metrics.contentWidthPx}px`,
 });
+
+export const resolveViewerContentPlacementMetrics = (input: {
+  baseContentWidthPx: number;
+  baseContentHeightPx: number;
+  previewContentWidthPx: number;
+  previewContentHeightPx: number;
+  scale: number;
+}): ViewerContentPlacementMetrics => {
+  const baseContentWidthPx = Math.max(1, Math.round(input.baseContentWidthPx));
+  const baseContentHeightPx = Math.max(1, Math.round(input.baseContentHeightPx));
+  const previewContentWidthPx = Math.max(1, Math.round(input.previewContentWidthPx));
+  const previewContentHeightPx = Math.max(1, Math.round(input.previewContentHeightPx));
+  const scale = Number.isFinite(input.scale)
+    ? clamp(input.scale, VIEWER_PRINT_MIN_SCALE, VIEWER_PRINT_MAX_SCALE)
+    : 1;
+  const scaledContentWidthPx = Math.max(1, Math.round(baseContentWidthPx * scale));
+  const scaledContentHeightPx = Math.max(1, Math.round(baseContentHeightPx * scale));
+
+  return {
+    baseContentWidthPx,
+    baseContentHeightPx,
+    scaledContentWidthPx,
+    scaledContentHeightPx,
+    scale,
+    overflowsHorizontally: scaledContentWidthPx > previewContentWidthPx,
+    overflowsVertically: scaledContentHeightPx > previewContentHeightPx,
+  };
+};
 
 export const resolveViewerPrintPageCss = (metrics: ViewerResolvedPageMetrics): string =>
   `@media print { @page { size: ${metrics.paperWidthMm}mm ${metrics.paperHeightMm}mm; margin: ${metrics.marginTopMm}mm ${metrics.marginRightMm}mm ${metrics.marginBottomMm}mm ${metrics.marginLeftMm}mm; } }`;
