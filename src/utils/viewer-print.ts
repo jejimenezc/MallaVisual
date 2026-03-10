@@ -7,26 +7,41 @@ export interface ViewerPrintSettings {
   paperSize: ViewerPrintPaperSize;
   orientation: ViewerPrintOrientation;
   scale: number;
+  previewSheetScaleX: number;
+  previewSheetScaleY: number;
   margins: ViewerPrintMargins;
   showDocumentTitle: boolean;
 }
 
-export interface ViewerResolvedPrintLayout {
-  pageWidthMm: number;
-  pageHeightMm: number;
-  marginMm: number;
-  pageInnerWidthPx: number;
-  pageInnerHeightPx: number;
+export interface ViewerResolvedPageMetrics {
+  paperWidthMm: number;
+  paperHeightMm: number;
+  marginTopMm: number;
+  marginRightMm: number;
+  marginBottomMm: number;
+  marginLeftMm: number;
+  contentWidthMm: number;
+  contentHeightMm: number;
+  paperWidthPx: number;
+  paperHeightPx: number;
+  marginTopPx: number;
+  marginRightPx: number;
+  marginBottomPx: number;
+  marginLeftPx: number;
+  contentWidthPx: number;
+  contentHeightPx: number;
+  contentScale: number;
 }
 
-export interface ViewerPrintableLayoutModel {
-  pageWidthMm: number;
-  pageHeightMm: number;
-  marginMm: number;
-  frameWidthPx: number;
-  frameMinHeightPx: number;
-  framePaddingPx: number;
-  contentScale: number;
+export interface ViewerPageCssVars {
+  '--print-paper-width-mm': string;
+  '--print-paper-height-mm': string;
+  '--print-margin-top-mm': string;
+  '--print-margin-right-mm': string;
+  '--print-margin-bottom-mm': string;
+  '--print-margin-left-mm': string;
+  '--print-content-width-mm': string;
+  '--print-content-height-mm': string;
 }
 
 export type ViewerPrintableTextBlock = 'header' | 'title' | 'grid' | 'footer';
@@ -53,6 +68,11 @@ export const VIEWER_PRINT_MAX_SCALE = 1.5;
 export const VIEWER_PRINT_SCALE_STEP = 0.05;
 export const VIEWER_PRINT_MM_TO_PX = 3.7795;
 
+const PREVIEW_SHEET_SCALE_X_MIN = 0.8;
+const PREVIEW_SHEET_SCALE_X_MAX = 1.6;
+const PREVIEW_SHEET_SCALE_Y_MIN = 0.8;
+const PREVIEW_SHEET_SCALE_Y_MAX = 1.2;
+
 const PAPER_MM: Record<ViewerPrintPaperSize, { width: number; height: number }> = {
   A2: { width: 420, height: 594 },
   A3: { width: 297, height: 420 },
@@ -70,6 +90,8 @@ export const createDefaultViewerPrintSettings = (): ViewerPrintSettings => ({
   paperSize: 'A3',
   orientation: 'portrait',
   scale: 1,
+  previewSheetScaleX: 1.26,
+  previewSheetScaleY: 1.2,
   margins: 'normal',
   showDocumentTitle: false,
 });
@@ -79,7 +101,7 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return defaults;
   }
-  const source = value as Partial<ViewerPrintSettings>;
+  const source = value as Partial<ViewerPrintSettings> & { previewScreenScale?: unknown };
   return {
     paperSize:
       source.paperSize === 'A2' ||
@@ -90,6 +112,16 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
         : defaults.paperSize,
     orientation: source.orientation === 'landscape' ? 'landscape' : defaults.orientation,
     scale: clamp(Number(source.scale ?? defaults.scale), VIEWER_PRINT_MIN_SCALE, VIEWER_PRINT_MAX_SCALE),
+    previewSheetScaleX: clamp(
+      Number(source.previewSheetScaleX ?? source.previewScreenScale ?? defaults.previewSheetScaleX),
+      PREVIEW_SHEET_SCALE_X_MIN,
+      PREVIEW_SHEET_SCALE_X_MAX,
+    ),
+    previewSheetScaleY: clamp(
+      Number(source.previewSheetScaleY ?? source.previewScreenScale ?? defaults.previewSheetScaleY),
+      PREVIEW_SHEET_SCALE_Y_MIN,
+      PREVIEW_SHEET_SCALE_Y_MAX,
+    ),
     margins: source.margins === 'narrow' || source.margins === 'wide' ? source.margins : defaults.margins,
     showDocumentTitle: source.showDocumentTitle === true,
   };
@@ -98,43 +130,55 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
 export const resolveViewerPanelMode = (isPrintPreview: boolean): ViewerPanelMode =>
   isPrintPreview ? 'print-preview' : 'preview';
 
-export const resolveViewerPrintLayout = (
+export const resolveViewerPageMetrics = (
   settings: ViewerPrintSettings,
-): ViewerResolvedPrintLayout => {
+): ViewerResolvedPageMetrics => {
   const paper = PAPER_MM[settings.paperSize];
   const isLandscape = settings.orientation === 'landscape';
-  const pageWidthMm = isLandscape ? paper.height : paper.width;
-  const pageHeightMm = isLandscape ? paper.width : paper.height;
+  const paperWidthMm = isLandscape ? paper.height : paper.width;
+  const paperHeightMm = isLandscape ? paper.width : paper.height;
   const marginMm = MARGINS_MM[settings.margins];
-  const pageInnerWidthMm = Math.max(pageWidthMm - marginMm * 2, 1);
-  const pageInnerHeightMm = Math.max(pageHeightMm - marginMm * 2, 1);
+  const contentWidthMm = Math.max(paperWidthMm - marginMm * 2, 1);
+  const contentHeightMm = Math.max(paperHeightMm - marginMm * 2, 1);
 
   return {
-    pageWidthMm,
-    pageHeightMm,
-    marginMm,
-    pageInnerWidthPx: Math.round(pageInnerWidthMm * VIEWER_PRINT_MM_TO_PX),
-    pageInnerHeightPx: Math.round(pageInnerHeightMm * VIEWER_PRINT_MM_TO_PX),
-  };
-};
-
-export const resolveViewerPrintableLayoutModel = (
-  settings: ViewerPrintSettings,
-): ViewerPrintableLayoutModel => {
-  const layout = resolveViewerPrintLayout(settings);
-  return {
-    pageWidthMm: layout.pageWidthMm,
-    pageHeightMm: layout.pageHeightMm,
-    marginMm: layout.marginMm,
-    frameWidthPx: Math.round(layout.pageWidthMm * VIEWER_PRINT_MM_TO_PX),
-    frameMinHeightPx: Math.round(layout.pageHeightMm * VIEWER_PRINT_MM_TO_PX),
-    framePaddingPx: Math.round(layout.marginMm * VIEWER_PRINT_MM_TO_PX),
+    paperWidthMm,
+    paperHeightMm,
+    marginTopMm: marginMm,
+    marginRightMm: marginMm,
+    marginBottomMm: marginMm,
+    marginLeftMm: marginMm,
+    contentWidthMm,
+    contentHeightMm,
+    paperWidthPx: Math.round(paperWidthMm * VIEWER_PRINT_MM_TO_PX),
+    paperHeightPx: Math.round(paperHeightMm * VIEWER_PRINT_MM_TO_PX),
+    marginTopPx: Math.round(marginMm * VIEWER_PRINT_MM_TO_PX),
+    marginRightPx: Math.round(marginMm * VIEWER_PRINT_MM_TO_PX),
+    marginBottomPx: Math.round(marginMm * VIEWER_PRINT_MM_TO_PX),
+    marginLeftPx: Math.round(marginMm * VIEWER_PRINT_MM_TO_PX),
+    contentWidthPx: Math.round(contentWidthMm * VIEWER_PRINT_MM_TO_PX),
+    contentHeightPx: Math.round(contentHeightMm * VIEWER_PRINT_MM_TO_PX),
     contentScale: settings.scale,
   };
 };
 
-export const resolveViewerPrintPageCss = (model: ViewerPrintableLayoutModel): string =>
-  `@media print { @page { size: ${model.pageWidthMm}mm ${model.pageHeightMm}mm; margin: ${model.marginMm}mm; } }`;
+export const resolveViewerPrintableLayoutModel = resolveViewerPageMetrics;
+
+export const resolveViewerPageCssVars = (
+  metrics: ViewerResolvedPageMetrics,
+): ViewerPageCssVars => ({
+  '--print-paper-width-mm': `${metrics.paperWidthMm}`,
+  '--print-paper-height-mm': `${metrics.paperHeightMm}`,
+  '--print-margin-top-mm': `${metrics.marginTopMm}`,
+  '--print-margin-right-mm': `${metrics.marginRightMm}`,
+  '--print-margin-bottom-mm': `${metrics.marginBottomMm}`,
+  '--print-margin-left-mm': `${metrics.marginLeftMm}`,
+  '--print-content-width-mm': `${metrics.contentWidthMm}`,
+  '--print-content-height-mm': `${metrics.contentHeightMm}`,
+});
+
+export const resolveViewerPrintPageCss = (metrics: ViewerResolvedPageMetrics): string =>
+  `@media print { @page { size: ${metrics.paperWidthMm}mm ${metrics.paperHeightMm}mm; margin: ${metrics.marginTopMm}mm ${metrics.marginRightMm}mm ${metrics.marginBottomMm}mm ${metrics.marginLeftMm}mm; } }`;
 
 export const resolveViewerPrintableTextLayout = (
   input: ViewerPrintableTextLayoutInput,

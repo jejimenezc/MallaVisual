@@ -13,9 +13,10 @@ import {
 } from '../utils/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
+  resolveViewerPageCssVars,
+  resolveViewerPageMetrics,
   resolveViewerPrintPageCss,
   resolveViewerPrintableTextLayout,
-  resolveViewerPrintableLayoutModel,
   resolveViewerPanelMode,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
@@ -91,25 +92,55 @@ export function MallaViewerScreen({
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
-  const printLayoutModel = useMemo(
-    () => resolveViewerPrintableLayoutModel(printSettings),
+  const pageMetrics = useMemo(
+    () => resolveViewerPageMetrics(printSettings),
     [printSettings],
+  );
+  const pageCssVars = useMemo(
+    () => resolveViewerPageCssVars(pageMetrics),
+    [pageMetrics],
   );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
-      width: `${printLayoutModel.frameWidthPx}px`,
-      minHeight: `${printLayoutModel.frameMinHeightPx}px`,
-      padding: `${printLayoutModel.framePaddingPx}px`,
+      ...(pageCssVars as React.CSSProperties),
+      '--viewer-preview-sheet-scale-x': `${printSettings.previewSheetScaleX}`,
+      '--viewer-preview-sheet-scale-y': `${printSettings.previewSheetScaleY}`,
+      width: `${pageMetrics.paperWidthMm}mm`,
+      minHeight: `${pageMetrics.paperHeightMm}mm`,
       margin: '0 auto',
     };
-  }, [isPrintPreview, printLayoutModel.frameMinHeightPx, printLayoutModel.framePaddingPx, printLayoutModel.frameWidthPx]);
+  }, [
+    isPrintPreview,
+    pageCssVars,
+    pageMetrics.paperHeightMm,
+    pageMetrics.paperWidthMm,
+    printSettings.previewSheetScaleX,
+    printSettings.previewSheetScaleY,
+  ]);
 
-  const effectiveZoom = isPrintPreview ? printLayoutModel.contentScale : zoom;
+  const printContentBoxStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (!isPrintPreview) return undefined;
+    return {
+      width: `${pageMetrics.contentWidthMm}mm`,
+      minHeight: `${pageMetrics.contentHeightMm}mm`,
+      margin: `${pageMetrics.marginTopMm}mm ${pageMetrics.marginRightMm}mm ${pageMetrics.marginBottomMm}mm ${pageMetrics.marginLeftMm}mm`,
+    };
+  }, [
+    isPrintPreview,
+    pageMetrics.contentHeightMm,
+    pageMetrics.contentWidthMm,
+    pageMetrics.marginBottomMm,
+    pageMetrics.marginLeftMm,
+    pageMetrics.marginRightMm,
+    pageMetrics.marginTopMm,
+  ]);
+
+  const effectiveZoom = isPrintPreview ? pageMetrics.contentScale : zoom;
   const printStyleText = useMemo(() => {
-    return resolveViewerPrintPageCss(printLayoutModel);
-  }, [printLayoutModel]);
+    return resolveViewerPrintPageCss(pageMetrics);
+  }, [pageMetrics]);
   const printableTextLayout = useMemo(
     () =>
       resolveViewerPrintableTextLayout({
@@ -811,31 +842,33 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
                 style={printFrameStyle}
               >
-                <div className={styles.viewerPrintDocumentFlow}>
-                  {printableTextLayout.headerText ? (
-                    <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
-                  ) : null}
-                  {printableTextLayout.documentTitle ? (
-                    <h1
-                      className={styles.runtimeDocumentTitle}
-                      style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+                <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+                  <div className={styles.viewerPrintDocumentFlow}>
+                    {printableTextLayout.headerText ? (
+                      <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+                    ) : null}
+                    {printableTextLayout.documentTitle ? (
+                      <h1
+                        className={styles.runtimeDocumentTitle}
+                        style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+                      >
+                        {printableTextLayout.documentTitle}
+                      </h1>
+                    ) : null}
+                    <div
+                      className={styles.viewerCanvasScaled}
+                      style={{
+                        width: `${Math.max(renderModel.width, 1)}px`,
+                        height: `${Math.max(renderModel.height, 1)}px`,
+                        transform: `scale(${effectiveZoom})`,
+                      }}
                     >
-                      {printableTextLayout.documentTitle}
-                    </h1>
-                  ) : null}
-                  <div
-                    className={styles.viewerCanvasScaled}
-                    style={{
-                      width: `${Math.max(renderModel.width, 1)}px`,
-                      height: `${Math.max(renderModel.height, 1)}px`,
-                      transform: `scale(${effectiveZoom})`,
-                    }}
-                  >
-                    {canvasContent}
+                      {canvasContent}
+                    </div>
+                    {printableTextLayout.footerText ? (
+                      <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+                    ) : null}
                   </div>
-                  {printableTextLayout.footerText ? (
-                    <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
-                  ) : null}
                 </div>
               </div>
             </div>

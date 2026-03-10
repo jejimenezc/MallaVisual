@@ -320,6 +320,11 @@
   width: max-content;
 }
 
+.viewerPageContentBox {
+  box-sizing: border-box;
+  width: max-content;
+}
+
 .viewerPrintDocumentFlow {
   display: flex;
   flex-direction: column;
@@ -328,11 +333,32 @@
 }
 
 .viewerCanvasFramePrint {
+  position: relative;
+  display: flow-root;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.viewerCanvasFramePrint::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--print-paper-width-mm, 0) * 1mm * var(--viewer-preview-sheet-scale-x, 1));
+  height: calc(var(--print-paper-height-mm, 0) * 1mm * var(--viewer-preview-sheet-scale-y, 1));
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.16);
   border-radius: 10px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.viewerCanvasFramePrint .viewerPageContentBox {
+  position: relative;
+  z-index: 1;
 }
 
 .viewerCanvasFramePrint .viewerPrintDocumentFlow {
@@ -512,14 +538,27 @@
   }
 
   .viewerCanvasFramePrint {
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    margin: 0 auto !important;
+    margin: 0 !important;
+    width: auto !important;
+    transform: none !important;
+    transform-origin: top left !important;
+  }
+
+  .viewerCanvasFramePrint::before {
+    content: none !important;
+  }
+
+  .viewerPageContentBox {
+    margin: 0 !important;
+    width: auto !important;
+    min-height: 0 !important;
+    background: transparent;
   }
 
   .viewerPrintDocumentFlow {
     gap: 0.35rem;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .runtimeHeader,
@@ -531,6 +570,12 @@
     margin-bottom: 0.35rem;
     break-inside: avoid-page;
     page-break-inside: avoid;
+    width: 100% !important;
+    max-width: 100% !important;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    box-sizing: border-box;
   }
 
   .runtimeFooter {
