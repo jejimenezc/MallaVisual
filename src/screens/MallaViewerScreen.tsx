@@ -13,8 +13,9 @@ import {
 } from '../utils/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
-  resolveViewerPageCssVars,
   resolveViewerPageMetrics,
+  resolveViewerPreviewCssVars,
+  resolveViewerPreviewPageMetrics,
   resolveViewerPrintPageCss,
   resolveViewerPrintableTextLayout,
   resolveViewerPanelMode,
@@ -24,6 +25,7 @@ import {
   type ViewerPanelMode,
   type ViewerPrintPaperSize,
 } from '../utils/viewer-print.ts';
+import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
 import styles from './MallaViewerScreen.module.css';
 
 interface Props {
@@ -92,50 +94,50 @@ export function MallaViewerScreen({
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
+  const measuredPxPerMm = useMeasuredPxPerMm();
   const pageMetrics = useMemo(
     () => resolveViewerPageMetrics(printSettings),
     [printSettings],
   );
-  const pageCssVars = useMemo(
-    () => resolveViewerPageCssVars(pageMetrics),
-    [pageMetrics],
+  const previewMetrics = useMemo(
+    () => resolveViewerPreviewPageMetrics(pageMetrics, measuredPxPerMm),
+    [measuredPxPerMm, pageMetrics],
+  );
+  const previewCssVars = useMemo(
+    () => resolveViewerPreviewCssVars(previewMetrics),
+    [previewMetrics],
   );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
-      ...(pageCssVars as React.CSSProperties),
-      '--viewer-preview-sheet-scale-x': `${printSettings.previewSheetScaleX}`,
-      '--viewer-preview-sheet-scale-y': `${printSettings.previewSheetScaleY}`,
-      '--viewer-preview-content-width-mm': `${pageMetrics.contentWidthMm * printSettings.previewSheetScaleX}`,
-      width: `${pageMetrics.paperWidthMm}mm`,
-      minHeight: `${pageMetrics.paperHeightMm}mm`,
+      ...(previewCssVars as React.CSSProperties),
+      width: `${previewMetrics.paperWidthPx}px`,
+      minHeight: `${previewMetrics.paperHeightPx}px`,
       margin: '0 auto',
     };
   }, [
     isPrintPreview,
-    pageCssVars,
-    pageMetrics.paperHeightMm,
-    pageMetrics.paperWidthMm,
-    printSettings.previewSheetScaleX,
-    printSettings.previewSheetScaleY,
+    previewCssVars,
+    previewMetrics.paperHeightPx,
+    previewMetrics.paperWidthPx,
   ]);
 
   const printContentBoxStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
-      width: `${pageMetrics.contentWidthMm}mm`,
-      minHeight: `${pageMetrics.contentHeightMm}mm`,
-      margin: `${pageMetrics.marginTopMm}mm ${pageMetrics.marginRightMm}mm ${pageMetrics.marginBottomMm}mm ${pageMetrics.marginLeftMm}mm`,
+      width: `${previewMetrics.contentWidthPx}px`,
+      minHeight: `${previewMetrics.contentHeightPx}px`,
+      margin: `${previewMetrics.marginTopPx}px ${previewMetrics.marginRightPx}px ${previewMetrics.marginBottomPx}px ${previewMetrics.marginLeftPx}px`,
     };
   }, [
     isPrintPreview,
-    pageMetrics.contentHeightMm,
-    pageMetrics.contentWidthMm,
-    pageMetrics.marginBottomMm,
-    pageMetrics.marginLeftMm,
-    pageMetrics.marginRightMm,
-    pageMetrics.marginTopMm,
+    previewMetrics.contentHeightPx,
+    previewMetrics.contentWidthPx,
+    previewMetrics.marginBottomPx,
+    previewMetrics.marginLeftPx,
+    previewMetrics.marginRightPx,
+    previewMetrics.marginTopPx,
   ]);
 
   const effectiveZoom = isPrintPreview ? pageMetrics.contentScale : zoom;
