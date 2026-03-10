@@ -72,6 +72,28 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
+const logPrintPreviewMeasurementDiagnostics = (input: {
+  pageMetrics: ReturnType<typeof resolveViewerPageMetrics>;
+  nominalPreviewMetrics: ReturnType<typeof resolveViewerPreviewPageMetrics>;
+  measurementResult: Awaited<ReturnType<typeof measureEffectivePrintPage>>;
+  finalPreviewMetrics: ReturnType<typeof resolveViewerEffectivePreviewPageMetrics>;
+}) => {
+  const { pageMetrics, nominalPreviewMetrics, measurementResult, finalPreviewMetrics } = input;
+  console.groupCollapsed('[PrintPreview] page measurement diagnostics');
+  console.log('nominal', {
+    pageMetrics,
+    previewMetrics: nominalPreviewMetrics,
+  });
+  console.log('effective raw', measurementResult.rawMeasurement);
+  console.log(
+    'effective accepted/rejected',
+    measurementResult.validation.accepted ? 'accepted' : 'rejected',
+  );
+  console.log('validation rejection reason', measurementResult.validation.reason);
+  console.log('final preview metrics', finalPreviewMetrics);
+  console.groupEnd();
+};
+
 export function MallaViewerScreen({
   snapshot,
   mode,
@@ -353,16 +375,39 @@ export function MallaViewerScreen({
       pageMetrics,
       printCssText: printStyleText,
     })
-      .then((measurement) => {
+      .then((measurementResult) => {
         if (printMeasurementRequestRef.current !== requestId) return;
-        setEffectivePrintMeasurement(measurement);
+        const acceptedMeasurement = measurementResult.acceptedMeasurement;
+        const finalPreviewMetrics = resolveViewerEffectivePreviewPageMetrics({
+          nominalMetrics: nominalPreviewMetrics,
+          effectiveMeasurement: acceptedMeasurement,
+        });
+        logPrintPreviewMeasurementDiagnostics({
+          pageMetrics,
+          nominalPreviewMetrics,
+          measurementResult,
+          finalPreviewMetrics,
+        });
+        setEffectivePrintMeasurement(acceptedMeasurement);
       })
-      .catch(() => {
+      .catch((error) => {
         if (printMeasurementRequestRef.current !== requestId) return;
+        console.groupCollapsed('[PrintPreview] page measurement diagnostics');
+        console.log('nominal', {
+          pageMetrics,
+          previewMetrics: nominalPreviewMetrics,
+        });
+        console.log('effective raw', null);
+        console.log('effective accepted/rejected', 'rejected');
+        console.log('validation rejection reason', 'measurement-threw');
+        console.log('measurement error', error);
+        console.log('final preview metrics', nominalPreviewMetrics);
+        console.groupEnd();
         setEffectivePrintMeasurement(null);
       });
   }, [
     isPrintPreview,
+    nominalPreviewMetrics,
     pageMetrics.contentHeightMm,
     pageMetrics.contentWidthMm,
     pageMetrics.marginBottomMm,

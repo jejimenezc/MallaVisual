@@ -5,6 +5,27 @@ import type {
 
 const MEASUREMENT_TOLERANCE_PX = 3;
 
+export type ViewerEffectivePrintPageValidationReason =
+  | 'missing-measurement'
+  | 'non-finite-or-non-positive-values'
+  | 'paper-width-smaller-than-content'
+  | 'paper-height-smaller-than-content'
+  | 'negative-margin'
+  | 'horizontal-sum-mismatch'
+  | 'vertical-sum-mismatch';
+
+export interface ViewerEffectivePrintPageValidationResult {
+  accepted: boolean;
+  reason: ViewerEffectivePrintPageValidationReason | null;
+  tolerancePx: number;
+}
+
+export interface ViewerEffectivePrintPageMeasurementResult {
+  rawMeasurement: ViewerEffectivePrintPageMeasurement | null;
+  validation: ViewerEffectivePrintPageValidationResult;
+  acceptedMeasurement: ViewerEffectivePrintPageMeasurement | null;
+}
+
 export interface ViewerPrintFrameDocument {
   iframe: HTMLIFrameElement;
   frameWindow: Window;
@@ -127,21 +148,59 @@ const roundMeasurement = (value: number) => Math.round(value);
 export const validateViewerEffectivePrintPageMeasurement = (
   measurement: ViewerEffectivePrintPageMeasurement | null,
   tolerancePx = MEASUREMENT_TOLERANCE_PX,
-): measurement is ViewerEffectivePrintPageMeasurement => {
-  if (!measurement) return false;
-  const values = Object.values(measurement);
-  if (values.some((value) => !Number.isFinite(value) || value <= 0)) {
-    return false;
+): ViewerEffectivePrintPageValidationResult => {
+  if (!measurement) {
+    return {
+      accepted: false,
+      reason: 'missing-measurement',
+      tolerancePx,
+    };
   }
-  if (measurement.paperWidthPx < measurement.contentWidthPx) return false;
-  if (measurement.paperHeightPx < measurement.contentHeightPx) return false;
+  const values = Object.values(measurement);
+  if (values.some((value) => !Number.isFinite(value))) {
+    return {
+      accepted: false,
+      reason: 'non-finite-or-non-positive-values',
+      tolerancePx,
+    };
+  }
+  if (
+    measurement.paperWidthPx <= 0 ||
+    measurement.paperHeightPx <= 0 ||
+    measurement.contentWidthPx <= 0 ||
+    measurement.contentHeightPx <= 0
+  ) {
+    return {
+      accepted: false,
+      reason: 'non-finite-or-non-positive-values',
+      tolerancePx,
+    };
+  }
+  if (measurement.paperWidthPx < measurement.contentWidthPx) {
+    return {
+      accepted: false,
+      reason: 'paper-width-smaller-than-content',
+      tolerancePx,
+    };
+  }
+  if (measurement.paperHeightPx < measurement.contentHeightPx) {
+    return {
+      accepted: false,
+      reason: 'paper-height-smaller-than-content',
+      tolerancePx,
+    };
+  }
   if (
     measurement.marginTopPx < 0 ||
     measurement.marginRightPx < 0 ||
     measurement.marginBottomPx < 0 ||
     measurement.marginLeftPx < 0
   ) {
-    return false;
+    return {
+      accepted: false,
+      reason: 'negative-margin',
+      tolerancePx,
+    };
   }
 
   const horizontalSum =
@@ -150,25 +209,44 @@ export const validateViewerEffectivePrintPageMeasurement = (
     measurement.marginTopPx + measurement.contentHeightPx + measurement.marginBottomPx;
 
   if (Math.abs(horizontalSum - measurement.paperWidthPx) > tolerancePx) {
-    return false;
+    return {
+      accepted: false,
+      reason: 'horizontal-sum-mismatch',
+      tolerancePx,
+    };
   }
   if (Math.abs(verticalSum - measurement.paperHeightPx) > tolerancePx) {
-    return false;
+    return {
+      accepted: false,
+      reason: 'vertical-sum-mismatch',
+      tolerancePx,
+    };
   }
 
-  return true;
+  return {
+    accepted: true,
+    reason: null,
+    tolerancePx,
+  };
 };
 
 export const measureEffectivePrintPage = async (input: {
   pageMetrics: ViewerResolvedPageMetrics;
   printCssText: string;
-}): Promise<ViewerEffectivePrintPageMeasurement | null> => {
+}): Promise<ViewerEffectivePrintPageMeasurementResult> => {
   const frame = createViewerPrintFrameDocument({
     title: 'MallaVisual Print Measurement',
     printCssText: input.printCssText,
     mode: 'measure',
   });
-  if (!frame) return null;
+  if (!frame) {
+    const validation = validateViewerEffectivePrintPageMeasurement(null);
+    return {
+      rawMeasurement: null,
+      validation,
+      acceptedMeasurement: null,
+    };
+  }
 
   const { frameDocument, whenReady, cleanup } = frame;
 
@@ -209,8 +287,12 @@ export const measureEffectivePrintPage = async (input: {
       marginBottomPx: roundMeasurement(shellRect.bottom - contentRect.bottom),
       marginLeftPx: roundMeasurement(contentRect.left - shellRect.left),
     };
-
-    return validateViewerEffectivePrintPageMeasurement(measurement) ? measurement : null;
+    const validation = validateViewerEffectivePrintPageMeasurement(measurement);
+    return {
+      rawMeasurement: measurement,
+      validation,
+      acceptedMeasurement: validation.accepted ? measurement : null,
+    };
   } finally {
     cleanup();
   }

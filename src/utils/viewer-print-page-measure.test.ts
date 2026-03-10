@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import { validateViewerEffectivePrintPageMeasurement } from './viewer-print-page-measure.ts';
 
 test('effective print page measurement accepts consistent geometry', () => {
-  assert.equal(
+  assert.deepEqual(
     validateViewerEffectivePrintPageMeasurement({
       paperWidthPx: 1000,
       paperHeightPx: 700,
@@ -14,12 +14,16 @@ test('effective print page measurement accepts consistent geometry', () => {
       marginBottomPx: 80,
       marginLeftPx: 70,
     }),
-    true,
+    {
+      accepted: true,
+      reason: null,
+      tolerancePx: 3,
+    },
   );
 });
 
 test('effective print page measurement rejects inconsistent horizontal sum', () => {
-  assert.equal(
+  assert.deepEqual(
     validateViewerEffectivePrintPageMeasurement({
       paperWidthPx: 1000,
       paperHeightPx: 700,
@@ -30,12 +34,16 @@ test('effective print page measurement rejects inconsistent horizontal sum', () 
       marginBottomPx: 80,
       marginLeftPx: 70,
     }),
-    false,
+    {
+      accepted: false,
+      reason: 'horizontal-sum-mismatch',
+      tolerancePx: 3,
+    },
   );
 });
 
 test('effective print page measurement rejects invalid or non-positive values', () => {
-  assert.equal(
+  assert.deepEqual(
     validateViewerEffectivePrintPageMeasurement({
       paperWidthPx: 1000,
       paperHeightPx: 700,
@@ -46,6 +54,10 @@ test('effective print page measurement rejects invalid or non-positive values', 
       marginBottomPx: 80,
       marginLeftPx: 70,
     }),
-    false,
+    {
+      accepted: false,
+      reason: 'non-finite-or-non-positive-values',
+      tolerancePx: 3,
+    },
   );
 });
