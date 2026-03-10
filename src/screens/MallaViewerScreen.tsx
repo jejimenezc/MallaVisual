@@ -14,6 +14,7 @@ import {
 import {
   createDefaultViewerPrintSettings,
   resolveViewerPrintPageCss,
+  resolveViewerPrintableTextLayout,
   resolveViewerPrintableLayoutModel,
   resolveViewerPanelMode,
   VIEWER_PRINT_MAX_SCALE,
@@ -109,6 +110,23 @@ export function MallaViewerScreen({
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(printLayoutModel);
   }, [printLayoutModel]);
+  const printableTextLayout = useMemo(
+    () =>
+      resolveViewerPrintableTextLayout({
+        showHeaderFooter: renderModel?.theme.showHeaderFooter ?? false,
+        headerText: renderModel?.theme.headerText ?? '',
+        footerText: renderModel?.theme.footerText ?? '',
+        showDocumentTitle: printSettings.showDocumentTitle,
+        projectName: renderModel?.projectName ?? '',
+      }),
+    [
+      renderModel?.projectName,
+      renderModel?.theme.footerText,
+      renderModel?.theme.headerText,
+      renderModel?.theme.showHeaderFooter,
+      printSettings.showDocumentTitle,
+    ],
+  );
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -760,6 +778,16 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="wide">Wide</option>
                 </select>
               </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={printSettings.showDocumentTitle}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
+                  }
+                />
+                <span>Mostrar titulo del documento</span>
+              </label>
               <div className={styles.printActions}>
                 <Button type="button" onClick={handleExitPrintPreview}>
                   Volver a vista previa
@@ -774,10 +802,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
         <div className={styles.viewerMain}>
           <div ref={printableRootRef} className={styles.viewerPrintableRoot} data-print-root>
-            {renderModel.theme.showHeaderFooter && renderModel.theme.headerText.trim() ? (
-              <div className={styles.runtimeHeader}>{renderModel.theme.headerText}</div>
-            ) : null}
-
             <div
               ref={viewportRef}
               className={`${styles.viewerViewport} ${isPanning ? styles.viewerViewportPanning : ''}`}
@@ -787,22 +811,34 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
                 style={printFrameStyle}
               >
-                <div
-                  className={styles.viewerCanvasScaled}
-                  style={{
-                    width: `${Math.max(renderModel.width, 1)}px`,
-                    height: `${Math.max(renderModel.height, 1)}px`,
-                    transform: `scale(${effectiveZoom})`,
-                  }}
-                >
-                  {canvasContent}
+                <div className={styles.viewerPrintDocumentFlow}>
+                  {printableTextLayout.headerText ? (
+                    <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+                  ) : null}
+                  {printableTextLayout.documentTitle ? (
+                    <h1
+                      className={styles.runtimeDocumentTitle}
+                      style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+                    >
+                      {printableTextLayout.documentTitle}
+                    </h1>
+                  ) : null}
+                  <div
+                    className={styles.viewerCanvasScaled}
+                    style={{
+                      width: `${Math.max(renderModel.width, 1)}px`,
+                      height: `${Math.max(renderModel.height, 1)}px`,
+                      transform: `scale(${effectiveZoom})`,
+                    }}
+                  >
+                    {canvasContent}
+                  </div>
+                  {printableTextLayout.footerText ? (
+                    <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+                  ) : null}
                 </div>
               </div>
             </div>
-
-            {renderModel.theme.showHeaderFooter && renderModel.theme.footerText.trim() ? (
-              <div className={styles.runtimeFooter}>{renderModel.theme.footerText}</div>
-            ) : null}
           </div>
         </div>
       </div>

@@ -8,6 +8,7 @@ export interface ViewerPrintSettings {
   orientation: ViewerPrintOrientation;
   scale: number;
   margins: ViewerPrintMargins;
+  showDocumentTitle: boolean;
 }
 
 export interface ViewerResolvedPrintLayout {
@@ -26,6 +27,23 @@ export interface ViewerPrintableLayoutModel {
   frameMinHeightPx: number;
   framePaddingPx: number;
   contentScale: number;
+}
+
+export type ViewerPrintableTextBlock = 'header' | 'title' | 'grid' | 'footer';
+
+export interface ViewerPrintableTextLayoutInput {
+  showHeaderFooter: boolean;
+  headerText: string;
+  footerText: string;
+  showDocumentTitle: boolean;
+  projectName: string;
+}
+
+export interface ViewerPrintableTextLayout {
+  headerText: string;
+  documentTitle: string;
+  footerText: string;
+  blockOrder: ViewerPrintableTextBlock[];
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
@@ -53,6 +71,7 @@ export const createDefaultViewerPrintSettings = (): ViewerPrintSettings => ({
   orientation: 'portrait',
   scale: 1,
   margins: 'normal',
+  showDocumentTitle: false,
 });
 
 export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSettings => {
@@ -72,6 +91,7 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
     orientation: source.orientation === 'landscape' ? 'landscape' : defaults.orientation,
     scale: clamp(Number(source.scale ?? defaults.scale), VIEWER_PRINT_MIN_SCALE, VIEWER_PRINT_MAX_SCALE),
     margins: source.margins === 'narrow' || source.margins === 'wide' ? source.margins : defaults.margins,
+    showDocumentTitle: source.showDocumentTitle === true,
   };
 };
 
@@ -115,3 +135,24 @@ export const resolveViewerPrintableLayoutModel = (
 
 export const resolveViewerPrintPageCss = (model: ViewerPrintableLayoutModel): string =>
   `@media print { @page { size: ${model.pageWidthMm}mm ${model.pageHeightMm}mm; margin: ${model.marginMm}mm; } }`;
+
+export const resolveViewerPrintableTextLayout = (
+  input: ViewerPrintableTextLayoutInput,
+): ViewerPrintableTextLayout => {
+  const headerText = input.showHeaderFooter ? input.headerText.trim() : '';
+  const footerText = input.showHeaderFooter ? input.footerText.trim() : '';
+  const documentTitle = input.showDocumentTitle ? input.projectName.trim() : '';
+  const blockOrder: ViewerPrintableTextBlock[] = [];
+
+  if (headerText) blockOrder.push('header');
+  if (documentTitle) blockOrder.push('title');
+  blockOrder.push('grid');
+  if (footerText) blockOrder.push('footer');
+
+  return {
+    headerText,
+    documentTitle,
+    footerText,
+    blockOrder,
+  };
+};
