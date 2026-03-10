@@ -56,6 +56,17 @@ export interface ViewerPrintCssVars {
   '--print-content-height-mm': string;
 }
 
+export interface ViewerEffectivePrintPageMeasurement {
+  paperWidthPx: number;
+  paperHeightPx: number;
+  contentWidthPx: number;
+  contentHeightPx: number;
+  marginTopPx: number;
+  marginRightPx: number;
+  marginBottomPx: number;
+  marginLeftPx: number;
+}
+
 export interface ViewerContentPlacementMetrics {
   baseContentWidthPx: number;
   baseContentHeightPx: number;
@@ -218,6 +229,25 @@ export const resolveViewerPreviewCssVars = (
   '--viewer-preview-paper-height-px': `${metrics.paperHeightPx}px`,
   '--viewer-preview-content-width-px': `${metrics.contentWidthPx}px`,
 });
+
+export const resolveViewerEffectivePreviewPageMetrics = (input: {
+  nominalMetrics: ViewerPreviewPageMetrics;
+  effectiveMeasurement: ViewerEffectivePrintPageMeasurement | null;
+}): ViewerPreviewPageMetrics => {
+  const { nominalMetrics, effectiveMeasurement } = input;
+  if (!effectiveMeasurement) return nominalMetrics;
+  return {
+    ...nominalMetrics,
+    paperWidthPx: effectiveMeasurement.paperWidthPx,
+    paperHeightPx: effectiveMeasurement.paperHeightPx,
+    contentWidthPx: effectiveMeasurement.contentWidthPx,
+    contentHeightPx: effectiveMeasurement.contentHeightPx,
+    marginTopPx: effectiveMeasurement.marginTopPx,
+    marginRightPx: effectiveMeasurement.marginRightPx,
+    marginBottomPx: effectiveMeasurement.marginBottomPx,
+    marginLeftPx: effectiveMeasurement.marginLeftPx,
+  };
+};
 
 export const resolveViewerContentPlacementMetrics = (input: {
   baseContentWidthPx: number;

@@ -6,6 +6,7 @@ import {
   normalizeViewerMeasuredPxPerMm,
   normalizeViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
+  resolveViewerEffectivePreviewPageMetrics,
   resolveViewerPageMetrics,
   resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
@@ -211,6 +212,75 @@ test('viewer preview css vars are derived from preview metrics', () => {
   assert.equal(vars['--viewer-preview-paper-width-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-height-px'], '0px');
   assert.equal(vars['--viewer-preview-content-width-px'], '0px');
+});
+
+test('viewer effective preview metrics prefer effective measurement when available', () => {
+  const metrics = resolveViewerEffectivePreviewPageMetrics({
+    nominalMetrics: {
+      paperWidthMm: 420,
+      paperHeightMm: 297,
+      marginTopMm: 8,
+      marginRightMm: 8,
+      marginBottomMm: 8,
+      marginLeftMm: 8,
+      contentWidthMm: 404,
+      contentHeightMm: 281,
+      paperWidthPx: 1680,
+      paperHeightPx: 1188,
+      marginTopPx: 32,
+      marginRightPx: 32,
+      marginBottomPx: 32,
+      marginLeftPx: 32,
+      contentWidthPx: 1616,
+      contentHeightPx: 1124,
+      contentScale: 1,
+    },
+    effectiveMeasurement: {
+      paperWidthPx: 2000,
+      paperHeightPx: 1400,
+      contentWidthPx: 1900,
+      contentHeightPx: 1300,
+      marginTopPx: 20,
+      marginRightPx: 30,
+      marginBottomPx: 80,
+      marginLeftPx: 70,
+    },
+  });
+  assert.equal(metrics.paperWidthMm, 420);
+  assert.equal(metrics.contentWidthMm, 404);
+  assert.equal(metrics.paperWidthPx, 2000);
+  assert.equal(metrics.paperHeightPx, 1400);
+  assert.equal(metrics.contentWidthPx, 1900);
+  assert.equal(metrics.marginBottomPx, 80);
+});
+
+test('viewer effective preview metrics fall back to nominal metrics when measurement is null', () => {
+  const nominalMetrics = {
+    paperWidthMm: 420,
+    paperHeightMm: 297,
+    marginTopMm: 8,
+    marginRightMm: 8,
+    marginBottomMm: 8,
+    marginLeftMm: 8,
+    contentWidthMm: 404,
+    contentHeightMm: 281,
+    paperWidthPx: 1680,
+    paperHeightPx: 1188,
+    marginTopPx: 32,
+    marginRightPx: 32,
+    marginBottomPx: 32,
+    marginLeftPx: 32,
+    contentWidthPx: 1616,
+    contentHeightPx: 1124,
+    contentScale: 1,
+  };
+  assert.deepEqual(
+    resolveViewerEffectivePreviewPageMetrics({
+      nominalMetrics,
+      effectiveMeasurement: null,
+    }),
+    nominalMetrics,
+  );
 });
 
 test('viewer print css vars are derived from real page metrics', () => {
