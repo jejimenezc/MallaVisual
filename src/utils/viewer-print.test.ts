@@ -5,7 +5,9 @@ import {
   createDefaultViewerPrintSettings,
   normalizeViewerMeasuredPxPerMm,
   normalizeViewerPrintSettings,
+  resolveViewerContentPlacementMetrics,
   resolveViewerPageMetrics,
+  resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
   resolveViewerPrintPageCss,
@@ -209,6 +211,59 @@ test('viewer preview css vars are derived from preview metrics', () => {
   assert.equal(vars['--viewer-preview-paper-width-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-height-px'], '0px');
   assert.equal(vars['--viewer-preview-content-width-px'], '0px');
+});
+
+test('viewer print css vars are derived from real page metrics', () => {
+  const vars = resolveViewerPrintCssVars({
+    paperWidthMm: 297,
+    paperHeightMm: 420,
+    marginTopMm: 12,
+    marginRightMm: 12,
+    marginBottomMm: 12,
+    marginLeftMm: 12,
+    contentWidthMm: 273,
+    contentHeightMm: 396,
+    contentScale: 1,
+  });
+  assert.equal(vars['--print-paper-width-mm'], '297');
+  assert.equal(vars['--print-paper-height-mm'], '420');
+  assert.equal(vars['--print-margin-left-mm'], '12');
+  assert.equal(vars['--print-content-width-mm'], '273');
+  assert.equal(vars['--print-content-height-mm'], '396');
+});
+
+test('viewer content placement metrics scales content inside preview box', () => {
+  const metrics = resolveViewerContentPlacementMetrics({
+    baseContentWidthPx: 1000,
+    baseContentHeightPx: 500,
+    previewContentWidthPx: 900,
+    previewContentHeightPx: 600,
+    scale: 1.25,
+  });
+  assert.equal(metrics.baseContentWidthPx, 1000);
+  assert.equal(metrics.baseContentHeightPx, 500);
+  assert.equal(metrics.scaledContentWidthPx, 1250);
+  assert.equal(metrics.scaledContentHeightPx, 625);
+  assert.equal(metrics.scale, 1.25);
+  assert.equal(metrics.overflowsHorizontally, true);
+  assert.equal(metrics.overflowsVertically, true);
+});
+
+test('viewer content placement metrics clamps invalid sizes safely', () => {
+  const metrics = resolveViewerContentPlacementMetrics({
+    baseContentWidthPx: 0,
+    baseContentHeightPx: -10,
+    previewContentWidthPx: 0,
+    previewContentHeightPx: 0,
+    scale: Number.NaN,
+  });
+  assert.equal(metrics.baseContentWidthPx, 1);
+  assert.equal(metrics.baseContentHeightPx, 1);
+  assert.equal(metrics.scaledContentWidthPx, 1);
+  assert.equal(metrics.scaledContentHeightPx, 1);
+  assert.equal(metrics.scale, 1);
+  assert.equal(metrics.overflowsHorizontally, false);
+  assert.equal(metrics.overflowsVertically, false);
 });
 
 test('viewer print page css is derived from printable model', () => {
