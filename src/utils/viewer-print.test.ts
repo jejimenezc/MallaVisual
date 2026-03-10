@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
+  createDefaultViewerMeasuredPxPerMm,
   createDefaultViewerPrintSettings,
+  normalizeViewerMeasuredPxPerMm,
   normalizeViewerPrintSettings,
-  resolveViewerPageCssVars,
   resolveViewerPageMetrics,
+  resolveViewerPreviewCssVars,
+  resolveViewerPreviewPageMetrics,
   resolveViewerPrintPageCss,
   resolveViewerPrintableTextLayout,
   resolveViewerPrintableLayoutModel,
@@ -16,8 +19,6 @@ test('viewer print settings defaults are stable', () => {
     paperSize: 'A3',
     orientation: 'portrait',
     scale: 1,
-    previewSheetScaleX: 1.26,
-    previewSheetScaleY: 1.2,
     margins: 'normal',
     showDocumentTitle: false,
   });
@@ -28,16 +29,12 @@ test('viewer print settings normalization clamps scale and validates enums', () 
     paperSize: 'A3',
     orientation: 'landscape',
     scale: 2,
-    previewSheetScaleX: 2,
-    previewSheetScaleY: 0.7,
     margins: 'wide',
     showDocumentTitle: true,
   });
   assert.equal(normalized.paperSize, 'A3');
   assert.equal(normalized.orientation, 'landscape');
   assert.equal(normalized.scale, 1.5);
-  assert.equal(normalized.previewSheetScaleX, 1.6);
-  assert.equal(normalized.previewSheetScaleY, 0.8);
   assert.equal(normalized.margins, 'wide');
   assert.equal(normalized.showDocumentTitle, true);
 
@@ -45,26 +42,36 @@ test('viewer print settings normalization clamps scale and validates enums', () 
     paperSize: 'Letter',
     orientation: 'diagonal',
     scale: 0.1,
-    previewSheetScaleX: 0.1,
-    previewSheetScaleY: 2,
     margins: 'zero',
     showDocumentTitle: 'yes',
   });
   assert.equal(fallback.paperSize, 'A3');
   assert.equal(fallback.orientation, 'portrait');
   assert.equal(fallback.scale, 0.5);
-  assert.equal(fallback.previewSheetScaleX, 0.8);
-  assert.equal(fallback.previewSheetScaleY, 1.2);
   assert.equal(fallback.margins, 'normal');
   assert.equal(fallback.showDocumentTitle, false);
 });
 
-test('viewer print settings normalization maps legacy previewScreenScale into both axes', () => {
-  const normalized = normalizeViewerPrintSettings({
-    previewScreenScale: 1.1,
+test('viewer measured px-per-mm defaults use fallback css conversion', () => {
+  const defaults = createDefaultViewerMeasuredPxPerMm();
+  assert.equal(defaults.pxPerMmX, 3.7795);
+  assert.equal(defaults.pxPerMmY, 3.7795);
+});
+
+test('viewer measured px-per-mm normalization validates positive values', () => {
+  const normalized = normalizeViewerMeasuredPxPerMm({
+    pxPerMmX: 4.2,
+    pxPerMmY: 3.5,
   });
-  assert.equal(normalized.previewSheetScaleX, 1.1);
-  assert.equal(normalized.previewSheetScaleY, 1.1);
+  assert.equal(normalized.pxPerMmX, 4.2);
+  assert.equal(normalized.pxPerMmY, 3.5);
+
+  const fallback = normalizeViewerMeasuredPxPerMm({
+    pxPerMmX: 0,
+    pxPerMmY: Number.NaN,
+  });
+  assert.equal(fallback.pxPerMmX, 3.7795);
+  assert.equal(fallback.pxPerMmY, 3.7795);
 });
 
 test('viewer print settings normalization accepts carta and oficio sizes', () => {
@@ -85,8 +92,6 @@ test('viewer page metrics resolves orientation and margins', () => {
     orientation: 'portrait',
     margins: 'normal',
     scale: 1,
-    previewSheetScaleX: 1,
-    previewSheetScaleY: 1,
     showDocumentTitle: false,
   });
   assert.equal(portrait.paperWidthMm, 297);
@@ -102,15 +107,13 @@ test('viewer page metrics resolves orientation and margins', () => {
     orientation: 'landscape',
     margins: 'wide',
     scale: 1,
-    previewSheetScaleX: 1,
-    previewSheetScaleY: 1,
     showDocumentTitle: false,
   });
   assert.equal(landscape.paperWidthMm, 420);
   assert.equal(landscape.paperHeightMm, 297);
   assert.equal(landscape.marginLeftMm, 18);
-  assert.ok(landscape.contentHeightPx > 0);
-  assert.ok(landscape.contentWidthPx > landscape.contentHeightPx);
+  assert.ok(landscape.contentHeightMm > 0);
+  assert.ok(landscape.contentWidthMm > landscape.contentHeightMm);
 });
 
 test('viewer page metrics maps narrow normal and wide presets', () => {
@@ -119,8 +122,6 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
     orientation: 'portrait',
     margins: 'narrow',
     scale: 1,
-    previewSheetScaleX: 1,
-    previewSheetScaleY: 1,
     showDocumentTitle: false,
   });
   const normal = resolveViewerPageMetrics({
@@ -128,8 +129,6 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
     orientation: 'portrait',
     margins: 'normal',
     scale: 1,
-    previewSheetScaleX: 1,
-    previewSheetScaleY: 1,
     showDocumentTitle: false,
   });
   const wide = resolveViewerPageMetrics({
@@ -137,8 +136,6 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
     orientation: 'portrait',
     margins: 'wide',
     scale: 1,
-    previewSheetScaleX: 1,
-    previewSheetScaleY: 1,
     showDocumentTitle: false,
   });
   assert.equal(narrow.marginLeftMm, 8);
@@ -154,8 +151,6 @@ test('viewer printable layout model maps page and scale for preview/print parity
     orientation: 'landscape',
     margins: 'narrow',
     scale: 1.25,
-    previewSheetScaleX: 1,
-    previewSheetScaleY: 1,
     showDocumentTitle: true,
   });
   assert.equal(model.paperWidthMm, 420);
@@ -164,12 +159,35 @@ test('viewer printable layout model maps page and scale for preview/print parity
   assert.equal(model.contentWidthMm, 404);
   assert.equal(model.contentHeightMm, 281);
   assert.equal(model.contentScale, 1.25);
-  assert.ok(model.paperWidthPx > model.paperHeightPx);
-  assert.ok(model.marginLeftPx > 0);
 });
 
-test('viewer page css vars are derived from resolved metrics', () => {
-  const vars = resolveViewerPageCssVars({
+test('viewer preview metrics derive px geometry from runtime measurement', () => {
+  const metrics = resolveViewerPreviewPageMetrics(
+    {
+      paperWidthMm: 420,
+      paperHeightMm: 297,
+      marginTopMm: 8,
+      marginRightMm: 8,
+      marginBottomMm: 8,
+      marginLeftMm: 8,
+      contentWidthMm: 404,
+      contentHeightMm: 281,
+      contentScale: 1,
+    },
+    {
+      pxPerMmX: 4,
+      pxPerMmY: 5,
+    },
+  );
+  assert.equal(metrics.paperWidthPx, 1680);
+  assert.equal(metrics.paperHeightPx, 1485);
+  assert.equal(metrics.marginLeftPx, 32);
+  assert.equal(metrics.contentWidthPx, 1616);
+  assert.equal(metrics.contentHeightPx, 1405);
+});
+
+test('viewer preview css vars are derived from preview metrics', () => {
+  const vars = resolveViewerPreviewCssVars({
     paperWidthMm: 420,
     paperHeightMm: 297,
     marginTopMm: 8,
@@ -188,11 +206,9 @@ test('viewer page css vars are derived from resolved metrics', () => {
     contentHeightPx: 0,
     contentScale: 1,
   });
-  assert.equal(vars['--print-paper-width-mm'], '420');
-  assert.equal(vars['--print-paper-height-mm'], '297');
-  assert.equal(vars['--print-margin-left-mm'], '8');
-  assert.equal(vars['--print-content-width-mm'], '404');
-  assert.equal(vars['--print-content-height-mm'], '281');
+  assert.equal(vars['--viewer-preview-paper-width-px'], '0px');
+  assert.equal(vars['--viewer-preview-paper-height-px'], '0px');
+  assert.equal(vars['--viewer-preview-content-width-px'], '0px');
 });
 
 test('viewer print page css is derived from printable model', () => {
@@ -205,14 +221,6 @@ test('viewer print page css is derived from printable model', () => {
     marginLeftMm: 12,
     contentWidthMm: 273,
     contentHeightMm: 396,
-    paperWidthPx: 0,
-    paperHeightPx: 0,
-    marginTopPx: 0,
-    marginRightPx: 0,
-    marginBottomPx: 0,
-    marginLeftPx: 0,
-    contentWidthPx: 0,
-    contentHeightPx: 0,
     contentScale: 1,
   });
   assert.equal(css, '@media print { @page { size: 297mm 420mm; margin: 12mm 12mm 12mm 12mm; } }');

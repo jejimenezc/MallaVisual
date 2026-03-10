@@ -347,8 +347,8 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: calc(var(--print-paper-width-mm, 0) * 1mm * var(--viewer-preview-sheet-scale-x, 1));
-  height: calc(var(--print-paper-height-mm, 0) * 1mm * var(--viewer-preview-sheet-scale-y, 1));
+  width: var(--viewer-preview-paper-width-px, 0px);
+  height: var(--viewer-preview-paper-height-px, 0px);
   background: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.16);
   border-radius: 10px;
@@ -368,8 +368,8 @@
 
 .viewerCanvasFramePrint .runtimeHeader,
 .viewerCanvasFramePrint .runtimeFooter {
-  width: calc(var(--viewer-preview-content-width-mm, var(--print-content-width-mm, 0)) * 1mm);
-  max-width: calc(var(--viewer-preview-content-width-mm, var(--print-content-width-mm, 0)) * 1mm);
+  width: var(--viewer-preview-content-width-px, 0px);
+  max-width: var(--viewer-preview-content-width-px, 0px);
 }
 
 .viewerCanvasScaled {
