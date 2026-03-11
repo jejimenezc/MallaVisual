@@ -7,6 +7,7 @@ import {
   normalizeViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
   resolveViewerPageMetrics,
+  resolveViewerPaginationGridMetrics,
   resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
@@ -272,6 +273,152 @@ test('viewer content placement metrics clamps invalid sizes safely', () => {
   assert.equal(metrics.overflowsVertically, false);
 });
 
+test('viewer pagination grid keeps a single tile when content fits on one page', () => {
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 500,
+    scaledContentHeightPx: 480,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  assert.equal(metrics.pagesX, 1);
+  assert.equal(metrics.pagesY, 1);
+  assert.equal(metrics.pageCount, 1);
+  assert.deepEqual(metrics.tiles, [
+    {
+      pageNumber: 1,
+      row: 0,
+      col: 0,
+      offsetX: 0,
+      offsetY: 0,
+      sliceWidthPx: 500,
+      sliceHeightPx: 480,
+    },
+  ]);
+  assert.equal(metrics.hasHorizontalPagination, false);
+  assert.equal(metrics.hasVerticalPagination, false);
+});
+
+test('viewer pagination grid resolves multiple vertical tiles with stable offsets', () => {
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 500,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  assert.equal(metrics.pagesX, 1);
+  assert.equal(metrics.pagesY, 3);
+  assert.deepEqual(
+    metrics.tiles.map((tile) => ({
+      pageNumber: tile.pageNumber,
+      row: tile.row,
+      col: tile.col,
+      offsetX: tile.offsetX,
+      offsetY: tile.offsetY,
+      sliceHeightPx: tile.sliceHeightPx,
+    })),
+    [
+      { pageNumber: 1, row: 0, col: 0, offsetX: 0, offsetY: 0, sliceHeightPx: 600 },
+      { pageNumber: 2, row: 1, col: 0, offsetX: 0, offsetY: 600, sliceHeightPx: 600 },
+      { pageNumber: 3, row: 2, col: 0, offsetX: 0, offsetY: 1200, sliceHeightPx: 50 },
+    ],
+  );
+});
+
+test('viewer pagination grid resolves multiple horizontal tiles without deciding render policy', () => {
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1900,
+    scaledContentHeightPx: 500,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  assert.equal(metrics.pagesX, 3);
+  assert.equal(metrics.pagesY, 1);
+  assert.equal(metrics.pageCount, 3);
+  assert.deepEqual(
+    metrics.tiles.map((tile) => ({
+      pageNumber: tile.pageNumber,
+      row: tile.row,
+      col: tile.col,
+      offsetX: tile.offsetX,
+      offsetY: tile.offsetY,
+      sliceWidthPx: tile.sliceWidthPx,
+    })),
+    [
+      { pageNumber: 1, row: 0, col: 0, offsetX: 0, offsetY: 0, sliceWidthPx: 900 },
+      { pageNumber: 2, row: 0, col: 1, offsetX: 900, offsetY: 0, sliceWidthPx: 900 },
+      { pageNumber: 3, row: 0, col: 2, offsetX: 1800, offsetY: 0, sliceWidthPx: 100 },
+    ],
+  );
+  assert.equal(metrics.hasHorizontalPagination, true);
+  assert.equal(metrics.hasVerticalPagination, false);
+});
+
+test('viewer pagination grid resolves a real 2d tiling matrix in row-major order', () => {
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1900,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  assert.equal(metrics.pagesX, 3);
+  assert.equal(metrics.pagesY, 3);
+  assert.equal(metrics.pageCount, 9);
+  assert.deepEqual(
+    metrics.tiles.map((tile) => `${tile.pageNumber}:${tile.row},${tile.col}@${tile.offsetX},${tile.offsetY}`),
+    [
+      '1:0,0@0,0',
+      '2:0,1@900,0',
+      '3:0,2@1800,0',
+      '4:1,0@0,600',
+      '5:1,1@900,600',
+      '6:1,2@1800,600',
+      '7:2,0@0,1200',
+      '8:2,1@900,1200',
+      '9:2,2@1800,1200',
+    ],
+  );
+});
+
+test('viewer pagination grid handles exact edges and degenerate sizes safely', () => {
+  const exact = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1800,
+    scaledContentHeightPx: 1200,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  assert.equal(exact.pagesX, 2);
+  assert.equal(exact.pagesY, 2);
+  assert.deepEqual(
+    exact.tiles.map((tile) => [tile.sliceWidthPx, tile.sliceHeightPx]),
+    [
+      [900, 600],
+      [900, 600],
+      [900, 600],
+      [900, 600],
+    ],
+  );
+
+  const degenerate = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 0,
+    scaledContentHeightPx: 0,
+    usablePageWidthPx: 0,
+    usablePageHeightPx: 0,
+  });
+  assert.equal(degenerate.pagesX, 1);
+  assert.equal(degenerate.pagesY, 1);
+  assert.deepEqual(degenerate.tiles, [
+    {
+      pageNumber: 1,
+      row: 0,
+      col: 0,
+      offsetX: 0,
+      offsetY: 0,
+      sliceWidthPx: 1,
+      sliceHeightPx: 1,
+    },
+  ]);
+});
+
 test('viewer vertical pagination keeps a single page when content fits', () => {
   const metrics = resolveViewerVerticalPaginationMetrics({
     scaledContentHeightPx: 480,
@@ -336,6 +483,26 @@ test('viewer vertical pagination resolves N pages with stable offsets', () => {
   assert.equal(metrics.lastPageContentHeightPx, 100);
   assert.equal(metrics.hasPartialLastPage, true);
   assert.equal(metrics.pageHeightPx, 600);
+});
+
+test('viewer vertical pagination can derive the visible stack from 2d grid metrics', () => {
+  const gridMetrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1900,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 1250,
+    previewContentHeightPx: 600,
+    paginationGridMetrics: gridMetrics,
+  });
+  assert.equal(metrics.pageCount, 3);
+  assert.deepEqual(metrics.pageOffsetsPx, [0, 600, 1200]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [600, 600, 50]);
+  assert.equal(metrics.pageHeightPx, 600);
+  assert.equal(metrics.hasPartialLastPage, true);
+  assert.equal(metrics.hasVerticalPagination, true);
 });
 
 test('viewer vertical pagination clamps degenerate heights safely', () => {
