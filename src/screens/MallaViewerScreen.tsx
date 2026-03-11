@@ -587,16 +587,31 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       <>
         {/* Initial vertical pagination slices only the grid; document text stays outside page frames for now. */}
         {previewDocumentIntro}
+        <div className={styles.viewerPaginationDebugSummary}>
+          <span>{`pages ${verticalPaginationMetrics.pageCount}`}</span>
+          <span>{`pageHeight ${verticalPaginationMetrics.pageHeightPx}px`}</span>
+          <span>{`scaledHeight ${contentPlacementMetrics.scaledContentHeightPx}px`}</span>
+          <span>{`scale ${contentPlacementMetrics.scale}`}</span>
+        </div>
         <div className={styles.viewerPreviewPageStack}>
           {verticalPaginationMetrics.pageOffsetsPx.map((offsetPx, pageIndex) => (
             <div
               key={`preview-page-${pageIndex}`}
               className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
               style={printFrameStyle}
+              data-debug-role="page-frame"
+              data-debug-meta={`page ${pageIndex + 1}/${verticalPaginationMetrics.pageCount}`}
             >
+              <div className={styles.viewerDebugBadge}>{`frame p${pageIndex + 1}/${verticalPaginationMetrics.pageCount}`}</div>
               <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+                <div className={styles.viewerDebugBadge}>{`content box ${previewMetrics.contentWidthPx}x${previewMetrics.contentHeightPx}`}</div>
                 <div className={styles.viewerPrintDocumentFlow}>
-                  <div className={styles.viewerCanvasScaledViewport} style={previewCanvasPageViewportStyle}>
+                  <div
+                    className={styles.viewerCanvasScaledViewport}
+                    style={previewCanvasPageViewportStyle}
+                    data-debug-role="slice-viewport"
+                  >
+                    <div className={styles.viewerDebugBadge}>{`viewport y ${offsetPx}px h ${verticalPaginationMetrics.pageHeightPx}px`}</div>
                     <div
                       className={styles.viewerCanvasSliceTrack}
                       style={{
@@ -604,7 +619,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                         height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
                         transform: `translateY(-${offsetPx}px)`,
                       }}
+                      data-debug-role="slice-track"
                     >
+                      <div className={styles.viewerDebugBadge}>{`translateY(-${offsetPx}px)`}</div>
                       <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
                         {canvasContent}
                       </div>
