@@ -43,6 +43,10 @@ export interface ViewerPreviewCssVars {
   '--viewer-preview-paper-width-px': string;
   '--viewer-preview-paper-height-px': string;
   '--viewer-preview-content-width-px': string;
+  '--viewer-preview-paper-padding-top-px': string;
+  '--viewer-preview-paper-padding-right-px': string;
+  '--viewer-preview-paper-padding-bottom-px': string;
+  '--viewer-preview-paper-padding-left-px': string;
 }
 
 export interface ViewerPrintCssVars {
@@ -224,6 +228,10 @@ export const resolveViewerPreviewCssVars = (
   '--viewer-preview-paper-width-px': `${metrics.paperWidthPx}px`,
   '--viewer-preview-paper-height-px': `${metrics.paperHeightPx}px`,
   '--viewer-preview-content-width-px': `${metrics.contentWidthPx}px`,
+  '--viewer-preview-paper-padding-top-px': `${metrics.marginTopPx}px`,
+  '--viewer-preview-paper-padding-right-px': `${metrics.marginRightPx}px`,
+  '--viewer-preview-paper-padding-bottom-px': `${metrics.marginBottomPx}px`,
+  '--viewer-preview-paper-padding-left-px': `${metrics.marginLeftPx}px`,
 });
 
 export const resolveViewerContentPlacementMetrics = (input: {

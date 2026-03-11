@@ -554,7 +554,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   }
 
   const previewDocumentIntro = hasPreviewVerticalPagination ? (
-    <div className={styles.viewerPreviewDocumentIntro}>
+    <div
+      className={styles.viewerPreviewDocumentIntro}
+      style={previewCssVars as React.CSSProperties}
+    >
       {printableTextLayout.headerText ? (
         <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
       ) : null}
@@ -571,7 +574,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const previewDocumentOutro =
     hasPreviewVerticalPagination && printableTextLayout.footerText ? (
-      <div className={styles.viewerPreviewDocumentIntro}>
+      <div
+        className={styles.viewerPreviewDocumentIntro}
+        style={previewCssVars as React.CSSProperties}
+      >
         <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
       </div>
     ) : null;

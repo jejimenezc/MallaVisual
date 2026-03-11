@@ -212,6 +212,10 @@ test('viewer preview css vars are derived from preview metrics', () => {
   assert.equal(vars['--viewer-preview-paper-width-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-height-px'], '0px');
   assert.equal(vars['--viewer-preview-content-width-px'], '0px');
+  assert.equal(vars['--viewer-preview-paper-padding-top-px'], '0px');
+  assert.equal(vars['--viewer-preview-paper-padding-right-px'], '0px');
+  assert.equal(vars['--viewer-preview-paper-padding-bottom-px'], '0px');
+  assert.equal(vars['--viewer-preview-paper-padding-left-px'], '0px');
 });
 
 test('viewer print css vars are derived from real page metrics', () => {
