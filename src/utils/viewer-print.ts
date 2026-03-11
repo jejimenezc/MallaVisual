@@ -66,6 +66,13 @@ export interface ViewerContentPlacementMetrics {
   overflowsVertically: boolean;
 }
 
+export interface ViewerVerticalPaginationMetrics {
+  pageCount: number;
+  pageOffsetsPx: number[];
+  pageHeightPx: number;
+  hasVerticalPagination: boolean;
+}
+
 export type ViewerPrintableTextBlock = 'header' | 'title' | 'grid' | 'footer';
 
 export interface ViewerPrintableTextLayoutInput {
@@ -244,6 +251,23 @@ export const resolveViewerContentPlacementMetrics = (input: {
     scale,
     overflowsHorizontally: scaledContentWidthPx > previewContentWidthPx,
     overflowsVertically: scaledContentHeightPx > previewContentHeightPx,
+  };
+};
+
+export const resolveViewerVerticalPaginationMetrics = (input: {
+  scaledContentHeightPx: number;
+  previewContentHeightPx: number;
+}): ViewerVerticalPaginationMetrics => {
+  const scaledContentHeightPx = Math.max(0, Math.round(input.scaledContentHeightPx));
+  const pageHeightPx = Math.max(1, Math.round(input.previewContentHeightPx));
+  const pageCount = Math.max(1, Math.ceil(scaledContentHeightPx / pageHeightPx));
+  const pageOffsetsPx = Array.from({ length: pageCount }, (_, index) => index * pageHeightPx);
+
+  return {
+    pageCount,
+    pageOffsetsPx,
+    pageHeightPx,
+    hasVerticalPagination: pageCount > 1,
   };
 };
 
