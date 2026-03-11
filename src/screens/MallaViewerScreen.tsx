@@ -14,6 +14,7 @@ import {
 import {
   createDefaultViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
+  resolveViewerPaginationGridMetrics,
   resolveViewerPageMetrics,
   resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
@@ -131,13 +132,33 @@ export function MallaViewerScreen({
       renderModel?.width,
     ],
   );
+  const gridPaginationMetrics = useMemo(
+    () =>
+      resolveViewerPaginationGridMetrics({
+        scaledContentWidthPx: contentPlacementMetrics.scaledContentWidthPx,
+        scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
+        usablePageWidthPx: previewMetrics.contentWidthPx,
+        usablePageHeightPx: previewMetrics.contentHeightPx,
+      }),
+    [
+      contentPlacementMetrics.scaledContentHeightPx,
+      contentPlacementMetrics.scaledContentWidthPx,
+      previewMetrics.contentHeightPx,
+      previewMetrics.contentWidthPx,
+    ],
+  );
   const verticalPaginationMetrics = useMemo(
     () =>
       resolveViewerVerticalPaginationMetrics({
         scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
         previewContentHeightPx: previewMetrics.contentHeightPx,
+        paginationGridMetrics: gridPaginationMetrics,
       }),
-    [contentPlacementMetrics.scaledContentHeightPx, previewMetrics.contentHeightPx],
+    [
+      contentPlacementMetrics.scaledContentHeightPx,
+      gridPaginationMetrics,
+      previewMetrics.contentHeightPx,
+    ],
   );
   const hasPreviewVerticalPagination =
     isPrintPreview && verticalPaginationMetrics.hasVerticalPagination;
@@ -229,7 +250,7 @@ export function MallaViewerScreen({
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
-  const printableTextLayout = useMemo(
+  const documentTextLayout = useMemo(
     () =>
       resolveViewerPrintableTextLayout({
         showHeaderFooter: renderModel?.theme.showHeaderFooter ?? false,
@@ -558,27 +579,27 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       className={styles.viewerPreviewDocumentIntro}
       style={previewCssVars as React.CSSProperties}
     >
-      {printableTextLayout.headerText ? (
-        <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+      {documentTextLayout.headerText ? (
+        <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
       ) : null}
-      {printableTextLayout.documentTitle ? (
+      {documentTextLayout.documentTitle ? (
         <h1
           className={styles.runtimeDocumentTitle}
           style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
         >
-          {printableTextLayout.documentTitle}
+          {documentTextLayout.documentTitle}
         </h1>
       ) : null}
     </div>
   ) : null;
 
   const previewDocumentOutro =
-    hasPreviewVerticalPagination && printableTextLayout.footerText ? (
+    hasPreviewVerticalPagination && documentTextLayout.footerText ? (
       <div
         className={styles.viewerPreviewDocumentIntro}
         style={previewCssVars as React.CSSProperties}
       >
-        <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+        <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
       </div>
     ) : null;
 
@@ -587,48 +608,53 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       <>
         {/* Initial vertical pagination slices only the grid; document text stays outside page frames for now. */}
         {previewDocumentIntro}
-        <div className={styles.viewerPreviewPageStack}>
-          {verticalPaginationMetrics.pageOffsetsPx.map((offsetPx, pageIndex) => {
-            const sliceHeightPx =
-              verticalPaginationMetrics.pageSliceHeightsPx[pageIndex] ?? verticalPaginationMetrics.pageHeightPx;
-            const isPartialLastPage =
-              pageIndex === verticalPaginationMetrics.pageCount - 1 &&
-              verticalPaginationMetrics.hasPartialLastPage;
+        <div
+          className={styles.viewerPreviewPageStack}
+          data-grid-pages-x={gridPaginationMetrics.pagesX}
+          data-grid-pages-y={gridPaginationMetrics.pagesY}
+        >
+          {gridPaginationMetrics.tiles
+            .filter((tile) => tile.col === 0)
+            .map((tile, pageIndex) => {
+              const sliceHeightPx = tile.sliceHeightPx;
+              const isPartialLastPage =
+                pageIndex === verticalPaginationMetrics.pageCount - 1 &&
+                verticalPaginationMetrics.hasPartialLastPage;
 
-            return (
-              <div
-                key={`preview-page-${pageIndex}`}
-                className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
-                style={printFrameStyle}
-                data-partial-last-page={isPartialLastPage ? 'true' : undefined}
-              >
-                <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-                  <div className={styles.viewerPrintDocumentFlow}>
-                    <div
-                      className={styles.viewerCanvasScaledViewport}
-                      style={{
-                        ...previewCanvasPageViewportStyle,
-                        height: `${sliceHeightPx}px`,
-                      }}
-                    >
+              return (
+                <div
+                  key={`preview-page-${tile.row}-${tile.col}`}
+                  className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
+                  style={printFrameStyle}
+                  data-partial-last-page={isPartialLastPage ? 'true' : undefined}
+                >
+                  <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+                    <div className={styles.viewerPrintDocumentFlow}>
                       <div
-                        className={styles.viewerCanvasSliceTrack}
+                        className={styles.viewerCanvasScaledViewport}
                         style={{
-                          width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-                          height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-                          transform: `translateY(-${offsetPx}px)`,
+                          ...previewCanvasPageViewportStyle,
+                          height: `${sliceHeightPx}px`,
                         }}
                       >
-                        <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                          {canvasContent}
+                        <div
+                          className={styles.viewerCanvasSliceTrack}
+                          style={{
+                            width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+                            height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
+                            transform: `translateY(-${tile.offsetY}px)`,
+                          }}
+                        >
+                          <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                            {canvasContent}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
         {previewDocumentOutro}
       </>
@@ -639,15 +665,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       >
         <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
           <div className={styles.viewerPrintDocumentFlow}>
-            {printableTextLayout.headerText ? (
-              <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+            {documentTextLayout.headerText ? (
+              <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
             ) : null}
-            {printableTextLayout.documentTitle ? (
+            {documentTextLayout.documentTitle ? (
               <h1
                 className={styles.runtimeDocumentTitle}
                 style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
               >
-                {printableTextLayout.documentTitle}
+                {documentTextLayout.documentTitle}
               </h1>
             ) : null}
             <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
@@ -655,8 +681,8 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 {canvasContent}
               </div>
             </div>
-            {printableTextLayout.footerText ? (
-              <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+            {documentTextLayout.footerText ? (
+              <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
             ) : null}
           </div>
         </div>
@@ -684,15 +710,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       >
         <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
           <div className={styles.viewerPrintDocumentFlow}>
-            {printableTextLayout.headerText ? (
-              <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+            {documentTextLayout.headerText ? (
+              <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
             ) : null}
-            {printableTextLayout.documentTitle ? (
+            {documentTextLayout.documentTitle ? (
               <h1
                 className={styles.runtimeDocumentTitle}
                 style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
               >
-                {printableTextLayout.documentTitle}
+                {documentTextLayout.documentTitle}
               </h1>
             ) : null}
             <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
@@ -700,8 +726,8 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 {canvasContent}
               </div>
             </div>
-            {printableTextLayout.footerText ? (
-              <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+            {documentTextLayout.footerText ? (
+              <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
             ) : null}
           </div>
         </div>
@@ -1076,7 +1102,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         </aside>
 
         <div className={styles.viewerMain}>
-          <div ref={printableRootRef} className={styles.viewerPrintableRoot} data-print-root>
+          <div
+            ref={printableRootRef}
+            className={styles.viewerPrintableRoot}
+            data-print-root
+            data-grid-pages-x={gridPaginationMetrics.pagesX}
+            data-grid-pages-y={gridPaginationMetrics.pagesY}
+          >
             <div
               ref={viewportRef}
               className={`${styles.viewerViewport} ${isPanning ? styles.viewerViewportPanning : ''}`}
