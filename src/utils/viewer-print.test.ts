@@ -505,6 +505,36 @@ test('viewer vertical pagination can derive the visible stack from 2d grid metri
   assert.equal(metrics.hasVerticalPagination, true);
 });
 
+test('viewer vertical pagination preserves single-tile semantics from a 1x1 grid', () => {
+  const gridMetrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 500,
+    scaledContentHeightPx: 480,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 480,
+    previewContentHeightPx: 600,
+    paginationGridMetrics: gridMetrics,
+  });
+  assert.equal(gridMetrics.pagesX, 1);
+  assert.equal(gridMetrics.pagesY, 1);
+  assert.equal(gridMetrics.pageCount, 1);
+  assert.deepEqual(
+    gridMetrics.tiles.map((tile) => ({
+      row: tile.row,
+      col: tile.col,
+      offsetX: tile.offsetX,
+      offsetY: tile.offsetY,
+    })),
+    [{ row: 0, col: 0, offsetX: 0, offsetY: 0 }],
+  );
+  assert.equal(metrics.pageCount, 1);
+  assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [480]);
+  assert.equal(metrics.hasVerticalPagination, false);
+});
+
 test('viewer vertical pagination clamps degenerate heights safely', () => {
   const metrics = resolveViewerVerticalPaginationMetrics({
     scaledContentHeightPx: 0,

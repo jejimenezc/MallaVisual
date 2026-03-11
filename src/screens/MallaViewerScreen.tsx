@@ -27,6 +27,7 @@ import {
   VIEWER_PRINT_MIN_SCALE,
   VIEWER_PRINT_SCALE_STEP,
   type ViewerPanelMode,
+  type ViewerPaginationTile,
   type ViewerPrintPaperSize,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
@@ -160,8 +161,10 @@ export function MallaViewerScreen({
       previewMetrics.contentHeightPx,
     ],
   );
-  const hasPreviewVerticalPagination =
-    isPrintPreview && verticalPaginationMetrics.hasVerticalPagination;
+  const previewGridTiles = useMemo(
+    () => gridPaginationMetrics.tiles.filter((tile) => tile.col === 0),
+    [gridPaginationMetrics.tiles],
+  );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
@@ -574,27 +577,67 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   }
 
-  const previewDocumentIntro = hasPreviewVerticalPagination ? (
-    <div
-      className={styles.viewerPreviewDocumentIntro}
-      style={previewCssVars as React.CSSProperties}
-    >
-      {documentTextLayout.headerText ? (
-        <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
-      ) : null}
-      {documentTextLayout.documentTitle ? (
-        <h1
-          className={styles.runtimeDocumentTitle}
-          style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
-        >
-          {documentTextLayout.documentTitle}
-        </h1>
-      ) : null}
-    </div>
-  ) : null;
+  const renderPreviewGridTile = (tile: ViewerPaginationTile, tileIndex: number) => {
+    const isPartialLastPage =
+      tileIndex === previewGridTiles.length - 1 && verticalPaginationMetrics.hasPartialLastPage;
+
+    return (
+      <div
+        key={`preview-page-${tile.row}-${tile.col}`}
+        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
+        style={printFrameStyle}
+        data-partial-last-page={isPartialLastPage ? 'true' : undefined}
+      >
+        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+          <div className={styles.viewerPrintDocumentFlow}>
+            <div
+              className={styles.viewerCanvasScaledViewport}
+              style={{
+                ...previewCanvasPageViewportStyle,
+                height: `${tile.sliceHeightPx}px`,
+              }}
+            >
+              <div
+                className={styles.viewerCanvasSliceTrack}
+                style={{
+                  width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+                  height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
+                  transform: `translateY(-${tile.offsetY}px)`,
+                }}
+              >
+                <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                  {canvasContent}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const previewDocumentIntro =
+    isPrintPreview && (documentTextLayout.headerText || documentTextLayout.documentTitle) ? (
+      <div
+        className={styles.viewerPreviewDocumentIntro}
+        style={previewCssVars as React.CSSProperties}
+      >
+        {documentTextLayout.headerText ? (
+          <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
+        ) : null}
+        {documentTextLayout.documentTitle ? (
+          <h1
+            className={styles.runtimeDocumentTitle}
+            style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+          >
+            {documentTextLayout.documentTitle}
+          </h1>
+        ) : null}
+      </div>
+    ) : null;
 
   const previewDocumentOutro =
-    hasPreviewVerticalPagination && documentTextLayout.footerText ? (
+    isPrintPreview && documentTextLayout.footerText ? (
       <div
         className={styles.viewerPreviewDocumentIntro}
         style={previewCssVars as React.CSSProperties}
@@ -603,91 +646,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       </div>
     ) : null;
 
-  const printPreviewScreenContent = isPrintPreview ? (
-    hasPreviewVerticalPagination ? (
-      <>
-        {/* Initial vertical pagination slices only the grid; document text stays outside page frames for now. */}
-        {previewDocumentIntro}
-        <div
-          className={styles.viewerPreviewPageStack}
-          data-grid-pages-x={gridPaginationMetrics.pagesX}
-          data-grid-pages-y={gridPaginationMetrics.pagesY}
-        >
-          {gridPaginationMetrics.tiles
-            .filter((tile) => tile.col === 0)
-            .map((tile, pageIndex) => {
-              const sliceHeightPx = tile.sliceHeightPx;
-              const isPartialLastPage =
-                pageIndex === verticalPaginationMetrics.pageCount - 1 &&
-                verticalPaginationMetrics.hasPartialLastPage;
+  const previewPaginatedGridSurface = isPrintPreview ? (
+    <div
+      className={styles.viewerPreviewPageStack}
+      data-grid-pages-x={gridPaginationMetrics.pagesX}
+      data-grid-pages-y={gridPaginationMetrics.pagesY}
+    >
+      {previewGridTiles.map(renderPreviewGridTile)}
+    </div>
+  ) : null;
 
-              return (
-                <div
-                  key={`preview-page-${tile.row}-${tile.col}`}
-                  className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
-                  style={printFrameStyle}
-                  data-partial-last-page={isPartialLastPage ? 'true' : undefined}
-                >
-                  <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-                    <div className={styles.viewerPrintDocumentFlow}>
-                      <div
-                        className={styles.viewerCanvasScaledViewport}
-                        style={{
-                          ...previewCanvasPageViewportStyle,
-                          height: `${sliceHeightPx}px`,
-                        }}
-                      >
-                        <div
-                          className={styles.viewerCanvasSliceTrack}
-                          style={{
-                            width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-                            height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-                            transform: `translateY(-${tile.offsetY}px)`,
-                          }}
-                        >
-                          <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                            {canvasContent}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-        </div>
-        {previewDocumentOutro}
-      </>
-    ) : (
-      <div
-        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
-        style={printFrameStyle}
-      >
-        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-          <div className={styles.viewerPrintDocumentFlow}>
-            {documentTextLayout.headerText ? (
-              <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
-            ) : null}
-            {documentTextLayout.documentTitle ? (
-              <h1
-                className={styles.runtimeDocumentTitle}
-                style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
-              >
-                {documentTextLayout.documentTitle}
-              </h1>
-            ) : null}
-            <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
-              <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                {canvasContent}
-              </div>
-            </div>
-            {documentTextLayout.footerText ? (
-              <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    )
+  const printPreviewScreenContent = isPrintPreview ? (
+    <>
+      {previewDocumentIntro}
+      {previewPaginatedGridSurface}
+      {previewDocumentOutro}
+    </>
   ) : (
     <div className={styles.viewerCanvasFrame}>
       <div className={styles.viewerPageContentBox}>
