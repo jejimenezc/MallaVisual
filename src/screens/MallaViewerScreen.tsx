@@ -588,32 +588,47 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         {/* Initial vertical pagination slices only the grid; document text stays outside page frames for now. */}
         {previewDocumentIntro}
         <div className={styles.viewerPreviewPageStack}>
-          {verticalPaginationMetrics.pageOffsetsPx.map((offsetPx, pageIndex) => (
-            <div
-              key={`preview-page-${pageIndex}`}
-              className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
-              style={printFrameStyle}
-            >
-              <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-                <div className={styles.viewerPrintDocumentFlow}>
-                  <div className={styles.viewerCanvasScaledViewport} style={previewCanvasPageViewportStyle}>
+          {verticalPaginationMetrics.pageOffsetsPx.map((offsetPx, pageIndex) => {
+            const sliceHeightPx =
+              verticalPaginationMetrics.pageSliceHeightsPx[pageIndex] ?? verticalPaginationMetrics.pageHeightPx;
+            const isPartialLastPage =
+              pageIndex === verticalPaginationMetrics.pageCount - 1 &&
+              verticalPaginationMetrics.hasPartialLastPage;
+
+            return (
+              <div
+                key={`preview-page-${pageIndex}`}
+                className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
+                style={printFrameStyle}
+                data-partial-last-page={isPartialLastPage ? 'true' : undefined}
+              >
+                <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+                  <div className={styles.viewerPrintDocumentFlow}>
                     <div
-                      className={styles.viewerCanvasSliceTrack}
+                      className={styles.viewerCanvasScaledViewport}
                       style={{
-                        width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-                        height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-                        transform: `translateY(-${offsetPx}px)`,
+                        ...previewCanvasPageViewportStyle,
+                        height: `${sliceHeightPx}px`,
                       }}
                     >
-                      <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                        {canvasContent}
+                      <div
+                        className={styles.viewerCanvasSliceTrack}
+                        style={{
+                          width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+                          height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
+                          transform: `translateY(-${offsetPx}px)`,
+                        }}
+                      >
+                        <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                          {canvasContent}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {previewDocumentOutro}
       </>
