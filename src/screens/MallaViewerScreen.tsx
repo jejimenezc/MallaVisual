@@ -585,6 +585,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   const printPreviewScreenContent = isPrintPreview ? (
     hasPreviewVerticalPagination ? (
       <>
+        {/* Initial vertical pagination slices only the grid; document text stays outside page frames for now. */}
         {previewDocumentIntro}
         <div className={styles.viewerPreviewPageStack}>
           {verticalPaginationMetrics.pageOffsetsPx.map((offsetPx, pageIndex) => (
