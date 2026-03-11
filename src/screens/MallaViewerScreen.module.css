@@ -289,6 +289,8 @@
 
 .runtimeHeader,
 .runtimeFooter {
+  box-sizing: border-box;
+  width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: rgba(255, 255, 255, 0.8);
   border-radius: 8px;
@@ -302,10 +304,15 @@
 }
 
 .runtimeDocumentTitle {
+  box-sizing: border-box;
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   color: #0f172a;
   font-size: 1.125rem;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .viewerViewport {
@@ -343,6 +350,12 @@
   display: grid;
   gap: 0.35rem;
   width: min(var(--viewer-preview-paper-width-px, 0px), 100%);
+  box-sizing: border-box;
+  padding:
+    var(--viewer-preview-paper-padding-top-px, 0px)
+    var(--viewer-preview-paper-padding-right-px, 0px)
+    var(--viewer-preview-paper-padding-bottom-px, 0px)
+    var(--viewer-preview-paper-padding-left-px, 0px);
   margin: 0 auto var(--space-sm);
 }
 
@@ -400,6 +413,11 @@
 
 .viewerCanvasFramePrint .runtimeHeader,
 .viewerCanvasFramePrint .runtimeFooter {
+  width: var(--viewer-preview-content-width-px, 0px);
+  max-width: var(--viewer-preview-content-width-px, 0px);
+}
+
+.viewerCanvasFramePrint .runtimeDocumentTitle {
   width: var(--viewer-preview-content-width-px, 0px);
   max-width: var(--viewer-preview-content-width-px, 0px);
 }
