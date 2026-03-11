@@ -273,6 +273,17 @@ test('viewer content placement metrics clamps invalid sizes safely', () => {
 
 test('viewer vertical pagination keeps a single page when content fits', () => {
   const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 480,
+    previewContentHeightPx: 600,
+  });
+  assert.equal(metrics.pageCount, 1);
+  assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.equal(metrics.pageHeightPx, 600);
+  assert.equal(metrics.hasVerticalPagination, false);
+});
+
+test('viewer vertical pagination keeps a single page when content fits exactly', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
     scaledContentHeightPx: 600,
     previewContentHeightPx: 600,
   });
