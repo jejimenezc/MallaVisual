@@ -361,9 +361,17 @@
 
 .viewerPreviewPageStack {
   display: grid;
+  justify-content: center;
   justify-items: center;
+  align-items: start;
   gap: 1.35rem;
   padding: 0.2rem 0 0.75rem;
+  width: 100%;
+  overflow: auto;
+}
+
+.viewerPreviewPageStack[data-grid-pages-x='1'] {
+  grid-template-columns: max-content;
 }
 
 .viewerCanvasFramePrint {
