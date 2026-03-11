@@ -71,6 +71,29 @@ export interface ViewerContentPlacementMetrics {
   overflowsVertically: boolean;
 }
 
+export interface ViewerPaginationTile {
+  pageNumber: number;
+  row: number;
+  col: number;
+  offsetX: number;
+  offsetY: number;
+  sliceWidthPx: number;
+  sliceHeightPx: number;
+}
+
+export interface ViewerPaginationGridMetrics {
+  scaledContentWidthPx: number;
+  scaledContentHeightPx: number;
+  usablePageWidthPx: number;
+  usablePageHeightPx: number;
+  pagesX: number;
+  pagesY: number;
+  pageCount: number;
+  tiles: ViewerPaginationTile[];
+  hasHorizontalPagination: boolean;
+  hasVerticalPagination: boolean;
+}
+
 export interface ViewerVerticalPaginationMetrics {
   pageCount: number;
   pageOffsetsPx: number[];
@@ -267,21 +290,79 @@ export const resolveViewerContentPlacementMetrics = (input: {
   };
 };
 
+export const resolveViewerPaginationGridMetrics = (input: {
+  scaledContentWidthPx: number;
+  scaledContentHeightPx: number;
+  usablePageWidthPx: number;
+  usablePageHeightPx: number;
+}): ViewerPaginationGridMetrics => {
+  const scaledContentWidthPx = Math.max(0, Math.round(input.scaledContentWidthPx));
+  const scaledContentHeightPx = Math.max(0, Math.round(input.scaledContentHeightPx));
+  const usablePageWidthPx = Math.max(1, Math.round(input.usablePageWidthPx));
+  const usablePageHeightPx = Math.max(1, Math.round(input.usablePageHeightPx));
+  const pagesX = Math.max(1, Math.ceil(scaledContentWidthPx / usablePageWidthPx));
+  const pagesY = Math.max(1, Math.ceil(scaledContentHeightPx / usablePageHeightPx));
+  const tiles: ViewerPaginationTile[] = [];
+
+  for (let row = 0; row < pagesY; row += 1) {
+    for (let col = 0; col < pagesX; col += 1) {
+      const offsetX = col * usablePageWidthPx;
+      const offsetY = row * usablePageHeightPx;
+      const remainingWidthPx = Math.max(scaledContentWidthPx - offsetX, 0);
+      const remainingHeightPx = Math.max(scaledContentHeightPx - offsetY, 0);
+
+      tiles.push({
+        pageNumber: tiles.length + 1,
+        row,
+        col,
+        offsetX,
+        offsetY,
+        sliceWidthPx:
+          scaledContentWidthPx === 0 ? usablePageWidthPx : Math.max(1, Math.min(usablePageWidthPx, remainingWidthPx)),
+        sliceHeightPx:
+          scaledContentHeightPx === 0
+            ? usablePageHeightPx
+            : Math.max(1, Math.min(usablePageHeightPx, remainingHeightPx)),
+      });
+    }
+  }
+
+  return {
+    scaledContentWidthPx,
+    scaledContentHeightPx,
+    usablePageWidthPx,
+    usablePageHeightPx,
+    pagesX,
+    pagesY,
+    pageCount: tiles.length,
+    tiles,
+    hasHorizontalPagination: pagesX > 1,
+    hasVerticalPagination: pagesY > 1,
+  };
+};
+
 export const resolveViewerVerticalPaginationMetrics = (input: {
   scaledContentHeightPx: number;
   previewContentHeightPx: number;
+  paginationGridMetrics?: ViewerPaginationGridMetrics;
 }): ViewerVerticalPaginationMetrics => {
-  const scaledContentHeightPx = Math.max(0, Math.round(input.scaledContentHeightPx));
-  const pageHeightPx = Math.max(1, Math.round(input.previewContentHeightPx));
-  const pageCount = Math.max(1, Math.ceil(scaledContentHeightPx / pageHeightPx));
-  const pageOffsetsPx = Array.from({ length: pageCount }, (_, index) => index * pageHeightPx);
+  const fallbackGridMetrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1,
+    scaledContentHeightPx: input.scaledContentHeightPx,
+    usablePageWidthPx: 1,
+    usablePageHeightPx: input.previewContentHeightPx,
+  });
+  const paginationGridMetrics = input.paginationGridMetrics ?? fallbackGridMetrics;
+  const firstColumnTiles = paginationGridMetrics.tiles.filter((tile) => tile.col === 0);
+  const pageHeightPx = paginationGridMetrics.usablePageHeightPx;
+  const pageCount = Math.max(1, paginationGridMetrics.pagesY);
+  const pageOffsetsPx = firstColumnTiles.map((tile) => tile.offsetY);
+  const pageSliceHeightsPx = firstColumnTiles.map((tile) => tile.sliceHeightPx);
+  const scaledContentHeightPx = Math.max(0, paginationGridMetrics.scaledContentHeightPx);
   const lastPageContentHeightPx =
     scaledContentHeightPx === 0
       ? 0
-      : Math.max(1, scaledContentHeightPx - pageHeightPx * (pageCount - 1));
-  const pageSliceHeightsPx = Array.from({ length: pageCount }, (_, index) =>
-    index === pageCount - 1 ? lastPageContentHeightPx || pageHeightPx : pageHeightPx,
-  );
+      : (firstColumnTiles[firstColumnTiles.length - 1]?.sliceHeightPx ?? pageHeightPx);
   const hasPartialLastPage =
     scaledContentHeightPx > 0 && lastPageContentHeightPx > 0 && lastPageContentHeightPx < pageHeightPx;
 
@@ -292,7 +373,7 @@ export const resolveViewerVerticalPaginationMetrics = (input: {
     pageHeightPx,
     lastPageContentHeightPx,
     hasPartialLastPage,
-    hasVerticalPagination: pageCount > 1,
+    hasVerticalPagination: paginationGridMetrics.hasVerticalPagination,
   };
 };
 
