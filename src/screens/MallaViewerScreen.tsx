@@ -21,6 +21,7 @@ import {
   resolveViewerPrintPageCss,
   resolveViewerPrintableTextLayout,
   resolveViewerPanelMode,
+  resolveViewerVerticalPaginationMetrics,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
   VIEWER_PRINT_SCALE_STEP,
@@ -130,6 +131,16 @@ export function MallaViewerScreen({
       renderModel?.width,
     ],
   );
+  const verticalPaginationMetrics = useMemo(
+    () =>
+      resolveViewerVerticalPaginationMetrics({
+        scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
+        previewContentHeightPx: previewMetrics.contentHeightPx,
+      }),
+    [contentPlacementMetrics.scaledContentHeightPx, previewMetrics.contentHeightPx],
+  );
+  const hasPreviewVerticalPagination =
+    isPrintPreview && verticalPaginationMetrics.hasVerticalPagination;
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
@@ -179,6 +190,17 @@ export function MallaViewerScreen({
     contentPlacementMetrics.scaledContentHeightPx,
     contentPlacementMetrics.scaledContentWidthPx,
     isPrintPreview,
+  ]);
+  const previewCanvasPageViewportStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (!isPrintPreview) return undefined;
+    return {
+      width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+      height: `${verticalPaginationMetrics.pageHeightPx}px`,
+    };
+  }, [
+    contentPlacementMetrics.scaledContentWidthPx,
+    isPrintPreview,
+    verticalPaginationMetrics.pageHeightPx,
   ]);
 
   const previewCanvasInnerStyle = useMemo<React.CSSProperties>(() => {
@@ -530,6 +552,140 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       </section>
     );
   }
+
+  const previewDocumentIntro = hasPreviewVerticalPagination ? (
+    <div className={styles.viewerPreviewDocumentIntro}>
+      {printableTextLayout.headerText ? (
+        <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+      ) : null}
+      {printableTextLayout.documentTitle ? (
+        <h1
+          className={styles.runtimeDocumentTitle}
+          style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+        >
+          {printableTextLayout.documentTitle}
+        </h1>
+      ) : null}
+    </div>
+  ) : null;
+
+  const previewDocumentOutro =
+    hasPreviewVerticalPagination && printableTextLayout.footerText ? (
+      <div className={styles.viewerPreviewDocumentIntro}>
+        <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+      </div>
+    ) : null;
+
+  const printPreviewScreenContent = isPrintPreview ? (
+    hasPreviewVerticalPagination ? (
+      <>
+        {previewDocumentIntro}
+        <div className={styles.viewerPreviewPageStack}>
+          {verticalPaginationMetrics.pageOffsetsPx.map((offsetPx, pageIndex) => (
+            <div
+              key={`preview-page-${pageIndex}`}
+              className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
+              style={printFrameStyle}
+            >
+              <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+                <div className={styles.viewerPrintDocumentFlow}>
+                  <div className={styles.viewerCanvasScaledViewport} style={previewCanvasPageViewportStyle}>
+                    <div
+                      className={styles.viewerCanvasSliceTrack}
+                      style={{
+                        width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+                        height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
+                        transform: `translateY(-${offsetPx}px)`,
+                      }}
+                    >
+                      <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                        {canvasContent}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {previewDocumentOutro}
+      </>
+    ) : (
+      <div
+        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
+        style={printFrameStyle}
+      >
+        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+          <div className={styles.viewerPrintDocumentFlow}>
+            {printableTextLayout.headerText ? (
+              <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+            ) : null}
+            {printableTextLayout.documentTitle ? (
+              <h1
+                className={styles.runtimeDocumentTitle}
+                style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+              >
+                {printableTextLayout.documentTitle}
+              </h1>
+            ) : null}
+            <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
+              <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                {canvasContent}
+              </div>
+            </div>
+            {printableTextLayout.footerText ? (
+              <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  ) : (
+    <div className={styles.viewerCanvasFrame}>
+      <div className={styles.viewerPageContentBox}>
+        <div className={styles.viewerPrintDocumentFlow}>
+          <div className={styles.viewerCanvasScaledViewport}>
+            <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+              {canvasContent}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const printDocumentContent = isPrintPreview ? (
+    <div className={styles.printOnly}>
+      <div
+        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
+        style={printFrameStyle}
+      >
+        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+          <div className={styles.viewerPrintDocumentFlow}>
+            {printableTextLayout.headerText ? (
+              <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
+            ) : null}
+            {printableTextLayout.documentTitle ? (
+              <h1
+                className={styles.runtimeDocumentTitle}
+                style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+              >
+                {printableTextLayout.documentTitle}
+              </h1>
+            ) : null}
+            <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
+              <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                {canvasContent}
+              </div>
+            </div>
+            {printableTextLayout.footerText ? (
+              <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <section className={styles.viewerScreen}>
@@ -904,37 +1060,8 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               className={`${styles.viewerViewport} ${isPanning ? styles.viewerViewportPanning : ''}`}
               onMouseDown={handleViewportMouseDown}
             >
-              <div
-                className={`${styles.viewerCanvasFrame} ${isPrintPreview ? styles.viewerCanvasFramePrint : ''}`}
-                style={printFrameStyle}
-              >
-                <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-                  <div className={styles.viewerPrintDocumentFlow}>
-                    {printableTextLayout.headerText ? (
-                      <div className={styles.runtimeHeader}>{printableTextLayout.headerText}</div>
-                    ) : null}
-                    {printableTextLayout.documentTitle ? (
-                      <h1
-                        className={styles.runtimeDocumentTitle}
-                        style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
-                      >
-                        {printableTextLayout.documentTitle}
-                      </h1>
-                    ) : null}
-                    <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
-                      <div
-                        className={styles.viewerCanvasScaled}
-                        style={previewCanvasInnerStyle}
-                      >
-                        {canvasContent}
-                      </div>
-                    </div>
-                    {printableTextLayout.footerText ? (
-                      <div className={styles.runtimeFooter}>{printableTextLayout.footerText}</div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <div className={isPrintPreview ? styles.screenOnly : undefined}>{printPreviewScreenContent}</div>
+              {printDocumentContent}
             </div>
           </div>
         </div>

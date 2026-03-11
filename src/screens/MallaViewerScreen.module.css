@@ -165,6 +165,13 @@
 .noPrint {
 }
 
+.screenOnly {
+}
+
+.printOnly {
+  display: none;
+}
+
 .viewerMain {
   flex: 1;
   display: flex;
@@ -332,6 +339,18 @@
   width: max-content;
 }
 
+.viewerPreviewDocumentIntro {
+  display: grid;
+  gap: 0.35rem;
+  width: min(var(--viewer-preview-paper-width-px, 0px), 100%);
+  margin: 0 auto var(--space-sm);
+}
+
+.viewerPreviewPageStack {
+  display: grid;
+  gap: 1rem;
+}
+
 .viewerCanvasFramePrint {
   position: relative;
   display: flow-root;
@@ -386,6 +405,11 @@
 }
 
 .viewerCanvasScaled {
+  position: relative;
+  transform-origin: top left;
+}
+
+.viewerCanvasSliceTrack {
   position: relative;
   transform-origin: top left;
 }
@@ -541,6 +565,14 @@
 @media print {
   .noPrint {
     display: none !important;
+  }
+
+  .screenOnly {
+    display: none !important;
+  }
+
+  .printOnly {
+    display: block !important;
   }
 
   .viewerScreen {
