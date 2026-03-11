@@ -161,10 +161,7 @@ export function MallaViewerScreen({
       previewMetrics.contentHeightPx,
     ],
   );
-  const previewGridTiles = useMemo(
-    () => gridPaginationMetrics.tiles.filter((tile) => tile.col === 0),
-    [gridPaginationMetrics.tiles],
-  );
+  const previewGridTiles = gridPaginationMetrics.tiles;
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
@@ -215,18 +212,6 @@ export function MallaViewerScreen({
     contentPlacementMetrics.scaledContentWidthPx,
     isPrintPreview,
   ]);
-  const previewCanvasPageViewportStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (!isPrintPreview) return undefined;
-    return {
-      width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-      height: `${verticalPaginationMetrics.pageHeightPx}px`,
-    };
-  }, [
-    contentPlacementMetrics.scaledContentWidthPx,
-    isPrintPreview,
-    verticalPaginationMetrics.pageHeightPx,
-  ]);
-
   const previewCanvasInnerStyle = useMemo<React.CSSProperties>(() => {
     const width = `${contentPlacementMetrics.baseContentWidthPx}px`;
     const height = `${contentPlacementMetrics.baseContentHeightPx}px`;
@@ -577,9 +562,11 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   }
 
-  const renderPreviewGridTile = (tile: ViewerPaginationTile, tileIndex: number) => {
+  const renderPreviewGridTile = (tile: ViewerPaginationTile) => {
     const isPartialLastPage =
-      tileIndex === previewGridTiles.length - 1 && verticalPaginationMetrics.hasPartialLastPage;
+      tile.col === 0 &&
+      tile.row === gridPaginationMetrics.pagesY - 1 &&
+      verticalPaginationMetrics.hasPartialLastPage;
 
     return (
       <div
@@ -587,13 +574,16 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
         style={printFrameStyle}
         data-partial-last-page={isPartialLastPage ? 'true' : undefined}
+        data-grid-row={tile.row}
+        data-grid-col={tile.col}
       >
         <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
           <div className={styles.viewerPrintDocumentFlow}>
             <div
               className={styles.viewerCanvasScaledViewport}
               style={{
-                ...previewCanvasPageViewportStyle,
+                ...previewCanvasViewportStyle,
+                width: `${tile.sliceWidthPx}px`,
                 height: `${tile.sliceHeightPx}px`,
               }}
             >
@@ -602,7 +592,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 style={{
                   width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
                   height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-                  transform: `translateY(-${tile.offsetY}px)`,
+                  transform: `translate(-${tile.offsetX}px, -${tile.offsetY}px)`,
                 }}
               >
                 <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
@@ -651,6 +641,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       className={styles.viewerPreviewPageStack}
       data-grid-pages-x={gridPaginationMetrics.pagesX}
       data-grid-pages-y={gridPaginationMetrics.pagesY}
+      style={{
+        gridTemplateColumns: `repeat(${gridPaginationMetrics.pagesX}, max-content)`,
+      }}
     >
       {previewGridTiles.map(renderPreviewGridTile)}
     </div>
