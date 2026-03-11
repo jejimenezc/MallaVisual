@@ -14,7 +14,6 @@ import {
 import {
   createDefaultViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
-  resolveViewerEffectivePreviewPageMetrics,
   resolveViewerPageMetrics,
   resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
@@ -28,6 +27,7 @@ import {
   type ViewerEffectivePrintPageMeasurement,
   type ViewerPanelMode,
   type ViewerPrintPaperSize,
+  type ViewerPreviewPageMetrics,
 } from '../utils/viewer-print.ts';
 import {
   createViewerPrintFrameDocument,
@@ -139,14 +139,7 @@ export function MallaViewerScreen({
     () => resolveViewerPreviewPageMetrics(pageMetrics, measuredPxPerMm),
     [measuredPxPerMm, pageMetrics],
   );
-  const effectivePreviewMetrics = useMemo(
-    () =>
-      resolveViewerEffectivePreviewPageMetrics({
-        nominalMetrics: nominalPreviewMetrics,
-        effectiveMeasurement: effectivePrintMeasurement,
-      }),
-    [effectivePrintMeasurement, nominalPreviewMetrics],
-  );
+  const effectivePreviewMetrics = nominalPreviewMetrics;
   const printCssVars = useMemo(
     () => resolveViewerPrintCssVars(pageMetrics),
     [pageMetrics],
@@ -380,7 +373,7 @@ export function MallaViewerScreen({
 
     const logDiagnosticsSnapshot = (
       measurementResult: ViewerPrintDiagnosticsMeasurementLike,
-      finalPreviewMetrics: ReturnType<typeof resolveViewerEffectivePreviewPageMetrics>,
+      finalPreviewMetrics: ViewerPreviewPageMetrics,
     ) => {
       requestAnimationFrame(() => {
         if (printMeasurementRequestRef.current !== requestId) return;
@@ -410,13 +403,8 @@ export function MallaViewerScreen({
     })
       .then((measurementResult) => {
         if (printMeasurementRequestRef.current !== requestId) return;
-        const acceptedMeasurement = measurementResult.acceptedMeasurement;
-        const finalPreviewMetrics = resolveViewerEffectivePreviewPageMetrics({
-          nominalMetrics: nominalPreviewMetrics,
-          effectiveMeasurement: acceptedMeasurement,
-        });
-        setEffectivePrintMeasurement(acceptedMeasurement);
-        logDiagnosticsSnapshot(measurementResult, finalPreviewMetrics);
+        setEffectivePrintMeasurement(null);
+        logDiagnosticsSnapshot(measurementResult, nominalPreviewMetrics);
       })
       .catch((error) => {
         if (printMeasurementRequestRef.current !== requestId) return;
