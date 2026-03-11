@@ -14,6 +14,7 @@ import {
   resolveViewerPrintableTextLayout,
   resolveViewerPrintableLayoutModel,
   resolveViewerPanelMode,
+  resolveViewerVerticalPaginationMetrics,
 } from './viewer-print.ts';
 
 test('viewer print settings defaults are stable', () => {
@@ -264,6 +265,48 @@ test('viewer content placement metrics clamps invalid sizes safely', () => {
   assert.equal(metrics.scale, 1);
   assert.equal(metrics.overflowsHorizontally, false);
   assert.equal(metrics.overflowsVertically, false);
+});
+
+test('viewer vertical pagination keeps a single page when content fits', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 600,
+    previewContentHeightPx: 600,
+  });
+  assert.equal(metrics.pageCount, 1);
+  assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.equal(metrics.pageHeightPx, 600);
+  assert.equal(metrics.hasVerticalPagination, false);
+});
+
+test('viewer vertical pagination resolves two pages when content overflows once', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 601,
+    previewContentHeightPx: 600,
+  });
+  assert.equal(metrics.pageCount, 2);
+  assert.deepEqual(metrics.pageOffsetsPx, [0, 600]);
+  assert.equal(metrics.hasVerticalPagination, true);
+});
+
+test('viewer vertical pagination resolves N pages with stable offsets', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 2500,
+    previewContentHeightPx: 600,
+  });
+  assert.equal(metrics.pageCount, 5);
+  assert.deepEqual(metrics.pageOffsetsPx, [0, 600, 1200, 1800, 2400]);
+  assert.equal(metrics.pageHeightPx, 600);
+});
+
+test('viewer vertical pagination clamps degenerate heights safely', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 0,
+    previewContentHeightPx: 0,
+  });
+  assert.equal(metrics.pageCount, 1);
+  assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.equal(metrics.pageHeightPx, 1);
+  assert.equal(metrics.hasVerticalPagination, false);
 });
 
 test('viewer print page css is derived from printable model', () => {
