@@ -43,6 +43,7 @@ export interface ViewerPreviewCssVars {
   '--viewer-preview-paper-width-px': string;
   '--viewer-preview-paper-height-px': string;
   '--viewer-preview-content-width-px': string;
+  '--viewer-preview-content-height-px': string;
   '--viewer-preview-paper-padding-top-px': string;
   '--viewer-preview-paper-padding-right-px': string;
   '--viewer-preview-paper-padding-bottom-px': string;
@@ -73,7 +74,10 @@ export interface ViewerContentPlacementMetrics {
 export interface ViewerVerticalPaginationMetrics {
   pageCount: number;
   pageOffsetsPx: number[];
+  pageSliceHeightsPx: number[];
   pageHeightPx: number;
+  lastPageContentHeightPx: number;
+  hasPartialLastPage: boolean;
   hasVerticalPagination: boolean;
 }
 
@@ -228,6 +232,7 @@ export const resolveViewerPreviewCssVars = (
   '--viewer-preview-paper-width-px': `${metrics.paperWidthPx}px`,
   '--viewer-preview-paper-height-px': `${metrics.paperHeightPx}px`,
   '--viewer-preview-content-width-px': `${metrics.contentWidthPx}px`,
+  '--viewer-preview-content-height-px': `${metrics.contentHeightPx}px`,
   '--viewer-preview-paper-padding-top-px': `${metrics.marginTopPx}px`,
   '--viewer-preview-paper-padding-right-px': `${metrics.marginRightPx}px`,
   '--viewer-preview-paper-padding-bottom-px': `${metrics.marginBottomPx}px`,
@@ -270,11 +275,23 @@ export const resolveViewerVerticalPaginationMetrics = (input: {
   const pageHeightPx = Math.max(1, Math.round(input.previewContentHeightPx));
   const pageCount = Math.max(1, Math.ceil(scaledContentHeightPx / pageHeightPx));
   const pageOffsetsPx = Array.from({ length: pageCount }, (_, index) => index * pageHeightPx);
+  const lastPageContentHeightPx =
+    scaledContentHeightPx === 0
+      ? 0
+      : Math.max(1, scaledContentHeightPx - pageHeightPx * (pageCount - 1));
+  const pageSliceHeightsPx = Array.from({ length: pageCount }, (_, index) =>
+    index === pageCount - 1 ? lastPageContentHeightPx || pageHeightPx : pageHeightPx,
+  );
+  const hasPartialLastPage =
+    scaledContentHeightPx > 0 && lastPageContentHeightPx > 0 && lastPageContentHeightPx < pageHeightPx;
 
   return {
     pageCount,
     pageOffsetsPx,
+    pageSliceHeightsPx,
     pageHeightPx,
+    lastPageContentHeightPx,
+    hasPartialLastPage,
     hasVerticalPagination: pageCount > 1,
   };
 };

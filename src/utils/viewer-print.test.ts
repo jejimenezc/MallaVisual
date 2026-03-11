@@ -212,6 +212,7 @@ test('viewer preview css vars are derived from preview metrics', () => {
   assert.equal(vars['--viewer-preview-paper-width-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-height-px'], '0px');
   assert.equal(vars['--viewer-preview-content-width-px'], '0px');
+  assert.equal(vars['--viewer-preview-content-height-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-padding-top-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-padding-right-px'], '0px');
   assert.equal(vars['--viewer-preview-paper-padding-bottom-px'], '0px');
@@ -273,11 +274,28 @@ test('viewer content placement metrics clamps invalid sizes safely', () => {
 
 test('viewer vertical pagination keeps a single page when content fits', () => {
   const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 480,
+    previewContentHeightPx: 600,
+  });
+  assert.equal(metrics.pageCount, 1);
+  assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [480]);
+  assert.equal(metrics.lastPageContentHeightPx, 480);
+  assert.equal(metrics.hasPartialLastPage, true);
+  assert.equal(metrics.pageHeightPx, 600);
+  assert.equal(metrics.hasVerticalPagination, false);
+});
+
+test('viewer vertical pagination keeps a single page when content fits exactly', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
     scaledContentHeightPx: 600,
     previewContentHeightPx: 600,
   });
   assert.equal(metrics.pageCount, 1);
   assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [600]);
+  assert.equal(metrics.lastPageContentHeightPx, 600);
+  assert.equal(metrics.hasPartialLastPage, false);
   assert.equal(metrics.pageHeightPx, 600);
   assert.equal(metrics.hasVerticalPagination, false);
 });
@@ -289,7 +307,22 @@ test('viewer vertical pagination resolves two pages when content overflows once'
   });
   assert.equal(metrics.pageCount, 2);
   assert.deepEqual(metrics.pageOffsetsPx, [0, 600]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [600, 1]);
+  assert.equal(metrics.lastPageContentHeightPx, 1);
+  assert.equal(metrics.hasPartialLastPage, true);
   assert.equal(metrics.hasVerticalPagination, true);
+});
+
+test('viewer vertical pagination resolves exact two-page content without partial last page', () => {
+  const metrics = resolveViewerVerticalPaginationMetrics({
+    scaledContentHeightPx: 1200,
+    previewContentHeightPx: 600,
+  });
+  assert.equal(metrics.pageCount, 2);
+  assert.deepEqual(metrics.pageOffsetsPx, [0, 600]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [600, 600]);
+  assert.equal(metrics.lastPageContentHeightPx, 600);
+  assert.equal(metrics.hasPartialLastPage, false);
 });
 
 test('viewer vertical pagination resolves N pages with stable offsets', () => {
@@ -299,6 +332,9 @@ test('viewer vertical pagination resolves N pages with stable offsets', () => {
   });
   assert.equal(metrics.pageCount, 5);
   assert.deepEqual(metrics.pageOffsetsPx, [0, 600, 1200, 1800, 2400]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [600, 600, 600, 600, 100]);
+  assert.equal(metrics.lastPageContentHeightPx, 100);
+  assert.equal(metrics.hasPartialLastPage, true);
   assert.equal(metrics.pageHeightPx, 600);
 });
 
@@ -309,6 +345,9 @@ test('viewer vertical pagination clamps degenerate heights safely', () => {
   });
   assert.equal(metrics.pageCount, 1);
   assert.deepEqual(metrics.pageOffsetsPx, [0]);
+  assert.deepEqual(metrics.pageSliceHeightsPx, [1]);
+  assert.equal(metrics.lastPageContentHeightPx, 0);
+  assert.equal(metrics.hasPartialLastPage, false);
   assert.equal(metrics.pageHeightPx, 1);
   assert.equal(metrics.hasVerticalPagination, false);
 });
