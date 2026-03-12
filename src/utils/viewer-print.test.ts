@@ -8,9 +8,11 @@ import {
   normalizeViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
   resolveViewerGridCutGuides,
+  resolveViewerPaginatedSurfaceLayout,
   resolveViewerProtectedAxisYCuts,
   resolveViewerPaginationAxisCuts,
   resolveViewerPageMetrics,
+  resolveViewerPageSliceLayout,
   resolveViewerPaginationGridMetrics,
   resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPrintCssVars,
@@ -243,6 +245,69 @@ test('viewer print css vars are derived from real page metrics', () => {
   assert.equal(vars['--print-margin-left-mm'], '12');
   assert.equal(vars['--print-content-width-mm'], '273');
   assert.equal(vars['--print-content-height-mm'], '396');
+});
+
+test('viewer paginated surface layout centralizes shared preview and print geometry', () => {
+  assert.deepEqual(
+    resolveViewerPaginatedSurfaceLayout({
+      previewMetrics: {
+        paperWidthMm: 297,
+        paperHeightMm: 420,
+        marginTopMm: 12,
+        marginRightMm: 12,
+        marginBottomMm: 12,
+        marginLeftMm: 12,
+        contentWidthMm: 273,
+        contentHeightMm: 396,
+        contentScale: 1,
+        paperWidthPx: 1122,
+        paperHeightPx: 1587,
+        marginTopPx: 45,
+        marginRightPx: 45,
+        marginBottomPx: 45,
+        marginLeftPx: 45,
+        contentWidthPx: 1032,
+        contentHeightPx: 1497,
+      },
+      scaledSurfaceWidthPx: 1800,
+      scaledSurfaceHeightPx: 1250,
+    }),
+    {
+      paperWidthPx: 1122,
+      paperHeightPx: 1587,
+      contentWidthPx: 1032,
+      contentHeightPx: 1497,
+      paperPaddingPx: {
+        top: 45,
+        right: 45,
+        bottom: 45,
+        left: 45,
+      },
+      scaledSurfaceWidthPx: 1800,
+      scaledSurfaceHeightPx: 1250,
+    },
+  );
+});
+
+test('viewer page slice layout normalizes shared slice geometry', () => {
+  assert.deepEqual(
+    resolveViewerPageSliceLayout({
+      viewportWidthPx: 900,
+      viewportHeightPx: 560,
+      surfaceWidthPx: 1800,
+      surfaceHeightPx: 1250,
+      offsetX: 900,
+      offsetY: 560,
+    }),
+    {
+      viewportWidthPx: 900,
+      viewportHeightPx: 560,
+      surfaceWidthPx: 1800,
+      surfaceHeightPx: 1250,
+      offsetX: 900,
+      offsetY: 560,
+    },
+  );
 });
 
 test('viewer content placement metrics scales content inside preview box', () => {
