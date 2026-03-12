@@ -644,13 +644,12 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       <div
         key={`printed-page-${page.pageNumber}`}
         className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint} ${styles.viewerPrintedPage}`}
-        style={printFrameStyle}
         data-page-number={page.pageNumber}
         data-tile-row={page.tileRow}
         data-tile-col={page.tileCol}
         data-partial-last-page={isPartialLastPage ? 'true' : undefined}
       >
-        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+        <div className={styles.viewerPageContentBox}>
           <div className={styles.viewerPrintDocumentFlow}>
             <div
               className={styles.viewerCanvasScaledViewport}
@@ -1137,6 +1136,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
           <div
             ref={printableRootRef}
             className={styles.viewerPrintableRoot}
+            style={{
+              ...(printCssVars as React.CSSProperties),
+              ...(previewCssVars as React.CSSProperties),
+            }}
             data-print-root
             data-grid-pages-x={gridPaginationMetrics.pagesX}
             data-grid-pages-y={gridPaginationMetrics.pagesY}
