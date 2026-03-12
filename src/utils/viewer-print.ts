@@ -63,6 +63,30 @@ export interface ViewerPrintCssVars {
   '--print-content-height-mm': string;
 }
 
+export interface ViewerPaginatedSurfaceLayout {
+  paperWidthPx: number;
+  paperHeightPx: number;
+  contentWidthPx: number;
+  contentHeightPx: number;
+  paperPaddingPx: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
+  scaledSurfaceWidthPx: number;
+  scaledSurfaceHeightPx: number;
+}
+
+export interface ViewerPageSliceLayout {
+  viewportWidthPx: number;
+  viewportHeightPx: number;
+  surfaceWidthPx: number;
+  surfaceHeightPx: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 export interface ViewerContentPlacementMetrics {
   baseContentWidthPx: number;
   baseContentHeightPx: number;
@@ -515,6 +539,41 @@ export const resolveViewerPreviewCssVars = (
   '--viewer-preview-paper-padding-right-px': `${metrics.marginRightPx}px`,
   '--viewer-preview-paper-padding-bottom-px': `${metrics.marginBottomPx}px`,
   '--viewer-preview-paper-padding-left-px': `${metrics.marginLeftPx}px`,
+});
+
+export const resolveViewerPaginatedSurfaceLayout = (input: {
+  previewMetrics: ViewerPreviewPageMetrics;
+  scaledSurfaceWidthPx: number;
+  scaledSurfaceHeightPx: number;
+}): ViewerPaginatedSurfaceLayout => ({
+  paperWidthPx: Math.max(1, Math.round(input.previewMetrics.paperWidthPx)),
+  paperHeightPx: Math.max(1, Math.round(input.previewMetrics.paperHeightPx)),
+  contentWidthPx: Math.max(1, Math.round(input.previewMetrics.contentWidthPx)),
+  contentHeightPx: Math.max(1, Math.round(input.previewMetrics.contentHeightPx)),
+  paperPaddingPx: {
+    top: Math.max(0, Math.round(input.previewMetrics.marginTopPx)),
+    right: Math.max(0, Math.round(input.previewMetrics.marginRightPx)),
+    bottom: Math.max(0, Math.round(input.previewMetrics.marginBottomPx)),
+    left: Math.max(0, Math.round(input.previewMetrics.marginLeftPx)),
+  },
+  scaledSurfaceWidthPx: Math.max(1, Math.round(input.scaledSurfaceWidthPx)),
+  scaledSurfaceHeightPx: Math.max(1, Math.round(input.scaledSurfaceHeightPx)),
+});
+
+export const resolveViewerPageSliceLayout = (input: {
+  viewportWidthPx: number;
+  viewportHeightPx: number;
+  surfaceWidthPx: number;
+  surfaceHeightPx: number;
+  offsetX: number;
+  offsetY: number;
+}): ViewerPageSliceLayout => ({
+  viewportWidthPx: Math.max(1, Math.round(input.viewportWidthPx)),
+  viewportHeightPx: Math.max(1, Math.round(input.viewportHeightPx)),
+  surfaceWidthPx: Math.max(1, Math.round(input.surfaceWidthPx)),
+  surfaceHeightPx: Math.max(1, Math.round(input.surfaceHeightPx)),
+  offsetX: Math.max(0, Math.round(input.offsetX)),
+  offsetY: Math.max(0, Math.round(input.offsetY)),
 });
 
 export const resolveViewerContentPlacementMetrics = (input: {
