@@ -1,3 +1,5 @@
+import type { ViewerRenderModel } from './viewer-theme.ts';
+
 export type ViewerPanelMode = 'preview' | 'print-preview';
 export type ViewerPrintPaperSize = 'A2' | 'A3' | 'carta' | 'oficio';
 export type ViewerPrintOrientation = 'portrait' | 'landscape';
@@ -81,6 +83,23 @@ export interface ViewerPaginationTile {
   sliceHeightPx: number;
 }
 
+export interface ViewerPaginationCutGuides {
+  cutGuidesX: number[];
+  cutGuidesY: number[];
+}
+
+export interface ViewerPaginationRefinementPolicy {
+  refineAxisX: boolean;
+  refineAxisY: boolean;
+}
+
+export interface ViewerAxisYLineSegment {
+  rowIndex: number;
+  startPx: number;
+  endPx: number;
+  heightPx: number;
+}
+
 export interface ViewerPaginationGridMetrics {
   scaledContentWidthPx: number;
   scaledContentHeightPx: number;
@@ -92,6 +111,9 @@ export interface ViewerPaginationGridMetrics {
   tiles: ViewerPaginationTile[];
   hasHorizontalPagination: boolean;
   hasVerticalPagination: boolean;
+  cutGuides: ViewerPaginationCutGuides;
+  refinementPolicy: ViewerPaginationRefinementPolicy;
+  axisYLineSegments: ViewerAxisYLineSegment[];
 }
 
 export interface ViewerPrintedPage {
@@ -137,6 +159,224 @@ export interface ViewerPrintableTextLayout {
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
+const VIEWER_PAGINATION_SNAP_TOLERANCE_RATIO = 0.18;
+const VIEWER_PAGINATION_SNAP_TOLERANCE_MAX_PX = 96;
+
+const normalizeCutGuideList = (values: number[], totalSizePx: number): number[] => {
+  const total = Math.max(0, Math.round(totalSizePx));
+  const unique = new Set<number>();
+  unique.add(0);
+  unique.add(total);
+  for (const value of values) {
+    const rounded = Math.round(value);
+    if (!Number.isFinite(rounded)) continue;
+    unique.add(clamp(rounded, 0, total));
+  }
+  return [...unique].sort((left, right) => left - right);
+};
+
+const resolveViewerPaginationSnapTolerancePx = (usablePageSizePx: number): number =>
+  Math.max(0, Math.min(VIEWER_PAGINATION_SNAP_TOLERANCE_MAX_PX, Math.round(usablePageSizePx * VIEWER_PAGINATION_SNAP_TOLERANCE_RATIO)));
+
+export const resolveViewerGridCutGuides = (input: {
+  renderModel: ViewerRenderModel;
+  scale: number;
+}): ViewerPaginationCutGuides => {
+  const scale = Number.isFinite(input.scale) && input.scale > 0 ? input.scale : 1;
+  const scaledWidthPx = Math.max(0, Math.round(input.renderModel.width * scale));
+  const scaledHeightPx = Math.max(0, Math.round(input.renderModel.height * scale));
+  const cutGuidesX = input.renderModel.colOffsets.map(
+    (offset, index) => (offset + (input.renderModel.columnWidths[index] ?? 0)) * scale,
+  );
+  const cutGuidesY = [
+    ...input.renderModel.bandsRenderRows.map((row) => (row.top + row.height) * scale),
+    ...input.renderModel.rowOffsets.map(
+      (offset, index) => (input.renderModel.bandsHeight + offset + (input.renderModel.rowHeights[index] ?? 0)) * scale,
+    ),
+  ];
+
+  return {
+    cutGuidesX: normalizeCutGuideList(cutGuidesX, scaledWidthPx),
+    cutGuidesY: normalizeCutGuideList(cutGuidesY, scaledHeightPx),
+  };
+};
+
+export const resolveViewerAxisYLineSegments = (input: {
+  renderModel: ViewerRenderModel;
+  scale: number;
+}): ViewerAxisYLineSegment[] => {
+  const scale = Number.isFinite(input.scale) && input.scale > 0 ? input.scale : 1;
+  const totalHeightPx = Math.max(0, Math.round(input.renderModel.height * scale));
+
+  return input.renderModel.rowOffsets
+    .map((offset, rowIndex) => {
+      const startPx = clamp(Math.round((input.renderModel.bandsHeight + offset) * scale), 0, totalHeightPx);
+      const endPx = clamp(
+        Math.round((input.renderModel.bandsHeight + offset + (input.renderModel.rowHeights[rowIndex] ?? 0)) * scale),
+        0,
+        totalHeightPx,
+      );
+      return {
+        rowIndex,
+        startPx,
+        endPx,
+        heightPx: Math.max(0, endPx - startPx),
+      };
+    })
+    .filter((segment) => segment.endPx > segment.startPx);
+};
+
+export const resolveViewerPaginationAxisCuts = (input: {
+  totalSizePx: number;
+  usablePageSizePx: number;
+  cutGuidesPx?: number[];
+  enableGuideSnapping?: boolean;
+}): { offsetsPx: number[]; sliceSizesPx: number[] } => {
+  const totalSizePx = Math.max(0, Math.round(input.totalSizePx));
+  const usablePageSizePx = Math.max(1, Math.round(input.usablePageSizePx));
+  const cutGuidesPx = normalizeCutGuideList(input.cutGuidesPx ?? [], totalSizePx);
+  const enableGuideSnapping = input.enableGuideSnapping !== false;
+
+  if (totalSizePx <= usablePageSizePx) {
+    return {
+      offsetsPx: [0],
+      sliceSizesPx: [totalSizePx === 0 ? usablePageSizePx : totalSizePx],
+    };
+  }
+
+  const snapTolerancePx = resolveViewerPaginationSnapTolerancePx(usablePageSizePx);
+  const offsetsPx: number[] = [];
+  const sliceSizesPx: number[] = [];
+  let offsetPx = 0;
+
+  while (offsetPx < totalSizePx) {
+    offsetsPx.push(offsetPx);
+    const nominalEndPx = Math.min(totalSizePx, offsetPx + usablePageSizePx);
+    let refinedEndPx = nominalEndPx;
+
+    if (enableGuideSnapping && nominalEndPx < totalSizePx && snapTolerancePx > 0) {
+      const snappedGuidePx = [...cutGuidesPx]
+        .reverse()
+        .find((guidePx) => guidePx > offsetPx && guidePx <= nominalEndPx && guidePx >= nominalEndPx - snapTolerancePx);
+      if (snappedGuidePx !== undefined) {
+        refinedEndPx = snappedGuidePx;
+      }
+    }
+
+    const sliceSizePx =
+      refinedEndPx >= totalSizePx
+        ? Math.max(1, totalSizePx - offsetPx)
+        : Math.max(1, Math.min(usablePageSizePx, refinedEndPx - offsetPx));
+    sliceSizesPx.push(sliceSizePx);
+    offsetPx += sliceSizePx;
+  }
+
+  return { offsetsPx, sliceSizesPx };
+};
+
+export const resolveViewerProtectedAxisYCuts = (input: {
+  totalSizePx: number;
+  usablePageSizePx: number;
+  lineSegmentsY: ViewerAxisYLineSegment[];
+  cutGuidesY?: number[];
+  enableGuideSnapping?: boolean;
+}): { offsetsPx: number[]; sliceSizesPx: number[] } => {
+  const totalSizePx = Math.max(0, Math.round(input.totalSizePx));
+  const usablePageSizePx = Math.max(1, Math.round(input.usablePageSizePx));
+  const normalizedSegments = [...input.lineSegmentsY]
+    .map((segment) => {
+      const startPx = clamp(Math.round(segment.startPx), 0, totalSizePx);
+      const endPx = clamp(Math.round(segment.endPx), 0, totalSizePx);
+      return {
+        rowIndex: segment.rowIndex,
+        startPx,
+        endPx,
+        heightPx: Math.max(0, endPx - startPx),
+      };
+    })
+    .filter((segment) => segment.endPx > segment.startPx)
+    .sort((left, right) => left.startPx - right.startPx || left.endPx - right.endPx);
+
+  if (normalizedSegments.length === 0) {
+    return resolveViewerPaginationAxisCuts({
+      totalSizePx,
+      usablePageSizePx,
+      cutGuidesPx: input.cutGuidesY,
+      enableGuideSnapping: input.enableGuideSnapping,
+    });
+  }
+
+  if (totalSizePx <= usablePageSizePx) {
+    return {
+      offsetsPx: [0],
+      sliceSizesPx: [totalSizePx === 0 ? usablePageSizePx : totalSizePx],
+    };
+  }
+
+  const guideFallbackCuts = resolveViewerPaginationAxisCuts({
+    totalSizePx,
+    usablePageSizePx,
+    cutGuidesPx: input.cutGuidesY,
+    enableGuideSnapping: input.enableGuideSnapping,
+  });
+  const offsetsPx: number[] = [];
+  const sliceSizesPx: number[] = [];
+  let offsetPx = 0;
+
+  while (offsetPx < totalSizePx) {
+    offsetsPx.push(offsetPx);
+    const nominalEndPx = Math.min(totalSizePx, offsetPx + usablePageSizePx);
+    if (nominalEndPx >= totalSizePx) {
+      sliceSizesPx.push(Math.max(1, totalSizePx - offsetPx));
+      break;
+    }
+
+    const containingSegment = normalizedSegments.find(
+      (segment) => segment.startPx < nominalEndPx && segment.endPx > nominalEndPx,
+    );
+
+    if (!containingSegment) {
+      const fallbackIndex = offsetsPx.length - 1;
+      const fallbackSliceSizePx = guideFallbackCuts.sliceSizesPx[fallbackIndex];
+      if (fallbackSliceSizePx !== undefined) {
+        sliceSizesPx.push(Math.max(1, fallbackSliceSizePx));
+        offsetPx += Math.max(1, fallbackSliceSizePx);
+        continue;
+      }
+      const geometricSliceSizePx = Math.max(1, nominalEndPx - offsetPx);
+      sliceSizesPx.push(geometricSliceSizePx);
+      offsetPx += geometricSliceSizePx;
+      continue;
+    }
+
+    if (containingSegment.heightPx > usablePageSizePx) {
+      const fallbackIndex = offsetsPx.length - 1;
+      const fallbackSliceSizePx = guideFallbackCuts.sliceSizesPx[fallbackIndex] ?? Math.max(1, nominalEndPx - offsetPx);
+      sliceSizesPx.push(Math.max(1, fallbackSliceSizePx));
+      offsetPx += Math.max(1, fallbackSliceSizePx);
+      continue;
+    }
+
+    const protectedEndPx = normalizedSegments
+      .filter((segment) => segment.endPx > offsetPx && segment.endPx <= nominalEndPx)
+      .map((segment) => segment.endPx)
+      .at(-1);
+
+    if (protectedEndPx !== undefined) {
+      const protectedSliceSizePx = Math.max(1, protectedEndPx - offsetPx);
+      sliceSizesPx.push(protectedSliceSizePx);
+      offsetPx += protectedSliceSizePx;
+      continue;
+    }
+
+    const segmentAwareEndPx = Math.max(containingSegment.endPx, nominalEndPx);
+    const segmentAwareSliceSizePx = Math.max(1, segmentAwareEndPx - offsetPx);
+    sliceSizesPx.push(segmentAwareSliceSizePx);
+    offsetPx += segmentAwareSliceSizePx;
+  }
+
+  return { offsetsPx, sliceSizesPx };
+};
 
 export const VIEWER_PRINT_MIN_SCALE = 0.5;
 export const VIEWER_PRINT_MAX_SCALE = 1.5;
@@ -310,21 +550,59 @@ export const resolveViewerPaginationGridMetrics = (input: {
   scaledContentHeightPx: number;
   usablePageWidthPx: number;
   usablePageHeightPx: number;
+  cutGuides?: Partial<ViewerPaginationCutGuides>;
+  axisYLineSegments?: ViewerAxisYLineSegment[];
+  refinementPolicy?: Partial<ViewerPaginationRefinementPolicy>;
 }): ViewerPaginationGridMetrics => {
   const scaledContentWidthPx = Math.max(0, Math.round(input.scaledContentWidthPx));
   const scaledContentHeightPx = Math.max(0, Math.round(input.scaledContentHeightPx));
   const usablePageWidthPx = Math.max(1, Math.round(input.usablePageWidthPx));
   const usablePageHeightPx = Math.max(1, Math.round(input.usablePageHeightPx));
-  const pagesX = Math.max(1, Math.ceil(scaledContentWidthPx / usablePageWidthPx));
-  const pagesY = Math.max(1, Math.ceil(scaledContentHeightPx / usablePageHeightPx));
+  const refinementPolicy: ViewerPaginationRefinementPolicy = {
+    refineAxisX: input.refinementPolicy?.refineAxisX === true,
+    refineAxisY: input.refinementPolicy?.refineAxisY !== false,
+  };
+  const cutGuides: ViewerPaginationCutGuides = {
+    cutGuidesX: normalizeCutGuideList(input.cutGuides?.cutGuidesX ?? [], scaledContentWidthPx),
+    cutGuidesY: normalizeCutGuideList(input.cutGuides?.cutGuidesY ?? [], scaledContentHeightPx),
+  };
+  const axisYLineSegments = (input.axisYLineSegments ?? [])
+    .map((segment) => ({
+      rowIndex: segment.rowIndex,
+      startPx: clamp(Math.round(segment.startPx), 0, scaledContentHeightPx),
+      endPx: clamp(Math.round(segment.endPx), 0, scaledContentHeightPx),
+      heightPx: Math.max(0, Math.round(segment.heightPx)),
+    }))
+    .filter((segment) => segment.endPx > segment.startPx);
+  const axisX = resolveViewerPaginationAxisCuts({
+    totalSizePx: scaledContentWidthPx,
+    usablePageSizePx: usablePageWidthPx,
+    cutGuidesPx: cutGuides.cutGuidesX,
+    enableGuideSnapping: refinementPolicy.refineAxisX,
+  });
+  const axisY =
+    refinementPolicy.refineAxisY && axisYLineSegments.length > 0
+      ? resolveViewerProtectedAxisYCuts({
+          totalSizePx: scaledContentHeightPx,
+          usablePageSizePx: usablePageHeightPx,
+          lineSegmentsY: axisYLineSegments,
+          cutGuidesY: cutGuides.cutGuidesY,
+          enableGuideSnapping: true,
+        })
+      : resolveViewerPaginationAxisCuts({
+          totalSizePx: scaledContentHeightPx,
+          usablePageSizePx: usablePageHeightPx,
+          cutGuidesPx: cutGuides.cutGuidesY,
+          enableGuideSnapping: refinementPolicy.refineAxisY,
+        });
+  const pagesX = Math.max(1, axisX.offsetsPx.length);
+  const pagesY = Math.max(1, axisY.offsetsPx.length);
   const tiles: ViewerPaginationTile[] = [];
 
   for (let row = 0; row < pagesY; row += 1) {
     for (let col = 0; col < pagesX; col += 1) {
-      const offsetX = col * usablePageWidthPx;
-      const offsetY = row * usablePageHeightPx;
-      const remainingWidthPx = Math.max(scaledContentWidthPx - offsetX, 0);
-      const remainingHeightPx = Math.max(scaledContentHeightPx - offsetY, 0);
+      const offsetX = axisX.offsetsPx[col] ?? 0;
+      const offsetY = axisY.offsetsPx[row] ?? 0;
 
       tiles.push({
         pageNumber: tiles.length + 1,
@@ -332,12 +610,8 @@ export const resolveViewerPaginationGridMetrics = (input: {
         col,
         offsetX,
         offsetY,
-        sliceWidthPx:
-          scaledContentWidthPx === 0 ? usablePageWidthPx : Math.max(1, Math.min(usablePageWidthPx, remainingWidthPx)),
-        sliceHeightPx:
-          scaledContentHeightPx === 0
-            ? usablePageHeightPx
-            : Math.max(1, Math.min(usablePageHeightPx, remainingHeightPx)),
+        sliceWidthPx: axisX.sliceSizesPx[col] ?? usablePageWidthPx,
+        sliceHeightPx: axisY.sliceSizesPx[row] ?? usablePageHeightPx,
       });
     }
   }
@@ -353,6 +627,9 @@ export const resolveViewerPaginationGridMetrics = (input: {
     tiles,
     hasHorizontalPagination: pagesX > 1,
     hasVerticalPagination: pagesY > 1,
+    cutGuides,
+    refinementPolicy,
+    axisYLineSegments,
   };
 };
 
@@ -411,16 +688,19 @@ export const resolveViewerPrintedPagesFromPaginationGrid = (input: {
       return left.pageNumber - right.pageNumber;
     })
     .map((tile, index) => {
-      const printOffsetX = tile.col * usablePageWidthPx;
-      const printOffsetY = tile.row * usablePageHeightPx;
-      const remainingWidthPx = Math.max(scaledContentWidthPx - printOffsetX, 0);
-      const remainingHeightPx = Math.max(scaledContentHeightPx - printOffsetY, 0);
+      const printOffsetX = clamp(Math.round(tile.offsetX), 0, scaledContentWidthPx);
+      const printOffsetY = clamp(Math.round(tile.offsetY), 0, scaledContentHeightPx);
       const sliceWidthPx =
-        scaledContentWidthPx === 0 ? usablePageWidthPx : Math.max(1, Math.min(usablePageWidthPx, remainingWidthPx));
+        scaledContentWidthPx === 0
+          ? usablePageWidthPx
+          : Math.max(1, Math.min(usablePageWidthPx, Math.round(tile.sliceWidthPx), scaledContentWidthPx - printOffsetX));
       const sliceHeightPx =
         scaledContentHeightPx === 0
           ? usablePageHeightPx
-          : Math.max(1, Math.min(usablePageHeightPx, remainingHeightPx));
+          : Math.max(
+              1,
+              Math.min(usablePageHeightPx, Math.round(tile.sliceHeightPx), scaledContentHeightPx - printOffsetY),
+            );
 
       return {
         pageNumber: index + 1,

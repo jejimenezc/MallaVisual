@@ -14,6 +14,8 @@ import {
 import {
   createDefaultViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
+  resolveViewerAxisYLineSegments,
+  resolveViewerGridCutGuides,
   resolveViewerPaginationGridMetrics,
   resolveViewerPageMetrics,
   resolveViewerPrintCssVars,
@@ -34,6 +36,11 @@ import {
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
 import styles from './MallaViewerScreen.module.css';
+
+const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
+  refineAxisX: false,
+  refineAxisY: true,
+} as const;
 
 interface Props {
   snapshot: MallaSnapshot | null;
@@ -142,12 +149,27 @@ export function MallaViewerScreen({
         scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
         usablePageWidthPx: previewMetrics.contentWidthPx,
         usablePageHeightPx: previewMetrics.contentHeightPx,
+        cutGuides: renderModel
+          ? resolveViewerGridCutGuides({
+              renderModel,
+              scale: contentPlacementMetrics.scale,
+            })
+          : undefined,
+        axisYLineSegments: renderModel
+          ? resolveViewerAxisYLineSegments({
+              renderModel,
+              scale: contentPlacementMetrics.scale,
+            })
+          : undefined,
+        refinementPolicy: VIEWER_PRINT_CUT_REFINEMENT_POLICY,
       }),
     [
       contentPlacementMetrics.scaledContentHeightPx,
       contentPlacementMetrics.scaledContentWidthPx,
+      contentPlacementMetrics.scale,
       previewMetrics.contentHeightPx,
       previewMetrics.contentWidthPx,
+      renderModel,
     ],
   );
   const verticalPaginationMetrics = useMemo(

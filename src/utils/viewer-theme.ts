@@ -99,6 +99,7 @@ export interface ViewerRenderModel {
   width: number;
   height: number;
   columnWidths: number[];
+  rowHeights: number[];
   colOffsets: number[];
   rowOffsets: number[];
   bandsHeight: number;
@@ -261,6 +262,7 @@ export const applyViewerTheme = (
     width,
     height,
     columnWidths: colWidths,
+    rowHeights,
     colOffsets,
     rowOffsets,
     bandsHeight,
