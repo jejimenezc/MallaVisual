@@ -8,6 +8,7 @@ import {
   resolveViewerContentPlacementMetrics,
   resolveViewerPageMetrics,
   resolveViewerPaginationGridMetrics,
+  resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
@@ -415,6 +416,154 @@ test('viewer pagination grid handles exact edges and degenerate sizes safely', (
       offsetY: 0,
       sliceWidthPx: 1,
       sliceHeightPx: 1,
+    },
+  ]);
+});
+
+test('viewer printed pages preserve 1x1 tile-to-page mapping', () => {
+  const grid = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 500,
+    scaledContentHeightPx: 480,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid(grid);
+  assert.deepEqual(printedPages, [
+    {
+      pageNumber: 1,
+      sourceTilePageNumber: 1,
+      tileRow: 0,
+      tileCol: 0,
+      printOffsetX: 0,
+      printOffsetY: 0,
+      sliceWidthPx: 500,
+      sliceHeightPx: 480,
+      viewportWidthPx: 500,
+      viewportHeightPx: 480,
+      isLastColumn: true,
+      isLastRow: true,
+    },
+  ]);
+});
+
+test('viewer printed pages linearize 1xN tiles in stable row-major order', () => {
+  const grid = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 500,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid(grid);
+  assert.deepEqual(
+    printedPages.map((page) => ({
+      pageNumber: page.pageNumber,
+      tileRow: page.tileRow,
+      tileCol: page.tileCol,
+      printOffsetY: page.printOffsetY,
+      sliceHeightPx: page.sliceHeightPx,
+    })),
+    [
+      { pageNumber: 1, tileRow: 0, tileCol: 0, printOffsetY: 0, sliceHeightPx: 600 },
+      { pageNumber: 2, tileRow: 1, tileCol: 0, printOffsetY: 600, sliceHeightPx: 600 },
+      { pageNumber: 3, tileRow: 2, tileCol: 0, printOffsetY: 1200, sliceHeightPx: 50 },
+    ],
+  );
+});
+
+test('viewer printed pages linearize Mx1 tiles in stable row-major order', () => {
+  const grid = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1900,
+    scaledContentHeightPx: 500,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid(grid);
+  assert.deepEqual(
+    printedPages.map((page) => ({
+      pageNumber: page.pageNumber,
+      tileRow: page.tileRow,
+      tileCol: page.tileCol,
+      printOffsetX: page.printOffsetX,
+      sliceWidthPx: page.sliceWidthPx,
+    })),
+    [
+      { pageNumber: 1, tileRow: 0, tileCol: 0, printOffsetX: 0, sliceWidthPx: 900 },
+      { pageNumber: 2, tileRow: 0, tileCol: 1, printOffsetX: 900, sliceWidthPx: 900 },
+      { pageNumber: 3, tileRow: 0, tileCol: 2, printOffsetX: 1800, sliceWidthPx: 100 },
+    ],
+  );
+});
+
+test('viewer printed pages linearize MxN tiles independently from preview tile order', () => {
+  const grid = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1900,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 900,
+    usablePageHeightPx: 600,
+  });
+  const scrambledTiles = [
+    grid.tiles[4],
+    grid.tiles[0],
+    grid.tiles[8],
+    grid.tiles[3],
+    grid.tiles[6],
+    grid.tiles[2],
+    grid.tiles[7],
+    grid.tiles[1],
+    grid.tiles[5],
+  ];
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid({
+    ...grid,
+    tiles: scrambledTiles,
+  });
+  assert.deepEqual(
+    printedPages.map((page) => `${page.pageNumber}:${page.tileRow},${page.tileCol}@${page.printOffsetX},${page.printOffsetY}`),
+    [
+      '1:0,0@0,0',
+      '2:0,1@900,0',
+      '3:0,2@1800,0',
+      '4:1,0@0,600',
+      '5:1,1@900,600',
+      '6:1,2@1800,600',
+      '7:2,0@0,1200',
+      '8:2,1@900,1200',
+      '9:2,2@1800,1200',
+    ],
+  );
+});
+
+test('viewer printed pages handle degenerate input safely', () => {
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid({
+    scaledContentWidthPx: 0,
+    scaledContentHeightPx: 0,
+    usablePageWidthPx: 0,
+    usablePageHeightPx: 0,
+    tiles: [
+      {
+        pageNumber: 99,
+        row: 0,
+        col: 0,
+        offsetX: 123,
+        offsetY: 456,
+        sliceWidthPx: 789,
+        sliceHeightPx: 101,
+      },
+    ],
+  });
+  assert.deepEqual(printedPages, [
+    {
+      pageNumber: 1,
+      sourceTilePageNumber: 99,
+      tileRow: 0,
+      tileCol: 0,
+      printOffsetX: 0,
+      printOffsetY: 0,
+      sliceWidthPx: 1,
+      sliceHeightPx: 1,
+      viewportWidthPx: 1,
+      viewportHeightPx: 1,
+      isLastColumn: true,
+      isLastRow: true,
     },
   ]);
 });

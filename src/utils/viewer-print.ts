@@ -94,6 +94,21 @@ export interface ViewerPaginationGridMetrics {
   hasVerticalPagination: boolean;
 }
 
+export interface ViewerPrintedPage {
+  pageNumber: number;
+  sourceTilePageNumber: number;
+  tileRow: number;
+  tileCol: number;
+  printOffsetX: number;
+  printOffsetY: number;
+  sliceWidthPx: number;
+  sliceHeightPx: number;
+  viewportWidthPx: number;
+  viewportHeightPx: number;
+  isLastColumn: boolean;
+  isLastRow: boolean;
+}
+
 export interface ViewerVerticalPaginationMetrics {
   pageCount: number;
   pageOffsetsPx: number[];
@@ -375,6 +390,53 @@ export const resolveViewerVerticalPaginationMetrics = (input: {
     hasPartialLastPage,
     hasVerticalPagination: paginationGridMetrics.hasVerticalPagination,
   };
+};
+
+export const resolveViewerPrintedPagesFromPaginationGrid = (input: {
+  tiles: ViewerPaginationTile[];
+  scaledContentWidthPx: number;
+  scaledContentHeightPx: number;
+  usablePageWidthPx: number;
+  usablePageHeightPx: number;
+}): ViewerPrintedPage[] => {
+  const scaledContentWidthPx = Math.max(0, Math.round(input.scaledContentWidthPx));
+  const scaledContentHeightPx = Math.max(0, Math.round(input.scaledContentHeightPx));
+  const usablePageWidthPx = Math.max(1, Math.round(input.usablePageWidthPx));
+  const usablePageHeightPx = Math.max(1, Math.round(input.usablePageHeightPx));
+
+  return [...input.tiles]
+    .sort((left, right) => {
+      if (left.row !== right.row) return left.row - right.row;
+      if (left.col !== right.col) return left.col - right.col;
+      return left.pageNumber - right.pageNumber;
+    })
+    .map((tile, index) => {
+      const printOffsetX = tile.col * usablePageWidthPx;
+      const printOffsetY = tile.row * usablePageHeightPx;
+      const remainingWidthPx = Math.max(scaledContentWidthPx - printOffsetX, 0);
+      const remainingHeightPx = Math.max(scaledContentHeightPx - printOffsetY, 0);
+      const sliceWidthPx =
+        scaledContentWidthPx === 0 ? usablePageWidthPx : Math.max(1, Math.min(usablePageWidthPx, remainingWidthPx));
+      const sliceHeightPx =
+        scaledContentHeightPx === 0
+          ? usablePageHeightPx
+          : Math.max(1, Math.min(usablePageHeightPx, remainingHeightPx));
+
+      return {
+        pageNumber: index + 1,
+        sourceTilePageNumber: tile.pageNumber,
+        tileRow: tile.row,
+        tileCol: tile.col,
+        printOffsetX,
+        printOffsetY,
+        sliceWidthPx,
+        sliceHeightPx,
+        viewportWidthPx: sliceWidthPx,
+        viewportHeightPx: sliceHeightPx,
+        isLastColumn: printOffsetX + sliceWidthPx >= scaledContentWidthPx,
+        isLastRow: printOffsetY + sliceHeightPx >= scaledContentHeightPx,
+      };
+    });
 };
 
 export const resolveViewerPrintPageCss = (metrics: ViewerResolvedPageMetrics): string =>
