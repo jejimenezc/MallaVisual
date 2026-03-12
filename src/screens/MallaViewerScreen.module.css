@@ -389,13 +389,10 @@
 }
 
 .viewerPrintedPage {
-  break-after: page;
-  page-break-after: always;
 }
 
-.viewerPrintedPage:last-child {
-  break-after: auto;
-  page-break-after: auto;
+.viewerPrintedPage + .viewerPrintedPage {
+  break-before: page;
 }
 
 .viewerCanvasFramePrint {
@@ -687,11 +684,15 @@
   }
 
   .viewerCanvasFramePrint {
+    display: block !important;
     margin: 0 !important;
-    width: calc(var(--print-paper-width-mm, 0) * 1mm) !important;
-    min-height: calc(var(--print-paper-height-mm, 0) * 1mm) !important;
+    width: auto !important;
+    min-height: 0 !important;
     transform: none !important;
     transform-origin: top left !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
 
   .viewerCanvasFramePrint::before {
@@ -704,20 +705,32 @@
 
   .viewerPageContentBox {
     box-sizing: border-box;
-    margin: calc(var(--print-margin-top-mm, 0) * 1mm)
-      calc(var(--print-margin-right-mm, 0) * 1mm)
-      calc(var(--print-margin-bottom-mm, 0) * 1mm)
-      calc(var(--print-margin-left-mm, 0) * 1mm) !important;
+    margin: 0 !important;
     width: calc(var(--print-content-width-mm, 0) * 1mm) !important;
-    min-height: calc(var(--print-content-height-mm, 0) * 1mm) !important;
+    min-height: 0 !important;
     background: transparent;
     overflow: hidden;
+  }
+
+  .viewerCanvasFramePrint .viewerPageContentBox {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   .viewerPrintDocumentFlow {
     gap: 0.35rem;
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  .viewerCanvasFramePrint .viewerPrintDocumentFlow {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .viewerPrintedTextBlock {
@@ -731,11 +744,26 @@
 
   .viewerPrintedPage {
     margin: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
 
   .viewerCanvasScaledViewport {
     overflow: hidden;
     max-width: 100%;
+  }
+
+  .viewerCanvasFramePrint .viewerCanvasScaledViewport {
+    max-height: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .viewerCanvasFramePrint .runtimeHeader,
+  .viewerCanvasFramePrint .runtimeFooter,
+  .viewerCanvasFramePrint .runtimeDocumentTitle {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .runtimeHeader,
