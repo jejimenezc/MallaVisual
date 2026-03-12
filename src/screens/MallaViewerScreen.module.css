@@ -374,6 +374,30 @@
   grid-template-columns: max-content;
 }
 
+.viewerPrintedTextBlock {
+  box-sizing: border-box;
+  width: calc(var(--print-content-width-mm, 0) * 1mm);
+  max-width: 100%;
+  margin: 0 auto 0.35rem;
+}
+
+.viewerPrintedPageSequence {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.viewerPrintedPage {
+  break-after: page;
+  page-break-after: always;
+}
+
+.viewerPrintedPage:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+
 .viewerCanvasFramePrint {
   position: relative;
   display: flow-root;
@@ -694,6 +718,19 @@
     gap: 0.35rem;
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  .viewerPrintedTextBlock {
+    width: calc(var(--print-content-width-mm, 0) * 1mm) !important;
+    margin: 0 0 0.35rem !important;
+  }
+
+  .viewerPrintedPageSequence {
+    display: block;
+  }
+
+  .viewerPrintedPage {
+    margin: 0 !important;
   }
 
   .viewerCanvasScaledViewport {

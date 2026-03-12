@@ -17,6 +17,7 @@ import {
   resolveViewerPaginationGridMetrics,
   resolveViewerPageMetrics,
   resolveViewerPrintCssVars,
+  resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
   resolveViewerPrintPageCss,
@@ -28,6 +29,7 @@ import {
   VIEWER_PRINT_SCALE_STEP,
   type ViewerPanelMode,
   type ViewerPaginationTile,
+  type ViewerPrintedPage,
   type ViewerPrintPaperSize,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
@@ -162,6 +164,10 @@ export function MallaViewerScreen({
     ],
   );
   const previewGridTiles = gridPaginationMetrics.tiles;
+  const printedPages = useMemo(
+    () => resolveViewerPrintedPagesFromPaginationGrid(gridPaginationMetrics),
+    [gridPaginationMetrics],
+  );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
@@ -606,6 +612,50 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   };
 
+  const renderPrintedPage = (page: ViewerPrintedPage) => {
+    const isPartialLastPage =
+      page.tileCol === 0 &&
+      page.isLastRow &&
+      page.sliceHeightPx < gridPaginationMetrics.usablePageHeightPx;
+
+    return (
+      <div
+        key={`printed-page-${page.pageNumber}`}
+        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint} ${styles.viewerPrintedPage}`}
+        style={printFrameStyle}
+        data-page-number={page.pageNumber}
+        data-tile-row={page.tileRow}
+        data-tile-col={page.tileCol}
+        data-partial-last-page={isPartialLastPage ? 'true' : undefined}
+      >
+        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
+          <div className={styles.viewerPrintDocumentFlow}>
+            <div
+              className={styles.viewerCanvasScaledViewport}
+              style={{
+                width: `${page.viewportWidthPx}px`,
+                height: `${page.viewportHeightPx}px`,
+              }}
+            >
+              <div
+                className={styles.viewerCanvasSliceTrack}
+                style={{
+                  width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
+                  height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
+                  transform: `translate(-${page.printOffsetX}px, -${page.printOffsetY}px)`,
+                }}
+              >
+                <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                  {canvasContent}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const previewDocumentIntro =
     isPrintPreview && (documentTextLayout.headerText || documentTextLayout.documentTitle) ? (
       <div
@@ -671,34 +721,27 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const printDocumentContent = isPrintPreview ? (
     <div className={styles.printOnly}>
-      <div
-        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
-        style={printFrameStyle}
-      >
-        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-          <div className={styles.viewerPrintDocumentFlow}>
-            {documentTextLayout.headerText ? (
-              <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
-            ) : null}
-            {documentTextLayout.documentTitle ? (
-              <h1
-                className={styles.runtimeDocumentTitle}
-                style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
-              >
-                {documentTextLayout.documentTitle}
-              </h1>
-            ) : null}
-            <div className={styles.viewerCanvasScaledViewport} style={previewCanvasViewportStyle}>
-              <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                {canvasContent}
-              </div>
-            </div>
-            {documentTextLayout.footerText ? (
-              <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
-            ) : null}
-          </div>
+      {documentTextLayout.headerText ? (
+        <div className={styles.viewerPrintedTextBlock}>
+          <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
         </div>
-      </div>
+      ) : null}
+      {documentTextLayout.documentTitle ? (
+        <div className={styles.viewerPrintedTextBlock}>
+          <h1
+            className={styles.runtimeDocumentTitle}
+            style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+          >
+            {documentTextLayout.documentTitle}
+          </h1>
+        </div>
+      ) : null}
+      <div className={styles.viewerPrintedPageSequence}>{printedPages.map(renderPrintedPage)}</div>
+      {documentTextLayout.footerText ? (
+        <div className={styles.viewerPrintedTextBlock}>
+          <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
+        </div>
+      ) : null}
     </div>
   ) : null;
 
