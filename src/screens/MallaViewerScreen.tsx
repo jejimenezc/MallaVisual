@@ -16,8 +16,10 @@ import {
   resolveViewerContentPlacementMetrics,
   resolveViewerAxisYLineSegments,
   resolveViewerGridCutGuides,
+  resolveViewerPaginatedSurfaceLayout,
   resolveViewerPaginationGridMetrics,
   resolveViewerPageMetrics,
+  resolveViewerPageSliceLayout,
   resolveViewerPrintCssVars,
   resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPreviewCssVars,
@@ -190,56 +192,54 @@ export function MallaViewerScreen({
     () => resolveViewerPrintedPagesFromPaginationGrid(gridPaginationMetrics),
     [gridPaginationMetrics],
   );
+  const paginatedSurfaceLayout = useMemo(
+    () =>
+      resolveViewerPaginatedSurfaceLayout({
+        previewMetrics,
+        scaledSurfaceWidthPx: contentPlacementMetrics.scaledContentWidthPx,
+        scaledSurfaceHeightPx: contentPlacementMetrics.scaledContentHeightPx,
+      }),
+    [
+      contentPlacementMetrics.scaledContentHeightPx,
+      contentPlacementMetrics.scaledContentWidthPx,
+      previewMetrics,
+    ],
+  );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
-      ...(printCssVars as React.CSSProperties),
-      ...(previewCssVars as React.CSSProperties),
-      width: `${previewMetrics.paperWidthPx}px`,
-      height: `${previewMetrics.paperHeightPx}px`,
-      minHeight: `${previewMetrics.paperHeightPx}px`,
-      maxHeight: `${previewMetrics.paperHeightPx}px`,
+      width: `${paginatedSurfaceLayout.paperWidthPx}px`,
+      height: `${paginatedSurfaceLayout.paperHeightPx}px`,
+      minHeight: `${paginatedSurfaceLayout.paperHeightPx}px`,
+      maxHeight: `${paginatedSurfaceLayout.paperHeightPx}px`,
       margin: '0 auto',
     };
   }, [
     isPrintPreview,
-    printCssVars,
-    previewCssVars,
-    previewMetrics.paperHeightPx,
-    previewMetrics.paperWidthPx,
+    paginatedSurfaceLayout.paperHeightPx,
+    paginatedSurfaceLayout.paperWidthPx,
   ]);
 
   const printContentBoxStyle = useMemo<React.CSSProperties | undefined>(() => {
     if (!isPrintPreview) return undefined;
     return {
-      width: `${previewMetrics.contentWidthPx}px`,
-      height: `${previewMetrics.contentHeightPx}px`,
-      minHeight: `${previewMetrics.contentHeightPx}px`,
-      maxHeight: `${previewMetrics.contentHeightPx}px`,
-      margin: `${previewMetrics.marginTopPx}px ${previewMetrics.marginRightPx}px ${previewMetrics.marginBottomPx}px ${previewMetrics.marginLeftPx}px`,
+      width: `${paginatedSurfaceLayout.contentWidthPx}px`,
+      height: `${paginatedSurfaceLayout.contentHeightPx}px`,
+      minHeight: `${paginatedSurfaceLayout.contentHeightPx}px`,
+      maxHeight: `${paginatedSurfaceLayout.contentHeightPx}px`,
+      margin: `${paginatedSurfaceLayout.paperPaddingPx.top}px ${paginatedSurfaceLayout.paperPaddingPx.right}px ${paginatedSurfaceLayout.paperPaddingPx.bottom}px ${paginatedSurfaceLayout.paperPaddingPx.left}px`,
     };
   }, [
     isPrintPreview,
-    previewMetrics.contentHeightPx,
-    previewMetrics.contentWidthPx,
-    previewMetrics.marginBottomPx,
-    previewMetrics.marginLeftPx,
-    previewMetrics.marginRightPx,
-    previewMetrics.marginTopPx,
+    paginatedSurfaceLayout.contentHeightPx,
+    paginatedSurfaceLayout.contentWidthPx,
+    paginatedSurfaceLayout.paperPaddingPx.bottom,
+    paginatedSurfaceLayout.paperPaddingPx.left,
+    paginatedSurfaceLayout.paperPaddingPx.right,
+    paginatedSurfaceLayout.paperPaddingPx.top,
   ]);
 
-  const previewCanvasViewportStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (!isPrintPreview) return undefined;
-    return {
-      width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-      height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-    };
-  }, [
-    contentPlacementMetrics.scaledContentHeightPx,
-    contentPlacementMetrics.scaledContentWidthPx,
-    isPrintPreview,
-  ]);
   const previewCanvasInnerStyle = useMemo<React.CSSProperties>(() => {
     const width = `${contentPlacementMetrics.baseContentWidthPx}px`;
     const height = `${contentPlacementMetrics.baseContentHeightPx}px`;
@@ -590,37 +590,49 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   }
 
-  const renderPreviewGridTile = (tile: ViewerPaginationTile) => {
-    const isPartialLastPage =
-      tile.col === 0 &&
-      tile.row === gridPaginationMetrics.pagesY - 1 &&
-      verticalPaginationMetrics.hasPartialLastPage;
+  const renderPaginatedSurfacePage = (input: {
+    key: string;
+    sliceLayout: ReturnType<typeof resolveViewerPageSliceLayout>;
+    variant: 'preview' | 'print';
+    pageAttrs?: Record<string, string | undefined>;
+    isPartialLastPage: boolean;
+  }) => {
+    const frameClassName =
+      input.variant === 'preview'
+        ? `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePreview}`
+        : `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePrint} ${styles.viewerPrintedPage}`;
+    const contentBoxClassName =
+      input.variant === 'preview'
+        ? `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPreview}`
+        : `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPrint}`;
+    const flowClassName =
+      input.variant === 'preview'
+        ? `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPreview}`
+        : `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPrint}`;
 
     return (
       <div
-        key={`preview-page-${tile.row}-${tile.col}`}
-        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint}`}
-        style={printFrameStyle}
-        data-partial-last-page={isPartialLastPage ? 'true' : undefined}
-        data-grid-row={tile.row}
-        data-grid-col={tile.col}
+        key={input.key}
+        className={frameClassName}
+        style={input.variant === 'preview' ? printFrameStyle : undefined}
+        data-partial-last-page={input.isPartialLastPage ? 'true' : undefined}
+        {...input.pageAttrs}
       >
-        <div className={styles.viewerPageContentBox} style={printContentBoxStyle}>
-          <div className={styles.viewerPrintDocumentFlow}>
+        <div className={contentBoxClassName} style={input.variant === 'preview' ? printContentBoxStyle : undefined}>
+          <div className={flowClassName}>
             <div
               className={styles.viewerCanvasScaledViewport}
               style={{
-                ...previewCanvasViewportStyle,
-                width: `${tile.sliceWidthPx}px`,
-                height: `${tile.sliceHeightPx}px`,
+                width: `${input.sliceLayout.viewportWidthPx}px`,
+                height: `${input.sliceLayout.viewportHeightPx}px`,
               }}
             >
               <div
                 className={styles.viewerCanvasSliceTrack}
                 style={{
-                  width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-                  height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-                  transform: `translate(-${tile.offsetX}px, -${tile.offsetY}px)`,
+                  width: `${input.sliceLayout.surfaceWidthPx}px`,
+                  height: `${input.sliceLayout.surfaceHeightPx}px`,
+                  transform: `translate(-${input.sliceLayout.offsetX}px, -${input.sliceLayout.offsetY}px)`,
                 }}
               >
                 <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
@@ -634,47 +646,58 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   };
 
+  const renderPreviewGridTile = (tile: ViewerPaginationTile) => {
+    const isPartialLastPage =
+      tile.col === 0 &&
+      tile.row === gridPaginationMetrics.pagesY - 1 &&
+      verticalPaginationMetrics.hasPartialLastPage;
+    const sliceLayout = resolveViewerPageSliceLayout({
+      viewportWidthPx: tile.sliceWidthPx,
+      viewportHeightPx: tile.sliceHeightPx,
+      surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
+      surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
+      offsetX: tile.offsetX,
+      offsetY: tile.offsetY,
+    });
+
+    return renderPaginatedSurfacePage({
+      key: `preview-page-${tile.row}-${tile.col}`,
+      variant: 'preview',
+      sliceLayout,
+      isPartialLastPage,
+      pageAttrs: {
+        'data-grid-row': `${tile.row}`,
+        'data-grid-col': `${tile.col}`,
+      },
+    });
+  };
+
   const renderPrintedPage = (page: ViewerPrintedPage) => {
     const isPartialLastPage =
       page.tileCol === 0 &&
       page.isLastRow &&
       page.sliceHeightPx < gridPaginationMetrics.usablePageHeightPx;
 
-    return (
-      <div
-        key={`printed-page-${page.pageNumber}`}
-        className={`${styles.viewerCanvasFrame} ${styles.viewerCanvasFramePrint} ${styles.viewerPrintedPage}`}
-        data-page-number={page.pageNumber}
-        data-tile-row={page.tileRow}
-        data-tile-col={page.tileCol}
-        data-partial-last-page={isPartialLastPage ? 'true' : undefined}
-      >
-        <div className={styles.viewerPageContentBox}>
-          <div className={styles.viewerPrintDocumentFlow}>
-            <div
-              className={styles.viewerCanvasScaledViewport}
-              style={{
-                width: `${page.viewportWidthPx}px`,
-                height: `${page.viewportHeightPx}px`,
-              }}
-            >
-              <div
-                className={styles.viewerCanvasSliceTrack}
-                style={{
-                  width: `${contentPlacementMetrics.scaledContentWidthPx}px`,
-                  height: `${contentPlacementMetrics.scaledContentHeightPx}px`,
-                  transform: `translate(-${page.printOffsetX}px, -${page.printOffsetY}px)`,
-                }}
-              >
-                <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                  {canvasContent}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    const sliceLayout = resolveViewerPageSliceLayout({
+      viewportWidthPx: page.viewportWidthPx,
+      viewportHeightPx: page.viewportHeightPx,
+      surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
+      surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
+      offsetX: page.printOffsetX,
+      offsetY: page.printOffsetY,
+    });
+
+    return renderPaginatedSurfacePage({
+      key: `printed-page-${page.pageNumber}`,
+      variant: 'print',
+      sliceLayout,
+      isPartialLastPage,
+      pageAttrs: {
+        'data-page-number': `${page.pageNumber}`,
+        'data-tile-row': `${page.tileRow}`,
+        'data-tile-col': `${page.tileCol}`,
+      },
+    });
   };
 
   const previewDocumentIntro =
