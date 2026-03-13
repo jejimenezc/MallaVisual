@@ -13,6 +13,7 @@ import {
 } from '../utils/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
+  resolveViewerAxisXColumnSegments,
   resolveViewerContentPlacementMetrics,
   resolveViewerAxisYLineSegments,
   resolveViewerGridCutGuides,
@@ -40,7 +41,7 @@ import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
 import styles from './MallaViewerScreen.module.css';
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
-  refineAxisX: false,
+  refineAxisX: true,
   refineAxisY: true,
 } as const;
 
@@ -153,6 +154,12 @@ export function MallaViewerScreen({
         usablePageHeightPx: previewMetrics.contentHeightPx,
         cutGuides: renderModel
           ? resolveViewerGridCutGuides({
+              renderModel,
+              scale: contentPlacementMetrics.scale,
+            })
+          : undefined,
+        axisXColumnSegments: renderModel
+          ? resolveViewerAxisXColumnSegments({
               renderModel,
               scale: contentPlacementMetrics.scale,
             })
