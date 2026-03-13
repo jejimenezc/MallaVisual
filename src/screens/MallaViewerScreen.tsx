@@ -21,15 +21,15 @@ import {
   resolveViewerPaginatedSurfaceLayout,
   resolveViewerPaginationGridMetrics,
   resolveViewerPageMetrics,
+  resolveViewerPageEditorialHeights,
   resolveViewerPageSliceLayout,
   resolveViewerPrintCssVars,
+  resolveViewerPrintedPageEditorialLayout,
   resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
   resolveViewerPrintPageCss,
-  resolveViewerPrintableTextLayout,
   resolveViewerPanelMode,
-  resolveViewerVerticalPaginationMetrics,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
   VIEWER_PRINT_SCALE_STEP,
@@ -129,6 +129,35 @@ export function MallaViewerScreen({
     () => resolveViewerPreviewCssVars(previewMetrics),
     [previewMetrics],
   );
+  const editorialHeights = useMemo(
+    () =>
+      resolveViewerPageEditorialHeights({
+        showDocumentTitle: printSettings.showDocumentTitle,
+        documentTitleOverride: printSettings.documentTitleOverride,
+        pageLayoutMode: printSettings.pageLayoutMode,
+        showHeader: printSettings.showHeader,
+        headerText: printSettings.headerText,
+        showFooter: printSettings.showFooter,
+        footerText: printSettings.footerText,
+        showPageNumbers: printSettings.showPageNumbers,
+        projectName: renderModel?.projectName ?? '',
+        contentHeightMm: pageMetrics.contentHeightMm,
+        pxPerMmY: measuredPxPerMm.pxPerMmY,
+      }),
+    [
+      measuredPxPerMm.pxPerMmY,
+      pageMetrics.contentHeightMm,
+      printSettings.documentTitleOverride,
+      printSettings.footerText,
+      printSettings.headerText,
+      printSettings.pageLayoutMode,
+      printSettings.showDocumentTitle,
+      printSettings.showFooter,
+      printSettings.showHeader,
+      printSettings.showPageNumbers,
+      renderModel?.projectName,
+    ],
+  );
   const effectivePrintScale = useMemo(
     () =>
       resolveViewerEffectivePrintScale({
@@ -164,6 +193,8 @@ export function MallaViewerScreen({
         scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
         usablePageWidthPx: previewMetrics.contentWidthPx,
         usablePageHeightPx: previewMetrics.contentHeightPx,
+        firstPageUsableHeightPx: editorialHeights.firstPageUsableHeightPx,
+        continuationPageUsableHeightPx: editorialHeights.continuationPageUsableHeightPx,
         cutGuides: renderModel
           ? resolveViewerGridCutGuides({
               renderModel,
@@ -188,22 +219,11 @@ export function MallaViewerScreen({
       contentPlacementMetrics.scaledContentHeightPx,
       contentPlacementMetrics.scaledContentWidthPx,
       contentPlacementMetrics.scale,
+      editorialHeights.continuationPageUsableHeightPx,
+      editorialHeights.firstPageUsableHeightPx,
       previewMetrics.contentHeightPx,
       previewMetrics.contentWidthPx,
       renderModel,
-    ],
-  );
-  const verticalPaginationMetrics = useMemo(
-    () =>
-      resolveViewerVerticalPaginationMetrics({
-        scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
-        previewContentHeightPx: previewMetrics.contentHeightPx,
-        paginationGridMetrics: gridPaginationMetrics,
-      }),
-    [
-      contentPlacementMetrics.scaledContentHeightPx,
-      gridPaginationMetrics,
-      previewMetrics.contentHeightPx,
     ],
   );
   const previewGridTiles = gridPaginationMetrics.tiles;
@@ -285,23 +305,6 @@ export function MallaViewerScreen({
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
-  const documentTextLayout = useMemo(
-    () =>
-      resolveViewerPrintableTextLayout({
-        showHeaderFooter: renderModel?.theme.showHeaderFooter ?? false,
-        headerText: renderModel?.theme.headerText ?? '',
-        footerText: renderModel?.theme.footerText ?? '',
-        showDocumentTitle: printSettings.showDocumentTitle,
-        projectName: renderModel?.projectName ?? '',
-      }),
-    [
-      renderModel?.projectName,
-      renderModel?.theme.footerText,
-      renderModel?.theme.headerText,
-      renderModel?.theme.showHeaderFooter,
-      printSettings.showDocumentTitle,
-    ],
-  );
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -615,6 +618,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     variant: 'preview' | 'print';
     pageAttrs?: Record<string, string | undefined>;
     isPartialLastPage: boolean;
+    editorialLayout: ReturnType<typeof resolveViewerPrintedPageEditorialLayout>;
   }) => {
     const frameClassName =
       input.variant === 'preview'
@@ -639,6 +643,21 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       >
         <div className={contentBoxClassName} style={input.variant === 'preview' ? printContentBoxStyle : undefined}>
           <div className={flowClassName}>
+            {input.editorialLayout.headerText ? (
+              <div className={styles.viewerPageHeaderBlock}>
+                <div className={styles.runtimeHeader}>{input.editorialLayout.headerText}</div>
+              </div>
+            ) : null}
+            {input.editorialLayout.documentTitle ? (
+              <div className={styles.viewerPageTitleBlock}>
+                <h1
+                  className={styles.runtimeDocumentTitle}
+                  style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+                >
+                  {input.editorialLayout.documentTitle}
+                </h1>
+              </div>
+            ) : null}
             <div
               className={styles.viewerCanvasScaledViewport}
               style={{
@@ -659,6 +678,18 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 </div>
               </div>
             </div>
+            {input.editorialLayout.footerText || input.editorialLayout.pageNumberText ? (
+              <div className={styles.viewerPageFooterBlock}>
+                {input.editorialLayout.footerText ? (
+                  <div className={styles.runtimeFooter}>{input.editorialLayout.footerText}</div>
+                ) : (
+                  <div />
+                )}
+                {input.editorialLayout.pageNumberText ? (
+                  <div className={styles.viewerPageNumber}>{input.editorialLayout.pageNumberText}</div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -666,10 +697,25 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   };
 
   const renderPreviewGridTile = (tile: ViewerPaginationTile) => {
+    const editorialLayout = resolveViewerPrintedPageEditorialLayout({
+      showDocumentTitle: printSettings.showDocumentTitle,
+      documentTitleOverride: printSettings.documentTitleOverride,
+      pageLayoutMode: printSettings.pageLayoutMode,
+      showHeader: printSettings.showHeader,
+      headerText: printSettings.headerText,
+      showFooter: printSettings.showFooter,
+      footerText: printSettings.footerText,
+      showPageNumbers: printSettings.showPageNumbers,
+      projectName: renderModel.projectName,
+      pageIndex: tile.pageNumber - 1,
+      pageCount: gridPaginationMetrics.pageCount,
+      contentHeightMm: pageMetrics.contentHeightMm,
+      pxPerMmY: measuredPxPerMm.pxPerMmY,
+    });
     const isPartialLastPage =
       tile.col === 0 &&
       tile.row === gridPaginationMetrics.pagesY - 1 &&
-      verticalPaginationMetrics.hasPartialLastPage;
+      tile.sliceHeightPx < tile.usablePageHeightPx;
     const sliceLayout = resolveViewerPageSliceLayout({
       viewportWidthPx: tile.sliceWidthPx,
       viewportHeightPx: tile.sliceHeightPx,
@@ -684,6 +730,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       variant: 'preview',
       sliceLayout,
       isPartialLastPage,
+      editorialLayout,
       pageAttrs: {
         'data-grid-row': `${tile.row}`,
         'data-grid-col': `${tile.col}`,
@@ -692,10 +739,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   };
 
   const renderPrintedPage = (page: ViewerPrintedPage) => {
-    const isPartialLastPage =
-      page.tileCol === 0 &&
-      page.isLastRow &&
-      page.sliceHeightPx < gridPaginationMetrics.usablePageHeightPx;
+    const editorialLayout = resolveViewerPrintedPageEditorialLayout({
+      showDocumentTitle: printSettings.showDocumentTitle,
+      documentTitleOverride: printSettings.documentTitleOverride,
+      pageLayoutMode: printSettings.pageLayoutMode,
+      showHeader: printSettings.showHeader,
+      headerText: printSettings.headerText,
+      showFooter: printSettings.showFooter,
+      footerText: printSettings.footerText,
+      showPageNumbers: printSettings.showPageNumbers,
+      projectName: renderModel.projectName,
+      pageIndex: page.pageNumber - 1,
+      pageCount: printedPages.length,
+      contentHeightMm: pageMetrics.contentHeightMm,
+      pxPerMmY: measuredPxPerMm.pxPerMmY,
+    });
+    const isPartialLastPage = page.tileCol === 0 && page.isLastRow && page.sliceHeightPx < page.usablePageHeightPx;
 
     const sliceLayout = resolveViewerPageSliceLayout({
       viewportWidthPx: page.viewportWidthPx,
@@ -711,6 +770,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       variant: 'print',
       sliceLayout,
       isPartialLastPage,
+      editorialLayout,
       pageAttrs: {
         'data-page-number': `${page.pageNumber}`,
         'data-tile-row': `${page.tileRow}`,
@@ -718,36 +778,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       },
     });
   };
-
-  const previewDocumentIntro =
-    isPrintPreview && (documentTextLayout.headerText || documentTextLayout.documentTitle) ? (
-      <div
-        className={styles.viewerPreviewDocumentIntro}
-        style={previewCssVars as React.CSSProperties}
-      >
-        {documentTextLayout.headerText ? (
-          <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
-        ) : null}
-        {documentTextLayout.documentTitle ? (
-          <h1
-            className={styles.runtimeDocumentTitle}
-            style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
-          >
-            {documentTextLayout.documentTitle}
-          </h1>
-        ) : null}
-      </div>
-    ) : null;
-
-  const previewDocumentOutro =
-    isPrintPreview && documentTextLayout.footerText ? (
-      <div
-        className={styles.viewerPreviewDocumentIntro}
-        style={previewCssVars as React.CSSProperties}
-      >
-        <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
-      </div>
-    ) : null;
 
   const previewPaginatedGridSurface = isPrintPreview ? (
     <div
@@ -764,9 +794,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const printPreviewScreenContent = isPrintPreview ? (
     <>
-      {previewDocumentIntro}
       {previewPaginatedGridSurface}
-      {previewDocumentOutro}
     </>
   ) : (
     <div className={styles.viewerCanvasFrame}>
@@ -784,27 +812,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const printDocumentContent = isPrintPreview ? (
     <div className={styles.printOnly}>
-      {documentTextLayout.headerText ? (
-        <div className={styles.viewerPrintedTextBlock}>
-          <div className={styles.runtimeHeader}>{documentTextLayout.headerText}</div>
-        </div>
-      ) : null}
-      {documentTextLayout.documentTitle ? (
-        <div className={styles.viewerPrintedTextBlock}>
-          <h1
-            className={styles.runtimeDocumentTitle}
-            style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
-          >
-            {documentTextLayout.documentTitle}
-          </h1>
-        </div>
-      ) : null}
       <div className={styles.viewerPrintedPageSequence}>{printedPages.map(renderPrintedPage)}</div>
-      {documentTextLayout.footerText ? (
-        <div className={styles.viewerPrintedTextBlock}>
-          <div className={styles.runtimeFooter}>{documentTextLayout.footerText}</div>
-        </div>
-      ) : null}
     </div>
   ) : null;
 
@@ -1054,32 +1062,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="normal">Normal</option>
                 </select>
               </label>
-              <label className={styles.field}>
-                <span>Header text</span>
-                <input
-                  type="text"
-                  value={theme.headerText}
-                  onChange={(event) => setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>Footer text</span>
-                <input
-                  type="text"
-                  value={theme.footerText}
-                  onChange={(event) => setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))}
-                />
-              </label>
-              <label className={styles.toggleField}>
-                <input
-                  type="checkbox"
-                  checked={theme.showHeaderFooter}
-                  onChange={(event) =>
-                    setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
-                  }
-                />
-                <span>Mostrar header/footer</span>
-              </label>
               <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
                 Restablecer
               </Button>
@@ -1175,6 +1157,87 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
                 <span>Mostrar titulo del documento</span>
+              </label>
+              <label className={styles.field}>
+                <span>Titulo del documento</span>
+                <input
+                  type="text"
+                  value={printSettings.documentTitleOverride}
+                  placeholder={renderModel.projectName}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
+                  }
+                />
+                <span className={styles.fieldHint}>Si queda vacio, se usa el titulo original.</span>
+              </label>
+              <label className={styles.field}>
+                <span>Layout de pagina</span>
+                <select
+                  value={printSettings.pageLayoutMode}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({
+                      ...prev,
+                      pageLayoutMode:
+                        event.target.value === 'first-page-only'
+                          ? 'first-page-only'
+                          : 'same-on-all-pages',
+                    }))
+                  }
+                >
+                  <option value="first-page-only">Solo en la primera pagina</option>
+                  <option value="same-on-all-pages">Todas las paginas iguales</option>
+                </select>
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={printSettings.showHeader}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, showHeader: event.target.checked }))
+                  }
+                />
+                <span>Mostrar header</span>
+              </label>
+              <label className={styles.field}>
+                <span>Header text</span>
+                <input
+                  type="text"
+                  value={printSettings.headerText}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, headerText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={printSettings.showFooter}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, showFooter: event.target.checked }))
+                  }
+                />
+                <span>Mostrar footer</span>
+              </label>
+              <label className={styles.field}>
+                <span>Footer text</span>
+                <input
+                  type="text"
+                  value={printSettings.footerText}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, footerText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={printSettings.showPageNumbers}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
+                  }
+                />
+                <span>Mostrar numeracion</span>
+                <span className={styles.toggleHint}>Formato: Pagina X de Y</span>
               </label>
               <div className={styles.printActions}>
                 <Button type="button" onClick={handleExitPrintPreview}>

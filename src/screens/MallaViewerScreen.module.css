@@ -486,6 +486,27 @@
 .viewerPaginatedPageFlowPrint {
 }
 
+.viewerPageHeaderBlock,
+.viewerPageTitleBlock {
+  width: 100%;
+}
+
+.viewerPageFooterBlock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.viewerPageNumber {
+  color: #334155;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .viewerPaginatedPageFramePreview .runtimeHeader,
 .viewerPaginatedPageFramePreview .runtimeFooter {
   width: var(--viewer-preview-content-width-px, 0px);
@@ -815,6 +836,15 @@
   .runtimeDocumentTitle {
     break-inside: avoid-page;
     page-break-inside: avoid;
+  }
+
+  .viewerPageFooterBlock {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .viewerPageNumber {
+    white-space: nowrap;
   }
 
   .viewerBandRow,
