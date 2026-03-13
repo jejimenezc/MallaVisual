@@ -154,7 +154,13 @@
   display: inline-flex;
   gap: var(--space-xs);
   align-items: center;
+  flex-wrap: wrap;
   margin-bottom: var(--space-sm);
+}
+
+.toggleHint {
+  font-size: 0.75rem;
+  color: #475569;
 }
 
 .printActions {

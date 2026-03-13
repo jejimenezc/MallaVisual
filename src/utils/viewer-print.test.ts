@@ -8,6 +8,7 @@ import {
   normalizeViewerMeasuredPxPerMm,
   normalizeViewerPrintSettings,
   resolveViewerContentPlacementMetrics,
+  resolveViewerEffectivePrintScale,
   resolveViewerGridCutGuides,
   resolveViewerPaginatedSurfaceLayout,
   resolveViewerProtectedAxisXCuts,
@@ -122,6 +123,7 @@ test('viewer print settings defaults are stable', () => {
     paperSize: 'A3',
     orientation: 'portrait',
     scale: 1,
+    fitToWidth: false,
     margins: 'normal',
     showDocumentTitle: false,
   });
@@ -132,12 +134,14 @@ test('viewer print settings normalization clamps scale and validates enums', () 
     paperSize: 'A3',
     orientation: 'landscape',
     scale: 2,
+    fitToWidth: true,
     margins: 'wide',
     showDocumentTitle: true,
   });
   assert.equal(normalized.paperSize, 'A3');
   assert.equal(normalized.orientation, 'landscape');
   assert.equal(normalized.scale, 1.5);
+  assert.equal(normalized.fitToWidth, true);
   assert.equal(normalized.margins, 'wide');
   assert.equal(normalized.showDocumentTitle, true);
 
@@ -151,8 +155,42 @@ test('viewer print settings normalization clamps scale and validates enums', () 
   assert.equal(fallback.paperSize, 'A3');
   assert.equal(fallback.orientation, 'portrait');
   assert.equal(fallback.scale, 0.5);
+  assert.equal(fallback.fitToWidth, false);
   assert.equal(fallback.margins, 'normal');
   assert.equal(fallback.showDocumentTitle, false);
+});
+
+test('viewer effective print scale uses clamped manual scale when fit-to-width is disabled', () => {
+  assert.equal(
+    resolveViewerEffectivePrintScale({
+      fitToWidth: false,
+      manualScale: 2,
+      baseContentWidthPx: 600,
+      previewContentWidthPx: 400,
+    }),
+    1.5,
+  );
+});
+
+test('viewer effective print scale computes fit-to-width without max clamp and handles degenerates', () => {
+  assert.equal(
+    resolveViewerEffectivePrintScale({
+      fitToWidth: true,
+      manualScale: 0.5,
+      baseContentWidthPx: 200,
+      previewContentWidthPx: 600,
+    }),
+    3,
+  );
+  assert.equal(
+    resolveViewerEffectivePrintScale({
+      fitToWidth: true,
+      manualScale: 1,
+      baseContentWidthPx: 0,
+      previewContentWidthPx: 600,
+    }),
+    1,
+  );
 });
 
 test('viewer measured px-per-mm defaults use fallback css conversion', () => {
@@ -195,6 +233,7 @@ test('viewer page metrics resolves orientation and margins', () => {
     orientation: 'portrait',
     margins: 'normal',
     scale: 1,
+    fitToWidth: false,
     showDocumentTitle: false,
   });
   assert.equal(portrait.paperWidthMm, 297);
@@ -210,6 +249,7 @@ test('viewer page metrics resolves orientation and margins', () => {
     orientation: 'landscape',
     margins: 'wide',
     scale: 1,
+    fitToWidth: false,
     showDocumentTitle: false,
   });
   assert.equal(landscape.paperWidthMm, 420);
@@ -225,6 +265,7 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
     orientation: 'portrait',
     margins: 'narrow',
     scale: 1,
+    fitToWidth: false,
     showDocumentTitle: false,
   });
   const normal = resolveViewerPageMetrics({
@@ -232,6 +273,7 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
     orientation: 'portrait',
     margins: 'normal',
     scale: 1,
+    fitToWidth: false,
     showDocumentTitle: false,
   });
   const wide = resolveViewerPageMetrics({
@@ -239,6 +281,7 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
     orientation: 'portrait',
     margins: 'wide',
     scale: 1,
+    fitToWidth: false,
     showDocumentTitle: false,
   });
   assert.equal(narrow.marginLeftMm, 8);
@@ -254,6 +297,7 @@ test('viewer printable layout model maps page and scale for preview/print parity
     orientation: 'landscape',
     margins: 'narrow',
     scale: 1.25,
+    fitToWidth: false,
     showDocumentTitle: true,
   });
   assert.equal(model.paperWidthMm, 420);
@@ -433,6 +477,21 @@ test('viewer content placement metrics clamps invalid sizes safely', () => {
   assert.equal(metrics.scale, 1);
   assert.equal(metrics.overflowsHorizontally, false);
   assert.equal(metrics.overflowsVertically, false);
+});
+
+test('viewer content placement metrics accepts effective scales above manual max', () => {
+  const metrics = resolveViewerContentPlacementMetrics({
+    baseContentWidthPx: 200,
+    baseContentHeightPx: 100,
+    previewContentWidthPx: 600,
+    previewContentHeightPx: 500,
+    scale: 3,
+  });
+
+  assert.equal(metrics.scaledContentWidthPx, 600);
+  assert.equal(metrics.scaledContentHeightPx, 300);
+  assert.equal(metrics.scale, 3);
+  assert.equal(metrics.overflowsHorizontally, false);
 });
 
 test('viewer pagination grid keeps a single tile when content fits on one page', () => {
@@ -935,6 +994,44 @@ test('viewer pagination grid combines protected axisX and axisY cuts in row-majo
       '9:2,2@1080,720/170x530',
     ],
   );
+});
+
+test('viewer fit-to-width keeps a single horizontal page while preserving vertical pagination', () => {
+  const effectiveScale = resolveViewerEffectivePrintScale({
+    fitToWidth: true,
+    manualScale: 1,
+    baseContentWidthPx: 1000,
+    previewContentWidthPx: 500,
+  });
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: Math.round(1000 * effectiveScale),
+    scaledContentHeightPx: Math.round(1900 * effectiveScale),
+    usablePageWidthPx: 500,
+    usablePageHeightPx: 400,
+    cutGuides: {
+      cutGuidesX: [0, 500],
+      cutGuidesY: [0, 520, 1100, 1900].map((value) => Math.round(value * effectiveScale)),
+    },
+    axisYLineSegments: [
+      { rowIndex: 0, startPx: 0, endPx: 520, heightPx: 520 },
+      { rowIndex: 1, startPx: 520, endPx: 1100, heightPx: 580 },
+      { rowIndex: 2, startPx: 1100, endPx: 1900, heightPx: 800 },
+    ].map((segment) => ({
+      ...segment,
+      startPx: Math.round(segment.startPx * effectiveScale),
+      endPx: Math.round(segment.endPx * effectiveScale),
+      heightPx: Math.round(segment.heightPx * effectiveScale),
+    })),
+    refinementPolicy: {
+      refineAxisX: true,
+      refineAxisY: true,
+    },
+  });
+
+  assert.equal(metrics.pagesX, 1);
+  assert.equal(metrics.hasHorizontalPagination, false);
+  assert.ok(metrics.pagesY > 1);
+  assert.ok(metrics.tiles.every((tile) => tile.col === 0));
 });
 
 test('viewer pagination grid handles exact edges and degenerate sizes safely', () => {

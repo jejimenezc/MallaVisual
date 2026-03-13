@@ -15,6 +15,7 @@ import {
   createDefaultViewerPrintSettings,
   resolveViewerAxisXColumnSegments,
   resolveViewerContentPlacementMetrics,
+  resolveViewerEffectivePrintScale,
   resolveViewerAxisYLineSegments,
   resolveViewerGridCutGuides,
   resolveViewerPaginatedSurfaceLayout,
@@ -128,6 +129,17 @@ export function MallaViewerScreen({
     () => resolveViewerPreviewCssVars(previewMetrics),
     [previewMetrics],
   );
+  const effectivePrintScale = useMemo(
+    () =>
+      resolveViewerEffectivePrintScale({
+        fitToWidth: printSettings.fitToWidth,
+        manualScale: printSettings.scale,
+        baseContentWidthPx: renderModel?.width ?? 1,
+        previewContentWidthPx: previewMetrics.contentWidthPx,
+      }),
+    [previewMetrics.contentWidthPx, printSettings.fitToWidth, printSettings.scale, renderModel?.width],
+  );
+  const effectivePrintScalePct = `${Math.round(effectivePrintScale * 100)}%`;
   const contentPlacementMetrics = useMemo(
     () =>
       resolveViewerContentPlacementMetrics({
@@ -135,10 +147,10 @@ export function MallaViewerScreen({
         baseContentHeightPx: renderModel?.height ?? 1,
         previewContentWidthPx: previewMetrics.contentWidthPx,
         previewContentHeightPx: previewMetrics.contentHeightPx,
-        scale: pageMetrics.contentScale,
+        scale: effectivePrintScale,
       }),
     [
-      pageMetrics.contentScale,
+      effectivePrintScale,
       previewMetrics.contentHeightPx,
       previewMetrics.contentWidthPx,
       renderModel?.height,
@@ -1115,11 +1127,25 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   max={VIEWER_PRINT_MAX_SCALE}
                   step={VIEWER_PRINT_SCALE_STEP}
                   value={printSettings.scale}
+                  disabled={printSettings.fitToWidth}
                   onChange={(event) =>
                     setPrintSettings((prev) => ({ ...prev, scale: Number(event.target.value) }))
                   }
                 />
-                <span className={styles.fieldHint}>{printScalePct}</span>
+                <span className={styles.fieldHint}>
+                  {printSettings.fitToWidth ? `Auto: ${effectivePrintScalePct} · Manual: ${printScalePct}` : printScalePct}
+                </span>
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={printSettings.fitToWidth}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, fitToWidth: event.target.checked }))
+                  }
+                />
+                <span>Ajustar al ancho</span>
+                <span className={styles.toggleHint}>Ocupa una sola pagina horizontal</span>
               </label>
               <label className={styles.field}>
                 <span>Margenes</span>

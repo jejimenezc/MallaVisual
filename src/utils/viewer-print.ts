@@ -9,6 +9,7 @@ export interface ViewerPrintSettings {
   paperSize: ViewerPrintPaperSize;
   orientation: ViewerPrintOrientation;
   scale: number;
+  fitToWidth: boolean;
   margins: ViewerPrintMargins;
   showDocumentTitle: boolean;
 }
@@ -189,6 +190,13 @@ export interface ViewerPrintableTextLayout {
   documentTitle: string;
   footerText: string;
   blockOrder: ViewerPrintableTextBlock[];
+}
+
+export interface ViewerEffectivePrintScaleInput {
+  fitToWidth: boolean;
+  manualScale: number;
+  baseContentWidthPx: number;
+  previewContentWidthPx: number;
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
@@ -588,6 +596,7 @@ export const createDefaultViewerPrintSettings = (): ViewerPrintSettings => ({
   paperSize: 'A3',
   orientation: 'portrait',
   scale: 1,
+  fitToWidth: false,
   margins: 'normal',
   showDocumentTitle: false,
 });
@@ -627,9 +636,30 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
         : defaults.paperSize,
     orientation: source.orientation === 'landscape' ? 'landscape' : defaults.orientation,
     scale: clamp(Number(source.scale ?? defaults.scale), VIEWER_PRINT_MIN_SCALE, VIEWER_PRINT_MAX_SCALE),
+    fitToWidth: source.fitToWidth === true,
     margins: source.margins === 'narrow' || source.margins === 'wide' ? source.margins : defaults.margins,
     showDocumentTitle: source.showDocumentTitle === true,
   };
+};
+
+export const resolveViewerEffectivePrintScale = (
+  input: ViewerEffectivePrintScaleInput,
+): number => {
+  if (input.fitToWidth) {
+    const baseContentWidthPx = Math.round(input.baseContentWidthPx);
+    const previewContentWidthPx = Math.round(input.previewContentWidthPx);
+    if (baseContentWidthPx <= 0 || previewContentWidthPx <= 0) {
+      return 1;
+    }
+    const fitScale = previewContentWidthPx / baseContentWidthPx;
+    return Number.isFinite(fitScale) && fitScale > 0 ? fitScale : 1;
+  }
+
+  const manualScale = Number(input.manualScale);
+  if (!Number.isFinite(manualScale)) {
+    return 1;
+  }
+  return clamp(manualScale, VIEWER_PRINT_MIN_SCALE, VIEWER_PRINT_MAX_SCALE);
 };
 
 export const resolveViewerPanelMode = (isPrintPreview: boolean): ViewerPanelMode =>
@@ -751,9 +781,7 @@ export const resolveViewerContentPlacementMetrics = (input: {
   const baseContentHeightPx = Math.max(1, Math.round(input.baseContentHeightPx));
   const previewContentWidthPx = Math.max(1, Math.round(input.previewContentWidthPx));
   const previewContentHeightPx = Math.max(1, Math.round(input.previewContentHeightPx));
-  const scale = Number.isFinite(input.scale)
-    ? clamp(input.scale, VIEWER_PRINT_MIN_SCALE, VIEWER_PRINT_MAX_SCALE)
-    : 1;
+  const scale = Number.isFinite(input.scale) && input.scale > 0 ? input.scale : 1;
   const scaledContentWidthPx = Math.max(1, Math.round(baseContentWidthPx * scale));
   const scaledContentHeightPx = Math.max(1, Math.round(baseContentHeightPx * scale));
 
