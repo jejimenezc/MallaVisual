@@ -10,6 +10,7 @@ import {
   resolveViewerContentPlacementMetrics,
   resolveViewerEffectivePrintScale,
   resolveViewerGridCutGuides,
+  resolveViewerPageEditorialHeights,
   resolveViewerPaginatedSurfaceLayout,
   resolveViewerProtectedAxisXCuts,
   resolveViewerProtectedAxisYCuts,
@@ -18,6 +19,7 @@ import {
   resolveViewerPageSliceLayout,
   resolveViewerPaginationGridMetrics,
   resolveViewerPrintedPagesFromPaginationGrid,
+  resolveViewerPrintedPageEditorialLayout,
   resolveViewerPrintCssVars,
   resolveViewerPreviewCssVars,
   resolveViewerPreviewPageMetrics,
@@ -126,6 +128,13 @@ test('viewer print settings defaults are stable', () => {
     fitToWidth: false,
     margins: 'normal',
     showDocumentTitle: false,
+    documentTitleOverride: '',
+    pageLayoutMode: 'same-on-all-pages',
+    showHeader: false,
+    headerText: '',
+    showFooter: false,
+    footerText: '',
+    showPageNumbers: false,
   });
 });
 
@@ -137,6 +146,13 @@ test('viewer print settings normalization clamps scale and validates enums', () 
     fitToWidth: true,
     margins: 'wide',
     showDocumentTitle: true,
+    documentTitleOverride: 'Titulo',
+    pageLayoutMode: 'first-page-only',
+    showHeader: true,
+    headerText: 'Header',
+    showFooter: true,
+    footerText: 'Footer',
+    showPageNumbers: true,
   });
   assert.equal(normalized.paperSize, 'A3');
   assert.equal(normalized.orientation, 'landscape');
@@ -144,6 +160,13 @@ test('viewer print settings normalization clamps scale and validates enums', () 
   assert.equal(normalized.fitToWidth, true);
   assert.equal(normalized.margins, 'wide');
   assert.equal(normalized.showDocumentTitle, true);
+  assert.equal(normalized.documentTitleOverride, 'Titulo');
+  assert.equal(normalized.pageLayoutMode, 'first-page-only');
+  assert.equal(normalized.showHeader, true);
+  assert.equal(normalized.headerText, 'Header');
+  assert.equal(normalized.showFooter, true);
+  assert.equal(normalized.footerText, 'Footer');
+  assert.equal(normalized.showPageNumbers, true);
 
   const fallback = normalizeViewerPrintSettings({
     paperSize: 'Letter',
@@ -158,6 +181,13 @@ test('viewer print settings normalization clamps scale and validates enums', () 
   assert.equal(fallback.fitToWidth, false);
   assert.equal(fallback.margins, 'normal');
   assert.equal(fallback.showDocumentTitle, false);
+  assert.equal(fallback.documentTitleOverride, '');
+  assert.equal(fallback.pageLayoutMode, 'same-on-all-pages');
+  assert.equal(fallback.showHeader, false);
+  assert.equal(fallback.headerText, '');
+  assert.equal(fallback.showFooter, false);
+  assert.equal(fallback.footerText, '');
+  assert.equal(fallback.showPageNumbers, false);
 });
 
 test('viewer effective print scale uses clamped manual scale when fit-to-width is disabled', () => {
@@ -229,12 +259,7 @@ test('viewer side panel mode is resolved from print-preview state', () => {
 
 test('viewer page metrics resolves orientation and margins', () => {
   const portrait = resolveViewerPageMetrics({
-    paperSize: 'A3',
-    orientation: 'portrait',
-    margins: 'normal',
-    scale: 1,
-    fitToWidth: false,
-    showDocumentTitle: false,
+    ...createDefaultViewerPrintSettings(),
   });
   assert.equal(portrait.paperWidthMm, 297);
   assert.equal(portrait.paperHeightMm, 420);
@@ -245,12 +270,9 @@ test('viewer page metrics resolves orientation and margins', () => {
   assert.equal(portrait.contentScale, 1);
 
   const landscape = resolveViewerPageMetrics({
-    paperSize: 'A3',
+    ...createDefaultViewerPrintSettings(),
     orientation: 'landscape',
     margins: 'wide',
-    scale: 1,
-    fitToWidth: false,
-    showDocumentTitle: false,
   });
   assert.equal(landscape.paperWidthMm, 420);
   assert.equal(landscape.paperHeightMm, 297);
@@ -261,28 +283,15 @@ test('viewer page metrics resolves orientation and margins', () => {
 
 test('viewer page metrics maps narrow normal and wide presets', () => {
   const narrow = resolveViewerPageMetrics({
-    paperSize: 'A3',
-    orientation: 'portrait',
+    ...createDefaultViewerPrintSettings(),
     margins: 'narrow',
-    scale: 1,
-    fitToWidth: false,
-    showDocumentTitle: false,
   });
   const normal = resolveViewerPageMetrics({
-    paperSize: 'A3',
-    orientation: 'portrait',
-    margins: 'normal',
-    scale: 1,
-    fitToWidth: false,
-    showDocumentTitle: false,
+    ...createDefaultViewerPrintSettings(),
   });
   const wide = resolveViewerPageMetrics({
-    paperSize: 'A3',
-    orientation: 'portrait',
+    ...createDefaultViewerPrintSettings(),
     margins: 'wide',
-    scale: 1,
-    fitToWidth: false,
-    showDocumentTitle: false,
   });
   assert.equal(narrow.marginLeftMm, 8);
   assert.equal(normal.marginLeftMm, 12);
@@ -293,11 +302,10 @@ test('viewer page metrics maps narrow normal and wide presets', () => {
 
 test('viewer printable layout model maps page and scale for preview/print parity', () => {
   const model = resolveViewerPrintableLayoutModel({
-    paperSize: 'A3',
+    ...createDefaultViewerPrintSettings(),
     orientation: 'landscape',
     margins: 'narrow',
     scale: 1.25,
-    fitToWidth: false,
     showDocumentTitle: true,
   });
   assert.equal(model.paperWidthMm, 420);
@@ -516,6 +524,7 @@ test('viewer pagination grid keeps a single tile when content fits on one page',
       offsetY: 0,
       sliceWidthPx: 500,
       sliceHeightPx: 480,
+      usablePageHeightPx: 600,
     },
   ]);
   assert.equal(metrics.hasHorizontalPagination, false);
@@ -1070,6 +1079,7 @@ test('viewer pagination grid handles exact edges and degenerate sizes safely', (
       offsetY: 0,
       sliceWidthPx: 1,
       sliceHeightPx: 1,
+      usablePageHeightPx: 1,
     },
   ]);
 });
@@ -1094,6 +1104,7 @@ test('viewer printed pages preserve 1x1 tile-to-page mapping', () => {
       sliceHeightPx: 480,
       viewportWidthPx: 500,
       viewportHeightPx: 480,
+      usablePageHeightPx: 600,
       isLastColumn: true,
       isLastRow: true,
     },
@@ -1210,6 +1221,7 @@ test('viewer printed pages handle degenerate input safely', () => {
         offsetY: 456,
         sliceWidthPx: 789,
         sliceHeightPx: 101,
+        usablePageHeightPx: 0,
       },
     ],
   });
@@ -1225,6 +1237,7 @@ test('viewer printed pages handle degenerate input safely', () => {
       sliceHeightPx: 1,
       viewportWidthPx: 1,
       viewportHeightPx: 1,
+      usablePageHeightPx: 1,
       isLastColumn: true,
       isLastRow: true,
     },
@@ -1385,48 +1398,142 @@ test('viewer print page css is derived from printable model', () => {
   assert.equal(css, '@media print { @page { size: 297mm 420mm; margin: 12mm 12mm 12mm 12mm; } }');
 });
 
-test('viewer printable text layout includes header title grid footer in order', () => {
+test('viewer printable text layout resolves first-page editorial content', () => {
   const layout = resolveViewerPrintableTextLayout({
-    showHeaderFooter: true,
+    showHeader: true,
     headerText: '  Encabezado  ',
+    showFooter: true,
     footerText: '  Pie  ',
     showDocumentTitle: true,
+    documentTitleOverride: '',
+    pageLayoutMode: 'same-on-all-pages',
+    showPageNumbers: true,
+    pageIndex: 0,
+    pageCount: 3,
     projectName: '  Malla 2026  ',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
   });
   assert.equal(layout.headerText, 'Encabezado');
   assert.equal(layout.documentTitle, 'Malla 2026');
   assert.equal(layout.footerText, 'Pie');
-  assert.deepEqual(layout.blockOrder, ['header', 'title', 'grid', 'footer']);
+  assert.equal(layout.pageNumberText, 'Pagina 1 de 3');
+  assert.equal(layout.template, 'with-text-blocks');
 });
 
 test('viewer printable text layout omits title when toggle is disabled', () => {
   const layout = resolveViewerPrintableTextLayout({
-    showHeaderFooter: true,
+    showHeader: true,
     headerText: 'Header',
+    showFooter: true,
     footerText: 'Footer',
     showDocumentTitle: false,
+    documentTitleOverride: 'Custom',
+    pageLayoutMode: 'same-on-all-pages',
+    showPageNumbers: false,
+    pageIndex: 0,
+    pageCount: 1,
     projectName: 'Documento',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
   });
   assert.equal(layout.documentTitle, '');
-  assert.deepEqual(layout.blockOrder, ['header', 'grid', 'footer']);
+  assert.equal(layout.pageNumberText, '');
 });
 
-test('viewer printable text layout omits header and footer when disabled or empty', () => {
-  const hiddenByToggle = resolveViewerPrintableTextLayout({
-    showHeaderFooter: false,
+test('viewer page editorial layout keeps title on first page only', () => {
+  const firstPage = resolveViewerPrintedPageEditorialLayout({
+    showHeader: true,
     headerText: 'Header',
+    showFooter: true,
     footerText: 'Footer',
     showDocumentTitle: true,
+    documentTitleOverride: 'Titulo editorial',
+    pageLayoutMode: 'same-on-all-pages',
+    showPageNumbers: true,
+    pageIndex: 0,
+    pageCount: 4,
     projectName: 'Documento',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
   });
-  assert.deepEqual(hiddenByToggle.blockOrder, ['title', 'grid']);
-
-  const hiddenByEmptyText = resolveViewerPrintableTextLayout({
-    showHeaderFooter: true,
-    headerText: '   ',
-    footerText: '',
+  const continuationPage = resolveViewerPrintedPageEditorialLayout({
+    showHeader: true,
+    headerText: 'Header',
+    showFooter: true,
+    footerText: 'Footer',
     showDocumentTitle: true,
+    documentTitleOverride: 'Titulo editorial',
+    pageLayoutMode: 'same-on-all-pages',
+    showPageNumbers: true,
+    pageIndex: 1,
+    pageCount: 4,
     projectName: 'Documento',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
   });
-  assert.deepEqual(hiddenByEmptyText.blockOrder, ['title', 'grid']);
+  assert.equal(firstPage.documentTitle, 'Titulo editorial');
+  assert.equal(continuationPage.documentTitle, '');
+  assert.equal(continuationPage.headerText, 'Header');
+  assert.equal(continuationPage.footerText, 'Footer');
+  assert.equal(continuationPage.pageNumberText, 'Pagina 2 de 4');
+});
+
+test('viewer page editorial layout honors first-page-only mode for repeated blocks', () => {
+  const firstPage = resolveViewerPrintedPageEditorialLayout({
+    showHeader: true,
+    headerText: 'Header',
+    showFooter: true,
+    footerText: 'Footer',
+    showDocumentTitle: true,
+    documentTitleOverride: '',
+    pageLayoutMode: 'first-page-only',
+    showPageNumbers: true,
+    pageIndex: 0,
+    pageCount: 3,
+    projectName: 'Documento',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
+  });
+  const continuationPage = resolveViewerPrintedPageEditorialLayout({
+    showHeader: true,
+    headerText: 'Header',
+    showFooter: true,
+    footerText: 'Footer',
+    showDocumentTitle: true,
+    documentTitleOverride: '',
+    pageLayoutMode: 'first-page-only',
+    showPageNumbers: true,
+    pageIndex: 1,
+    pageCount: 3,
+    projectName: 'Documento',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
+  });
+  assert.equal(firstPage.headerText, 'Header');
+  assert.equal(firstPage.footerText, 'Footer');
+  assert.equal(firstPage.pageNumberText, 'Pagina 1 de 3');
+  assert.equal(continuationPage.headerText, '');
+  assert.equal(continuationPage.footerText, '');
+  assert.equal(continuationPage.pageNumberText, '');
+  assert.equal(continuationPage.template, 'grid-only');
+});
+
+test('viewer page editorial heights derive different usable heights for first and continuation pages', () => {
+  const heights = resolveViewerPageEditorialHeights({
+    showHeader: true,
+    headerText: 'Header',
+    showFooter: true,
+    footerText: 'Footer',
+    showDocumentTitle: true,
+    documentTitleOverride: '',
+    pageLayoutMode: 'first-page-only',
+    showPageNumbers: true,
+    projectName: 'Documento',
+    contentHeightMm: 396,
+    pxPerMmY: 4,
+  });
+  assert.equal(heights.firstPageTemplate, 'with-text-blocks');
+  assert.equal(heights.continuationPageTemplate, 'grid-only');
+  assert.ok(heights.firstPageUsableHeightPx < heights.continuationPageUsableHeightPx);
 });

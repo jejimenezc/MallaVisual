@@ -4,6 +4,7 @@ export type ViewerPanelMode = 'preview' | 'print-preview';
 export type ViewerPrintPaperSize = 'A2' | 'A3' | 'carta' | 'oficio';
 export type ViewerPrintOrientation = 'portrait' | 'landscape';
 export type ViewerPrintMargins = 'narrow' | 'normal' | 'wide';
+export type ViewerPrintPageLayoutMode = 'first-page-only' | 'same-on-all-pages';
 
 export interface ViewerPrintSettings {
   paperSize: ViewerPrintPaperSize;
@@ -12,6 +13,13 @@ export interface ViewerPrintSettings {
   fitToWidth: boolean;
   margins: ViewerPrintMargins;
   showDocumentTitle: boolean;
+  documentTitleOverride: string;
+  pageLayoutMode: ViewerPrintPageLayoutMode;
+  showHeader: boolean;
+  headerText: string;
+  showFooter: boolean;
+  footerText: string;
+  showPageNumbers: boolean;
 }
 
 export interface ViewerResolvedPageMetrics {
@@ -106,6 +114,7 @@ export interface ViewerPaginationTile {
   offsetY: number;
   sliceWidthPx: number;
   sliceHeightPx: number;
+  usablePageHeightPx: number;
 }
 
 export interface ViewerPaginationCutGuides {
@@ -138,6 +147,9 @@ export interface ViewerPaginationGridMetrics {
   scaledContentHeightPx: number;
   usablePageWidthPx: number;
   usablePageHeightPx: number;
+  firstPageUsableHeightPx: number;
+  continuationPageUsableHeightPx: number;
+  usablePageHeightsPxByRow: number[];
   pagesX: number;
   pagesY: number;
   pageCount: number;
@@ -161,6 +173,7 @@ export interface ViewerPrintedPage {
   sliceHeightPx: number;
   viewportWidthPx: number;
   viewportHeightPx: number;
+  usablePageHeightPx: number;
   isLastColumn: boolean;
   isLastRow: boolean;
 }
@@ -175,21 +188,71 @@ export interface ViewerVerticalPaginationMetrics {
   hasVerticalPagination: boolean;
 }
 
-export type ViewerPrintableTextBlock = 'header' | 'title' | 'grid' | 'footer';
+export type ViewerPrintedPageTemplate = 'grid-only' | 'with-text-blocks';
 
-export interface ViewerPrintableTextLayoutInput {
-  showHeaderFooter: boolean;
-  headerText: string;
-  footerText: string;
+export interface ViewerPrintEditorialConfig {
   showDocumentTitle: boolean;
+  documentTitleOverride: string;
+  pageLayoutMode: ViewerPrintPageLayoutMode;
+  showHeader: boolean;
+  headerText: string;
+  showFooter: boolean;
+  footerText: string;
+  showPageNumbers: boolean;
+}
+
+export interface ViewerPrintedPageEditorialLayout {
+  template: ViewerPrintedPageTemplate;
+  headerText: string;
+  documentTitle: string;
+  footerText: string;
+  pageNumberText: string;
+  reserveTopMm: number;
+  reserveBottomMm: number;
+  reserveTopPx: number;
+  reserveBottomPx: number;
+  usableHeightMm: number;
+  usableHeightPx: number;
+}
+
+export interface ViewerPrintedPageEditorialLayoutInput extends ViewerPrintEditorialConfig {
+  pageIndex: number;
+  pageCount: number;
   projectName: string;
+  contentHeightMm: number;
+  pxPerMmY: number;
+}
+
+export interface ViewerPrintedPageEditorialHeights {
+  firstPageUsableHeightPx: number;
+  continuationPageUsableHeightPx: number;
+  firstPageUsableHeightMm: number;
+  continuationPageUsableHeightMm: number;
+  firstPageTemplate: ViewerPrintedPageTemplate;
+  continuationPageTemplate: ViewerPrintedPageTemplate;
+}
+
+export interface ViewerPaginationAxisYCutsInput {
+  totalSizePx: number;
+  firstPageUsablePageSizePx: number;
+  continuationPageUsablePageSizePx: number;
+  lineSegmentsY: ViewerAxisYLineSegment[];
+  cutGuidesY?: number[];
+  enableGuideSnapping?: boolean;
+}
+
+export interface ViewerPageEditorialHeightInput extends ViewerPrintEditorialConfig {
+  projectName: string;
+  contentHeightMm: number;
+  pxPerMmY: number;
 }
 
 export interface ViewerPrintableTextLayout {
   headerText: string;
   documentTitle: string;
   footerText: string;
-  blockOrder: ViewerPrintableTextBlock[];
+  pageNumberText: string;
+  template: ViewerPrintedPageTemplate;
 }
 
 export interface ViewerEffectivePrintScaleInput {
@@ -592,6 +655,14 @@ const MARGINS_MM: Record<ViewerPrintMargins, number> = {
   wide: 18,
 };
 
+const VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM = {
+  header: 10,
+  title: 16,
+  footer: 10,
+  pageNumbers: 8,
+  gap: 3,
+} as const;
+
 export const createDefaultViewerPrintSettings = (): ViewerPrintSettings => ({
   paperSize: 'A3',
   orientation: 'portrait',
@@ -599,6 +670,13 @@ export const createDefaultViewerPrintSettings = (): ViewerPrintSettings => ({
   fitToWidth: false,
   margins: 'normal',
   showDocumentTitle: false,
+  documentTitleOverride: '',
+  pageLayoutMode: 'same-on-all-pages',
+  showHeader: false,
+  headerText: '',
+  showFooter: false,
+  footerText: '',
+  showPageNumbers: false,
 });
 
 export const createDefaultViewerMeasuredPxPerMm = (): ViewerMeasuredPxPerMm => ({
@@ -639,6 +717,17 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
     fitToWidth: source.fitToWidth === true,
     margins: source.margins === 'narrow' || source.margins === 'wide' ? source.margins : defaults.margins,
     showDocumentTitle: source.showDocumentTitle === true,
+    documentTitleOverride:
+      typeof source.documentTitleOverride === 'string' ? source.documentTitleOverride : defaults.documentTitleOverride,
+    pageLayoutMode:
+      source.pageLayoutMode === 'first-page-only' || source.pageLayoutMode === 'same-on-all-pages'
+        ? source.pageLayoutMode
+        : defaults.pageLayoutMode,
+    showHeader: source.showHeader === true,
+    headerText: typeof source.headerText === 'string' ? source.headerText : defaults.headerText,
+    showFooter: source.showFooter === true,
+    footerText: typeof source.footerText === 'string' ? source.footerText : defaults.footerText,
+    showPageNumbers: source.showPageNumbers === true,
   };
 };
 
@@ -796,11 +885,170 @@ export const resolveViewerContentPlacementMetrics = (input: {
   };
 };
 
+const resolveViewerTitleText = (input: {
+  projectName: string;
+  documentTitleOverride: string;
+  showDocumentTitle: boolean;
+}): string => {
+  if (!input.showDocumentTitle) return '';
+  const override = input.documentTitleOverride.trim();
+  if (override) return override;
+  return input.projectName.trim();
+};
+
+const resolveViewerPageLayoutAllowsRepeatingBlocks = (
+  pageLayoutMode: ViewerPrintPageLayoutMode,
+  pageIndex: number,
+): boolean => pageLayoutMode === 'same-on-all-pages' || pageIndex === 0;
+
+const resolveViewerEditorialReservedHeightMm = (input: {
+  headerText: string;
+  documentTitle: string;
+  footerText: string;
+  pageNumberText: string;
+}): { reserveTopMm: number; reserveBottomMm: number; template: ViewerPrintedPageTemplate } => {
+  let reserveTopMm = 0;
+  let reserveBottomMm = 0;
+
+  if (input.headerText) {
+    reserveTopMm += VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM.header;
+  }
+  if (input.documentTitle) {
+    if (reserveTopMm > 0) reserveTopMm += VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM.gap;
+    reserveTopMm += VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM.title;
+  }
+  if (input.footerText) {
+    reserveBottomMm += VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM.footer;
+  }
+  if (input.pageNumberText) {
+    if (reserveBottomMm > 0) reserveBottomMm += VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM.gap;
+    reserveBottomMm += VIEWER_PRINT_EDITORIAL_DIMENSIONS_MM.pageNumbers;
+  }
+
+  return {
+    reserveTopMm,
+    reserveBottomMm,
+    template: reserveTopMm > 0 || reserveBottomMm > 0 ? 'with-text-blocks' : 'grid-only',
+  };
+};
+
+export const resolveViewerPrintedPageEditorialLayout = (
+  input: ViewerPrintedPageEditorialLayoutInput,
+): ViewerPrintedPageEditorialLayout => {
+  const showRepeatingBlocks = resolveViewerPageLayoutAllowsRepeatingBlocks(input.pageLayoutMode, input.pageIndex);
+  const headerText = input.showHeader && showRepeatingBlocks ? input.headerText.trim() : '';
+  const footerText = input.showFooter && showRepeatingBlocks ? input.footerText.trim() : '';
+  const documentTitle = input.pageIndex === 0
+    ? resolveViewerTitleText({
+        projectName: input.projectName,
+        documentTitleOverride: input.documentTitleOverride,
+        showDocumentTitle: input.showDocumentTitle,
+      })
+    : '';
+  const pageNumberText =
+    input.showPageNumbers && showRepeatingBlocks ? `Pagina ${input.pageIndex + 1} de ${Math.max(1, input.pageCount)}` : '';
+  const { reserveTopMm, reserveBottomMm, template } = resolveViewerEditorialReservedHeightMm({
+    headerText,
+    documentTitle,
+    footerText,
+    pageNumberText,
+  });
+  const usableHeightMm = Math.max(1, input.contentHeightMm - reserveTopMm - reserveBottomMm);
+  const reserveTopPx = Math.round(reserveTopMm * input.pxPerMmY);
+  const reserveBottomPx = Math.round(reserveBottomMm * input.pxPerMmY);
+  const usableHeightPx = Math.max(1, Math.round(usableHeightMm * input.pxPerMmY));
+
+  return {
+    template,
+    headerText,
+    documentTitle,
+    footerText,
+    pageNumberText,
+    reserveTopMm,
+    reserveBottomMm,
+    reserveTopPx,
+    reserveBottomPx,
+    usableHeightMm,
+    usableHeightPx,
+  };
+};
+
+export const resolveViewerPageEditorialHeights = (
+  input: ViewerPageEditorialHeightInput,
+): ViewerPrintedPageEditorialHeights => {
+  const firstPage = resolveViewerPrintedPageEditorialLayout({
+    ...input,
+    pageIndex: 0,
+    pageCount: 1,
+  });
+  const continuationPage = resolveViewerPrintedPageEditorialLayout({
+    ...input,
+    pageIndex: 1,
+    pageCount: 2,
+  });
+
+  return {
+    firstPageUsableHeightPx: firstPage.usableHeightPx,
+    continuationPageUsableHeightPx: continuationPage.usableHeightPx,
+    firstPageUsableHeightMm: firstPage.usableHeightMm,
+    continuationPageUsableHeightMm: continuationPage.usableHeightMm,
+    firstPageTemplate: firstPage.template,
+    continuationPageTemplate: continuationPage.template,
+  };
+};
+
+export const resolveViewerVariableAxisYCuts = (
+  input: ViewerPaginationAxisYCutsInput,
+): { offsetsPx: number[]; sliceSizesPx: number[]; usablePageHeightsPx: number[] } => {
+  const totalSizePx = Math.max(0, Math.round(input.totalSizePx));
+  const firstPageUsablePageSizePx = Math.max(1, Math.round(input.firstPageUsablePageSizePx));
+  const continuationPageUsablePageSizePx = Math.max(1, Math.round(input.continuationPageUsablePageSizePx));
+  const offsetsPx: number[] = [];
+  const sliceSizesPx: number[] = [];
+  const usablePageHeightsPx: number[] = [];
+  let offsetPx = 0;
+  let pageIndex = 0;
+
+  while (offsetPx < totalSizePx) {
+    const usablePageSizePx = pageIndex === 0 ? firstPageUsablePageSizePx : continuationPageUsablePageSizePx;
+    const cuts = resolveViewerProtectedAxisYCuts({
+      totalSizePx: totalSizePx - offsetPx,
+      usablePageSizePx,
+      lineSegmentsY: input.lineSegmentsY.map((segment) => ({
+        rowIndex: segment.rowIndex,
+        startPx: Math.max(0, Math.round(segment.startPx) - offsetPx),
+        endPx: Math.max(0, Math.round(segment.endPx) - offsetPx),
+        heightPx: Math.max(0, Math.round(segment.heightPx)),
+      })),
+      cutGuidesY: (input.cutGuidesY ?? []).map((value) => Math.max(0, Math.round(value) - offsetPx)),
+      enableGuideSnapping: input.enableGuideSnapping,
+    });
+    const nextSliceSizePx = Math.max(1, cuts.sliceSizesPx[0] ?? usablePageSizePx);
+    offsetsPx.push(offsetPx);
+    sliceSizesPx.push(nextSliceSizePx);
+    usablePageHeightsPx.push(usablePageSizePx);
+    offsetPx += nextSliceSizePx;
+    pageIndex += 1;
+  }
+
+  if (offsetsPx.length === 0) {
+    return {
+      offsetsPx: [0],
+      sliceSizesPx: [firstPageUsablePageSizePx],
+      usablePageHeightsPx: [firstPageUsablePageSizePx],
+    };
+  }
+
+  return { offsetsPx, sliceSizesPx, usablePageHeightsPx };
+};
+
 export const resolveViewerPaginationGridMetrics = (input: {
   scaledContentWidthPx: number;
   scaledContentHeightPx: number;
   usablePageWidthPx: number;
   usablePageHeightPx: number;
+  firstPageUsableHeightPx?: number;
+  continuationPageUsableHeightPx?: number;
   cutGuides?: Partial<ViewerPaginationCutGuides>;
   axisXColumnSegments?: ViewerAxisXColumnSegment[];
   axisYLineSegments?: ViewerAxisYLineSegment[];
@@ -810,6 +1058,11 @@ export const resolveViewerPaginationGridMetrics = (input: {
   const scaledContentHeightPx = Math.max(0, Math.round(input.scaledContentHeightPx));
   const usablePageWidthPx = Math.max(1, Math.round(input.usablePageWidthPx));
   const usablePageHeightPx = Math.max(1, Math.round(input.usablePageHeightPx));
+  const firstPageUsableHeightPx = Math.max(1, Math.round(input.firstPageUsableHeightPx ?? usablePageHeightPx));
+  const continuationPageUsableHeightPx = Math.max(
+    1,
+    Math.round(input.continuationPageUsableHeightPx ?? usablePageHeightPx),
+  );
   const refinementPolicy: ViewerPaginationRefinementPolicy = {
     refineAxisX: input.refinementPolicy?.refineAxisX === true,
     refineAxisY: input.refinementPolicy?.refineAxisY !== false,
@@ -854,21 +1107,17 @@ export const resolveViewerPaginationGridMetrics = (input: {
           cutGuidesPx: cutGuides.cutGuidesX,
           enableGuideSnapping: refinementPolicy.refineAxisX,
         });
-  const axisY =
-    refinementPolicy.refineAxisY && axisYLineSegments.length > 0
-      ? resolveViewerProtectedAxisYCuts({
-          totalSizePx: scaledContentHeightPx,
-          usablePageSizePx: usablePageHeightPx,
-          lineSegmentsY: axisYLineSegments,
-          cutGuidesY: cutGuides.cutGuidesY,
-          enableGuideSnapping: true,
-        })
-      : resolveViewerPaginationAxisCuts({
-          totalSizePx: scaledContentHeightPx,
-          usablePageSizePx: usablePageHeightPx,
-          cutGuidesPx: cutGuides.cutGuidesY,
-          enableGuideSnapping: refinementPolicy.refineAxisY,
-        });
+  const axisY = resolveViewerVariableAxisYCuts({
+    totalSizePx: scaledContentHeightPx,
+    firstPageUsablePageSizePx: firstPageUsableHeightPx,
+    continuationPageUsablePageSizePx: continuationPageUsableHeightPx,
+    lineSegmentsY:
+      refinementPolicy.refineAxisY && axisYLineSegments.length > 0
+        ? axisYLineSegments
+        : [],
+    cutGuidesY: cutGuides.cutGuidesY,
+    enableGuideSnapping: refinementPolicy.refineAxisY,
+  });
   const pagesX = Math.max(1, axisX.offsetsPx.length);
   const pagesY = Math.max(1, axisY.offsetsPx.length);
   const tiles: ViewerPaginationTile[] = [];
@@ -885,7 +1134,8 @@ export const resolveViewerPaginationGridMetrics = (input: {
         offsetX,
         offsetY,
         sliceWidthPx: axisX.sliceSizesPx[col] ?? usablePageWidthPx,
-        sliceHeightPx: axisY.sliceSizesPx[row] ?? usablePageHeightPx,
+        sliceHeightPx: axisY.sliceSizesPx[row] ?? (row === 0 ? firstPageUsableHeightPx : continuationPageUsableHeightPx),
+        usablePageHeightPx: axisY.usablePageHeightsPx[row] ?? (row === 0 ? firstPageUsableHeightPx : continuationPageUsableHeightPx),
       });
     }
   }
@@ -895,6 +1145,9 @@ export const resolveViewerPaginationGridMetrics = (input: {
     scaledContentHeightPx,
     usablePageWidthPx,
     usablePageHeightPx,
+    firstPageUsableHeightPx,
+    continuationPageUsableHeightPx,
+    usablePageHeightsPxByRow: axisY.usablePageHeightsPx,
     pagesX,
     pagesY,
     pageCount: tiles.length,
@@ -921,7 +1174,7 @@ export const resolveViewerVerticalPaginationMetrics = (input: {
   });
   const paginationGridMetrics = input.paginationGridMetrics ?? fallbackGridMetrics;
   const firstColumnTiles = paginationGridMetrics.tiles.filter((tile) => tile.col === 0);
-  const pageHeightPx = paginationGridMetrics.usablePageHeightPx;
+  const pageHeightPx = firstColumnTiles[0]?.usablePageHeightPx ?? paginationGridMetrics.usablePageHeightPx;
   const pageCount = Math.max(1, paginationGridMetrics.pagesY);
   const pageOffsetsPx = firstColumnTiles.map((tile) => tile.offsetY);
   const pageSliceHeightsPx = firstColumnTiles.map((tile) => tile.sliceHeightPx);
@@ -931,7 +1184,9 @@ export const resolveViewerVerticalPaginationMetrics = (input: {
       ? 0
       : (firstColumnTiles[firstColumnTiles.length - 1]?.sliceHeightPx ?? pageHeightPx);
   const hasPartialLastPage =
-    scaledContentHeightPx > 0 && lastPageContentHeightPx > 0 && lastPageContentHeightPx < pageHeightPx;
+    scaledContentHeightPx > 0 &&
+    lastPageContentHeightPx > 0 &&
+    lastPageContentHeightPx < (firstColumnTiles[firstColumnTiles.length - 1]?.usablePageHeightPx ?? pageHeightPx);
 
   return {
     pageCount,
@@ -969,12 +1224,13 @@ export const resolveViewerPrintedPagesFromPaginationGrid = (input: {
         scaledContentWidthPx === 0
           ? usablePageWidthPx
           : Math.max(1, Math.min(usablePageWidthPx, Math.round(tile.sliceWidthPx), scaledContentWidthPx - printOffsetX));
+      const tileUsablePageHeightPx = Math.max(1, Math.round(tile.usablePageHeightPx ?? usablePageHeightPx));
       const sliceHeightPx =
         scaledContentHeightPx === 0
-          ? usablePageHeightPx
+          ? tileUsablePageHeightPx
           : Math.max(
               1,
-              Math.min(usablePageHeightPx, Math.round(tile.sliceHeightPx), scaledContentHeightPx - printOffsetY),
+              Math.min(tileUsablePageHeightPx, Math.round(tile.sliceHeightPx), scaledContentHeightPx - printOffsetY),
             );
 
       return {
@@ -988,6 +1244,7 @@ export const resolveViewerPrintedPagesFromPaginationGrid = (input: {
         sliceHeightPx,
         viewportWidthPx: sliceWidthPx,
         viewportHeightPx: sliceHeightPx,
+        usablePageHeightPx: tileUsablePageHeightPx,
         isLastColumn: printOffsetX + sliceWidthPx >= scaledContentWidthPx,
         isLastRow: printOffsetY + sliceHeightPx >= scaledContentHeightPx,
       };
@@ -998,22 +1255,14 @@ export const resolveViewerPrintPageCss = (metrics: ViewerResolvedPageMetrics): s
   `@media print { @page { size: ${metrics.paperWidthMm}mm ${metrics.paperHeightMm}mm; margin: ${metrics.marginTopMm}mm ${metrics.marginRightMm}mm ${metrics.marginBottomMm}mm ${metrics.marginLeftMm}mm; } }`;
 
 export const resolveViewerPrintableTextLayout = (
-  input: ViewerPrintableTextLayoutInput,
+  input: ViewerPrintedPageEditorialLayoutInput,
 ): ViewerPrintableTextLayout => {
-  const headerText = input.showHeaderFooter ? input.headerText.trim() : '';
-  const footerText = input.showHeaderFooter ? input.footerText.trim() : '';
-  const documentTitle = input.showDocumentTitle ? input.projectName.trim() : '';
-  const blockOrder: ViewerPrintableTextBlock[] = [];
-
-  if (headerText) blockOrder.push('header');
-  if (documentTitle) blockOrder.push('title');
-  blockOrder.push('grid');
-  if (footerText) blockOrder.push('footer');
-
+  const layout = resolveViewerPrintedPageEditorialLayout(input);
   return {
-    headerText,
-    documentTitle,
-    footerText,
-    blockOrder,
+    headerText: layout.headerText,
+    documentTitle: layout.documentTitle,
+    footerText: layout.footerText,
+    pageNumberText: layout.pageNumberText,
+    template: layout.template,
   };
 };
