@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
+  resolveViewerAxisXColumnSegments,
   resolveViewerAxisYLineSegments,
   createDefaultViewerMeasuredPxPerMm,
   createDefaultViewerPrintSettings,
@@ -9,6 +10,7 @@ import {
   resolveViewerContentPlacementMetrics,
   resolveViewerGridCutGuides,
   resolveViewerPaginatedSurfaceLayout,
+  resolveViewerProtectedAxisXCuts,
   resolveViewerProtectedAxisYCuts,
   resolveViewerPaginationAxisCuts,
   resolveViewerPageMetrics,
@@ -25,6 +27,95 @@ import {
   resolveViewerVerticalPaginationMetrics,
 } from './viewer-print.ts';
 import type { ViewerRenderModel } from './viewer-theme.ts';
+
+const createViewerRenderModelFixture = (): ViewerRenderModel => ({
+  projectName: 'Test',
+  gridRows: 2,
+  gridCols: 3,
+  width: 450,
+  height: 255,
+  columnWidths: [120, 140, 160],
+  rowHeights: [90, 110],
+  colOffsets: [0, 130, 280],
+  rowOffsets: [0, 100],
+  bandsHeight: 40,
+  bandsRenderRows: [
+    {
+      id: 'hdr-1',
+      kind: 'header',
+      top: 0,
+      height: 18,
+      cells: [
+        {
+          col: 0,
+          text: 'A',
+          left: 0,
+          width: 120,
+          style: {
+            backgroundColor: '#fff',
+            textColor: '#111',
+            textAlign: 'center',
+            border: 'thin',
+            fontSizePx: 12,
+            paddingX: 0,
+            paddingY: 0,
+            bold: false,
+            italic: false,
+          },
+        },
+        {
+          col: 1,
+          text: 'B',
+          left: 130,
+          width: 140,
+          style: {
+            backgroundColor: '#fff',
+            textColor: '#111',
+            textAlign: 'center',
+            border: 'thin',
+            fontSizePx: 12,
+            paddingX: 0,
+            paddingY: 0,
+            bold: false,
+            italic: false,
+          },
+        },
+        {
+          col: 2,
+          text: 'C',
+          left: 280,
+          width: 160,
+          style: {
+            backgroundColor: '#fff',
+            textColor: '#111',
+            textAlign: 'center',
+            border: 'thin',
+            fontSizePx: 12,
+            paddingX: 0,
+            paddingY: 0,
+            bold: false,
+            italic: false,
+          },
+        },
+      ],
+    },
+  ],
+  items: [],
+  theme: {
+    gapX: 10,
+    gapY: 10,
+    minColumnWidth: 100,
+    minRowHeight: 80,
+    cellPadding: 0,
+    blockBorderWidth: 1,
+    blockBorderRadius: 8,
+    typographyScale: 1,
+    titleWeight: 'normal',
+    showHeaderFooter: true,
+    headerText: '',
+    footerText: '',
+  },
+});
 
 test('viewer print settings defaults are stable', () => {
   assert.deepEqual(createDefaultViewerPrintSettings(), {
@@ -373,89 +464,75 @@ test('viewer pagination grid keeps a single tile when content fits on one page',
 });
 
 test('viewer grid cut guides derive scaled row and column boundaries from render model', () => {
-  const renderModel: ViewerRenderModel = {
-    projectName: 'Test',
-    gridRows: 2,
-    gridCols: 2,
-    width: 270,
-    height: 255,
-    columnWidths: [120, 140],
-    rowHeights: [90, 110],
-    colOffsets: [0, 130],
-    rowOffsets: [0, 100],
-    bandsHeight: 40,
-    bandsRenderRows: [
-      {
-        id: 'hdr-1',
-        kind: 'header',
-        top: 0,
-        height: 18,
-        cells: [],
-      },
-      {
-        id: 'metric-1',
-        kind: 'metric',
-        top: 18,
-        height: 22,
-        cells: [],
-      },
-    ],
-    items: [],
-    theme: {
-      gapX: 10,
-      gapY: 10,
-      minColumnWidth: 100,
-      minRowHeight: 80,
-      cellPadding: 0,
-      blockBorderWidth: 1,
-      blockBorderRadius: 8,
-      typographyScale: 1,
-      titleWeight: 'normal',
-      showHeaderFooter: true,
-      headerText: '',
-      footerText: '',
-    },
-  };
+  const renderModel = createViewerRenderModelFixture();
 
   assert.deepEqual(resolveViewerGridCutGuides({ renderModel, scale: 1.5 }), {
-    cutGuidesX: [0, 180, 405],
-    cutGuidesY: [0, 27, 60, 195, 375, 383],
+    cutGuidesX: [0, 180, 405, 660, 675],
+    cutGuidesY: [0, 27, 195, 375, 383],
   });
 });
 
 test('viewer axisY line segments derive curricular line bounds from render model rows', () => {
-  const renderModel: ViewerRenderModel = {
-    projectName: 'Test',
-    gridRows: 2,
+  const renderModel = {
+    ...createViewerRenderModelFixture(),
     gridCols: 2,
     width: 270,
-    height: 255,
     columnWidths: [120, 140],
-    rowHeights: [90, 110],
     colOffsets: [0, 130],
-    rowOffsets: [0, 100],
-    bandsHeight: 40,
     bandsRenderRows: [],
-    items: [],
-    theme: {
-      gapX: 10,
-      gapY: 10,
-      minColumnWidth: 100,
-      minRowHeight: 80,
-      cellPadding: 0,
-      blockBorderWidth: 1,
-      blockBorderRadius: 8,
-      typographyScale: 1,
-      titleWeight: 'normal',
-      showHeaderFooter: true,
-      headerText: '',
-      footerText: '',
-    },
   };
 
   assert.deepEqual(resolveViewerAxisYLineSegments({ renderModel, scale: 1.5 }), [
     { rowIndex: 0, startPx: 60, endPx: 195, heightPx: 135 },
     { rowIndex: 1, startPx: 210, endPx: 375, heightPx: 165 },
+  ]);
+});
+
+test('viewer axisX column segments derive curricular column bounds from render model', () => {
+  const renderModel = createViewerRenderModelFixture();
+
+  assert.deepEqual(resolveViewerAxisXColumnSegments({ renderModel, scale: 1.5 }), [
+    { colIndex: 0, startPx: 0, endPx: 180, widthPx: 180, source: 'grid' },
+    { colIndex: 1, startPx: 195, endPx: 405, widthPx: 210, source: 'grid' },
+    { colIndex: 2, startPx: 420, endPx: 660, widthPx: 240, source: 'grid' },
+  ]);
+});
+
+test('viewer axisX column segments ignore degenerate widths and dedupe matching band boundaries', () => {
+  const renderModel = {
+    ...createViewerRenderModelFixture(),
+    width: 270,
+    columnWidths: [120, 0, 140],
+    colOffsets: [0, 130, 130],
+    bandsRenderRows: [
+      {
+        id: 'band-1',
+        kind: 'header' as const,
+        top: 0,
+        height: 20,
+        cells: [
+          {
+            col: 0,
+            text: 'A',
+            left: 0,
+            width: 120,
+            style: createViewerRenderModelFixture().bandsRenderRows[0]!.cells[0]!.style,
+          },
+          {
+            col: 2,
+            text: 'C',
+            left: 130,
+            width: 140,
+            style: createViewerRenderModelFixture().bandsRenderRows[0]!.cells[0]!.style,
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(resolveViewerAxisXColumnSegments({ renderModel, scale: 1 }), [
+    { colIndex: 0, startPx: 0, endPx: 120, widthPx: 120, source: 'grid' },
+    { colIndex: 2, startPx: 130, endPx: 270, widthPx: 140, source: 'grid' },
   ]);
 });
 
@@ -498,6 +575,66 @@ test('viewer axisY pagination cuts fall back to geometric boundaries when no gui
     {
       offsetsPx: [0, 600, 1200],
       sliceSizesPx: [600, 600, 50],
+    },
+  );
+});
+
+test('viewer protected axisX cuts avoid splitting curricular columns between pages', () => {
+  assert.deepEqual(
+    resolveViewerProtectedAxisXCuts({
+      totalSizePx: 1250,
+      usablePageSizePx: 600,
+      cutGuidesX: [0, 540, 1080, 1250],
+      columnSegmentsX: [
+        { colIndex: 0, startPx: 0, endPx: 280, widthPx: 280, source: 'grid' },
+        { colIndex: 1, startPx: 300, endPx: 540, widthPx: 240, source: 'grid' },
+        { colIndex: 2, startPx: 560, endPx: 860, widthPx: 300, source: 'grid' },
+        { colIndex: 3, startPx: 880, endPx: 1080, widthPx: 200, source: 'grid' },
+        { colIndex: 4, startPx: 1100, endPx: 1250, widthPx: 150, source: 'grid' },
+      ],
+    }),
+    {
+      offsetsPx: [0, 540, 1080],
+      sliceSizesPx: [540, 540, 170],
+    },
+  );
+});
+
+test('viewer protected axisX cuts keep an exact column boundary when the nominal cut already lands there', () => {
+  assert.deepEqual(
+    resolveViewerProtectedAxisXCuts({
+      totalSizePx: 1200,
+      usablePageSizePx: 600,
+      cutGuidesX: [0, 300, 600, 900, 1200],
+      columnSegmentsX: [
+        { colIndex: 0, startPx: 0, endPx: 300, widthPx: 300, source: 'grid' },
+        { colIndex: 1, startPx: 300, endPx: 600, widthPx: 300, source: 'grid' },
+        { colIndex: 2, startPx: 600, endPx: 900, widthPx: 300, source: 'grid' },
+        { colIndex: 3, startPx: 900, endPx: 1200, widthPx: 300, source: 'grid' },
+      ],
+    }),
+    {
+      offsetsPx: [0, 600],
+      sliceSizesPx: [600, 600],
+    },
+  );
+});
+
+test('viewer protected axisX cuts fall back inside an oversized curricular column', () => {
+  assert.deepEqual(
+    resolveViewerProtectedAxisXCuts({
+      totalSizePx: 1500,
+      usablePageSizePx: 600,
+      cutGuidesX: [0, 600, 1200, 1500],
+      columnSegmentsX: [
+        { colIndex: 0, startPx: 0, endPx: 700, widthPx: 700, source: 'grid' },
+        { colIndex: 1, startPx: 720, endPx: 1100, widthPx: 380, source: 'grid' },
+        { colIndex: 2, startPx: 1120, endPx: 1500, widthPx: 380, source: 'grid' },
+      ],
+    }),
+    {
+      offsetsPx: [0, 600, 1100],
+      sliceSizesPx: [600, 500, 400],
     },
   );
 });
@@ -655,6 +792,52 @@ test('viewer column pagination remains geometric on axisX while horizontal polic
   );
 });
 
+test('viewer column pagination can protect curricular columns on axisX when refinement is enabled', () => {
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1250,
+    scaledContentHeightPx: 500,
+    usablePageWidthPx: 600,
+    usablePageHeightPx: 600,
+    cutGuides: {
+      cutGuidesX: [0, 540, 1080, 1250],
+    },
+    axisXColumnSegments: [
+      { colIndex: 0, startPx: 0, endPx: 280, widthPx: 280, source: 'grid' },
+      { colIndex: 1, startPx: 300, endPx: 540, widthPx: 240, source: 'grid' },
+      { colIndex: 2, startPx: 560, endPx: 860, widthPx: 300, source: 'grid' },
+      { colIndex: 3, startPx: 880, endPx: 1080, widthPx: 200, source: 'grid' },
+      { colIndex: 4, startPx: 1100, endPx: 1250, widthPx: 150, source: 'grid' },
+    ],
+    refinementPolicy: {
+      refineAxisX: true,
+    },
+  });
+  assert.equal(metrics.pagesX, 3);
+  assert.equal(metrics.pagesY, 1);
+  assert.deepEqual(metrics.refinementPolicy, { refineAxisX: true, refineAxisY: true });
+  assert.deepEqual(metrics.axisXColumnSegments, [
+    { colIndex: 0, startPx: 0, endPx: 280, widthPx: 280, source: 'grid' },
+    { colIndex: 1, startPx: 300, endPx: 540, widthPx: 240, source: 'grid' },
+    { colIndex: 2, startPx: 560, endPx: 860, widthPx: 300, source: 'grid' },
+    { colIndex: 3, startPx: 880, endPx: 1080, widthPx: 200, source: 'grid' },
+    { colIndex: 4, startPx: 1100, endPx: 1250, widthPx: 150, source: 'grid' },
+  ]);
+  assert.deepEqual(
+    metrics.tiles.map((tile) => ({
+      pageNumber: tile.pageNumber,
+      row: tile.row,
+      col: tile.col,
+      offsetX: tile.offsetX,
+      sliceWidthPx: tile.sliceWidthPx,
+    })),
+    [
+      { pageNumber: 1, row: 0, col: 0, offsetX: 0, sliceWidthPx: 540 },
+      { pageNumber: 2, row: 0, col: 1, offsetX: 540, sliceWidthPx: 540 },
+      { pageNumber: 3, row: 0, col: 2, offsetX: 1080, sliceWidthPx: 170 },
+    ],
+  );
+});
+
 test('viewer pagination grid resolves multiple axisX tiles without deciding column render policy', () => {
   const metrics = resolveViewerPaginationGridMetrics({
     scaledContentWidthPx: 1900,
@@ -706,6 +889,50 @@ test('viewer pagination grid resolves a real 2d tiling matrix in row-major order
       '7:2,0@0,1200',
       '8:2,1@900,1200',
       '9:2,2@1800,1200',
+    ],
+  );
+});
+
+test('viewer pagination grid combines protected axisX and axisY cuts in row-major order', () => {
+  const metrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1250,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 600,
+    usablePageHeightPx: 600,
+    cutGuides: {
+      cutGuidesX: [0, 540, 1080, 1250],
+      cutGuidesY: [0, 560, 1180, 1250],
+    },
+    axisXColumnSegments: [
+      { colIndex: 0, startPx: 0, endPx: 280, widthPx: 280, source: 'grid' },
+      { colIndex: 1, startPx: 300, endPx: 540, widthPx: 240, source: 'grid' },
+      { colIndex: 2, startPx: 560, endPx: 860, widthPx: 300, source: 'grid' },
+      { colIndex: 3, startPx: 880, endPx: 1080, widthPx: 200, source: 'grid' },
+      { colIndex: 4, startPx: 1100, endPx: 1250, widthPx: 150, source: 'grid' },
+    ],
+    axisYLineSegments: [
+      { rowIndex: 0, startPx: 0, endPx: 320, heightPx: 320 },
+      { rowIndex: 1, startPx: 340, endPx: 720, heightPx: 380 },
+      { rowIndex: 2, startPx: 740, endPx: 1180, heightPx: 440 },
+      { rowIndex: 3, startPx: 1200, endPx: 1250, heightPx: 50 },
+    ],
+    refinementPolicy: {
+      refineAxisX: true,
+      refineAxisY: true,
+    },
+  });
+  assert.deepEqual(
+    metrics.tiles.map((tile) => `${tile.pageNumber}:${tile.row},${tile.col}@${tile.offsetX},${tile.offsetY}/${tile.sliceWidthPx}x${tile.sliceHeightPx}`),
+    [
+      '1:0,0@0,0/540x320',
+      '2:0,1@540,0/540x320',
+      '3:0,2@1080,0/170x320',
+      '4:1,0@0,320/540x400',
+      '5:1,1@540,320/540x400',
+      '6:1,2@1080,320/170x400',
+      '7:2,0@0,720/540x530',
+      '8:2,1@540,720/540x530',
+      '9:2,2@1080,720/170x530',
     ],
   );
 });

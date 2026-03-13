@@ -124,6 +124,14 @@ export interface ViewerAxisYLineSegment {
   heightPx: number;
 }
 
+export interface ViewerAxisXColumnSegment {
+  colIndex: number;
+  startPx: number;
+  endPx: number;
+  widthPx: number;
+  source: 'grid' | 'band' | 'merged-band';
+}
+
 export interface ViewerPaginationGridMetrics {
   scaledContentWidthPx: number;
   scaledContentHeightPx: number;
@@ -137,6 +145,7 @@ export interface ViewerPaginationGridMetrics {
   hasVerticalPagination: boolean;
   cutGuides: ViewerPaginationCutGuides;
   refinementPolicy: ViewerPaginationRefinementPolicy;
+  axisXColumnSegments: ViewerAxisXColumnSegment[];
   axisYLineSegments: ViewerAxisYLineSegment[];
 }
 
@@ -248,6 +257,56 @@ export const resolveViewerAxisYLineSegments = (input: {
       };
     })
     .filter((segment) => segment.endPx > segment.startPx);
+};
+
+export const resolveViewerAxisXColumnSegments = (input: {
+  renderModel: ViewerRenderModel;
+  scale: number;
+}): ViewerAxisXColumnSegment[] => {
+  const scale = Number.isFinite(input.scale) && input.scale > 0 ? input.scale : 1;
+  const totalWidthPx = Math.max(0, Math.round(input.renderModel.width * scale));
+  const segments = new Map<string, ViewerAxisXColumnSegment>();
+
+  input.renderModel.colOffsets.forEach((offset, colIndex) => {
+    const startPx = clamp(Math.round(offset * scale), 0, totalWidthPx);
+    const endPx = clamp(
+      Math.round((offset + (input.renderModel.columnWidths[colIndex] ?? 0)) * scale),
+      0,
+      totalWidthPx,
+    );
+    if (endPx <= startPx) return;
+    segments.set(`${startPx}:${endPx}`, {
+      colIndex,
+      startPx,
+      endPx,
+      widthPx: Math.max(0, endPx - startPx),
+      source: 'grid',
+    });
+  });
+
+  input.renderModel.bandsRenderRows.forEach((row) => {
+    row.cells.forEach((cell) => {
+      const startPx = clamp(Math.round(cell.left * scale), 0, totalWidthPx);
+      const endPx = clamp(Math.round((cell.left + cell.width) * scale), 0, totalWidthPx);
+      if (endPx <= startPx) return;
+      const key = `${startPx}:${endPx}`;
+      if (segments.has(key)) return;
+      segments.set(key, {
+        colIndex: cell.col,
+        startPx,
+        endPx,
+        widthPx: Math.max(0, endPx - startPx),
+        source: 'band',
+      });
+    });
+  });
+
+  return [...segments.values()].sort(
+    (left, right) =>
+      left.startPx - right.startPx ||
+      left.endPx - right.endPx ||
+      left.colIndex - right.colIndex,
+  );
 };
 
 export const resolveViewerPaginationAxisCuts = (input: {
@@ -395,6 +454,111 @@ export const resolveViewerProtectedAxisYCuts = (input: {
 
     const segmentAwareEndPx = Math.max(containingSegment.endPx, nominalEndPx);
     const segmentAwareSliceSizePx = Math.max(1, segmentAwareEndPx - offsetPx);
+    sliceSizesPx.push(segmentAwareSliceSizePx);
+    offsetPx += segmentAwareSliceSizePx;
+  }
+
+  return { offsetsPx, sliceSizesPx };
+};
+
+export const resolveViewerProtectedAxisXCuts = (input: {
+  totalSizePx: number;
+  usablePageSizePx: number;
+  columnSegmentsX: ViewerAxisXColumnSegment[];
+  cutGuidesX?: number[];
+  enableGuideSnapping?: boolean;
+}): { offsetsPx: number[]; sliceSizesPx: number[] } => {
+  const totalSizePx = Math.max(0, Math.round(input.totalSizePx));
+  const usablePageSizePx = Math.max(1, Math.round(input.usablePageSizePx));
+  const normalizedSegments = [...input.columnSegmentsX]
+    .map((segment) => {
+      const startPx = clamp(Math.round(segment.startPx), 0, totalSizePx);
+      const endPx = clamp(Math.round(segment.endPx), 0, totalSizePx);
+      return {
+        colIndex: segment.colIndex,
+        startPx,
+        endPx,
+        widthPx: Math.max(0, endPx - startPx),
+        source: segment.source,
+      };
+    })
+    .filter((segment) => segment.endPx > segment.startPx)
+    .sort((left, right) => left.startPx - right.startPx || left.endPx - right.endPx || left.colIndex - right.colIndex);
+
+  if (normalizedSegments.length === 0) {
+    return resolveViewerPaginationAxisCuts({
+      totalSizePx,
+      usablePageSizePx,
+      cutGuidesPx: input.cutGuidesX,
+      enableGuideSnapping: input.enableGuideSnapping,
+    });
+  }
+
+  if (totalSizePx <= usablePageSizePx) {
+    return {
+      offsetsPx: [0],
+      sliceSizesPx: [totalSizePx === 0 ? usablePageSizePx : totalSizePx],
+    };
+  }
+
+  const guideFallbackCuts = resolveViewerPaginationAxisCuts({
+    totalSizePx,
+    usablePageSizePx,
+    cutGuidesPx: input.cutGuidesX,
+    enableGuideSnapping: input.enableGuideSnapping,
+  });
+  const offsetsPx: number[] = [];
+  const sliceSizesPx: number[] = [];
+  let offsetPx = 0;
+
+  while (offsetPx < totalSizePx) {
+    offsetsPx.push(offsetPx);
+    const nominalEndPx = Math.min(totalSizePx, offsetPx + usablePageSizePx);
+
+    if (nominalEndPx >= totalSizePx) {
+      sliceSizesPx.push(Math.max(1, totalSizePx - offsetPx));
+      break;
+    }
+
+    const containingSegment = normalizedSegments.find(
+      (segment) => segment.startPx < nominalEndPx && segment.endPx > nominalEndPx,
+    );
+
+    if (!containingSegment) {
+      const fallbackIndex = offsetsPx.length - 1;
+      const fallbackSliceSizePx = guideFallbackCuts.sliceSizesPx[fallbackIndex];
+      if (fallbackSliceSizePx !== undefined) {
+        sliceSizesPx.push(Math.max(1, fallbackSliceSizePx));
+        offsetPx += Math.max(1, fallbackSliceSizePx);
+        continue;
+      }
+      const geometricSliceSizePx = Math.max(1, nominalEndPx - offsetPx);
+      sliceSizesPx.push(geometricSliceSizePx);
+      offsetPx += geometricSliceSizePx;
+      continue;
+    }
+
+    if (containingSegment.widthPx > usablePageSizePx) {
+      const fallbackIndex = offsetsPx.length - 1;
+      const fallbackSliceSizePx = guideFallbackCuts.sliceSizesPx[fallbackIndex] ?? Math.max(1, nominalEndPx - offsetPx);
+      sliceSizesPx.push(Math.max(1, fallbackSliceSizePx));
+      offsetPx += Math.max(1, fallbackSliceSizePx);
+      continue;
+    }
+
+    const protectedEndPx = normalizedSegments
+      .filter((segment) => segment.endPx > offsetPx && segment.endPx <= nominalEndPx)
+      .map((segment) => segment.endPx)
+      .at(-1);
+
+    if (protectedEndPx !== undefined) {
+      const protectedSliceSizePx = Math.max(1, protectedEndPx - offsetPx);
+      sliceSizesPx.push(protectedSliceSizePx);
+      offsetPx += protectedSliceSizePx;
+      continue;
+    }
+
+    const segmentAwareSliceSizePx = Math.max(1, containingSegment.endPx - offsetPx);
     sliceSizesPx.push(segmentAwareSliceSizePx);
     offsetPx += segmentAwareSliceSizePx;
   }
@@ -610,6 +774,7 @@ export const resolveViewerPaginationGridMetrics = (input: {
   usablePageWidthPx: number;
   usablePageHeightPx: number;
   cutGuides?: Partial<ViewerPaginationCutGuides>;
+  axisXColumnSegments?: ViewerAxisXColumnSegment[];
   axisYLineSegments?: ViewerAxisYLineSegment[];
   refinementPolicy?: Partial<ViewerPaginationRefinementPolicy>;
 }): ViewerPaginationGridMetrics => {
@@ -625,6 +790,19 @@ export const resolveViewerPaginationGridMetrics = (input: {
     cutGuidesX: normalizeCutGuideList(input.cutGuides?.cutGuidesX ?? [], scaledContentWidthPx),
     cutGuidesY: normalizeCutGuideList(input.cutGuides?.cutGuidesY ?? [], scaledContentHeightPx),
   };
+  const axisXColumnSegments = (input.axisXColumnSegments ?? [])
+    .map((segment) => {
+      const startPx = clamp(Math.round(segment.startPx), 0, scaledContentWidthPx);
+      const endPx = clamp(Math.round(segment.endPx), 0, scaledContentWidthPx);
+      return {
+        colIndex: segment.colIndex,
+        startPx,
+        endPx,
+        widthPx: Math.max(0, endPx - startPx),
+        source: segment.source,
+      };
+    })
+    .filter((segment) => segment.endPx > segment.startPx);
   const axisYLineSegments = (input.axisYLineSegments ?? [])
     .map((segment) => ({
       rowIndex: segment.rowIndex,
@@ -633,12 +811,21 @@ export const resolveViewerPaginationGridMetrics = (input: {
       heightPx: Math.max(0, Math.round(segment.heightPx)),
     }))
     .filter((segment) => segment.endPx > segment.startPx);
-  const axisX = resolveViewerPaginationAxisCuts({
-    totalSizePx: scaledContentWidthPx,
-    usablePageSizePx: usablePageWidthPx,
-    cutGuidesPx: cutGuides.cutGuidesX,
-    enableGuideSnapping: refinementPolicy.refineAxisX,
-  });
+  const axisX =
+    refinementPolicy.refineAxisX && axisXColumnSegments.length > 0
+      ? resolveViewerProtectedAxisXCuts({
+          totalSizePx: scaledContentWidthPx,
+          usablePageSizePx: usablePageWidthPx,
+          columnSegmentsX: axisXColumnSegments,
+          cutGuidesX: cutGuides.cutGuidesX,
+          enableGuideSnapping: true,
+        })
+      : resolveViewerPaginationAxisCuts({
+          totalSizePx: scaledContentWidthPx,
+          usablePageSizePx: usablePageWidthPx,
+          cutGuidesPx: cutGuides.cutGuidesX,
+          enableGuideSnapping: refinementPolicy.refineAxisX,
+        });
   const axisY =
     refinementPolicy.refineAxisY && axisYLineSegments.length > 0
       ? resolveViewerProtectedAxisYCuts({
@@ -688,6 +875,7 @@ export const resolveViewerPaginationGridMetrics = (input: {
     hasVerticalPagination: pagesY > 1,
     cutGuides,
     refinementPolicy,
+    axisXColumnSegments,
     axisYLineSegments,
   };
 };
