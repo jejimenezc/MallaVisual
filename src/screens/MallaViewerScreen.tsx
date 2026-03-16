@@ -1057,9 +1057,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             </>
           ) : (
             <>
-              <h3>Configuracion de impresion</h3>
+              <h3>Configuración de impresión</h3>
               <label className={styles.field}>
-                <span>Tamano de papel</span>
+                <span>Tamaño de papel</span>
                 <select
                   value={printSettings.paperSize}
                   onChange={(event) =>
@@ -1076,7 +1076,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 </select>
               </label>
               <label className={styles.field}>
-                <span>Orientacion</span>
+                <span>Orientación</span>
                 <select
                   value={printSettings.orientation}
                   onChange={(event) =>
@@ -1086,8 +1086,8 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     }))
                   }
                 >
-                  <option value="portrait">Portrait</option>
-                  <option value="landscape">Landscape</option>
+                  <option value="portrait">Vertical</option>
+                  <option value="landscape">Horizontal</option>
                 </select>
               </label>
               <label className={`${styles.field} ${styles.scaleField}`}>
@@ -1110,7 +1110,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               </label>
               <label
                 className={`${styles.toggleField} ${styles.inlineScaleToggle}`}
-                title="Ocupa una sola pagina horizontal"
+                title="Ocupa una sola página horizontal"
               >
                 <input
                   type="checkbox"
@@ -1122,7 +1122,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <span>Autoajustar</span>
               </label>
               <label className={styles.field}>
-                <span>Margenes</span>
+                <span>Márgenes</span>
                 <select
                   value={printSettings.margins}
                   onChange={(event) =>
@@ -1148,20 +1148,20 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
                   }
                 />
-                <span>Mostrar titulo</span>
+                <span>Mostrar título</span>
               </label>
-              <label className={styles.field} title="Si queda vacio, se usa el titulo original.">
+              <label className={styles.field} title="Si queda vacío, se usa el título original.">
                 <input
                   type="text"
                   value={printSettings.documentTitleOverride}
-                  placeholder="Personaliza el titulo del documento"
+                  placeholder="Personaliza el título del documento"
                   onChange={(event) =>
                     setPrintSettings((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
                   }
                 />
               </label>
               <label className={styles.field}>
-                <span>Tamano del titulo</span>
+                <span>Tamaño del título</span>
                 <input
                   type="range"
                   min={VIEWER_PRINT_TITLE_MIN_FONT_SIZE}
@@ -1176,7 +1176,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               </label>
               <label
                 className={styles.toggleField}
-                title="Numeros de pagina, con formato: Pagina X de Y"
+                title="Números de página, con formato: Página X de Y"
               >
                 <input
                   type="checkbox"
@@ -1185,7 +1185,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
                   }
                 />
-                <span>Mostrar numeracion</span>
+                <span>Mostrar numeración</span>
               </label>
               <label className={styles.toggleField}>
                 <input
@@ -1215,20 +1215,20 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, showFooter: event.target.checked }))
                   }
                 />
-                <span>Pie de pagina</span>
+                <span>Pie de página</span>
               </label>
               <label className={styles.field}>
                 <input
                   type="text"
                   value={printSettings.footerText}
-                  placeholder="Personaliza el texto del pie de pagina"
+                  placeholder="Personaliza el texto del pie de página"
                   onChange={(event) =>
                     setPrintSettings((prev) => ({ ...prev, footerText: event.target.value }))
                   }
                 />
               </label>
               <label className={styles.field}>
-                <span>Layout de pagina</span>
+                <span>Layout de página</span>
                 <select
                   value={printSettings.pageLayoutMode}
                   onChange={(event) =>
@@ -1241,8 +1241,8 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     }))
                   }
                 >
-                  <option value="first-page-only">Solo en la primera pagina</option>
-                  <option value="same-on-all-pages">Todas las paginas iguales</option>
+                  <option value="first-page-only">Solo en la primera página</option>
+                  <option value="same-on-all-pages">Todas las páginas iguales</option>
                 </select>
               </label>
               <div className={styles.printActions}>
