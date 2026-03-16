@@ -7,7 +7,38 @@
 
 .viewerHeader {
   --viewer-header-title-width: 260px;
+  --viewer-mode-preview: #36b6b6;
+  --viewer-mode-print: #f9cf4a;
   border-bottom: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid var(--viewer-mode-accent);
+}
+
+.viewerHeaderPreviewMode {
+  --viewer-mode-accent: var(--viewer-mode-preview);
+}
+
+.viewerHeaderPrintMode {
+  --viewer-mode-accent: var(--viewer-mode-print);
+}
+
+.viewerHeader::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  pointer-events: none;
+}
+
+.viewerHeaderPreviewMode::after {
+  background: linear-gradient(to bottom, rgba(54, 182, 182, 0.18) 0%, transparent 100%);
+}
+
+.viewerHeaderPrintMode::after {
+  background: linear-gradient(to bottom, rgba(249, 207, 74, 0.22) 0%, transparent 100%);
 }
 
 .viewerTitleWrap {

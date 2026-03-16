@@ -825,7 +825,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   return (
     <section className={styles.viewerScreen}>
       <Header
-        className={`${styles.viewerHeader} ${styles.noPrint}`}
+        className={`${styles.viewerHeader} ${isPrintPreview ? styles.viewerHeaderPrintMode : styles.viewerHeaderPreviewMode} ${styles.noPrint}`}
         left={
           <div className={styles.viewerHeaderLeft}>
             <div className={styles.viewerTitleWrap}>
