@@ -907,7 +907,12 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <Button type="button" onClick={handleExitPrintPreview}>
                   Volver a Modo Presentacion
                 </Button>
-                <Button type="button" variant="primary" onClick={handlePrintNow}>
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handlePrintNow}
+                  className={styles.viewerPrintCta}
+                >
                   Imprimir ahora
                 </Button>
               </>
@@ -921,7 +926,11 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (
-              <Button type="button" onClick={() => void onPublish()}>
+              <Button
+                type="button"
+                onClick={() => void onPublish()}
+                className={styles.viewerPublishCta}
+              >
                 Publicar esta version
               </Button>
             ) : null}

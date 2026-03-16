@@ -85,6 +85,35 @@
   gap: var(--space-xs);
 }
 
+.viewerActions :global(.btn).viewerPrintCta,
+.viewerActions :global(.btn-primary).viewerPrintCta {
+  background-color: #f9cf4a;
+  border-color: #f9cf4a;
+  color: #3f3200;
+}
+
+.viewerActions :global(.btn).viewerPrintCta:hover,
+.viewerActions :global(.btn).viewerPrintCta:focus-visible,
+.viewerActions :global(.btn-primary).viewerPrintCta:hover,
+.viewerActions :global(.btn-primary).viewerPrintCta:focus-visible {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.viewerActions :global(.btn).viewerPublishCta {
+  background-color: #36b6b6;
+  border-color: #36b6b6;
+  color: #062f2f;
+}
+
+.viewerActions :global(.btn).viewerPublishCta:hover,
+.viewerActions :global(.btn).viewerPublishCta:focus-visible {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
 .viewerHeader :global(.header-center) {
   min-width: 0;
 }
