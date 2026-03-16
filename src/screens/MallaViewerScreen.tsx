@@ -1090,9 +1090,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="landscape">Landscape</option>
                 </select>
               </label>
-              <label className={styles.field}>
+              <label className={`${styles.field} ${styles.scaleField}`}>
                 <span>Escala</span>
                 <input
+                  className={styles.compactRange}
                   type="range"
                   min={VIEWER_PRINT_MIN_SCALE}
                   max={VIEWER_PRINT_MAX_SCALE}
