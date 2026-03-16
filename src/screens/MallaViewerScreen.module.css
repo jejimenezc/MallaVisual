@@ -145,6 +145,18 @@
   box-sizing: border-box;
 }
 
+.scaleField {
+  display: inline-grid;
+  width: calc(100% - 11.5rem);
+  margin-right: 0.75rem;
+  vertical-align: top;
+}
+
+.compactRange {
+  width: 100% !important;
+  max-width: 100%;
+}
+
 .fieldHint {
   font-size: 0.75rem;
   color: #475569;
@@ -156,6 +168,26 @@
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: var(--space-sm);
+}
+
+.inlineScaleToggle {
+  display: inline-grid;
+  gap: 0.2rem;
+  color: #334155;
+  font-size: 0.8125rem;
+  margin-top: 0;
+  margin-bottom: var(--space-sm);
+  vertical-align: top;
+  width: 10.75rem;
+}
+
+.inlineScaleToggle input[type='checkbox'] {
+  margin: 0;
+}
+
+.inlineScaleToggle span {
+  font: inherit;
+  color: inherit;
 }
 
 .toggleHint {

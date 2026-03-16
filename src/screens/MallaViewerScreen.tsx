@@ -954,9 +954,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
           {panelMode === 'preview' ? (
             <>
               <h3>Apariencia</h3>
-              <label className={styles.field}>
+              <label className={`${styles.field} ${styles.scaleField}`}>
                 <span>Separacion horizontal</span>
                 <input
+                  className={styles.compactRange}
                   type="range"
                   min={0}
                   max={96}
@@ -964,9 +965,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   onChange={(event) => setThemeSafe((prev) => ({ ...prev, gapX: Number(event.target.value) }))}
                 />
               </label>
-              <label className={styles.field}>
+              <label className={`${styles.field} ${styles.scaleField}`}>
                 <span>Separacion vertical</span>
                 <input
+                  className={styles.compactRange}
                   type="range"
                   min={0}
                   max={96}
@@ -1105,7 +1107,10 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   {printSettings.fitToWidth ? `Auto: ${effectivePrintScalePct} · Manual: ${printScalePct}` : printScalePct}
                 </span>
               </label>
-              <label className={styles.toggleField}>
+              <label
+                className={`${styles.toggleField} ${styles.inlineScaleToggle}`}
+                title="Ocupa una sola pagina horizontal"
+              >
                 <input
                   type="checkbox"
                   checked={printSettings.fitToWidth}
@@ -1113,8 +1118,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, fitToWidth: event.target.checked }))
                   }
                 />
-                <span>Ajustar al ancho</span>
-                <span className={styles.toggleHint}>Ocupa una sola pagina horizontal</span>
+                <span>Autoajustar</span>
               </label>
               <label className={styles.field}>
                 <span>Margenes</span>
@@ -1143,19 +1147,17 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
                   }
                 />
-                <span>Mostrar titulo del documento</span>
+                <span>Mostrar titulo</span>
               </label>
-              <label className={styles.field}>
-                <span>Titulo del documento</span>
+              <label className={styles.field} title="Si queda vacio, se usa el titulo original.">
                 <input
                   type="text"
                   value={printSettings.documentTitleOverride}
-                  placeholder={renderModel.projectName}
+                  placeholder="Personaliza el titulo del documento"
                   onChange={(event) =>
                     setPrintSettings((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
                   }
                 />
-                <span className={styles.fieldHint}>Si queda vacio, se usa el titulo original.</span>
               </label>
               <label className={styles.field}>
                 <span>Tamano del titulo</span>
@@ -1197,13 +1199,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, showHeader: event.target.checked }))
                   }
                 />
-                <span>Mostrar header</span>
+                <span>Encabezado</span>
               </label>
               <label className={styles.field}>
-                <span>Header text</span>
                 <input
                   type="text"
                   value={printSettings.headerText}
+                  placeholder="Personaliza el texto del encabezado"
                   onChange={(event) =>
                     setPrintSettings((prev) => ({ ...prev, headerText: event.target.value }))
                   }
@@ -1217,19 +1219,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setPrintSettings((prev) => ({ ...prev, showFooter: event.target.checked }))
                   }
                 />
-                <span>Mostrar footer</span>
+                <span>Pie de pagina</span>
               </label>
               <label className={styles.field}>
-                <span>Footer text</span>
                 <input
                   type="text"
                   value={printSettings.footerText}
+                  placeholder="Personaliza el texto del pie de pagina"
                   onChange={(event) =>
                     setPrintSettings((prev) => ({ ...prev, footerText: event.target.value }))
                   }
                 />
               </label>
-              <label className={styles.toggleField}>
+              <label
+                className={styles.toggleField}
+                title="Numeros de pagina, con formato: Pagina X de Y"
+              >
                 <input
                   type="checkbox"
                   checked={printSettings.showPageNumbers}
@@ -1238,7 +1243,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
                 <span>Mostrar numeracion</span>
-                <span className={styles.toggleHint}>Formato: Pagina X de Y</span>
               </label>
               <div className={styles.printActions}>
                 <Button type="button" onClick={handleExitPrintPreview}>
