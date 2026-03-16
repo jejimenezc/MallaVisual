@@ -308,6 +308,7 @@ export function MallaViewerScreen({
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
+  const snapshotMetaText = `${mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} - ${formatSnapshotDate(snapshot.createdAt)}${isPrintPreview ? ' - Modo impresion' : ''}`;
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -828,16 +829,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             <div className={styles.viewerTitleWrap}>
               <h2
                 className={styles.viewerTitle}
+                title={renderModel.projectName}
               >
                 {renderModel.projectName}
               </h2>
-              <span className={styles.snapshotMeta}>
-                {mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} -{' '}
-                {formatSnapshotDate(snapshot.createdAt)}
-                {isPrintPreview ? ' - Modo impresion' : ''}
+              <span className={styles.snapshotMeta} title={snapshotMetaText}>
+                {snapshotMetaText}
               </span>
             </div>
-            <Button type="button" onClick={onBackToEditor}>
+            <Button type="button" onClick={onBackToEditor} className={styles.viewerBackButton}>
               Volver al editor
             </Button>
           </div>

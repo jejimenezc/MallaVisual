@@ -6,24 +6,37 @@
 }
 
 .viewerHeader {
+  --viewer-header-title-width: 260px;
   border-bottom: 1px solid var(--color-border);
 }
 
 .viewerTitleWrap {
-  min-width: 0;
+  flex: 0 0 var(--viewer-header-title-width);
+  width: var(--viewer-header-title-width);
+  min-width: var(--viewer-header-title-width);
+  max-width: var(--viewer-header-title-width);
 }
 
 .viewerHeaderLeft {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.viewerBackButton {
+  flex: 0 0 auto;
+  margin-left: 6px;
 }
 
 .viewerTitle {
   margin: 0;
   font-size: 1.125rem;
   color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .snapshotMeta {
@@ -31,6 +44,9 @@
   margin-top: 0.2rem;
   color: #475569;
   font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .viewerActions {
@@ -40,6 +56,21 @@
 
 .viewerHeader :global(.header-center) {
   min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .viewerHeaderLeft {
+    width: 100%;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .viewerTitleWrap {
+    width: 100%;
+    min-width: 0;
+    max-width: var(--viewer-header-title-width);
+    flex: 1 1 100%;
+  }
 }
 
 .viewerBody {
