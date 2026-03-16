@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
+import { Eye, Printer } from 'lucide-react';
 import { Header } from '../components/Header';
 import { Button } from '../components/Button';
 import type { MallaSnapshot } from '../types/malla-snapshot.ts';
@@ -61,10 +62,15 @@ interface Props {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-const formatSnapshotDate = (value: string): string => {
+const formatSnapshotVersionId = (value: string): string => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const hours = String(parsed.getHours()).padStart(2, '0');
+  const minutes = String(parsed.getMinutes()).padStart(2, '0');
+  return `${year}${month}${day}-${hours}${minutes}`;
 };
 
 const borderStyleFromSnapshot = (value: 'none' | 'thin' | 'strong') => {
@@ -308,9 +314,14 @@ export function MallaViewerScreen({
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
-  const snapshotMetaText = snapshot
-    ? `${mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} - ${formatSnapshotDate(snapshot.createdAt)}${isPrintPreview ? ' - Modo impresion' : ''}`
+  const snapshotVersionText = snapshot
+    ? `Version Publicable (${formatSnapshotVersionId(snapshot.createdAt)})`
     : '';
+  const snapshotModeText = isPrintPreview ? 'MODO IMPRESION' : 'MODO PRESENTACION';
+  const snapshotMetaText =
+    snapshotVersionText && snapshotModeText
+      ? `${snapshotVersionText}\n${snapshotModeText}`
+      : snapshotVersionText || snapshotModeText;
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
@@ -836,7 +847,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 {renderModel.projectName}
               </h2>
               <span className={styles.snapshotMeta} title={snapshotMetaText}>
-                {snapshotMetaText}
+                <span className={styles.snapshotMetaLine}>{snapshotVersionText}</span>
+                <span className={styles.snapshotMetaModeLine}>
+                  {isPrintPreview ? (
+                    <Printer className={styles.snapshotMetaModeIcon} aria-hidden="true" size={12} />
+                  ) : (
+                    <Eye className={styles.snapshotMetaModeIcon} aria-hidden="true" size={12} />
+                  )}
+                  <strong className={styles.snapshotMetaModeLabel}>{snapshotModeText}</strong>
+                </span>
               </span>
             </div>
             <Button type="button" onClick={onBackToEditor} className={styles.viewerBackButton}>

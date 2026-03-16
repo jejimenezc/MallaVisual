@@ -71,10 +71,36 @@
 }
 
 .snapshotMeta {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   margin-top: 0.2rem;
   color: #475569;
   font-size: 0.75rem;
+  min-width: 0;
+}
+
+.snapshotMetaLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snapshotMetaModeLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--viewer-mode-accent);
+  font-weight: 700;
+}
+
+.snapshotMetaModeIcon {
+  flex: 0 0 auto;
+  stroke-width: 2.2;
+}
+
+.snapshotMetaModeLabel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
