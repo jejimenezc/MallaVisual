@@ -33,6 +33,9 @@ import {
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
   VIEWER_PRINT_SCALE_STEP,
+  VIEWER_PRINT_TITLE_FONT_SIZE_STEP,
+  VIEWER_PRINT_TITLE_MAX_FONT_SIZE,
+  VIEWER_PRINT_TITLE_MIN_FONT_SIZE,
   type ViewerPanelMode,
   type ViewerPaginationTile,
   type ViewerPrintedPage,
@@ -652,7 +655,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               <div className={styles.viewerPageTitleBlock}>
                 <h1
                   className={styles.runtimeDocumentTitle}
-                  style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
+                  style={{ fontSize: `${printSettings.documentTitleFontSize}px` }}
                 >
                   {input.editorialLayout.documentTitle}
                 </h1>
@@ -824,7 +827,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
           <div className={styles.viewerTitleWrap}>
             <h2
               className={styles.viewerTitle}
-              style={{ fontWeight: renderModel.theme.titleWeight === 'bold' ? 700 : 400 }}
             >
               {renderModel.projectName}
             </h2>
@@ -1047,21 +1049,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
               </label>
-              <label className={styles.field}>
-                <span>Peso titulo</span>
-                <select
-                  value={theme.titleWeight}
-                  onChange={(event) =>
-                    setThemeSafe((prev) => ({
-                      ...prev,
-                      titleWeight: event.target.value === 'normal' ? 'normal' : 'bold',
-                    }))
-                  }
-                >
-                  <option value="bold">Bold</option>
-                  <option value="normal">Normal</option>
-                </select>
-              </label>
               <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
                 Restablecer
               </Button>
@@ -1169,6 +1156,20 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
                 <span className={styles.fieldHint}>Si queda vacio, se usa el titulo original.</span>
+              </label>
+              <label className={styles.field}>
+                <span>Tamano del titulo</span>
+                <input
+                  type="range"
+                  min={VIEWER_PRINT_TITLE_MIN_FONT_SIZE}
+                  max={VIEWER_PRINT_TITLE_MAX_FONT_SIZE}
+                  step={VIEWER_PRINT_TITLE_FONT_SIZE_STEP}
+                  value={printSettings.documentTitleFontSize}
+                  onChange={(event) =>
+                    setPrintSettings((prev) => ({ ...prev, documentTitleFontSize: Number(event.target.value) }))
+                  }
+                />
+                <span className={styles.fieldHint}>{`${Math.round(printSettings.documentTitleFontSize)} px`}</span>
               </label>
               <label className={styles.field}>
                 <span>Layout de pagina</span>

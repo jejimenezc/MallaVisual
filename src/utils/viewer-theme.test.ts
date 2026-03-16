@@ -136,7 +136,6 @@ describe('viewer-theme', () => {
     expect(defaults.minColumnWidth).toBe(0);
     expect(defaults.minRowHeight).toBe(0);
     expect(defaults.typographyScale).toBe(1);
-    expect(defaults.titleWeight).toBe('bold');
     expect(defaults.showHeaderFooter).toBe(true);
   });
 
@@ -147,7 +146,6 @@ describe('viewer-theme', () => {
       minColumnWidth: 1000,
       minRowHeight: -5,
       typographyScale: 20,
-      titleWeight: 'weird',
       showHeaderFooter: false,
     });
     expect(normalized.gapX).toBe(0);
@@ -155,7 +153,6 @@ describe('viewer-theme', () => {
     expect(normalized.minColumnWidth).toBe(500);
     expect(normalized.minRowHeight).toBe(0);
     expect(normalized.typographyScale).toBe(2);
-    expect(normalized.titleWeight).toBe('bold');
     expect(normalized.showHeaderFooter).toBe(false);
   });
 

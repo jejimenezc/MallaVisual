@@ -13,6 +13,7 @@ export interface ViewerPrintSettings {
   fitToWidth: boolean;
   margins: ViewerPrintMargins;
   showDocumentTitle: boolean;
+  documentTitleFontSize: number;
   documentTitleOverride: string;
   pageLayoutMode: ViewerPrintPageLayoutMode;
   showHeader: boolean;
@@ -641,6 +642,9 @@ export const VIEWER_PRINT_MIN_SCALE = 0.5;
 export const VIEWER_PRINT_MAX_SCALE = 1.5;
 export const VIEWER_PRINT_SCALE_STEP = 0.05;
 export const VIEWER_PRINT_MM_TO_PX = 3.7795;
+export const VIEWER_PRINT_TITLE_MIN_FONT_SIZE = 16;
+export const VIEWER_PRINT_TITLE_MAX_FONT_SIZE = 32;
+export const VIEWER_PRINT_TITLE_FONT_SIZE_STEP = 1;
 
 const PAPER_MM: Record<ViewerPrintPaperSize, { width: number; height: number }> = {
   A2: { width: 420, height: 594 },
@@ -670,6 +674,7 @@ export const createDefaultViewerPrintSettings = (): ViewerPrintSettings => ({
   fitToWidth: false,
   margins: 'normal',
   showDocumentTitle: false,
+  documentTitleFontSize: 18,
   documentTitleOverride: '',
   pageLayoutMode: 'same-on-all-pages',
   showHeader: false,
@@ -717,6 +722,11 @@ export const normalizeViewerPrintSettings = (value: unknown): ViewerPrintSetting
     fitToWidth: source.fitToWidth === true,
     margins: source.margins === 'narrow' || source.margins === 'wide' ? source.margins : defaults.margins,
     showDocumentTitle: source.showDocumentTitle === true,
+    documentTitleFontSize: clamp(
+      Number(source.documentTitleFontSize ?? defaults.documentTitleFontSize),
+      VIEWER_PRINT_TITLE_MIN_FONT_SIZE,
+      VIEWER_PRINT_TITLE_MAX_FONT_SIZE,
+    ),
     documentTitleOverride:
       typeof source.documentTitleOverride === 'string' ? source.documentTitleOverride : defaults.documentTitleOverride,
     pageLayoutMode:

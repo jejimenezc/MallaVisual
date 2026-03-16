@@ -1,5 +1,3 @@
-export type ViewerTitleWeight = 'normal' | 'bold';
-
 export interface ViewerTheme {
   gapX: number;
   gapY: number;
@@ -9,7 +7,6 @@ export interface ViewerTheme {
   blockBorderWidth: number;
   blockBorderRadius: number;
   typographyScale: number;
-  titleWeight: ViewerTitleWeight;
   headerText: string;
   footerText: string;
   showHeaderFooter: boolean;

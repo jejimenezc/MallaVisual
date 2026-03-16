@@ -113,7 +113,6 @@ const createViewerRenderModelFixture = (): ViewerRenderModel => ({
     blockBorderWidth: 1,
     blockBorderRadius: 8,
     typographyScale: 1,
-    titleWeight: 'normal',
     showHeaderFooter: true,
     headerText: '',
     footerText: '',
@@ -128,6 +127,7 @@ test('viewer print settings defaults are stable', () => {
     fitToWidth: false,
     margins: 'normal',
     showDocumentTitle: false,
+    documentTitleFontSize: 18,
     documentTitleOverride: '',
     pageLayoutMode: 'same-on-all-pages',
     showHeader: false,
@@ -146,6 +146,7 @@ test('viewer print settings normalization clamps scale and validates enums', () 
     fitToWidth: true,
     margins: 'wide',
     showDocumentTitle: true,
+    documentTitleFontSize: 40,
     documentTitleOverride: 'Titulo',
     pageLayoutMode: 'first-page-only',
     showHeader: true,
@@ -160,6 +161,7 @@ test('viewer print settings normalization clamps scale and validates enums', () 
   assert.equal(normalized.fitToWidth, true);
   assert.equal(normalized.margins, 'wide');
   assert.equal(normalized.showDocumentTitle, true);
+  assert.equal(normalized.documentTitleFontSize, 32);
   assert.equal(normalized.documentTitleOverride, 'Titulo');
   assert.equal(normalized.pageLayoutMode, 'first-page-only');
   assert.equal(normalized.showHeader, true);
@@ -174,6 +176,7 @@ test('viewer print settings normalization clamps scale and validates enums', () 
     scale: 0.1,
     margins: 'zero',
     showDocumentTitle: 'yes',
+    documentTitleFontSize: 0,
   });
   assert.equal(fallback.paperSize, 'A3');
   assert.equal(fallback.orientation, 'portrait');
@@ -181,6 +184,7 @@ test('viewer print settings normalization clamps scale and validates enums', () 
   assert.equal(fallback.fitToWidth, false);
   assert.equal(fallback.margins, 'normal');
   assert.equal(fallback.showDocumentTitle, false);
+  assert.equal(fallback.documentTitleFontSize, 16);
   assert.equal(fallback.documentTitleOverride, '');
   assert.equal(fallback.pageLayoutMode, 'same-on-all-pages');
   assert.equal(fallback.showHeader, false);
