@@ -315,9 +315,9 @@ export function MallaViewerScreen({
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
   const snapshotVersionText = snapshot
-    ? `Version Publicable (${formatSnapshotVersionId(snapshot.createdAt)})`
+    ? `Versión Publicable (${formatSnapshotVersionId(snapshot.createdAt)})`
     : '';
-  const snapshotModeText = isPrintPreview ? 'MODO IMPRESION' : 'MODO PRESENTACION';
+  const snapshotModeText = isPrintPreview ? 'MODO IMPRESIÓN' : 'MODO PRESENTACIÓN';
   const snapshotMetaText =
     snapshotVersionText && snapshotModeText
       ? `${snapshotVersionText}\n${snapshotModeText}`
@@ -884,7 +884,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   step={VIEWER_ZOOM_STEP}
                   value={zoom}
                   onChange={(event) => setZoomSafe(Number(event.target.value))}
-                  aria-label="Nivel de zoom de la publicacion"
+                  aria-label="Nivel de zoom de la publicación"
                 />
                 <button
                   type="button"
@@ -903,7 +903,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   className={styles.pointerToggleButton}
                   aria-pressed={false}
                   disabled
-                  title="Seleccion deshabilitada en vista previa/publicacion"
+                  title="Selección deshabilitada en vista previa/publicación"
                 >
                   👉🏻
                 </button>
@@ -924,7 +924,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             {isPrintPreview ? (
               <>
                 <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a Modo Presentacion
+                  Volver a Modo Presentación
                 </Button>
                 <Button
                   type="button"
@@ -936,13 +936,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 </Button>
               </>
             ) : (
-              <Button
-                type="button"
-                onClick={handleEnterPrintPreview}
-                title="Configuracion del formato de impresion para esta version publicable"
-              >
-                Preparar impresion
-              </Button>
+                <Button
+                  type="button"
+                  onClick={handleEnterPrintPreview}
+                  title="Configuración del formato de impresión para esta versión publicable"
+                >
+                  Preparar impresión
+                </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (
               <Button
@@ -950,12 +950,12 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 onClick={() => void onPublish()}
                 className={styles.viewerPublishCta}
               >
-                Publicar esta version
+                Publicar esta versión
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (
               <Button type="button" onClick={handleOpenImporter}>
-                Abrir publicacion
+                Abrir publicación
               </Button>
             ) : null}
           </div>

@@ -2585,11 +2585,11 @@ export const MallaEditorScreen: React.FC<Props> = ({
                 type="button"
                 onClick={onOpenPublicationPreview}
                 className={styles.headerPopoverTrigger}
-                aria-label="Ver en Modo Presentacion"
-                title="Visualizacion de una version publicable del proyecto activo"
+                aria-label="Ver en Modo Presentación"
+                title="Visualización de una versión publicable del proyecto activo"
                 disabled={!onOpenPublicationPreview}
               >
-                Ver en Modo Presentacion
+                Ver en Modo Presentación
               </Button>
             </div>
           }
