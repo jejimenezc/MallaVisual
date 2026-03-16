@@ -824,17 +824,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       <Header
         className={`${styles.viewerHeader} ${styles.noPrint}`}
         left={
-          <div className={styles.viewerTitleWrap}>
-            <h2
-              className={styles.viewerTitle}
-            >
-              {renderModel.projectName}
-            </h2>
-            <span className={styles.snapshotMeta}>
-              {mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} -{' '}
-              {formatSnapshotDate(snapshot.createdAt)}
-              {isPrintPreview ? ' - Modo impresion' : ''}
-            </span>
+          <div className={styles.viewerHeaderLeft}>
+            <div className={styles.viewerTitleWrap}>
+              <h2
+                className={styles.viewerTitle}
+              >
+                {renderModel.projectName}
+              </h2>
+              <span className={styles.snapshotMeta}>
+                {mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} -{' '}
+                {formatSnapshotDate(snapshot.createdAt)}
+                {isPrintPreview ? ' - Modo impresion' : ''}
+              </span>
+            </div>
+            <Button type="button" onClick={onBackToEditor}>
+              Volver al editor
+            </Button>
           </div>
         }
         center={
@@ -895,21 +900,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         }
         right={
           <div className={styles.viewerActions}>
-            <Button type="button" onClick={onBackToEditor}>
-              Volver al editor
-            </Button>
             {isPrintPreview ? (
               <>
                 <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a vista previa
+                  Volver a Modo Presentacion
                 </Button>
                 <Button type="button" variant="primary" onClick={handlePrintNow}>
                   Imprimir ahora
                 </Button>
               </>
             ) : (
-              <Button type="button" onClick={handleEnterPrintPreview}>
-                Vista de impresion
+              <Button
+                type="button"
+                onClick={handleEnterPrintPreview}
+                title="Configuracion del formato de impresion para esta version publicable"
+              >
+                Preparar impresion
               </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (

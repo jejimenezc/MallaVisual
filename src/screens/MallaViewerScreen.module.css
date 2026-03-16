@@ -13,6 +13,13 @@
   min-width: 0;
 }
 
+.viewerHeaderLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
 .viewerTitle {
   margin: 0;
   font-size: 1.125rem;

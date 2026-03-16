@@ -2544,13 +2544,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   className={styles.headerPopoverTrigger}
                   aria-haspopup="menu"
                   aria-expanded={isGlobalToolsMenuOpen}
-                  aria-label="Herramientas globales"
-                  title="Herramientas globales"
+                  aria-label="Acciones globales de malla"
+                  title="Acciones globales de malla"
                 >
                   {'\u22EE'}
                 </Button>
                 {isGlobalToolsMenuOpen ? (
-                  <div className={styles.headerPopover} role="menu" aria-label="Herramientas globales">
+                  <div
+                    className={styles.headerPopover}
+                    role="menu"
+                    aria-label="Acciones globales de malla"
+                  >
                     <button
                       type="button"
                       className={styles.metaMenuAction}
@@ -2574,15 +2578,18 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   </div>
                 ) : null}
               </div>
+              <span className={styles.headerInlineSeparator} aria-hidden="true">
+                |
+              </span>
               <Button
                 type="button"
                 onClick={onOpenPublicationPreview}
                 className={styles.headerPopoverTrigger}
-                aria-label="Vista previa de publicacion"
-                title="Vista previa de publicacion"
+                aria-label="Ver en Modo Presentacion"
+                title="Visualizacion de una version publicable del proyecto activo"
                 disabled={!onOpenPublicationPreview}
               >
-                Vista previa de publicacion
+                Ver en Modo Presentacion
               </Button>
             </div>
           }
