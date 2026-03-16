@@ -956,7 +956,7 @@ export const resolveViewerPrintedPageEditorialLayout = (
       })
     : '';
   const pageNumberText =
-    input.showPageNumbers && showRepeatingBlocks ? `Pagina ${input.pageIndex + 1} de ${Math.max(1, input.pageCount)}` : '';
+    input.showPageNumbers ? `Pagina ${input.pageIndex + 1} de ${Math.max(1, input.pageCount)}` : '';
   const { reserveTopMm, reserveBottomMm, template } = resolveViewerEditorialReservedHeightMm({
     headerText,
     documentTitle,

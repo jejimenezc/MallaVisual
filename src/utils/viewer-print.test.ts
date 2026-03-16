@@ -1519,8 +1519,8 @@ test('viewer page editorial layout honors first-page-only mode for repeated bloc
   assert.equal(firstPage.pageNumberText, 'Pagina 1 de 3');
   assert.equal(continuationPage.headerText, '');
   assert.equal(continuationPage.footerText, '');
-  assert.equal(continuationPage.pageNumberText, '');
-  assert.equal(continuationPage.template, 'grid-only');
+  assert.equal(continuationPage.pageNumberText, 'Pagina 2 de 3');
+  assert.equal(continuationPage.template, 'with-text-blocks');
 });
 
 test('viewer page editorial heights derive different usable heights for first and continuation pages', () => {
@@ -1538,6 +1538,6 @@ test('viewer page editorial heights derive different usable heights for first an
     pxPerMmY: 4,
   });
   assert.equal(heights.firstPageTemplate, 'with-text-blocks');
-  assert.equal(heights.continuationPageTemplate, 'grid-only');
+  assert.equal(heights.continuationPageTemplate, 'with-text-blocks');
   assert.ok(heights.firstPageUsableHeightPx < heights.continuationPageUsableHeightPx);
 });

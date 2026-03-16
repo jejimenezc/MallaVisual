@@ -1174,23 +1174,18 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
                 <span className={styles.fieldHint}>{`${Math.round(printSettings.documentTitleFontSize)} px`}</span>
               </label>
-              <label className={styles.field}>
-                <span>Layout de pagina</span>
-                <select
-                  value={printSettings.pageLayoutMode}
+              <label
+                className={styles.toggleField}
+                title="Numeros de pagina, con formato: Pagina X de Y"
+              >
+                <input
+                  type="checkbox"
+                  checked={printSettings.showPageNumbers}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
-                      ...prev,
-                      pageLayoutMode:
-                        event.target.value === 'first-page-only'
-                          ? 'first-page-only'
-                          : 'same-on-all-pages',
-                    }))
+                    setPrintSettings((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
                   }
-                >
-                  <option value="first-page-only">Solo en la primera pagina</option>
-                  <option value="same-on-all-pages">Todas las paginas iguales</option>
-                </select>
+                />
+                <span>Mostrar numeracion</span>
               </label>
               <label className={styles.toggleField}>
                 <input
@@ -1232,18 +1227,23 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
               </label>
-              <label
-                className={styles.toggleField}
-                title="Numeros de pagina, con formato: Pagina X de Y"
-              >
-                <input
-                  type="checkbox"
-                  checked={printSettings.showPageNumbers}
+              <label className={styles.field}>
+                <span>Layout de pagina</span>
+                <select
+                  value={printSettings.pageLayoutMode}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
+                    setPrintSettings((prev) => ({
+                      ...prev,
+                      pageLayoutMode:
+                        event.target.value === 'first-page-only'
+                          ? 'first-page-only'
+                          : 'same-on-all-pages',
+                    }))
                   }
-                />
-                <span>Mostrar numeracion</span>
+                >
+                  <option value="first-page-only">Solo en la primera pagina</option>
+                  <option value="same-on-all-pages">Todas las paginas iguales</option>
+                </select>
               </label>
               <div className={styles.printActions}>
                 <Button type="button" onClick={handleExitPrintPreview}>
