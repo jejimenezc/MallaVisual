@@ -1245,14 +1245,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="same-on-all-pages">Todas las páginas iguales</option>
                 </select>
               </label>
-              <div className={styles.printActions}>
-                <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a vista previa
-                </Button>
-                <Button type="button" variant="primary" onClick={handlePrintNow}>
-                  Imprimir ahora
-                </Button>
-              </div>
             </>
           )}
         </aside>
