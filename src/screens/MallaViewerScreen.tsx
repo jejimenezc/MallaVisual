@@ -953,9 +953,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
           </div>
           {panelMode === 'preview' ? (
             <>
-              <h3>Apariencia v1</h3>
+              <h3>Apariencia</h3>
               <label className={styles.field}>
-                <span>Gap columnas</span>
+                <span>Separacion horizontal</span>
                 <input
                   type="range"
                   min={0}
@@ -965,7 +965,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Gap filas</span>
+                <span>Separacion vertical</span>
                 <input
                   type="range"
                   min={0}
@@ -975,7 +975,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Ancho minimo columna</span>
+                <span>Ancho minimo de columnas</span>
                 <input
                   type="range"
                   min={0}
@@ -988,7 +988,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Alto minimo fila</span>
+                <span>Alto minimo de lineas curriculares</span>
                 <input
                   type="range"
                   min={0}
@@ -1001,7 +1001,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Padding celdas</span>
+                <span>Espaciado de contenido</span>
                 <input
                   type="range"
                   min={0}
@@ -1013,7 +1013,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Borde bloques</span>
+                <span>Marco de bloques curriculares</span>
                 <input
                   type="range"
                   min={0}
@@ -1025,7 +1025,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Radio borde</span>
+                <span>Curvatura de marcos</span>
                 <input
                   type="range"
                   min={0}
@@ -1037,7 +1037,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Escala tipografica</span>
+                <span>Escala general de textos</span>
                 <input
                   type="range"
                   min={0.5}
