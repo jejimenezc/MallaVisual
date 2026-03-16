@@ -308,7 +308,9 @@ export function MallaViewerScreen({
   const printStyleText = useMemo(() => {
     return resolveViewerPrintPageCss(pageMetrics);
   }, [pageMetrics]);
-  const snapshotMetaText = `${mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} - ${formatSnapshotDate(snapshot.createdAt)}${isPrintPreview ? ' - Modo impresion' : ''}`;
+  const snapshotMetaText = snapshot
+    ? `${mode === 'publication' ? 'Viendo publicacion' : 'Vista previa'} - ${formatSnapshotDate(snapshot.createdAt)}${isPrintPreview ? ' - Modo impresion' : ''}`
+    : '';
 
   const setZoomSafe = useCallback((value: number) => {
     setZoom(clamp(value, VIEWER_MIN_ZOOM, VIEWER_MAX_ZOOM));
