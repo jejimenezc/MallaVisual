@@ -38,6 +38,10 @@ export function StatusBar({
     statusClass = styles.error;
     statusText = 'Error al guardar';
   }
+  if (isActiveProjectOnStandby) {
+    statusClass = styles.standbyStatus;
+    statusText = 'En espera';
+  }
   const projectDisplayName = hasProject
     ? projectName?.trim().length > 0
       ? projectName

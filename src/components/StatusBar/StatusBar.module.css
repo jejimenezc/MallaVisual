@@ -27,6 +27,19 @@
   box-shadow: inset 0 0 0 1px rgba(255, 179, 71, 0.5);
 }
 
+.standby .leftSection,
+.standby .centerSection,
+.standby .rightSection {
+  color: #a3a3a3;
+}
+
+.standby .projectLabel,
+.standby .projectName,
+.standby .autosaveTime,
+.standby .schemaLabel {
+  color: #a3a3a3;
+}
+
 .standby::before {
   background: rgba(255, 179, 71, 0.22);
   opacity: 1;
@@ -99,6 +112,11 @@
 
 .error {
   color: #cc2a2a;
+}
+
+.standbyStatus {
+  color: #ffb347;
+  font-weight: 700;
 }
 
 @keyframes blink {
