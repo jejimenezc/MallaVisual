@@ -56,7 +56,7 @@ interface Props {
   theme: ViewerTheme;
   onThemeChange: (theme: ViewerTheme) => void;
   onBackToEditor: () => void;
-  onPublish: () => Promise<void> | void;
+  onOpenPublishModal: () => Promise<void> | void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
 }
 
@@ -97,7 +97,7 @@ export function MallaViewerScreen({
   theme,
   onThemeChange,
   onBackToEditor,
-  onPublish,
+  onOpenPublishModal,
   onImportPublicationFile,
 }: Props): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -947,7 +947,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             {!isPrintPreview && mode === 'preview' ? (
               <Button
                 type="button"
-                onClick={() => void onPublish()}
+                onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
               >
                 Publicar esta versión

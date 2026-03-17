@@ -18,7 +18,7 @@ interface GlobalMenuBarProps {
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onOpenPreview: () => void;
-  onGeneratePublication: () => Promise<void> | void;
+  onOpenPublishModal: () => void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
@@ -48,7 +48,7 @@ export function GlobalMenuBar({
   onImportProjectFile,
   onExportProject,
   onOpenPreview,
-  onGeneratePublication,
+  onOpenPublishModal,
   onImportPublicationFile,
   onCloseProject,
   onToggleMetaPanelEnabled,
@@ -206,15 +206,15 @@ export function GlobalMenuBar({
     [handleCloseMenu, hasProject, onOpenPreview],
   );
 
-  const handleGeneratePublicationClick = useCallback(
+  const handleOpenPublishModalClick = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
       handleCloseMenu();
       if (!hasProject) return;
-      void onGeneratePublication();
+      onOpenPublishModal();
     },
-    [handleCloseMenu, hasProject, onGeneratePublication],
+    [handleCloseMenu, hasProject, onOpenPublishModal],
   );
 
   const handleOpenRecent = useCallback(
@@ -523,10 +523,10 @@ export function GlobalMenuBar({
                 <button
                   type="button"
                   className={styles.dropdownItem}
-                  onClick={handleGeneratePublicationClick}
+                  onClick={handleOpenPublishModalClick}
                   disabled={!hasProject}
                 >
-                  Generar publicacion
+                  Publicar version
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>

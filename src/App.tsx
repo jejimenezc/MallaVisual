@@ -15,6 +15,7 @@ import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
 import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { ColorPaletteModal } from './components/ColorPaletteModal';
+import { PublishModal, type PublishActionKey, type PublishOrigin } from './components/PublishModal';
 import {
   createDefaultMetaPanel,
   type MallaExport,
@@ -96,7 +97,7 @@ interface AppLayoutProps {
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onOpenPreview: () => void;
-  onGeneratePublication: () => Promise<void> | void;
+  onOpenPublishModal: () => void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
@@ -118,7 +119,7 @@ function AppLayout({
   onImportProjectFile,
   onExportProject,
   onOpenPreview,
-  onGeneratePublication,
+  onOpenPublishModal,
   onImportPublicationFile,
   onCloseProject,
   onToggleMetaPanelEnabled,
@@ -195,7 +196,7 @@ function AppLayout({
             onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
             onOpenPreview={onOpenPreview}
-            onGeneratePublication={onGeneratePublication}
+            onOpenPublishModal={onOpenPublishModal}
             onImportPublicationFile={onImportPublicationFile}
             onCloseProject={onCloseProject}
             onToggleMetaPanelEnabled={onToggleMetaPanelEnabled}
@@ -234,6 +235,8 @@ export default function App(): JSX.Element | null {
   const [publicationSnapshot, setPublicationSnapshot] = useState<MallaSnapshot | null>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null);
   const [previewAppearance, setPreviewAppearance] = useState<ViewerTheme | null>(null);
+  const [publishOrigin, setPublishOrigin] = useState<PublishOrigin | null>(null);
+  const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -839,6 +842,43 @@ export default function App(): JSX.Element | null {
     resolvePreviewAppearance,
   ]);
 
+  const openPublishModal = useCallback((origin: PublishOrigin) => {
+    setPublishOrigin(origin);
+  }, []);
+
+  const closePublishModal = useCallback(() => {
+    setPublishOrigin(null);
+    setRunningPublishAction(null);
+  }, []);
+
+  const handleDownloadPublicationJson = useCallback(async () => {
+    setRunningPublishAction('json');
+    const appearance = resolvePreviewAppearance();
+    const snapshot = createPublicationSnapshot(appearance);
+    if (!snapshot) {
+      pushToast('No se pudo generar la publicacion', 'error');
+      setRunningPublishAction(null);
+      return;
+    }
+
+    downloadPublication(snapshot);
+    setPublicationSnapshot(snapshot);
+    pushToast('Respaldo descargado', 'success');
+    setRunningPublishAction(null);
+  }, [createPublicationSnapshot, downloadPublication, pushToast, resolvePreviewAppearance]);
+
+  const handleGeneratePublicationPdf = useCallback(() => {
+    pushToast('La exportacion PDF aun no esta disponible', 'info');
+  }, [pushToast]);
+
+  const handleOpenPublishedVersion = useCallback(() => {
+    pushToast('La publicacion web aun no esta disponible', 'info');
+  }, [pushToast]);
+
+  const handleCopyPublicationLink = useCallback(() => {
+    pushToast('La publicacion web aun no esta disponible', 'info');
+  }, [pushToast]);
+
   const handleImportPublicationFile = useCallback(
     async (file: File) => {
       try {
@@ -874,9 +914,27 @@ export default function App(): JSX.Element | null {
     [viewerMode],
   );
 
-  const handlePublishFromPreview = useCallback(async () => {
-    await handleGeneratePublication();
-  }, [handleGeneratePublication]);
+  const handlePublishFromPreview = useCallback(() => {
+    openPublishModal('viewer');
+  }, [openPublishModal]);
+
+  const handleOpenPublishModalFromMenu = useCallback(() => {
+    const origin = location.pathname === '/malla/viewer' && viewerMode === 'preview'
+      ? 'viewer'
+      : 'editor';
+    openPublishModal(origin);
+  }, [location.pathname, openPublishModal, viewerMode]);
+
+  const handleGoToViewerFromPublishModal = useCallback(() => {
+    closePublishModal();
+    handleOpenPreview();
+  }, [closePublishModal, handleOpenPreview]);
+
+  const handleGoToEditorFromPublishModal = useCallback(() => {
+    closePublishModal();
+    setViewerMode(null);
+    navigate('/malla/design');
+  }, [closePublishModal, navigate]);
 
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
@@ -1693,7 +1751,7 @@ export default function App(): JSX.Element | null {
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
             onOpenPreview={handleOpenPreview}
-            onGeneratePublication={handleGeneratePublication}
+            onOpenPublishModal={handleOpenPublishModalFromMenu}
             onImportPublicationFile={handleImportPublicationFile}
             onCloseProject={handleCloseProject}
             onToggleMetaPanelEnabled={handleToggleMetaPanelEnabled}
@@ -1826,7 +1884,7 @@ export default function App(): JSX.Element | null {
                     theme={activeViewerTheme}
                     onThemeChange={handleViewerThemeChange}
                     onBackToEditor={handleBackToEditorFromViewer}
-                    onPublish={handlePublishFromPreview}
+                    onOpenPublishModal={handlePublishFromPreview}
                     onImportPublicationFile={handleImportPublicationFile}
                   />
                 }
@@ -1840,6 +1898,37 @@ export default function App(): JSX.Element | null {
             onClose={handleCloseProjectPalette}
             onApply={handleApplyProjectPalette}
           />
+          {publishOrigin ? (
+            <PublishModal
+              isOpen
+              origin={publishOrigin}
+              actions={{
+                json: {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'json',
+                },
+                pdf: {
+                  availability: 'placeholder',
+                  isRunning: runningPublishAction === 'pdf',
+                },
+                openWeb: {
+                  availability: 'placeholder',
+                  isRunning: runningPublishAction === 'openWeb',
+                },
+                copyLink: {
+                  availability: 'placeholder',
+                  isRunning: runningPublishAction === 'copyLink',
+                },
+              }}
+              onClose={closePublishModal}
+              onDownloadJson={handleDownloadPublicationJson}
+              onDownloadPdf={handleGeneratePublicationPdf}
+              onOpenPublishedVersion={handleOpenPublishedVersion}
+              onCopyLink={handleCopyPublicationLink}
+              onGoToEditor={handleGoToEditorFromPublishModal}
+              onGoToViewer={handleGoToViewerFromPublishModal}
+            />
+          ) : null}
         </ProceedToMallaProvider>
         {isIntroOverlayVisible ? (
           <IntroOverlay onClose={handleHideIntroOverlay} />
