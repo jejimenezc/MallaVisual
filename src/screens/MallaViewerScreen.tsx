@@ -53,6 +53,7 @@ const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
 interface Props {
   snapshot: MallaSnapshot | null;
   mode: 'preview' | 'publication' | null;
+  initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
   onThemeChange: (theme: ViewerTheme) => void;
   onBackToEditor: () => void;
@@ -94,6 +95,7 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
 export function MallaViewerScreen({
   snapshot,
   mode,
+  initialPanelMode = 'preview',
   theme,
   onThemeChange,
   onBackToEditor,
@@ -402,8 +404,8 @@ export function MallaViewerScreen({
   }, [isPanning]);
 
   useEffect(() => {
-    setViewerPanelMode('preview');
-  }, [mode]);
+    setViewerPanelMode(initialPanelMode);
+  }, [initialPanelMode, mode]);
 
   const handleEnterPrintPreview = useCallback(() => {
     setViewerPanelMode('print-preview');

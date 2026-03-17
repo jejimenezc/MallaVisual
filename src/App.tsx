@@ -63,6 +63,7 @@ import {
   normalizeViewerTheme,
 } from './utils/viewer-theme.ts';
 import type { ViewerTheme } from './types/viewer-theme.ts';
+import type { ViewerPanelMode } from './utils/viewer-print.ts';
 import {
   type BlockState,
   type ControlDataClearRequest,
@@ -97,6 +98,7 @@ interface AppLayoutProps {
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onOpenPreview: () => void;
+  onOpenPrintPreview: () => void;
   onOpenPublishModal: () => void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
@@ -119,6 +121,7 @@ function AppLayout({
   onImportProjectFile,
   onExportProject,
   onOpenPreview,
+  onOpenPrintPreview,
   onOpenPublishModal,
   onImportPublicationFile,
   onCloseProject,
@@ -196,6 +199,7 @@ function AppLayout({
             onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
             onOpenPreview={onOpenPreview}
+            onOpenPrintPreview={onOpenPrintPreview}
             onOpenPublishModal={onOpenPublishModal}
             onImportPublicationFile={onImportPublicationFile}
             onCloseProject={onCloseProject}
@@ -234,6 +238,8 @@ export default function App(): JSX.Element | null {
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [publicationSnapshot, setPublicationSnapshot] = useState<MallaSnapshot | null>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null);
+  const [viewerPanelModePreference, setViewerPanelModePreference] =
+    useState<ViewerPanelMode>('preview');
   const [previewAppearance, setPreviewAppearance] = useState<ViewerTheme | null>(null);
   const [publishOrigin, setPublishOrigin] = useState<PublishOrigin | null>(null);
   const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
@@ -780,6 +786,15 @@ export default function App(): JSX.Element | null {
   const handleOpenPreview = useCallback(() => {
     if (!currentProject) return;
     setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
+    setViewerPanelModePreference('preview');
+    setViewerMode('preview');
+    navigate('/malla/viewer');
+  }, [currentProject, navigate]);
+
+  const handleOpenPrintPreview = useCallback(() => {
+    if (!currentProject) return;
+    setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
+    setViewerPanelModePreference('print-preview');
     setViewerMode('preview');
     navigate('/malla/viewer');
   }, [currentProject, navigate]);
@@ -891,6 +906,7 @@ export default function App(): JSX.Element | null {
         }
         const normalized = validation.normalizedSnapshot;
         setPublicationSnapshot(normalized);
+        setViewerPanelModePreference('preview');
         setViewerMode('publication');
         navigate('/malla/viewer');
         pushToast('Versión publicada abierta', 'success');
@@ -902,6 +918,7 @@ export default function App(): JSX.Element | null {
   );
 
   const handleBackToEditorFromViewer = useCallback(() => {
+    setViewerPanelModePreference('preview');
     setViewerMode(null);
     navigate('/malla/design');
   }, [navigate]);
@@ -1751,6 +1768,7 @@ export default function App(): JSX.Element | null {
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
             onOpenPreview={handleOpenPreview}
+            onOpenPrintPreview={handleOpenPrintPreview}
             onOpenPublishModal={handleOpenPublishModalFromMenu}
             onImportPublicationFile={handleImportPublicationFile}
             onCloseProject={handleCloseProject}
@@ -1881,6 +1899,7 @@ export default function App(): JSX.Element | null {
                   <MallaViewerScreen
                     snapshot={activeViewerSnapshot}
                     mode={viewerMode}
+                    initialPanelMode={viewerPanelModePreference}
                     theme={activeViewerTheme}
                     onThemeChange={handleViewerThemeChange}
                     onBackToEditor={handleBackToEditorFromViewer}
