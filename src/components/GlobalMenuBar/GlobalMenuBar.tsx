@@ -18,6 +18,7 @@ interface GlobalMenuBarProps {
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
   onOpenPreview: () => void;
+  onOpenPrintPreview: () => void;
   onOpenPublishModal: () => void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
@@ -48,6 +49,7 @@ export function GlobalMenuBar({
   onImportProjectFile,
   onExportProject,
   onOpenPreview,
+  onOpenPrintPreview,
   onOpenPublishModal,
   onImportPublicationFile,
   onCloseProject,
@@ -215,6 +217,17 @@ export function GlobalMenuBar({
       onOpenPublishModal();
     },
     [handleCloseMenu, hasProject, onOpenPublishModal],
+  );
+
+  const handleOpenPrintPreviewClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) return;
+      onOpenPrintPreview();
+    },
+    [handleCloseMenu, hasProject, onOpenPrintPreview],
   );
 
   const handleOpenRecent = useCallback(
@@ -500,9 +513,8 @@ export function GlobalMenuBar({
             type="button"
             className={styles.menuTrigger}
             onClick={handleMenuTriggerClick('publicar')}
-            disabled={!hasProject}
           >
-            Publicar
+            Publicación
           </button>
           {openMenu === 'publicar' ? (
             <ul
@@ -516,9 +528,22 @@ export function GlobalMenuBar({
                   onClick={handleOpenPreviewClick}
                   disabled={!hasProject}
                 >
-                  Vista previa
+                  <span className={styles.itemPrimary}>Modo Presentación</span>
+                  <span className={styles.itemSecondary}>(Vista digital)</span>
                 </button>
               </li>
+              <li className={styles.dropdownItemWrapper}>
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPrintPreviewClick}
+                  disabled={!hasProject}
+                >
+                  <span className={styles.itemPrimary}>Modo de Impresión</span>
+                  <span className={styles.itemSecondary}>(Vista papel)</span>
+                </button>
+              </li>
+              <li className={styles.dropdownSeparator} aria-hidden="true" />
               <li className={styles.dropdownItemWrapper}>
                 <button
                   type="button"
@@ -526,7 +551,10 @@ export function GlobalMenuBar({
                   onClick={handleOpenPublishModalClick}
                   disabled={!hasProject}
                 >
-                  Publicar versión
+                  <span className={styles.itemPrimary}>Publicar versión actual</span>
+                  <span className={styles.itemSecondary}>
+                    (Generar captura de la malla)
+                  </span>
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>
@@ -535,7 +563,8 @@ export function GlobalMenuBar({
                   className={styles.dropdownItem}
                   onClick={handleOpenPublicationFromDisk}
                 >
-                  Ver versión publicada...
+                  <span className={styles.itemPrimary}>Abrir versión publicada...</span>
+                  <span className={styles.itemSecondary}>(Cargar malla externa)</span>
                 </button>
               </li>
             </ul>
