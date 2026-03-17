@@ -814,7 +814,7 @@ export default function App(): JSX.Element | null {
     const appearance = resolvePreviewAppearance();
     const snapshot = createPublicationSnapshot(appearance);
     if (!snapshot) {
-      pushToast('No se pudo generar la publicacion', 'error');
+      pushToast('No se pudo generar la publicación', 'error');
       return;
     }
 
@@ -868,15 +868,15 @@ export default function App(): JSX.Element | null {
   }, [createPublicationSnapshot, downloadPublication, pushToast, resolvePreviewAppearance]);
 
   const handleGeneratePublicationPdf = useCallback(() => {
-    pushToast('La exportacion PDF aun no esta disponible', 'info');
+    pushToast('La exportación PDF aún no está disponible', 'info');
   }, [pushToast]);
 
   const handleOpenPublishedVersion = useCallback(() => {
-    pushToast('La publicacion web aun no esta disponible', 'info');
+    pushToast('La publicación web aún no está disponible', 'info');
   }, [pushToast]);
 
   const handleCopyPublicationLink = useCallback(() => {
-    pushToast('La publicacion web aun no esta disponible', 'info');
+    pushToast('La publicación web aún no está disponible', 'info');
   }, [pushToast]);
 
   const handleImportPublicationFile = useCallback(
@@ -893,9 +893,9 @@ export default function App(): JSX.Element | null {
         setPublicationSnapshot(normalized);
         setViewerMode('publication');
         navigate('/malla/viewer');
-        pushToast('Version publicada abierta', 'success');
+        pushToast('Versión publicada abierta', 'success');
       } catch {
-        pushToast('No se pudo abrir la version publicada', 'error');
+        pushToast('No se pudo abrir la versión publicada', 'error');
       }
     },
     [navigate, pushToast],

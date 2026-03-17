@@ -526,7 +526,7 @@ export function GlobalMenuBar({
                   onClick={handleOpenPublishModalClick}
                   disabled={!hasProject}
                 >
-                  Publicar version
+                  Publicar versión
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>
@@ -535,7 +535,7 @@ export function GlobalMenuBar({
                   className={styles.dropdownItem}
                   onClick={handleOpenPublicationFromDisk}
                 >
-                  Ver version publicada...
+                  Ver versión publicada...
                 </button>
               </li>
             </ul>
