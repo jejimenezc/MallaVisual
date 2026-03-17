@@ -7,6 +7,7 @@ import type { VisualTemplate, BlockAspect } from './types/visual.ts';
 import { coordKey } from './types/visual.ts';
 import { BlockEditorScreen } from './screens/BlockEditorScreen';
 import { MallaEditorScreen } from './screens/MallaEditorScreen';
+import { MallaViewerScreen } from './screens/MallaViewerScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { BlockRepositoryScreen } from './screens/BlockRepositoryScreen';
 import { NavTabs } from './components/NavTabs';
@@ -14,6 +15,7 @@ import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
 import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { ColorPaletteModal } from './components/ColorPaletteModal';
+import { PublishModal, type PublishActionKey, type PublishOrigin } from './components/PublishModal';
 import {
   createDefaultMetaPanel,
   type MallaExport,
@@ -51,6 +53,17 @@ import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
+import type { MallaSnapshot } from './types/malla-snapshot.ts';
+import {
+  buildMallaSnapshotFromState,
+  validateAndNormalizeMallaSnapshot,
+} from './utils/malla-snapshot.ts';
+import {
+  createDefaultViewerTheme,
+  normalizeViewerTheme,
+} from './utils/viewer-theme.ts';
+import type { ViewerTheme } from './types/viewer-theme.ts';
+import type { ViewerPanelMode } from './utils/viewer-print.ts';
 import {
   type BlockState,
   type ControlDataClearRequest,
@@ -79,11 +92,16 @@ interface AppLayoutProps {
   children: React.ReactNode;
   projectName: string;
   hasProject: boolean;
+  isActiveProjectOnStandby: boolean;
   isMetaPanelEnabled: boolean;
   canToggleMetaPanel: boolean;
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
+  onOpenPreview: () => void;
+  onOpenPrintPreview: () => void;
+  onOpenPublishModal: () => void;
+  onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
@@ -98,11 +116,16 @@ function AppLayout({
   children,
   projectName,
   hasProject,
+  isActiveProjectOnStandby,
   isMetaPanelEnabled,
   canToggleMetaPanel,
   onNewProject,
   onImportProjectFile,
   onExportProject,
+  onOpenPreview,
+  onOpenPrintPreview,
+  onOpenPublishModal,
+  onImportPublicationFile,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -177,6 +200,10 @@ function AppLayout({
             onNewProject={onNewProject}
             onImportProjectFile={onImportProjectFile}
             onExportProject={onExportProject}
+            onOpenPreview={onOpenPreview}
+            onOpenPrintPreview={onOpenPrintPreview}
+            onOpenPublishModal={onOpenPublishModal}
+            onImportPublicationFile={onImportPublicationFile}
             onCloseProject={onCloseProject}
             onToggleMetaPanelEnabled={onToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
@@ -190,6 +217,7 @@ function AppLayout({
       <StatusBar
         projectName={projectName}
         hasProject={hasProject}
+        isActiveProjectOnStandby={isActiveProjectOnStandby}
         schemaVersion={schemaVersion}
         quickNavLabel={quickNav.label}
         onQuickNav={quickNav.action}
@@ -203,12 +231,21 @@ function AppLayout({
   );
 }
 
+type ViewerMode = 'preview' | 'publication';
+
 export default function App(): JSX.Element | null {
   const navigate = useNavigate();
   const location = useLocation();
   const storedActiveProjectRef = useRef(readStoredActiveProject(getSafeLocalStorage()));
   const [block, setBlock] = useState<BlockState | null>(null);
   const [malla, setMalla] = useState<MallaExport | null>(null);
+  const [publicationSnapshot, setPublicationSnapshot] = useState<MallaSnapshot | null>(null);
+  const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null);
+  const [viewerPanelModePreference, setViewerPanelModePreference] =
+    useState<ViewerPanelMode>('preview');
+  const [previewAppearance, setPreviewAppearance] = useState<ViewerTheme | null>(null);
+  const [publishOrigin, setPublishOrigin] = useState<PublishOrigin | null>(null);
+  const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -420,6 +457,9 @@ export default function App(): JSX.Element | null {
   const resetWorkspaceState = useCallback(() => {
     setBlock(null);
     loadMallaState(null);
+    setPublicationSnapshot(null);
+    setViewerMode(null);
+    setPreviewAppearance(null);
     setProjectId(null);
     setProjectName('');
     pendingControlDataClearsRef.current = [];
@@ -730,6 +770,192 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   };
 
+  const resolvePreviewAppearance = useCallback(
+    () => normalizeViewerTheme(previewAppearance ?? createDefaultViewerTheme()),
+    [previewAppearance],
+  );
+
+  const previewSnapshot = useMemo<MallaSnapshot | null>(() => {
+    if (!currentProject) return null;
+    try {
+      return buildMallaSnapshotFromState(currentProject, {
+        projectName: projectName || 'Proyecto',
+      });
+    } catch {
+      return null;
+    }
+  }, [currentProject, projectName]);
+
+  const handleOpenPreview = useCallback(() => {
+    if (!currentProject) return;
+    setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
+    setViewerPanelModePreference('preview');
+    setViewerMode('preview');
+    navigate('/malla/viewer');
+  }, [currentProject, navigate]);
+
+  const handleOpenPrintPreview = useCallback(() => {
+    if (!currentProject) return;
+    setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
+    setViewerPanelModePreference('print-preview');
+    setViewerMode('preview');
+    navigate('/malla/viewer');
+  }, [currentProject, navigate]);
+
+  const createPublicationSnapshot = useCallback(
+    (appearance: ViewerTheme): MallaSnapshot | null => {
+      if (!currentProject) return null;
+      try {
+        return buildMallaSnapshotFromState(currentProject, {
+          projectName: projectName || 'Proyecto',
+          appearance,
+        });
+      } catch {
+        return null;
+      }
+    },
+    [currentProject, projectName],
+  );
+
+  const downloadPublication = useCallback((snapshot: MallaSnapshot) => {
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${snapshot.projectName || 'proyecto'}-publicacion-v1.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleGeneratePublication = useCallback(async () => {
+    const appearance = resolvePreviewAppearance();
+    const snapshot = createPublicationSnapshot(appearance);
+    if (!snapshot) {
+      pushToast('No se pudo generar la publicación', 'error');
+      return;
+    }
+
+    downloadPublication(snapshot);
+    setPublicationSnapshot(snapshot);
+    pushToast('Publicacion generada', 'success');
+
+    const shouldOpen = await confirmAsync({
+      title: 'Publicacion generada',
+      message: '¿Deseas ver la version publicada?',
+      confirmLabel: 'Ver version publicada',
+      cancelLabel: 'Cerrar',
+      variant: 'info',
+    });
+    if (shouldOpen) {
+      setViewerMode('publication');
+      navigate('/malla/viewer');
+    }
+  }, [
+    confirmAsync,
+    createPublicationSnapshot,
+    downloadPublication,
+    navigate,
+    pushToast,
+    resolvePreviewAppearance,
+  ]);
+
+  const openPublishModal = useCallback((origin: PublishOrigin) => {
+    setPublishOrigin(origin);
+  }, []);
+
+  const closePublishModal = useCallback(() => {
+    setPublishOrigin(null);
+    setRunningPublishAction(null);
+  }, []);
+
+  const handleDownloadPublicationJson = useCallback(async () => {
+    setRunningPublishAction('json');
+    const appearance = resolvePreviewAppearance();
+    const snapshot = createPublicationSnapshot(appearance);
+    if (!snapshot) {
+      pushToast('No se pudo generar la publicacion', 'error');
+      setRunningPublishAction(null);
+      return;
+    }
+
+    downloadPublication(snapshot);
+    setPublicationSnapshot(snapshot);
+    pushToast('Respaldo descargado', 'success');
+    setRunningPublishAction(null);
+  }, [createPublicationSnapshot, downloadPublication, pushToast, resolvePreviewAppearance]);
+
+  const handleGeneratePublicationPdf = useCallback(() => {
+    pushToast('La exportación PDF aún no está disponible', 'info');
+  }, [pushToast]);
+
+  const handleOpenPublishedVersion = useCallback(() => {
+    pushToast('La publicación web aún no está disponible', 'info');
+  }, [pushToast]);
+
+  const handleCopyPublicationLink = useCallback(() => {
+    pushToast('La publicación web aún no está disponible', 'info');
+  }, [pushToast]);
+
+  const handleImportPublicationFile = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const parsed: unknown = JSON.parse(text);
+        const validation = validateAndNormalizeMallaSnapshot(parsed);
+        if (!validation.ok) {
+          pushToast(validation.error, 'error');
+          return;
+        }
+        const normalized = validation.normalizedSnapshot;
+        setPublicationSnapshot(normalized);
+        setViewerPanelModePreference('preview');
+        setViewerMode('publication');
+        navigate('/malla/viewer');
+        pushToast('Versión publicada abierta', 'success');
+      } catch {
+        pushToast('No se pudo abrir la versión publicada', 'error');
+      }
+    },
+    [navigate, pushToast],
+  );
+
+  const handleBackToEditorFromViewer = useCallback(() => {
+    setViewerPanelModePreference('preview');
+    setViewerMode(null);
+    navigate('/malla/design');
+  }, [navigate]);
+
+  const handleViewerThemeChange = useCallback(
+    (next: ViewerTheme) => {
+      if (viewerMode !== 'preview') return;
+      setPreviewAppearance(normalizeViewerTheme(next));
+    },
+    [viewerMode],
+  );
+
+  const handlePublishFromPreview = useCallback(() => {
+    openPublishModal('viewer');
+  }, [openPublishModal]);
+
+  const handleOpenPublishModalFromMenu = useCallback(() => {
+    const origin = location.pathname === '/malla/viewer' && viewerMode === 'preview'
+      ? 'viewer'
+      : 'editor';
+    openPublishModal(origin);
+  }, [location.pathname, openPublishModal, viewerMode]);
+
+  const handleGoToViewerFromPublishModal = useCallback(() => {
+    closePublishModal();
+    handleOpenPreview();
+  }, [closePublishModal, handleOpenPreview]);
+
+  const handleGoToEditorFromPublishModal = useCallback(() => {
+    closePublishModal();
+    setViewerMode(null);
+    navigate('/malla/design');
+  }, [closePublishModal, navigate]);
+
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
     const hasUnsavedBlock = computeDirty();
@@ -760,6 +986,9 @@ export default function App(): JSX.Element | null {
     setProjectId(null);
     setProjectName('');
     setShouldPersistProject(false);
+    setViewerMode(null);
+    setPublicationSnapshot(null);
+    setPreviewAppearance(null);
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id: null, name: '' };
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
@@ -1510,6 +1739,17 @@ export default function App(): JSX.Element | null {
   const projectTheme = projectThemeState;
 
   const hasProject = !!currentProject;
+  const isExternalPublicationOpen = viewerMode === 'publication' && publicationSnapshot !== null;
+  const activeViewerSnapshot = viewerMode === 'preview' ? previewSnapshot : publicationSnapshot;
+  const activeViewerTheme = useMemo<ViewerTheme>(() => {
+    if (viewerMode === 'preview') {
+      return resolvePreviewAppearance();
+    }
+    if (publicationSnapshot?.appearance) {
+      return normalizeViewerTheme(publicationSnapshot.appearance);
+    }
+    return createDefaultViewerTheme();
+  }, [publicationSnapshot?.appearance, resolvePreviewAppearance, viewerMode]);
 
   if (!isHydrated) {
     return null;
@@ -1526,11 +1766,16 @@ export default function App(): JSX.Element | null {
           <AppLayout
             projectName={projectName}
             hasProject={hasProject}
+            isActiveProjectOnStandby={isExternalPublicationOpen && hasProject}
             isMetaPanelEnabled={isMetaPanelEnabled}
             canToggleMetaPanel={canToggleMetaPanel}
             onNewProject={handleNewProject}
             onImportProjectFile={handleImportProjectFile}
             onExportProject={handleExportProject}
+            onOpenPreview={handleOpenPreview}
+            onOpenPrintPreview={handleOpenPrintPreview}
+            onOpenPublishModal={handleOpenPublishModalFromMenu}
+            onImportPublicationFile={handleImportPublicationFile}
             onCloseProject={handleCloseProject}
             onToggleMetaPanelEnabled={handleToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
@@ -1640,6 +1885,7 @@ export default function App(): JSX.Element | null {
                       aspect={block.published?.aspect ?? block.draft.aspect}
                       repoId={block.repoId ?? null}
                       onBack={() => navigate('/block/design')}
+                      onOpenPublicationPreview={handleOpenPreview}
                       onUpdateMaster={handleUpdateMaster}
                       initialMalla={malla ?? undefined}
                       onMallaChange={handleMallaChange}
@@ -1652,6 +1898,21 @@ export default function App(): JSX.Element | null {
                   )
                 }
               />
+              <Route
+                path="/malla/viewer"
+                element={
+                  <MallaViewerScreen
+                    snapshot={activeViewerSnapshot}
+                    mode={viewerMode}
+                    initialPanelMode={viewerPanelModePreference}
+                    theme={activeViewerTheme}
+                    onThemeChange={handleViewerThemeChange}
+                    onBackToEditor={handleBackToEditorFromViewer}
+                    onOpenPublishModal={handlePublishFromPreview}
+                    onImportPublicationFile={handleImportPublicationFile}
+                  />
+                }
+              />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </AppLayout>
@@ -1661,6 +1922,37 @@ export default function App(): JSX.Element | null {
             onClose={handleCloseProjectPalette}
             onApply={handleApplyProjectPalette}
           />
+          {publishOrigin ? (
+            <PublishModal
+              isOpen
+              origin={publishOrigin}
+              actions={{
+                json: {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'json',
+                },
+                pdf: {
+                  availability: 'placeholder',
+                  isRunning: runningPublishAction === 'pdf',
+                },
+                openWeb: {
+                  availability: 'placeholder',
+                  isRunning: runningPublishAction === 'openWeb',
+                },
+                copyLink: {
+                  availability: 'placeholder',
+                  isRunning: runningPublishAction === 'copyLink',
+                },
+              }}
+              onClose={closePublishModal}
+              onDownloadJson={handleDownloadPublicationJson}
+              onDownloadPdf={handleGeneratePublicationPdf}
+              onOpenPublishedVersion={handleOpenPublishedVersion}
+              onCopyLink={handleCopyPublicationLink}
+              onGoToEditor={handleGoToEditorFromPublishModal}
+              onGoToViewer={handleGoToViewerFromPublishModal}
+            />
+          ) : null}
         </ProceedToMallaProvider>
         {isIntroOverlayVisible ? (
           <IntroOverlay onClose={handleHideIntroOverlay} />

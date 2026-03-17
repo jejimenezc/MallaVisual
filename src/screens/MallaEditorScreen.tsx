@@ -128,6 +128,7 @@ interface Props {
   projectId?: string;
   projectName?: string;
   suspendAutosave?: boolean;
+  onOpenPublicationPreview?: () => void;
 }
 
 export const MallaEditorScreen: React.FC<Props> = ({
@@ -142,6 +143,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
   projectId,
   projectName,
   suspendAutosave = false,
+  onOpenPublicationPreview,
 }) => {
   const initialMallaSignature = useMemo(() => {
     if (!initialMalla) return null;
@@ -2542,13 +2544,17 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   className={styles.headerPopoverTrigger}
                   aria-haspopup="menu"
                   aria-expanded={isGlobalToolsMenuOpen}
-                  aria-label="Herramientas globales"
-                  title="Herramientas globales"
+                  aria-label="Acciones globales de malla"
+                  title="Acciones globales de malla"
                 >
                   {'\u22EE'}
                 </Button>
                 {isGlobalToolsMenuOpen ? (
-                  <div className={styles.headerPopover} role="menu" aria-label="Herramientas globales">
+                  <div
+                    className={styles.headerPopover}
+                    role="menu"
+                    aria-label="Acciones globales de malla"
+                  >
                     <button
                       type="button"
                       className={styles.metaMenuAction}
@@ -2572,6 +2578,19 @@ export const MallaEditorScreen: React.FC<Props> = ({
                   </div>
                 ) : null}
               </div>
+              <span className={styles.headerInlineSeparator} aria-hidden="true">
+                |
+              </span>
+              <Button
+                type="button"
+                onClick={onOpenPublicationPreview}
+                className={styles.headerPopoverTrigger}
+                aria-label="Ver en Modo Presentación"
+                title="Visualización de una versión publicable del proyecto activo"
+                disabled={!onOpenPublicationPreview}
+              >
+                Ver en Modo Presentación
+              </Button>
             </div>
           }
           center={

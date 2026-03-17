@@ -1,0 +1,145 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.modal {
+  width: min(720px, 100%);
+  max-height: min(84vh, 760px);
+  overflow: auto;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.22);
+  color: #0f172a;
+}
+
+.header {
+  padding: 24px 24px 14px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.content {
+  display: grid;
+  gap: 14px;
+  padding: 0 24px 18px;
+}
+
+.section {
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.sectionHeader {
+  display: block;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.sectionDescription {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.actionCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: rgba(248, 250, 252, 0.94);
+  text-align: center;
+}
+
+.actionCard button {
+  width: 100%;
+  justify-content: center;
+}
+
+.sectionNote {
+  margin: 12px 0 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.footer {
+  display: grid;
+  gap: 10px;
+  padding: 16px 24px 24px;
+  border-top: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.footerNote {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .backdrop {
+    padding: 14px;
+  }
+
+  .header,
+  .content,
+  .footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .footerActions {
+    justify-content: stretch;
+  }
+
+  .footerActions button {
+    flex: 1 1 0;
+  }
+}

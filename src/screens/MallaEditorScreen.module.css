@@ -59,6 +59,12 @@
   white-space: nowrap;
 }
 
+.headerInlineSeparator {
+  display: inline-flex;
+  align-items: center;
+  white-space: pre;
+}
+
 .headerPopover {
   position: absolute;
   top: calc(100% + 6px);

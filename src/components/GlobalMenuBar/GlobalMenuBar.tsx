@@ -17,6 +17,10 @@ interface GlobalMenuBarProps {
   onNewProject: () => void;
   onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void;
+  onOpenPreview: () => void;
+  onOpenPrintPreview: () => void;
+  onOpenPublishModal: () => void;
+  onImportPublicationFile: (file: File) => Promise<void> | void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => RecentProject[];
@@ -44,6 +48,10 @@ export function GlobalMenuBar({
   onNewProject,
   onImportProjectFile,
   onExportProject,
+  onOpenPreview,
+  onOpenPrintPreview,
+  onOpenPublishModal,
+  onImportPublicationFile,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -55,6 +63,7 @@ export function GlobalMenuBar({
   const [openSubmenu, setOpenSubmenu] = useState<SubmenuKey | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const publicationInputRef = useRef<HTMLInputElement>(null);
   const { commands, executeCommand } = useAppCommands();
 
   const undoCommand = commands.undo;
@@ -140,6 +149,32 @@ export function GlobalMenuBar({
     [handleCloseMenu, onImportProjectFile],
   );
 
+  const handleOpenPublicationFromDisk = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      publicationInputRef.current?.click();
+    },
+    [handleCloseMenu],
+  );
+
+  const handlePublicationInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      handleCloseMenu();
+      void (async () => {
+        try {
+          await onImportPublicationFile(file);
+        } finally {
+          event.target.value = '';
+        }
+      })();
+    },
+    [handleCloseMenu, onImportPublicationFile],
+  );
+
   const handleCloseProject = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
@@ -160,6 +195,39 @@ export function GlobalMenuBar({
       onExportProject();
     },
     [handleCloseMenu, hasProject, onExportProject],
+  );
+
+  const handleOpenPreviewClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) return;
+      onOpenPreview();
+    },
+    [handleCloseMenu, hasProject, onOpenPreview],
+  );
+
+  const handleOpenPublishModalClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) return;
+      onOpenPublishModal();
+    },
+    [handleCloseMenu, hasProject, onOpenPublishModal],
+  );
+
+  const handleOpenPrintPreviewClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleCloseMenu();
+      if (!hasProject) return;
+      onOpenPrintPreview();
+    },
+    [handleCloseMenu, hasProject, onOpenPrintPreview],
   );
 
   const handleOpenRecent = useCallback(
@@ -445,9 +513,8 @@ export function GlobalMenuBar({
             type="button"
             className={styles.menuTrigger}
             onClick={handleMenuTriggerClick('publicar')}
-            disabled={!hasProject}
           >
-            Publicar
+            Publicación
           </button>
           {openMenu === 'publicar' ? (
             <ul
@@ -455,24 +522,49 @@ export function GlobalMenuBar({
               onClick={(event) => event.stopPropagation()}
             >
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Generar PDF
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPreviewClick}
+                  disabled={!hasProject}
+                >
+                  <span className={styles.itemPrimary}>Modo Presentación</span>
+                  <span className={styles.itemSecondary}>(Vista digital)</span>
                 </button>
               </li>
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Generar imagen
-                </button>
-              </li>
-              <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Obtener enlace (HTML)
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPrintPreviewClick}
+                  disabled={!hasProject}
+                >
+                  <span className={styles.itemPrimary}>Modo de Impresión</span>
+                  <span className={styles.itemSecondary}>(Vista papel)</span>
                 </button>
               </li>
               <li className={styles.dropdownSeparator} aria-hidden="true" />
               <li className={styles.dropdownItemWrapper}>
-                <button type="button" className={styles.dropdownItem} disabled>
-                  Configuración de salida…
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPublishModalClick}
+                  disabled={!hasProject}
+                >
+                  <span className={styles.itemPrimary}>Publicar versión actual</span>
+                  <span className={styles.itemSecondary}>
+                    (Generar captura de la malla)
+                  </span>
+                </button>
+              </li>
+              <li className={styles.dropdownItemWrapper}>
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  onClick={handleOpenPublicationFromDisk}
+                >
+                  <span className={styles.itemPrimary}>Abrir versión publicada...</span>
+                  <span className={styles.itemSecondary}>(Cargar malla externa)</span>
                 </button>
               </li>
             </ul>
@@ -597,6 +689,13 @@ export function GlobalMenuBar({
         type="file"
         ref={fileInputRef}
         onChange={handleFileInputChange}
+        accept="application/json"
+        className={styles.hiddenInput}
+      />
+      <input
+        type="file"
+        ref={publicationInputRef}
+        onChange={handlePublicationInputChange}
         accept="application/json"
         className={styles.hiddenInput}
       />
