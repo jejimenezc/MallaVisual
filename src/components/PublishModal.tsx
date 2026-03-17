@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { JSX } from 'react';
 import { Button } from './Button';
 import styles from './PublishModal.module.css';
@@ -33,16 +33,13 @@ interface Props {
 }
 
 const ACTION_TOOLTIPS: Record<PublishActionKey, string> = {
-  json: 'Guarda el archivo para volver a editarlo o cargarlo en esta aplicacion.',
-  pdf: 'Formato estatico ideal para archivar o imprimir.',
-  openWeb: 'Genera una URL para visualizacion online.',
-  copyLink: 'Genera una URL para visualizacion online.',
+  json: 'Guarda el archivo para volver a editarlo o cargarlo en esta aplicación.',
+  pdf: 'Prepara una salida estática para archivar, imprimir o distribuir fuera de la app.',
+  openWeb: 'Abre la versión publicada en una pestaña para revisar o compartir.',
+  copyLink: 'Copia la URL pública para reutilizarla donde necesites.',
 };
 
-const SECTION_STATUS_LABEL: Record<PublishActionAvailability, string> = {
-  ready: 'Disponible',
-  placeholder: 'Proximamente',
-};
+const SHARED_SECTION_NOTE = 'Cualquier persona con el enlace podrá ver la versión consolidada.';
 
 export function PublishModal({
   isOpen,
@@ -57,18 +54,6 @@ export function PublishModal({
   onGoToViewer,
 }: Props): JSX.Element | null {
   const initialFocusRef = useRef<HTMLButtonElement | null>(null);
-
-  const webSectionStatus = useMemo<PublishActionAvailability>(() => {
-    return actions.openWeb.availability === 'ready' || actions.copyLink.availability === 'ready'
-      ? 'ready'
-      : 'placeholder';
-  }, [actions.copyLink.availability, actions.openWeb.availability]);
-
-  const fileSectionStatus = useMemo<PublishActionAvailability>(() => {
-    return actions.json.availability === 'ready' || actions.pdf.availability === 'ready'
-      ? 'ready'
-      : 'placeholder';
-  }, [actions.json.availability, actions.pdf.availability]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -87,12 +72,12 @@ export function PublishModal({
 
   if (!isOpen) return null;
 
-  const footerSecondaryLabel = origin === 'viewer' ? 'Ir al editor' : 'Ver en modo Presentacion';
+  const footerSecondaryLabel = origin === 'viewer' ? 'Ir al editor' : 'Ver en modo Presentación';
   const footerSecondaryAction = origin === 'viewer' ? onGoToEditor : onGoToViewer;
   const footerNote =
     origin === 'viewer'
-      ? 'Desde aqui puedes exportar esta version o volver al editor para seguir ajustandola.'
-      : 'Puedes revisar la salida en el viewer antes de compartir o exportar esta version.';
+      ? 'Desde aquí puedes exportar esta versión o volver al editor para seguir ajustándola.'
+      : 'Puedes revisar la salida en el viewer antes de compartir o exportar esta versión.';
 
   const runAction =
     (handler: () => Promise<void> | void, availability: PublishActionAvailability) =>
@@ -100,6 +85,13 @@ export function PublishModal({
       void handler();
       if (availability === 'placeholder') return;
     };
+
+  const isBusy = Boolean(
+    actions.json.isRunning ||
+      actions.pdf.isRunning ||
+      actions.openWeb.isRunning ||
+      actions.copyLink.isRunning,
+  );
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -109,15 +101,15 @@ export function PublishModal({
         aria-modal="true"
         aria-labelledby="publish-modal-title"
         aria-describedby="publish-modal-description"
-        aria-busy={actions.json.isRunning || actions.pdf.isRunning || actions.openWeb.isRunning || actions.copyLink.isRunning}
+        aria-busy={isBusy}
         onClick={(event) => event.stopPropagation()}
       >
         <header className={styles.header}>
           <h2 className={styles.title} id="publish-modal-title">
-            Publicar version
+            Publicar versión
           </h2>
           <p className={styles.subtitle} id="publish-modal-description">
-            Elige explicitamente que salida quieres generar para esta version consolidada.
+            Elige qué salida quieres generar para esta versión consolidada.
           </p>
         </header>
 
@@ -126,71 +118,44 @@ export function PublishModal({
             <div className={styles.sectionHeader}>
               <div>
                 <h3 className={styles.sectionTitle} id="publish-modal-web-title">
-                  Publicacion Web
+                  Publicación Web
                 </h3>
                 <p className={styles.sectionDescription}>
-                  Comparte una version consolidada para visualizacion online.
+                  Comparte una versión consolidada para visualización online.
                 </p>
               </div>
-              <span className={styles.status}>{SECTION_STATUS_LABEL[webSectionStatus]}</span>
             </div>
 
             <div className={styles.grid}>
               <article className={styles.actionCard}>
-                <div className={styles.actionHeader}>
-                  <h4 className={styles.actionTitle}>Abrir en Navegador</h4>
-                  {actions.openWeb.availability === 'placeholder' ? (
-                    <span className={styles.status}>Proximamente</span>
-                  ) : null}
-                </div>
-                <p className={styles.actionDescription}>
-                  Abre la version publicada en una pestana para revisar o compartir.
-                </p>
-                <p className={styles.helper}>
-                  Cualquier persona con el enlace podra ver la version consolidada.
-                </p>
-                <div className={styles.buttonRow}>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    title={ACTION_TOOLTIPS.openWeb}
-                    aria-busy={actions.openWeb.isRunning}
-                    aria-disabled={actions.openWeb.availability === 'placeholder'}
-                    disabled={actions.openWeb.isRunning}
-                    onClick={runAction(onOpenPublishedVersion, actions.openWeb.availability)}
-                  >
-                    {actions.openWeb.isRunning ? 'Abriendo...' : 'Abrir en Navegador'}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="primary"
+                  title={ACTION_TOOLTIPS.openWeb}
+                  aria-busy={actions.openWeb.isRunning}
+                  aria-disabled={actions.openWeb.availability === 'placeholder'}
+                  disabled={actions.openWeb.isRunning}
+                  onClick={runAction(onOpenPublishedVersion, actions.openWeb.availability)}
+                >
+                  {actions.openWeb.isRunning ? 'Abriendo...' : 'Abrir en Navegador'}
+                </Button>
               </article>
 
               <article className={styles.actionCard}>
-                <div className={styles.actionHeader}>
-                  <h4 className={styles.actionTitle}>Copiar Enlace</h4>
-                  {actions.copyLink.availability === 'placeholder' ? (
-                    <span className={styles.status}>Proximamente</span>
-                  ) : null}
-                </div>
-                <p className={styles.actionDescription}>
-                  Copia la URL publica para reutilizarla donde necesites.
-                </p>
-                <p className={styles.helper}>
-                  Usa esta accion cuando la version online ya tenga una direccion disponible.
-                </p>
-                <div className={styles.buttonRow}>
-                    <Button
-                      type="button"
-                      title={ACTION_TOOLTIPS.copyLink}
-                      aria-busy={actions.copyLink.isRunning}
-                      aria-disabled={actions.copyLink.availability === 'placeholder'}
-                      disabled={actions.copyLink.isRunning}
-                      onClick={runAction(onCopyLink, actions.copyLink.availability)}
-                  >
-                    {actions.copyLink.isRunning ? 'Copiando...' : 'Copiar Enlace'}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  title={ACTION_TOOLTIPS.copyLink}
+                  aria-busy={actions.copyLink.isRunning}
+                  aria-disabled={actions.copyLink.availability === 'placeholder'}
+                  disabled={actions.copyLink.isRunning}
+                  onClick={runAction(onCopyLink, actions.copyLink.availability)}
+                >
+                  {actions.copyLink.isRunning ? 'Copiando...' : 'Copiar Enlace'}
+                </Button>
               </article>
             </div>
+
+            <p className={styles.sectionNote}>{SHARED_SECTION_NOTE}</p>
           </section>
 
           <section className={styles.section} aria-labelledby="publish-modal-files-title">
@@ -200,59 +165,37 @@ export function PublishModal({
                   Formatos de Archivo
                 </h3>
                 <p className={styles.sectionDescription}>
-                  Exporta esta version para respaldo, archivo o impresion.
+                  Exporta esta versión para respaldo, archivo o impresión.
                 </p>
               </div>
-              <span className={styles.status}>{SECTION_STATUS_LABEL[fileSectionStatus]}</span>
             </div>
 
             <div className={styles.grid}>
               <article className={styles.actionCard}>
-                <div className={styles.actionHeader}>
-                  <h4 className={styles.actionTitle}>Descargar Respaldo (.json)</h4>
-                </div>
-                <p className={styles.actionDescription}>
-                  Genera el snapshot consolidado y abre el guardado solo despues de tu click.
-                </p>
-                <p className={styles.helper}>{ACTION_TOOLTIPS.json}</p>
-                <div className={styles.buttonRow}>
-                  <Button
-                    ref={initialFocusRef}
-                    type="button"
-                    variant="primary"
-                    title={ACTION_TOOLTIPS.json}
-                    aria-busy={actions.json.isRunning}
-                    disabled={actions.json.isRunning}
-                    onClick={runAction(onDownloadJson, actions.json.availability)}
-                  >
-                    {actions.json.isRunning ? 'Descargando...' : 'Descargar Respaldo (.json)'}
-                  </Button>
-                </div>
+                <Button
+                  ref={initialFocusRef}
+                  type="button"
+                  variant="primary"
+                  title={ACTION_TOOLTIPS.json}
+                  aria-busy={actions.json.isRunning}
+                  disabled={actions.json.isRunning}
+                  onClick={runAction(onDownloadJson, actions.json.availability)}
+                >
+                  {actions.json.isRunning ? 'Descargando...' : 'Descargar Respaldo (.json)'}
+                </Button>
               </article>
 
               <article className={styles.actionCard}>
-                <div className={styles.actionHeader}>
-                  <h4 className={styles.actionTitle}>Generar Documento (.pdf)</h4>
-                  {actions.pdf.availability === 'placeholder' ? (
-                    <span className={styles.status}>Proximamente</span>
-                  ) : null}
-                </div>
-                <p className={styles.actionDescription}>
-                  Prepara una salida estatica para archivar, imprimir o distribuir fuera de la app.
-                </p>
-                <p className={styles.helper}>{ACTION_TOOLTIPS.pdf}</p>
-                <div className={styles.buttonRow}>
-                    <Button
-                      type="button"
-                      title={ACTION_TOOLTIPS.pdf}
-                      aria-busy={actions.pdf.isRunning}
-                      aria-disabled={actions.pdf.availability === 'placeholder'}
-                      disabled={actions.pdf.isRunning}
-                      onClick={runAction(onDownloadPdf, actions.pdf.availability)}
-                  >
-                    {actions.pdf.isRunning ? 'Generando...' : 'Generar Documento (.pdf)'}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  title={ACTION_TOOLTIPS.pdf}
+                  aria-busy={actions.pdf.isRunning}
+                  aria-disabled={actions.pdf.availability === 'placeholder'}
+                  disabled={actions.pdf.isRunning}
+                  onClick={runAction(onDownloadPdf, actions.pdf.availability)}
+                >
+                  {actions.pdf.isRunning ? 'Generando...' : 'Generar Archivo (.pdf)'}
+                </Button>
               </article>
             </div>
           </section>
