@@ -11,6 +11,7 @@ interface StatusBarProps {
   schemaVersion: number;
   quickNavLabel?: string | null;
   onQuickNav?: (() => void) | null;
+  isActiveProjectOnStandby?: boolean;
   isChromeVisible: boolean;
   onToggleChrome: () => void;
 }
@@ -21,6 +22,7 @@ export function StatusBar({
   schemaVersion,
   quickNavLabel,
   onQuickNav,
+  isActiveProjectOnStandby = false,
   isChromeVisible,
   onToggleChrome,
 }: StatusBarProps): JSX.Element {
@@ -36,7 +38,6 @@ export function StatusBar({
     statusClass = styles.error;
     statusText = 'Error al guardar';
   }
-
   const projectDisplayName = hasProject
     ? projectName?.trim().length > 0
       ? projectName
@@ -44,7 +45,9 @@ export function StatusBar({
     : 'No hay proyecto activo';
 
   return (
-    <div className={styles.statusBar}>
+    <div
+      className={`${styles.statusBar} ${isActiveProjectOnStandby ? styles.standby : ''}`.trim()}
+    >
       <div className={styles.leftSection}>
         {hasProject ? (
           <span className={styles.projectLabel}>Proyecto activo:</span>

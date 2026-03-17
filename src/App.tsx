@@ -92,6 +92,7 @@ interface AppLayoutProps {
   children: React.ReactNode;
   projectName: string;
   hasProject: boolean;
+  isActiveProjectOnStandby: boolean;
   isMetaPanelEnabled: boolean;
   canToggleMetaPanel: boolean;
   onNewProject: () => void;
@@ -115,6 +116,7 @@ function AppLayout({
   children,
   projectName,
   hasProject,
+  isActiveProjectOnStandby,
   isMetaPanelEnabled,
   canToggleMetaPanel,
   onNewProject,
@@ -215,6 +217,7 @@ function AppLayout({
       <StatusBar
         projectName={projectName}
         hasProject={hasProject}
+        isActiveProjectOnStandby={isActiveProjectOnStandby}
         schemaVersion={schemaVersion}
         quickNavLabel={quickNav.label}
         onQuickNav={quickNav.action}
@@ -1736,6 +1739,7 @@ export default function App(): JSX.Element | null {
   const projectTheme = projectThemeState;
 
   const hasProject = !!currentProject;
+  const isExternalPublicationOpen = viewerMode === 'publication' && publicationSnapshot !== null;
   const activeViewerSnapshot = viewerMode === 'preview' ? previewSnapshot : publicationSnapshot;
   const activeViewerTheme = useMemo<ViewerTheme>(() => {
     if (viewerMode === 'preview') {
@@ -1762,6 +1766,7 @@ export default function App(): JSX.Element | null {
           <AppLayout
             projectName={projectName}
             hasProject={hasProject}
+            isActiveProjectOnStandby={isExternalPublicationOpen && hasProject}
             isMetaPanelEnabled={isMetaPanelEnabled}
             canToggleMetaPanel={canToggleMetaPanel}
             onNewProject={handleNewProject}
