@@ -109,6 +109,7 @@ export function PublishModal({
         aria-modal="true"
         aria-labelledby="publish-modal-title"
         aria-describedby="publish-modal-description"
+        aria-busy={actions.json.isRunning || actions.pdf.isRunning || actions.openWeb.isRunning || actions.copyLink.isRunning}
         onClick={(event) => event.stopPropagation()}
       >
         <header className={styles.header}>
@@ -153,6 +154,7 @@ export function PublishModal({
                     type="button"
                     variant="primary"
                     title={ACTION_TOOLTIPS.openWeb}
+                    aria-busy={actions.openWeb.isRunning}
                     aria-disabled={actions.openWeb.availability === 'placeholder'}
                     disabled={actions.openWeb.isRunning}
                     onClick={runAction(onOpenPublishedVersion, actions.openWeb.availability)}
@@ -176,12 +178,13 @@ export function PublishModal({
                   Usa esta accion cuando la version online ya tenga una direccion disponible.
                 </p>
                 <div className={styles.buttonRow}>
-                  <Button
-                    type="button"
-                    title={ACTION_TOOLTIPS.copyLink}
-                    aria-disabled={actions.copyLink.availability === 'placeholder'}
-                    disabled={actions.copyLink.isRunning}
-                    onClick={runAction(onCopyLink, actions.copyLink.availability)}
+                    <Button
+                      type="button"
+                      title={ACTION_TOOLTIPS.copyLink}
+                      aria-busy={actions.copyLink.isRunning}
+                      aria-disabled={actions.copyLink.availability === 'placeholder'}
+                      disabled={actions.copyLink.isRunning}
+                      onClick={runAction(onCopyLink, actions.copyLink.availability)}
                   >
                     {actions.copyLink.isRunning ? 'Copiando...' : 'Copiar Enlace'}
                   </Button>
@@ -218,6 +221,7 @@ export function PublishModal({
                     type="button"
                     variant="primary"
                     title={ACTION_TOOLTIPS.json}
+                    aria-busy={actions.json.isRunning}
                     disabled={actions.json.isRunning}
                     onClick={runAction(onDownloadJson, actions.json.availability)}
                   >
@@ -238,12 +242,13 @@ export function PublishModal({
                 </p>
                 <p className={styles.helper}>{ACTION_TOOLTIPS.pdf}</p>
                 <div className={styles.buttonRow}>
-                  <Button
-                    type="button"
-                    title={ACTION_TOOLTIPS.pdf}
-                    aria-disabled={actions.pdf.availability === 'placeholder'}
-                    disabled={actions.pdf.isRunning}
-                    onClick={runAction(onDownloadPdf, actions.pdf.availability)}
+                    <Button
+                      type="button"
+                      title={ACTION_TOOLTIPS.pdf}
+                      aria-busy={actions.pdf.isRunning}
+                      aria-disabled={actions.pdf.availability === 'placeholder'}
+                      disabled={actions.pdf.isRunning}
+                      onClick={runAction(onDownloadPdf, actions.pdf.availability)}
                   >
                     {actions.pdf.isRunning ? 'Generando...' : 'Generar Documento (.pdf)'}
                   </Button>
