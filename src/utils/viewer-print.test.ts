@@ -119,6 +119,153 @@ const createViewerRenderModelFixture = (): ViewerRenderModel => ({
   },
 });
 
+const sortTilesRowMajor = <Tile extends { row: number; col: number; pageNumber: number }>(tiles: Tile[]): Tile[] =>
+  [...tiles].sort((left, right) => {
+    if (left.row !== right.row) return left.row - right.row;
+    if (left.col !== right.col) return left.col - right.col;
+    return left.pageNumber - right.pageNumber;
+  });
+
+const resolveViewerPrintPipelineScenario = (input: {
+  settings?: Partial<ReturnType<typeof createDefaultViewerPrintSettings>>;
+  baseContentWidthPx: number;
+  baseContentHeightPx: number;
+  measuredPxPerMm?: { pxPerMmX: number; pxPerMmY: number };
+}) => {
+  const settings = normalizeViewerPrintSettings({
+    ...createDefaultViewerPrintSettings(),
+    ...input.settings,
+  });
+  const pageMetrics = resolveViewerPageMetrics(settings);
+  const printableLayoutModel = resolveViewerPrintableLayoutModel(settings);
+  const previewMetrics = resolveViewerPreviewPageMetrics(pageMetrics, input.measuredPxPerMm ?? { pxPerMmX: 4, pxPerMmY: 4 });
+  const editorialHeights = resolveViewerPageEditorialHeights({
+    showDocumentTitle: settings.showDocumentTitle,
+    documentTitleOverride: settings.documentTitleOverride,
+    pageLayoutMode: settings.pageLayoutMode,
+    showHeader: settings.showHeader,
+    headerText: settings.headerText,
+    showFooter: settings.showFooter,
+    footerText: settings.footerText,
+    showPageNumbers: settings.showPageNumbers,
+    projectName: 'Pipeline Test',
+    contentHeightMm: pageMetrics.contentHeightMm,
+    pxPerMmY: (input.measuredPxPerMm ?? { pxPerMmX: 4, pxPerMmY: 4 }).pxPerMmY,
+  });
+  const effectiveScale = resolveViewerEffectivePrintScale({
+    fitToWidth: settings.fitToWidth,
+    manualScale: settings.scale,
+    baseContentWidthPx: input.baseContentWidthPx,
+    previewContentWidthPx: previewMetrics.contentWidthPx,
+  });
+  const contentPlacementMetrics = resolveViewerContentPlacementMetrics({
+    baseContentWidthPx: input.baseContentWidthPx,
+    baseContentHeightPx: input.baseContentHeightPx,
+    previewContentWidthPx: previewMetrics.contentWidthPx,
+    previewContentHeightPx: previewMetrics.contentHeightPx,
+    scale: effectiveScale,
+  });
+  const gridMetrics = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: contentPlacementMetrics.scaledContentWidthPx,
+    scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
+    usablePageWidthPx: previewMetrics.contentWidthPx,
+    usablePageHeightPx: previewMetrics.contentHeightPx,
+    firstPageUsableHeightPx: editorialHeights.firstPageUsableHeightPx,
+    continuationPageUsableHeightPx: editorialHeights.continuationPageUsableHeightPx,
+  });
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid(gridMetrics);
+
+  return {
+    settings,
+    pageMetrics,
+    printableLayoutModel,
+    previewMetrics,
+    editorialHeights,
+    effectiveScale,
+    contentPlacementMetrics,
+    gridMetrics,
+    printedPages,
+  };
+};
+
+const assertViewerPaginationInvariants = (input: {
+  gridMetrics: ReturnType<typeof resolveViewerPaginationGridMetrics>;
+  printedPages: ReturnType<typeof resolveViewerPrintedPagesFromPaginationGrid>;
+  fitToWidth?: boolean;
+}) => {
+  const { gridMetrics, printedPages } = input;
+  const rowMajorTiles = sortTilesRowMajor(gridMetrics.tiles);
+
+  assert.equal(gridMetrics.pageCount, gridMetrics.pagesX * gridMetrics.pagesY);
+  assert.equal(gridMetrics.tiles.length, gridMetrics.pageCount);
+  assert.equal(printedPages.length, gridMetrics.tiles.length);
+  assert.deepEqual(gridMetrics.tiles, rowMajorTiles);
+
+  rowMajorTiles.forEach((tile, index) => {
+    assert.equal(tile.pageNumber, index + 1);
+    assert.ok(tile.offsetX >= 0);
+    assert.ok(tile.offsetY >= 0);
+    assert.ok(tile.sliceWidthPx >= 1);
+    assert.ok(tile.sliceHeightPx >= 1);
+    assert.ok(tile.offsetX + tile.sliceWidthPx <= gridMetrics.scaledContentWidthPx || gridMetrics.scaledContentWidthPx === 0);
+    assert.ok(tile.offsetY + tile.sliceHeightPx <= gridMetrics.scaledContentHeightPx || gridMetrics.scaledContentHeightPx === 0);
+  });
+
+  for (let row = 0; row < gridMetrics.pagesY; row += 1) {
+    const rowTiles = rowMajorTiles.filter((tile) => tile.row === row);
+    assert.equal(rowTiles.length, gridMetrics.pagesX);
+
+    rowTiles.forEach((tile, colIndex) => {
+      assert.equal(tile.col, colIndex);
+      assert.equal(tile.offsetY, rowTiles[0]?.offsetY ?? 0);
+      assert.equal(tile.sliceHeightPx, rowTiles[0]?.sliceHeightPx ?? 0);
+      if (colIndex > 0) {
+        const previousTile = rowTiles[colIndex - 1]!;
+        assert.ok(tile.offsetX >= previousTile.offsetX + previousTile.sliceWidthPx);
+      }
+    });
+  }
+
+  for (let col = 0; col < gridMetrics.pagesX; col += 1) {
+    const columnTiles = rowMajorTiles.filter((tile) => tile.col === col);
+    assert.equal(columnTiles.length, gridMetrics.pagesY);
+    columnTiles.forEach((tile, rowIndex) => {
+      assert.equal(tile.row, rowIndex);
+      assert.equal(tile.offsetX, columnTiles[0]?.offsetX ?? 0);
+      if (rowIndex > 0) {
+        const previousTile = columnTiles[rowIndex - 1]!;
+        assert.ok(tile.offsetY >= previousTile.offsetY + previousTile.sliceHeightPx);
+      }
+    });
+  }
+
+  assert.deepEqual(
+    printedPages.map((page) => ({
+      pageNumber: page.pageNumber,
+      tileRow: page.tileRow,
+      tileCol: page.tileCol,
+      printOffsetX: page.printOffsetX,
+      printOffsetY: page.printOffsetY,
+      sliceWidthPx: page.sliceWidthPx,
+      sliceHeightPx: page.sliceHeightPx,
+    })),
+    rowMajorTiles.map((tile, index) => ({
+      pageNumber: index + 1,
+      tileRow: tile.row,
+      tileCol: tile.col,
+      printOffsetX: tile.offsetX,
+      printOffsetY: tile.offsetY,
+      sliceWidthPx: tile.sliceWidthPx,
+      sliceHeightPx: tile.sliceHeightPx,
+    })),
+  );
+
+  if (input.fitToWidth) {
+    assert.equal(gridMetrics.pagesX, 1);
+    assert.equal(gridMetrics.hasHorizontalPagination, false);
+  }
+};
+
 test('viewer print settings defaults are stable', () => {
   assert.deepEqual(createDefaultViewerPrintSettings(), {
     paperSize: 'A3',
@@ -318,6 +465,104 @@ test('viewer printable layout model maps page and scale for preview/print parity
   assert.equal(model.contentWidthMm, 404);
   assert.equal(model.contentHeightMm, 281);
   assert.equal(model.contentScale, 1.25);
+});
+
+test('viewer print pipeline keeps preview and print contracts aligned across a critical settings matrix', () => {
+  const cases = [
+    {
+      name: 'A3 portrait normal 1x1',
+      settings: {},
+      baseContentWidthPx: 600,
+      baseContentHeightPx: 500,
+      expectedPagesX: 1,
+      expectedPagesY: 1,
+    },
+    {
+      name: 'carta portrait narrow Mx1',
+      settings: {
+        paperSize: 'carta' as const,
+        margins: 'narrow' as const,
+        scale: 1.5,
+      },
+      baseContentWidthPx: 1400,
+      baseContentHeightPx: 320,
+      expectedPagesX: 3,
+      expectedPagesY: 1,
+    },
+    {
+      name: 'oficio landscape wide 1xN',
+      settings: {
+        paperSize: 'oficio' as const,
+        orientation: 'landscape' as const,
+        margins: 'wide' as const,
+        scale: 1.25,
+        showDocumentTitle: true,
+        showHeader: true,
+        headerText: 'Header',
+        showFooter: true,
+        footerText: 'Footer',
+        showPageNumbers: true,
+      },
+      baseContentWidthPx: 500,
+      baseContentHeightPx: 1800,
+      expectedPagesX: 1,
+      expectedPagesY: 4,
+    },
+    {
+      name: 'A2 landscape normal MxN',
+      settings: {
+        paperSize: 'A2' as const,
+        orientation: 'landscape' as const,
+        scale: 1.35,
+      },
+      baseContentWidthPx: 2200,
+      baseContentHeightPx: 2200,
+      expectedPagesX: 2,
+      expectedPagesY: 2,
+    },
+    {
+      name: 'A3 portrait wide fit-to-width 1xN',
+      settings: {
+        margins: 'wide' as const,
+        scale: 1.5,
+        fitToWidth: true,
+        showDocumentTitle: true,
+        showPageNumbers: true,
+      },
+      baseContentWidthPx: 1600,
+      baseContentHeightPx: 2400,
+      expectedPagesX: 1,
+      expectedPagesY: 2,
+      fitToWidth: true,
+    },
+  ];
+
+  for (const testCase of cases) {
+    const scenario = resolveViewerPrintPipelineScenario({
+      settings: testCase.settings,
+      baseContentWidthPx: testCase.baseContentWidthPx,
+      baseContentHeightPx: testCase.baseContentHeightPx,
+    });
+
+    assert.deepEqual(scenario.printableLayoutModel, scenario.pageMetrics, testCase.name);
+    assert.equal(scenario.gridMetrics.pagesX, testCase.expectedPagesX, testCase.name);
+    assert.equal(scenario.gridMetrics.pagesY, testCase.expectedPagesY, testCase.name);
+    assert.equal(
+      scenario.gridMetrics.scaledContentWidthPx,
+      scenario.contentPlacementMetrics.scaledContentWidthPx,
+      testCase.name,
+    );
+    assert.equal(
+      scenario.gridMetrics.scaledContentHeightPx,
+      scenario.contentPlacementMetrics.scaledContentHeightPx,
+      testCase.name,
+    );
+    assertViewerPaginationInvariants({
+      gridMetrics: scenario.gridMetrics,
+      printedPages: scenario.printedPages,
+      fitToWidth: testCase.fitToWidth,
+    });
+  }
 });
 
 test('viewer preview metrics derive px geometry from runtime measurement', () => {
@@ -1047,6 +1292,75 @@ test('viewer fit-to-width keeps a single horizontal page while preserving vertic
   assert.ok(metrics.tiles.every((tile) => tile.col === 0));
 });
 
+test('viewer pagination grid keeps first-page and continuation heights stable across scale changes', () => {
+  const renderModel = {
+    ...createViewerRenderModelFixture(),
+    gridRows: 4,
+    height: 1600,
+    rowHeights: [360, 360, 360, 360],
+    rowOffsets: [0, 400, 800, 1200],
+  };
+  const settings = normalizeViewerPrintSettings({
+    ...createDefaultViewerPrintSettings(),
+    showDocumentTitle: true,
+    documentTitleOverride: 'Documento',
+    showHeader: true,
+    headerText: 'Header',
+    showFooter: true,
+    footerText: 'Footer',
+    showPageNumbers: true,
+  });
+  const pageMetrics = resolveViewerPageMetrics(settings);
+  const previewMetrics = resolveViewerPreviewPageMetrics(pageMetrics, { pxPerMmX: 3, pxPerMmY: 3 });
+  const scales = [1, 1.35, 1.5];
+
+  for (const scale of scales) {
+    const editorialHeights = resolveViewerPageEditorialHeights({
+      showDocumentTitle: settings.showDocumentTitle,
+      documentTitleOverride: settings.documentTitleOverride,
+      pageLayoutMode: settings.pageLayoutMode,
+      showHeader: settings.showHeader,
+      headerText: settings.headerText,
+      showFooter: settings.showFooter,
+      footerText: settings.footerText,
+      showPageNumbers: settings.showPageNumbers,
+      projectName: renderModel.projectName,
+      contentHeightMm: pageMetrics.contentHeightMm,
+      pxPerMmY: 4,
+    });
+    const placement = resolveViewerContentPlacementMetrics({
+      baseContentWidthPx: renderModel.width,
+      baseContentHeightPx: renderModel.height,
+      previewContentWidthPx: previewMetrics.contentWidthPx,
+      previewContentHeightPx: previewMetrics.contentHeightPx,
+      scale,
+    });
+    const grid = resolveViewerPaginationGridMetrics({
+      scaledContentWidthPx: placement.scaledContentWidthPx,
+      scaledContentHeightPx: placement.scaledContentHeightPx,
+      usablePageWidthPx: previewMetrics.contentWidthPx,
+      usablePageHeightPx: previewMetrics.contentHeightPx,
+      firstPageUsableHeightPx: editorialHeights.firstPageUsableHeightPx,
+      continuationPageUsableHeightPx: editorialHeights.continuationPageUsableHeightPx,
+      cutGuides: resolveViewerGridCutGuides({ renderModel, scale }),
+      axisXColumnSegments: resolveViewerAxisXColumnSegments({ renderModel, scale }),
+      axisYLineSegments: resolveViewerAxisYLineSegments({ renderModel, scale }),
+      refinementPolicy: {
+        refineAxisX: true,
+        refineAxisY: true,
+      },
+    });
+
+    assert.equal(grid.pagesX, 1);
+    assert.ok(grid.pagesY >= 2);
+    assert.equal(grid.usablePageHeightsPxByRow[0], editorialHeights.firstPageUsableHeightPx);
+    assert.equal(grid.usablePageHeightsPxByRow[1], editorialHeights.continuationPageUsableHeightPx);
+    assert.ok(grid.tiles[0]!.sliceHeightPx <= editorialHeights.firstPageUsableHeightPx);
+    assert.ok(grid.tiles[1]!.sliceHeightPx <= editorialHeights.continuationPageUsableHeightPx);
+    assert.ok(grid.tiles[1]!.offsetY >= grid.tiles[0]!.offsetY + grid.tiles[0]!.sliceHeightPx);
+  }
+});
+
 test('viewer pagination grid handles exact edges and degenerate sizes safely', () => {
   const exact = resolveViewerPaginationGridMetrics({
     scaledContentWidthPx: 1800,
@@ -1113,6 +1427,46 @@ test('viewer printed pages preserve 1x1 tile-to-page mapping', () => {
       isLastRow: true,
     },
   ]);
+});
+
+test('viewer printed pages preserve grid invariants for real 2d layouts', () => {
+  const grid = resolveViewerPaginationGridMetrics({
+    scaledContentWidthPx: 1250,
+    scaledContentHeightPx: 1250,
+    usablePageWidthPx: 600,
+    usablePageHeightPx: 600,
+    firstPageUsableHeightPx: 320,
+    continuationPageUsableHeightPx: 530,
+    cutGuides: {
+      cutGuidesX: [0, 540, 1080, 1250],
+      cutGuidesY: [0, 320, 720, 1250],
+    },
+    axisXColumnSegments: [
+      { colIndex: 0, startPx: 0, endPx: 280, widthPx: 280, source: 'grid' },
+      { colIndex: 1, startPx: 300, endPx: 540, widthPx: 240, source: 'grid' },
+      { colIndex: 2, startPx: 560, endPx: 860, widthPx: 300, source: 'grid' },
+      { colIndex: 3, startPx: 880, endPx: 1080, widthPx: 200, source: 'grid' },
+      { colIndex: 4, startPx: 1100, endPx: 1250, widthPx: 150, source: 'grid' },
+    ],
+    axisYLineSegments: [
+      { rowIndex: 0, startPx: 0, endPx: 320, heightPx: 320 },
+      { rowIndex: 1, startPx: 340, endPx: 720, heightPx: 380 },
+      { rowIndex: 2, startPx: 740, endPx: 1180, heightPx: 440 },
+      { rowIndex: 3, startPx: 1200, endPx: 1250, heightPx: 50 },
+    ],
+    refinementPolicy: {
+      refineAxisX: true,
+      refineAxisY: true,
+    },
+  });
+  const printedPages = resolveViewerPrintedPagesFromPaginationGrid(grid);
+
+  assertViewerPaginationInvariants({ gridMetrics: grid, printedPages });
+  assert.equal(printedPages.length, 9);
+  assert.equal(printedPages[0]!.usablePageHeightPx, 320);
+  assert.equal(printedPages[3]!.usablePageHeightPx, 530);
+  assert.equal(printedPages[8]!.isLastColumn, true);
+  assert.equal(printedPages[8]!.isLastRow, true);
 });
 
 test('viewer printed pages linearize 1xN tiles in stable row-major order', () => {
