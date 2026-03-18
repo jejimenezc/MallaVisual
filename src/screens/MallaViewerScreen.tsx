@@ -602,6 +602,159 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   }, [renderModel]);
 
+  const renderPrintSliceContent = useCallback(
+    (sliceLayout: ReturnType<typeof resolveViewerPageSliceLayout>) => {
+      if (!renderModel) return null;
+      const scale = Math.max(contentPlacementMetrics.scale, 0.0001);
+      const sliceLeftPx = sliceLayout.offsetX;
+      const sliceTopPx = sliceLayout.offsetY;
+      const sliceRightPx = sliceLayout.offsetX + sliceLayout.viewportWidthPx;
+      const sliceBottomPx = sliceLayout.offsetY + sliceLayout.viewportHeightPx;
+      const localWidthPx = sliceLayout.viewportWidthPx;
+      const localHeightPx = sliceLayout.viewportHeightPx;
+
+      const visibleBandRows = renderModel.bandsRenderRows
+        .filter((row) => {
+          const rowTopPx = row.top * scale;
+          const rowHeightPx = row.height * scale;
+          return rowTopPx + rowHeightPx > sliceTopPx && rowTopPx < sliceBottomPx;
+        })
+        .map((row) => ({
+          ...row,
+          top: row.top * scale - sliceTopPx,
+          height: row.height * scale,
+          cells: row.cells
+            .filter((cell) => {
+              const cellLeftPx = cell.left * scale;
+              const cellWidthPx = cell.width * scale;
+              return cellLeftPx + cellWidthPx > sliceLeftPx && cellLeftPx < sliceRightPx;
+            })
+            .map((cell) => ({
+              ...cell,
+              left: cell.left * scale - sliceLeftPx,
+              width: cell.width * scale,
+            })),
+        }));
+
+      const visibleItems = renderModel.items
+        .filter(
+          (item) =>
+            item.left * scale + item.width * scale > sliceLeftPx &&
+            item.left * scale < sliceRightPx &&
+            item.top * scale + item.height * scale > sliceTopPx &&
+            item.top * scale < sliceBottomPx,
+        )
+        .map((item) => ({
+          ...item,
+          left: item.left * scale - sliceLeftPx,
+          top: item.top * scale - sliceTopPx,
+          width: item.width * scale,
+          height: item.height * scale,
+          cellWidth: item.cellWidth * scale,
+          cellHeight: item.cellHeight * scale,
+          gridStyle: {
+            width: item.cols * item.cellWidth * scale + Math.max(0, item.cols - 1) * 2 * scale,
+            height: item.rows * item.cellHeight * scale + Math.max(0, item.rows - 1) * 2 * scale,
+            gridTemplateColumns: `repeat(${item.cols}, ${item.cellWidth * scale}px)`,
+            gridTemplateRows: `repeat(${item.rows}, ${item.cellHeight * scale}px)`,
+            gap: `${2 * scale}px`,
+            padding: `${4 * scale}px`,
+          },
+        }));
+
+      return (
+        <div
+          className={styles.viewerCanvasScaled}
+          style={{
+            width: `${localWidthPx}px`,
+            height: `${localHeightPx}px`,
+            transform: 'none',
+          }}
+        >
+          {visibleBandRows.map((row) => (
+            <div
+              key={`print-band-row-${row.kind}-${row.id}`}
+              className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
+              style={{
+                top: `${row.top}px`,
+                height: `${row.height}px`,
+                width: `${Math.max(localWidthPx, 1)}px`,
+              }}
+            >
+              {row.cells.map((cell, index) => (
+                <div
+                  key={`print-band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
+                  className={styles.viewerBandCell}
+                  style={{
+                    left: `${cell.left}px`,
+                    width: `${cell.width}px`,
+                    height: `${row.height}px`,
+                    backgroundColor: cell.style.backgroundColor,
+                    color: cell.style.textColor,
+                    border: borderStyleFromSnapshot(cell.style.border),
+                    textAlign: resolveBandCellTextAlign(cell.style.textAlign),
+                    fontSize: `${cell.style.fontSizePx * scale}px`,
+                    padding: `${cell.style.paddingY * scale}px ${cell.style.paddingX * scale}px`,
+                    fontWeight: cell.bold || cell.style.bold ? 700 : 400,
+                    fontStyle: cell.style.italic ? 'italic' : 'normal',
+                  }}
+                >
+                  {cell.label ? (
+                    <div className={styles.viewerBandCellMetric}>
+                      <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
+                      <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
+                    </div>
+                  ) : (
+                    <span>{cell.text}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+          {visibleItems.map((item) => (
+            <article
+              key={`print-item-${item.id}`}
+              className={styles.viewerPiece}
+              style={{
+                left: `${item.left}px`,
+                top: `${item.top}px`,
+                width: `${item.width}px`,
+                height: `${item.height}px`,
+                borderWidth: `${renderModel.theme.blockBorderWidth * scale}px`,
+                borderRadius: `${renderModel.theme.blockBorderRadius * scale}px`,
+              }}
+            >
+              <div className={styles.viewerPieceGrid} style={item.gridStyle}>
+                {item.cells.map((cell) => (
+                  <div
+                    key={`print-${item.id}-${cell.row}-${cell.col}`}
+                    className={styles.viewerCell}
+                    style={{
+                      gridRow: `${cell.row + 1} / ${cell.row + cell.rowSpan + 1}`,
+                      gridColumn: `${cell.col + 1} / ${cell.col + cell.colSpan + 1}`,
+                      backgroundColor: cell.style.backgroundColor,
+                      color: cell.style.textColor,
+                      border: borderStyleFromSnapshot(cell.style.border),
+                      textAlign: cell.style.textAlign,
+                      fontSize: `${cell.style.fontSizePx * scale}px`,
+                      padding: `${cell.style.paddingY * scale}px ${cell.style.paddingX * scale}px`,
+                      fontWeight: cell.style.bold ? 700 : 400,
+                      fontStyle: cell.style.italic ? 'italic' : 'normal',
+                    }}
+                    title={cell.text}
+                  >
+                    <span>{cellTextFromType(cell.text, cell.type, cell.checked)}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      );
+    },
+    [contentPlacementMetrics.scale, renderModel],
+  );
+
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
@@ -684,18 +837,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 height: `${input.sliceLayout.viewportHeightPx}px`,
               }}
             >
-              <div
-                className={styles.viewerCanvasSliceTrack}
-                style={{
-                  width: `${input.sliceLayout.surfaceWidthPx}px`,
-                  height: `${input.sliceLayout.surfaceHeightPx}px`,
-                  transform: `translate(-${input.sliceLayout.offsetX}px, -${input.sliceLayout.offsetY}px)`,
-                }}
-              >
-                <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                  {canvasContent}
+              {input.variant === 'preview' ? (
+                <div
+                  className={styles.viewerCanvasSliceTrack}
+                  style={{
+                    width: `${input.sliceLayout.surfaceWidthPx}px`,
+                    height: `${input.sliceLayout.surfaceHeightPx}px`,
+                    transform: `translate(-${input.sliceLayout.offsetX}px, -${input.sliceLayout.offsetY}px)`,
+                  }}
+                >
+                  <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                    {canvasContent}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                renderPrintSliceContent(input.sliceLayout)
+              )}
             </div>
             {input.editorialLayout.footerText || input.editorialLayout.pageNumberText ? (
               <div className={styles.viewerPageFooterBlock}>

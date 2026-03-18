@@ -1,6 +1,6 @@
 # Print Engine Validation
 
-Este documento registra las pruebas manuales clave del pipeline de impresión.
+Este documento registra las pruebas manuales clave del pipeline de impresion.
 
 Objetivo:
 - Validar estabilidad del layout
@@ -9,17 +9,17 @@ Objetivo:
 
 ---
 
-## 🔧 Entorno de prueba
+## Entorno de prueba
 
-- Navegador: Chrome / Edge (especificar versión si es relevante)
+- Navegador: Chrome / Edge
 - Sistema: (opcional)
-- Fecha última actualización: YYYY-MM-DD
+- Fecha ultima actualizacion: 2026-03-18
 
 ---
 
-## 📦 Fixtures utilizados
+## Fixtures utilizados
 
-| Nombre | Descripción | Archivo |
+| Nombre | Descripcion | Archivo |
 |------|--------|--------|
 | small | malla simple 1x1 | /docs/testing/fixtures/small.json |
 | vertical-large | muchas filas | /docs/testing/fixtures/large-vertical.json |
@@ -28,7 +28,7 @@ Objetivo:
 
 ---
 
-## 📄 Artefactos generados
+## Artefactos generados
 
 | Caso | PDF |
 |------|-----|
@@ -39,9 +39,9 @@ Objetivo:
 
 ---
 
-## ✅ Casos de validación
+## Casos de validacion
 
-### Caso 1 — 1x1 (base)
+### Caso 1 - 1x1 (base)
 - Config:
   - carta
   - portrait
@@ -49,7 +49,7 @@ Objetivo:
   - scale: 1
 
 **Esperado:**
-- 1 página
+- 1 pagina
 - sin cortes
 - sin espacios en blanco
 
@@ -62,14 +62,14 @@ Notas:
 
 ---
 
-### Caso 2 — overflow vertical (axisY)
+### Caso 2 - overflow vertical (axisY)
 - Config:
   - carta
   - portrait
   - margins: normal
 
 **Esperado:**
-- múltiples páginas
+- multiples paginas
 - cortes entre filas (row/band pagination)
 - sin solapamiento
 
@@ -78,19 +78,19 @@ Notas:
 - [ ] FAIL
 
 Notas:
-- Primera página contiene 4 filas de bloques y las demás páginas solo contienen 3 filas de bloques
-- El corte natural de las líneas de bloque no incluye la sombra de los bloques de la última fila, por lo que esta sombra se imprime en la página siguiente.
+- Primera pagina contiene 4 filas de bloques y las demas paginas solo contienen 3 filas de bloques.
+- El corte natural de las lineas de bloque no incluye la sombra de los bloques de la ultima fila, por lo que esta sombra se imprime en la pagina siguiente.
 
 ---
 
-### Caso 3 — overflow horizontal (axisX)
+### Caso 3 - overflow horizontal (axisX)
 - Config:
   - carta
   - landscape
   - margins: normal
 
 **Esperado:**
-- múltiples páginas
+- multiples paginas
 - cortes en axisX
 - continuidad horizontal correcta
 
@@ -99,14 +99,14 @@ Notas:
 - [ ] FAIL
 
 Notas:
-- Múltiples páginas, corte y continuidad horizontal son correctos.
-- Se observan 5 páginas, tal como en el preview.
-- No hay repeticiones
-- Importante: se observa un cambio anómalo en la escala de la malla impresa (PDF), lo que supone una pérdida significativa de sincronización preview/PDF. La escala en la versión impresa corresponde a una reducción de 30% aprox. respecto del preview.
+- Multiples paginas, corte y continuidad horizontal son correctos.
+- El renderer local de impresion elimina el reescalamiento detectado previamente en PDF.
+- Validados correctamente los casos 6x3, 7x3, 7x4 y 7x5.
+- Los casos control 3x3 y 5x3 siguen correctos, sin degradacion del preview ni del PDF.
 
 ---
 
-### Caso 4 — grid 2D (axisX + axisY)
+### Caso 4 - grid 2D (axisX + axisY)
 - Config:
   - carta
   - landscape
@@ -115,19 +115,20 @@ Notas:
 **Esperado:**
 - pagesX > 1
 - pagesY > 1
-- recorrido consistente de páginas
-- sin páginas en blanco
+- recorrido consistente de paginas
+- sin paginas en blanco
 
 **Resultado:**
 - [x] OK
 - [ ] FAIL
 
 Notas:
-- ...
+- Grid 20x20 validado correctamente con el renderer local de impresion.
+- Grid 20x20 con scale 0.75 validado correctamente, sin desincronizacion entre preview y PDF.
 
 ---
 
-### Caso 5 — fit-to-width
+### Caso 5 - fit-to-width
 - Config:
   - carta
   - landscape
@@ -143,21 +144,22 @@ Notas:
 - [ ] FAIL
 
 Notas:
-- fit-to-width se comporta correctamente con grillas small, vertical y 2d
-- fit-to-width también ajusta a una única página la grilla large-horizontal, pero este caso reproduce el déficit de escala en PDF, ya observado en la desincronización Print preview vs PDF para el mismo caso de la malla large-horizontal
+- fit-to-width se comporta correctamente con grillas small, vertical y 2d.
+- 20x20 en fit-to-width, antes problematico, ahora sincroniza correctamente preview y PDF.
+- El control de escala en Print Settings se mantiene alineado con el renderer local de impresion.
 
 ---
 
-### Caso 6 — política editorial
+### Caso 6 - politica editorial
 - Config:
-  - título: ON
+  - titulo: ON
   - header/footer: ON
   - layout: first-page-only
 
 **Esperado:**
-- título solo en primera página
-- header/footer según política
-- numeración correcta
+- titulo solo en primera pagina
+- header/footer segun politica
+- numeracion correcta
 
 **Resultado:**
 - [x] OK
@@ -168,35 +170,36 @@ Notas:
 
 ---
 
-## 🧪 Invariantes verificadas
+## Invariantes verificadas
 
 - [x] pageCount = pagesX * pagesY
-- [x] no páginas en blanco
+- [x] no paginas en blanco
 - [x] tiles no solapados
-- [x] continuidad visual entre páginas
-- [x] preview consistente con PDF (razonablemente)
+- [x] continuidad visual entre paginas
+- [x] preview consistente con PDF
 
 ---
 
-## ⚠️ Issues conocidos
+## Issues conocidos
 
-| ID | Descripción | Estado |
+| ID | Descripcion | Estado |
 |----|------------|--------|
-| #1 | diferencia en escala de PDF respecto de preview, solo en malla large-horizontal, en cualquier fixture de página y orientación | abierto |
+| #1 | diferencia en escala de PDF respecto de preview, solo en malla large-horizontal, en cualquier fixture de pagina y orientacion | resuelto |
 
 ---
 
-## 🧭 Historial
+## Historial
 
-### 2026-03-18 — PR11
-- estabilización de impresión
+### 2026-03-18 - PR11
+- estabilizacion de impresion
 - mejoras en tests
-- fixes menores
+- renderer local de impresion para PDF
+- validacion extra de 20x20 con fit-to-width y scale 0.75
 
 Resultado general:
-- [ ] OK
-- [x] OK con observaciones
+- [x] OK
+- [ ] OK con observaciones
 - [ ] FAIL
 
 Notas:
-- ...
+- El renderer local de impresion corrige la desincronizacion Preview/PDF sin degradar los casos control 3x3 y 5x3.
