@@ -63,7 +63,14 @@ import {
   normalizeViewerTheme,
 } from './utils/viewer-theme.ts';
 import type { ViewerTheme } from './types/viewer-theme.ts';
-import type { ViewerPanelMode } from './utils/viewer-print.ts';
+import {
+  createDefaultViewerPrintSettings,
+  type ViewerPanelMode,
+} from './utils/viewer-print.ts';
+import {
+  downloadViewerStandaloneHtml,
+  openViewerPdfExport,
+} from './utils/viewer-export.ts';
 import {
   type BlockState,
   type ControlDataClearRequest,
@@ -886,16 +893,51 @@ export default function App(): JSX.Element | null {
   }, [createPublicationSnapshot, downloadPublication, pushToast, resolvePreviewAppearance]);
 
   const handleGeneratePublicationPdf = useCallback(() => {
-    pushToast('La exportación PDF aún no está disponible', 'info');
-  }, [pushToast]);
+    setRunningPublishAction('pdf');
+    const appearance = resolvePreviewAppearance();
+    const snapshot = createPublicationSnapshot(appearance);
+    if (!snapshot) {
+      pushToast('No se pudo generar la publicacion', 'error');
+      setRunningPublishAction(null);
+      return;
+    }
 
-  const handleOpenPublishedVersion = useCallback(() => {
-    pushToast('La publicación web aún no está disponible', 'info');
-  }, [pushToast]);
+    setPublicationSnapshot(snapshot);
+    openViewerPdfExport({
+      snapshot,
+      theme: appearance,
+      printSettings: createDefaultViewerPrintSettings(),
+      flags: {
+        includeEditorial: true,
+        includeOverlay: false,
+      },
+    });
+    pushToast('Se abrio el flujo de exportacion PDF. Usa "Guardar como PDF" en el dialogo si lo necesitas.', 'info');
+    setRunningPublishAction(null);
+  }, [createPublicationSnapshot, pushToast, resolvePreviewAppearance]);
 
-  const handleCopyPublicationLink = useCallback(() => {
-    pushToast('La publicación web aún no está disponible', 'info');
-  }, [pushToast]);
+  const handleDownloadPublicationHtml = useCallback(() => {
+    setRunningPublishAction('html');
+    const appearance = resolvePreviewAppearance();
+    const snapshot = createPublicationSnapshot(appearance);
+    if (!snapshot) {
+      pushToast('No se pudo generar la publicacion', 'error');
+      setRunningPublishAction(null);
+      return;
+    }
+
+    setPublicationSnapshot(snapshot);
+    downloadViewerStandaloneHtml({
+      snapshot,
+      theme: appearance,
+      flags: {
+        includeEditorial: true,
+        includeOverlay: false,
+      },
+    });
+    pushToast('Viewer standalone exportado', 'success');
+    setRunningPublishAction(null);
+  }, [createPublicationSnapshot, pushToast, resolvePreviewAppearance]);
 
   const handleImportPublicationFile = useCallback(
     async (file: File) => {
@@ -1932,23 +1974,18 @@ export default function App(): JSX.Element | null {
                   isRunning: runningPublishAction === 'json',
                 },
                 pdf: {
-                  availability: 'placeholder',
+                  availability: 'ready',
                   isRunning: runningPublishAction === 'pdf',
                 },
-                openWeb: {
-                  availability: 'placeholder',
-                  isRunning: runningPublishAction === 'openWeb',
-                },
-                copyLink: {
-                  availability: 'placeholder',
-                  isRunning: runningPublishAction === 'copyLink',
+                html: {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'html',
                 },
               }}
               onClose={closePublishModal}
               onDownloadJson={handleDownloadPublicationJson}
               onDownloadPdf={handleGeneratePublicationPdf}
-              onOpenPublishedVersion={handleOpenPublishedVersion}
-              onCopyLink={handleCopyPublicationLink}
+              onDownloadHtml={handleDownloadPublicationHtml}
               onGoToEditor={handleGoToEditorFromPublishModal}
               onGoToViewer={handleGoToViewerFromPublishModal}
             />

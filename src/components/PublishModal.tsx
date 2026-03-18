@@ -5,7 +5,7 @@ import styles from './PublishModal.module.css';
 
 export type PublishOrigin = 'editor' | 'viewer';
 export type PublishActionAvailability = 'ready' | 'placeholder';
-export type PublishActionKey = 'json' | 'pdf' | 'openWeb' | 'copyLink';
+export type PublishActionKey = 'json' | 'pdf' | 'html';
 
 interface PublishActionConfig {
   availability: PublishActionAvailability;
@@ -15,8 +15,7 @@ interface PublishActionConfig {
 interface PublishActions {
   json: PublishActionConfig;
   pdf: PublishActionConfig;
-  openWeb: PublishActionConfig;
-  copyLink: PublishActionConfig;
+  html: PublishActionConfig;
 }
 
 interface Props {
@@ -26,20 +25,16 @@ interface Props {
   onClose: () => void;
   onDownloadJson: () => Promise<void> | void;
   onDownloadPdf: () => Promise<void> | void;
-  onOpenPublishedVersion: () => Promise<void> | void;
-  onCopyLink: () => Promise<void> | void;
+  onDownloadHtml: () => Promise<void> | void;
   onGoToEditor: () => void;
   onGoToViewer: () => void;
 }
 
 const ACTION_TOOLTIPS: Record<PublishActionKey, string> = {
-  json: 'Guarda el archivo para volver a editarlo o cargarlo en esta aplicación.',
-  pdf: 'Prepara una salida estática para archivar, imprimir o distribuir fuera de la app.',
-  openWeb: 'Abre la versión publicada en una pestaña para revisar o compartir.',
-  copyLink: 'Copia la URL pública para reutilizarla donde necesites.',
+  json: 'Guarda el archivo para volver a editarlo o cargarlo en esta aplicacion.',
+  pdf: 'Abre el flujo de exportacion PDF usando la salida imprimible de esta version.',
+  html: 'Genera un viewer standalone, limpio y listo para abrir fuera de la app.',
 };
-
-const SHARED_SECTION_NOTE = 'Cualquier persona con el enlace podrá ver la versión consolidada.';
 
 export function PublishModal({
   isOpen,
@@ -48,8 +43,7 @@ export function PublishModal({
   onClose,
   onDownloadJson,
   onDownloadPdf,
-  onOpenPublishedVersion,
-  onCopyLink,
+  onDownloadHtml,
   onGoToEditor,
   onGoToViewer,
 }: Props): JSX.Element | null {
@@ -72,12 +66,12 @@ export function PublishModal({
 
   if (!isOpen) return null;
 
-  const footerSecondaryLabel = origin === 'viewer' ? 'Ir al editor' : 'Ver en modo Presentación';
+  const footerSecondaryLabel = origin === 'viewer' ? 'Ir al editor' : 'Ver en modo Presentacion';
   const footerSecondaryAction = origin === 'viewer' ? onGoToEditor : onGoToViewer;
   const footerNote =
     origin === 'viewer'
-      ? 'Desde aquí puedes exportar esta versión o volver al editor para seguir ajustándola.'
-      : 'Puedes revisar la salida en el viewer antes de compartir o exportar esta versión.';
+      ? 'Desde aqui puedes exportar esta version o volver al editor para seguir ajustandola.'
+      : 'Puedes revisar la salida en el viewer antes de exportarla.';
 
   const runAction =
     (handler: () => Promise<void> | void, availability: PublishActionAvailability) =>
@@ -86,12 +80,7 @@ export function PublishModal({
       if (availability === 'placeholder') return;
     };
 
-  const isBusy = Boolean(
-    actions.json.isRunning ||
-      actions.pdf.isRunning ||
-      actions.openWeb.isRunning ||
-      actions.copyLink.isRunning,
-  );
+  const isBusy = Boolean(actions.json.isRunning || actions.pdf.isRunning || actions.html.isRunning);
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -106,10 +95,10 @@ export function PublishModal({
       >
         <header className={styles.header}>
           <h2 className={styles.title} id="publish-modal-title">
-            Publicar versión
+            Exportar version
           </h2>
           <p className={styles.subtitle} id="publish-modal-description">
-            Elige qué salida quieres generar para esta versión consolidada.
+            Elige que salida quieres generar para esta version consolidada.
           </p>
         </header>
 
@@ -118,10 +107,10 @@ export function PublishModal({
             <div className={styles.sectionHeader}>
               <div>
                 <h3 className={styles.sectionTitle} id="publish-modal-web-title">
-                  Publicación Web
+                  Viewer Standalone
                 </h3>
                 <p className={styles.sectionDescription}>
-                  Comparte una versión consolidada para visualización online.
+                  Exporta una publicacion HTML autonoma, sin shell ni controles del editor.
                 </p>
               </div>
             </div>
@@ -131,31 +120,15 @@ export function PublishModal({
                 <Button
                   type="button"
                   variant="primary"
-                  title={ACTION_TOOLTIPS.openWeb}
-                  aria-busy={actions.openWeb.isRunning}
-                  aria-disabled={actions.openWeb.availability === 'placeholder'}
-                  disabled={actions.openWeb.isRunning}
-                  onClick={runAction(onOpenPublishedVersion, actions.openWeb.availability)}
+                  title={ACTION_TOOLTIPS.html}
+                  aria-busy={actions.html.isRunning}
+                  disabled={actions.html.isRunning}
+                  onClick={runAction(onDownloadHtml, actions.html.availability)}
                 >
-                  {actions.openWeb.isRunning ? 'Abriendo...' : 'Abrir en Navegador'}
-                </Button>
-              </article>
-
-              <article className={styles.actionCard}>
-                <Button
-                  type="button"
-                  title={ACTION_TOOLTIPS.copyLink}
-                  aria-busy={actions.copyLink.isRunning}
-                  aria-disabled={actions.copyLink.availability === 'placeholder'}
-                  disabled={actions.copyLink.isRunning}
-                  onClick={runAction(onCopyLink, actions.copyLink.availability)}
-                >
-                  {actions.copyLink.isRunning ? 'Copiando...' : 'Copiar Enlace'}
+                  {actions.html.isRunning ? 'Generando...' : 'Descargar Viewer (.html)'}
                 </Button>
               </article>
             </div>
-
-            <p className={styles.sectionNote}>{SHARED_SECTION_NOTE}</p>
           </section>
 
           <section className={styles.section} aria-labelledby="publish-modal-files-title">
@@ -165,7 +138,7 @@ export function PublishModal({
                   Formatos de Archivo
                 </h3>
                 <p className={styles.sectionDescription}>
-                  Exporta esta versión para respaldo, archivo o impresión.
+                  Exporta esta version para respaldo, archivo o distribucion fuera de la app.
                 </p>
               </div>
             </div>
@@ -190,11 +163,10 @@ export function PublishModal({
                   type="button"
                   title={ACTION_TOOLTIPS.pdf}
                   aria-busy={actions.pdf.isRunning}
-                  aria-disabled={actions.pdf.availability === 'placeholder'}
                   disabled={actions.pdf.isRunning}
                   onClick={runAction(onDownloadPdf, actions.pdf.availability)}
                 >
-                  {actions.pdf.isRunning ? 'Generando...' : 'Generar Archivo (.pdf)'}
+                  {actions.pdf.isRunning ? 'Preparando...' : 'Exportar PDF'}
                 </Button>
               </article>
             </div>
