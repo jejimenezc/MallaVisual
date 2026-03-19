@@ -59,18 +59,27 @@ import {
   validateAndNormalizeMallaSnapshot,
 } from './utils/malla-snapshot.ts';
 import {
-  createDefaultViewerTheme,
   normalizeViewerTheme,
 } from './utils/viewer-theme.ts';
 import type { ViewerTheme } from './types/viewer-theme.ts';
 import {
-  createDefaultViewerPrintSettings,
+  type ViewerPrintSettings,
   type ViewerPanelMode,
 } from './utils/viewer-print.ts';
 import {
   downloadViewerStandaloneHtml,
   openViewerPdfExport,
 } from './utils/viewer-export.ts';
+import {
+  persistPublicationExportFlags,
+  persistPublicationPrintSettings,
+  persistPublicationTheme,
+  readStoredPublicationExportFlags,
+  readStoredPublicationPrintSettings,
+  readStoredPublicationTheme,
+  type PublicationExportFlags,
+  type PublicationOutputConfig,
+} from './utils/publication-output.ts';
 import {
   type BlockState,
   type ControlDataClearRequest,
@@ -250,7 +259,15 @@ export default function App(): JSX.Element | null {
   const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null);
   const [viewerPanelModePreference, setViewerPanelModePreference] =
     useState<ViewerPanelMode>('preview');
-  const [previewAppearance, setPreviewAppearance] = useState<ViewerTheme | null>(null);
+  const [publicationTheme, setPublicationTheme] = useState<ViewerTheme>(() =>
+    readStoredPublicationTheme(getSafeLocalStorage()),
+  );
+  const [publicationPrintSettings, setPublicationPrintSettings] = useState(() =>
+    readStoredPublicationPrintSettings(getSafeLocalStorage()),
+  );
+  const [publicationExportFlags, setPublicationExportFlags] = useState<PublicationExportFlags>(() =>
+    readStoredPublicationExportFlags(getSafeLocalStorage()),
+  );
   const [publishOrigin, setPublishOrigin] = useState<PublishOrigin | null>(null);
   const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
@@ -466,7 +483,6 @@ export default function App(): JSX.Element | null {
     loadMallaState(null);
     setPublicationSnapshot(null);
     setViewerMode(null);
-    setPreviewAppearance(null);
     setProjectId(null);
     setProjectName('');
     pendingControlDataClearsRef.current = [];
@@ -696,6 +712,18 @@ export default function App(): JSX.Element | null {
   ]);
 
   useEffect(() => {
+    persistPublicationTheme(getSafeLocalStorage(), publicationTheme);
+  }, [publicationTheme]);
+
+  useEffect(() => {
+    persistPublicationPrintSettings(getSafeLocalStorage(), publicationPrintSettings);
+  }, [publicationPrintSettings]);
+
+  useEffect(() => {
+    persistPublicationExportFlags(getSafeLocalStorage(), publicationExportFlags);
+  }, [publicationExportFlags]);
+
+  useEffect(() => {
     passiveAutosaveSignatureRef.current = null;
   }, [projectId]);
 
@@ -777,9 +805,18 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   };
 
-  const resolvePreviewAppearance = useCallback(
-    () => normalizeViewerTheme(previewAppearance ?? createDefaultViewerTheme()),
-    [previewAppearance],
+  const resolvePublicationTheme = useCallback(
+    () => normalizeViewerTheme(publicationTheme),
+    [publicationTheme],
+  );
+
+  const publicationOutputConfig = useMemo<PublicationOutputConfig>(
+    () => ({
+      theme: resolvePublicationTheme(),
+      printSettings: publicationPrintSettings,
+      flags: publicationExportFlags,
+    }),
+    [publicationExportFlags, publicationPrintSettings, resolvePublicationTheme],
   );
 
   const previewSnapshot = useMemo<MallaSnapshot | null>(() => {
@@ -795,7 +832,6 @@ export default function App(): JSX.Element | null {
 
   const handleOpenPreview = useCallback(() => {
     if (!currentProject) return;
-    setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
     setViewerPanelModePreference('preview');
     setViewerMode('preview');
     navigate('/malla/viewer');
@@ -803,7 +839,6 @@ export default function App(): JSX.Element | null {
 
   const handleOpenPrintPreview = useCallback(() => {
     if (!currentProject) return;
-    setPreviewAppearance((prev) => prev ?? createDefaultViewerTheme());
     setViewerPanelModePreference('print-preview');
     setViewerMode('preview');
     navigate('/malla/viewer');
@@ -836,7 +871,7 @@ export default function App(): JSX.Element | null {
   }, []);
 
   const handleGeneratePublication = useCallback(async () => {
-    const appearance = resolvePreviewAppearance();
+    const appearance = publicationOutputConfig.theme;
     const snapshot = createPublicationSnapshot(appearance);
     if (!snapshot) {
       pushToast('No se pudo generar la publicación', 'error');
@@ -863,8 +898,8 @@ export default function App(): JSX.Element | null {
     createPublicationSnapshot,
     downloadPublication,
     navigate,
+    publicationOutputConfig.theme,
     pushToast,
-    resolvePreviewAppearance,
   ]);
 
   const openPublishModal = useCallback((origin: PublishOrigin) => {
@@ -878,7 +913,7 @@ export default function App(): JSX.Element | null {
 
   const handleDownloadPublicationJson = useCallback(async () => {
     setRunningPublishAction('json');
-    const appearance = resolvePreviewAppearance();
+    const appearance = publicationOutputConfig.theme;
     const snapshot = createPublicationSnapshot(appearance);
     if (!snapshot) {
       pushToast('No se pudo generar la publicacion', 'error');
@@ -890,11 +925,11 @@ export default function App(): JSX.Element | null {
     setPublicationSnapshot(snapshot);
     pushToast('Respaldo descargado', 'success');
     setRunningPublishAction(null);
-  }, [createPublicationSnapshot, downloadPublication, pushToast, resolvePreviewAppearance]);
+  }, [createPublicationSnapshot, downloadPublication, publicationOutputConfig.theme, pushToast]);
 
   const handleGeneratePublicationPdf = useCallback(() => {
     setRunningPublishAction('pdf');
-    const appearance = resolvePreviewAppearance();
+    const appearance = publicationOutputConfig.theme;
     const snapshot = createPublicationSnapshot(appearance);
     if (!snapshot) {
       pushToast('No se pudo generar la publicacion', 'error');
@@ -905,20 +940,16 @@ export default function App(): JSX.Element | null {
     setPublicationSnapshot(snapshot);
     openViewerPdfExport({
       snapshot,
-      theme: appearance,
-      printSettings: createDefaultViewerPrintSettings(),
-      flags: {
-        includeEditorial: true,
-        includeOverlay: false,
-      },
+      config: publicationOutputConfig,
+      variant: 'print',
     });
     pushToast('Se abrio el flujo de exportacion PDF. Usa "Guardar como PDF" en el dialogo si lo necesitas.', 'info');
     setRunningPublishAction(null);
-  }, [createPublicationSnapshot, pushToast, resolvePreviewAppearance]);
+  }, [createPublicationSnapshot, publicationOutputConfig, pushToast]);
 
   const handleDownloadPublicationHtml = useCallback(() => {
     setRunningPublishAction('html');
-    const appearance = resolvePreviewAppearance();
+    const appearance = publicationOutputConfig.theme;
     const snapshot = createPublicationSnapshot(appearance);
     if (!snapshot) {
       pushToast('No se pudo generar la publicacion', 'error');
@@ -929,15 +960,12 @@ export default function App(): JSX.Element | null {
     setPublicationSnapshot(snapshot);
     downloadViewerStandaloneHtml({
       snapshot,
-      theme: appearance,
-      flags: {
-        includeEditorial: true,
-        includeOverlay: false,
-      },
+      config: publicationOutputConfig,
+      variant: 'presentation',
     });
     pushToast('Viewer standalone exportado', 'success');
     setRunningPublishAction(null);
-  }, [createPublicationSnapshot, pushToast, resolvePreviewAppearance]);
+  }, [createPublicationSnapshot, publicationOutputConfig, pushToast]);
 
   const handleImportPublicationFile = useCallback(
     async (file: File) => {
@@ -971,10 +999,18 @@ export default function App(): JSX.Element | null {
   const handleViewerThemeChange = useCallback(
     (next: ViewerTheme) => {
       if (viewerMode !== 'preview') return;
-      setPreviewAppearance(normalizeViewerTheme(next));
+      setPublicationTheme(normalizeViewerTheme(next));
     },
     [viewerMode],
   );
+
+  const handlePublicationPrintSettingsChange = useCallback((next: ViewerPrintSettings) => {
+    setPublicationPrintSettings(next);
+  }, []);
+
+  const handlePublicationExportFlagsChange = useCallback((next: PublicationExportFlags) => {
+    setPublicationExportFlags(next);
+  }, []);
 
   const handlePublishFromPreview = useCallback(() => {
     openPublishModal('viewer');
@@ -1030,7 +1066,6 @@ export default function App(): JSX.Element | null {
     setShouldPersistProject(false);
     setViewerMode(null);
     setPublicationSnapshot(null);
-    setPreviewAppearance(null);
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id: null, name: '' };
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
@@ -1785,13 +1820,13 @@ export default function App(): JSX.Element | null {
   const activeViewerSnapshot = viewerMode === 'preview' ? previewSnapshot : publicationSnapshot;
   const activeViewerTheme = useMemo<ViewerTheme>(() => {
     if (viewerMode === 'preview') {
-      return resolvePreviewAppearance();
+      return publicationOutputConfig.theme;
     }
     if (publicationSnapshot?.appearance) {
       return normalizeViewerTheme(publicationSnapshot.appearance);
     }
-    return createDefaultViewerTheme();
-  }, [publicationSnapshot?.appearance, resolvePreviewAppearance, viewerMode]);
+    return publicationOutputConfig.theme;
+  }, [publicationOutputConfig.theme, publicationSnapshot?.appearance, viewerMode]);
 
   if (!isHydrated) {
     return null;
@@ -1948,7 +1983,11 @@ export default function App(): JSX.Element | null {
                     mode={viewerMode}
                     initialPanelMode={viewerPanelModePreference}
                     theme={activeViewerTheme}
+                    printSettings={publicationPrintSettings}
+                    exportFlags={publicationExportFlags}
                     onThemeChange={handleViewerThemeChange}
+                    onPrintSettingsChange={handlePublicationPrintSettingsChange}
+                    onExportFlagsChange={handlePublicationExportFlagsChange}
                     onBackToEditor={handleBackToEditorFromViewer}
                     onOpenPublishModal={handlePublishFromPreview}
                     onImportPublicationFile={handleImportPublicationFile}

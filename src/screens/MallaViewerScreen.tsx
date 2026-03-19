@@ -13,7 +13,6 @@ import {
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
 import {
-  createDefaultViewerPrintSettings,
   resolveViewerAxisXColumnSegments,
   resolveViewerContentPlacementMetrics,
   resolveViewerEffectivePrintScale,
@@ -41,8 +40,10 @@ import {
   type ViewerPaginationTile,
   type ViewerPrintedPage,
   type ViewerPrintPaperSize,
+  type ViewerPrintSettings,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
+import type { PublicationExportFlags } from '../utils/publication-output.ts';
 import styles from './MallaViewerScreen.module.css';
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
@@ -55,7 +56,11 @@ interface Props {
   mode: 'preview' | 'publication' | null;
   initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
+  printSettings: ViewerPrintSettings;
+  exportFlags?: PublicationExportFlags;
   onThemeChange: (theme: ViewerTheme) => void;
+  onPrintSettingsChange: (settings: ViewerPrintSettings) => void;
+  onExportFlagsChange?: (flags: PublicationExportFlags) => void;
   onBackToEditor: () => void;
   onOpenPublishModal: () => Promise<void> | void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
@@ -97,7 +102,11 @@ export function MallaViewerScreen({
   mode,
   initialPanelMode = 'preview',
   theme,
+  printSettings,
+  exportFlags,
   onThemeChange,
+  onPrintSettingsChange,
+  onExportFlagsChange,
   onBackToEditor,
   onOpenPublishModal,
   onImportPublicationFile,
@@ -109,7 +118,6 @@ export function MallaViewerScreen({
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
   const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('preview');
-  const [printSettings, setPrintSettings] = useState(() => createDefaultViewerPrintSettings());
   const [isPanning, setIsPanning] = useState(false);
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -339,6 +347,18 @@ export function MallaViewerScreen({
       onThemeChange(next);
     },
     [onThemeChange, theme],
+  );
+
+  const setPrintSettingsSafe = useCallback(
+    (next: ViewerPrintSettings | ((prev: ViewerPrintSettings) => ViewerPrintSettings)) => {
+      if (typeof next === 'function') {
+        const updater = next as (prev: ViewerPrintSettings) => ViewerPrintSettings;
+        onPrintSettingsChange(updater(printSettings));
+        return;
+      }
+      onPrintSettingsChange(next);
+    },
+    [onPrintSettingsChange, printSettings],
   );
 
   const handleZoomIn = useCallback(() => {
@@ -1258,7 +1278,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <select
                   value={printSettings.paperSize}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       paperSize: event.target.value as ViewerPrintPaperSize,
                     }))
@@ -1275,7 +1295,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <select
                   value={printSettings.orientation}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       orientation: event.target.value === 'landscape' ? 'landscape' : 'portrait',
                     }))
@@ -1296,7 +1316,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.scale}
                   disabled={printSettings.fitToWidth}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, scale: Number(event.target.value) }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, scale: Number(event.target.value) }))
                   }
                 />
                 <span className={styles.fieldHint}>
@@ -1311,7 +1331,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.fitToWidth}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, fitToWidth: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, fitToWidth: event.target.checked }))
                   }
                 />
                 <span>Autoajustar</span>
@@ -1321,7 +1341,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <select
                   value={printSettings.margins}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       margins:
                         event.target.value === 'narrow' || event.target.value === 'wide'
@@ -1340,7 +1360,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showDocumentTitle}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
                   }
                 />
                 <span>Mostrar título</span>
@@ -1351,7 +1371,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.documentTitleOverride}
                   placeholder="Personaliza el título del documento"
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
                   }
                 />
               </label>
@@ -1364,7 +1384,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   step={VIEWER_PRINT_TITLE_FONT_SIZE_STEP}
                   value={printSettings.documentTitleFontSize}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, documentTitleFontSize: Number(event.target.value) }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, documentTitleFontSize: Number(event.target.value) }))
                   }
                 />
                 <span className={styles.fieldHint}>{`${Math.round(printSettings.documentTitleFontSize)} px`}</span>
@@ -1377,7 +1397,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showPageNumbers}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
                   }
                 />
                 <span>Mostrar numeración</span>
@@ -1387,7 +1407,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showHeader}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showHeader: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showHeader: event.target.checked }))
                   }
                 />
                 <span>Encabezado</span>
@@ -1398,7 +1418,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.headerText}
                   placeholder="Personaliza el texto del encabezado"
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, headerText: event.target.value }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, headerText: event.target.value }))
                   }
                 />
               </label>
@@ -1407,7 +1427,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showFooter}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showFooter: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showFooter: event.target.checked }))
                   }
                 />
                 <span>Pie de página</span>
@@ -1418,7 +1438,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.footerText}
                   placeholder="Personaliza el texto del pie de página"
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, footerText: event.target.value }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, footerText: event.target.value }))
                   }
                 />
               </label>
@@ -1427,7 +1447,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <select
                   value={printSettings.pageLayoutMode}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       pageLayoutMode:
                         event.target.value === 'first-page-only'
@@ -1440,6 +1460,21 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="same-on-all-pages">Todas las páginas iguales</option>
                 </select>
               </label>
+              {exportFlags && onExportFlagsChange ? (
+                <label className={styles.toggleField}>
+                  <input
+                    type="checkbox"
+                    checked={exportFlags.includeEditorial}
+                    onChange={(event) =>
+                      onExportFlagsChange({
+                        ...exportFlags,
+                        includeEditorial: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Incluir capa editorial en exportaciones</span>
+                </label>
+              ) : null}
             </>
           )}
         </aside>
