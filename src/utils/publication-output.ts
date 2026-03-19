@@ -1,14 +1,24 @@
-import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
   createDefaultViewerTheme,
   normalizeViewerTheme,
   VIEWER_THEME_STORAGE_KEY,
 } from './viewer-theme.ts';
+import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
   createDefaultViewerPrintSettings,
   normalizeViewerPrintSettings,
+  type ViewerPanelMode,
   type ViewerPrintSettings,
 } from './viewer-print.ts';
+
+export type PublicationMode = 'presentation' | 'document';
+export type PublicationProduct =
+  | 'print'
+  | 'pdf'
+  | 'html-web'
+  | 'html-download'
+  | 'html-paginated'
+  | 'html-embed';
 
 export interface PublicationExportFlags {
   includeEditorial: boolean;
@@ -20,6 +30,17 @@ export interface PublicationOutputConfig {
   printSettings: ViewerPrintSettings;
   flags: PublicationExportFlags;
 }
+
+export const resolvePublicationModeFromViewerPanelMode = (
+  value: ViewerPanelMode,
+): PublicationMode => (value === 'print-preview' ? 'document' : 'presentation');
+
+export const resolvePublicationProductsForMode = (
+  mode: PublicationMode,
+): PublicationProduct[] =>
+  mode === 'document'
+    ? ['pdf', 'html-paginated', 'print']
+    : ['html-web', 'html-download', 'html-embed'];
 
 export const PUBLICATION_PRINT_SETTINGS_STORAGE_KEY = 'viewerPrintSettingsLastUsed';
 export const PUBLICATION_EXPORT_FLAGS_STORAGE_KEY = 'publicationExportFlagsLastUsed';

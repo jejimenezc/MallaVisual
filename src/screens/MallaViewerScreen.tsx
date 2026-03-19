@@ -61,6 +61,7 @@ interface Props {
   onThemeChange: (theme: ViewerTheme) => void;
   onPrintSettingsChange: (settings: ViewerPrintSettings) => void;
   onExportFlagsChange?: (flags: PublicationExportFlags) => void;
+  onPanelModeChange?: (mode: ViewerPanelMode) => void;
   onBackToEditor: () => void;
   onOpenPublishModal: () => Promise<void> | void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
@@ -107,6 +108,7 @@ export function MallaViewerScreen({
   onThemeChange,
   onPrintSettingsChange,
   onExportFlagsChange,
+  onPanelModeChange,
   onBackToEditor,
   onOpenPublishModal,
   onImportPublicationFile,
@@ -327,7 +329,7 @@ export function MallaViewerScreen({
   const snapshotVersionText = snapshot
     ? `Versión Publicable (${formatSnapshotVersionId(snapshot.createdAt)})`
     : '';
-  const snapshotModeText = isPrintPreview ? 'MODO IMPRESIÓN' : 'MODO PRESENTACIÓN';
+  const snapshotModeText = isPrintPreview ? 'MODO DOCUMENTO' : 'MODO PRESENTACION';
   const snapshotMetaText =
     snapshotVersionText && snapshotModeText
       ? `${snapshotVersionText}\n${snapshotModeText}`
@@ -426,6 +428,10 @@ export function MallaViewerScreen({
   useEffect(() => {
     setViewerPanelMode(initialPanelMode);
   }, [initialPanelMode, mode]);
+
+  useEffect(() => {
+    onPanelModeChange?.(viewerPanelMode);
+  }, [onPanelModeChange, viewerPanelMode]);
 
   const handleEnterPrintPreview = useCallback(() => {
     setViewerPanelMode('print-preview');
@@ -1103,7 +1109,14 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             {isPrintPreview ? (
               <>
                 <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a Modo Presentación
+                  Volver a Modo Presentacion
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void onOpenPublishModal()}
+                  className={styles.viewerPublishCta}
+                >
+                  Publicar ahora
                 </Button>
                 <Button
                   type="button"
@@ -1118,9 +1131,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <Button
                   type="button"
                   onClick={handleEnterPrintPreview}
-                  title="Configuración del formato de impresión para esta versión publicable"
+                  title="Ir al modo documento para configurar la salida editorial y paginada"
                 >
-                  Preparar impresión
+                  Ir a Modo Documento
                 </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (
@@ -1129,7 +1142,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
               >
-                Publicar esta versión
+                Publicar version actual
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (
@@ -1168,7 +1181,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
           </div>
           {panelMode === 'preview' ? (
             <>
-              <h3>Apariencia</h3>
+              <h3>Apariencia base</h3>
               <label className={`${styles.field} ${styles.scaleField}`}>
                 <span>Separacion horizontal</span>
                 <input
@@ -1266,13 +1279,45 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
               </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={theme.showHeaderFooter}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
+                  }
+                />
+                <span>Marco editorial web minimo</span>
+              </label>
+              <label className={styles.field}>
+                <span>Header web</span>
+                <input
+                  type="text"
+                  value={theme.headerText}
+                  placeholder="Texto opcional para la salida HTML web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Footer web</span>
+                <input
+                  type="text"
+                  value={theme.footerText}
+                  placeholder="Texto opcional para la salida HTML web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))
+                  }
+                />
+              </label>
               <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
                 Restablecer
               </Button>
             </>
           ) : (
             <>
-              <h3>Configuración de impresión</h3>
+              <h3>Ajustes documentales</h3>
               <label className={styles.field}>
                 <span>Tamaño de papel</span>
                 <select
