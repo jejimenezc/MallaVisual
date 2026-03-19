@@ -1,8 +1,13 @@
 import type { MallaSnapshot } from '../types/malla-snapshot.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
+  createDefaultPublicationOutputConfig,
+  normalizePublicationOutputConfig,
+  type PublicationExportFlags,
+  type PublicationOutputConfig,
+} from './publication-output.ts';
+import {
   applyViewerTheme,
-  normalizeViewerTheme,
   type ViewerRenderBandCell,
   type ViewerRenderBandRow,
   type ViewerRenderCell,
@@ -11,7 +16,6 @@ import {
 } from './viewer-theme.ts';
 import {
   createDefaultViewerMeasuredPxPerMm,
-  normalizeViewerPrintSettings,
   resolveViewerAxisXColumnSegments,
   resolveViewerAxisYLineSegments,
   resolveViewerContentPlacementMetrics,
@@ -27,12 +31,12 @@ import {
   resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPreviewPageMetrics,
   type ViewerPageSliceLayout,
-  type ViewerPrintSettings,
 } from './viewer-print.ts';
 
-export interface ViewerExportFlags {
-  includeEditorial?: boolean;
-  includeOverlay?: boolean;
+export interface PublicationExportInput {
+  snapshot: MallaSnapshot;
+  config?: Partial<PublicationOutputConfig>;
+  variant: 'presentation' | 'print';
 }
 
 interface ViewerExportPayload {
@@ -41,33 +45,16 @@ interface ViewerExportPayload {
   exportedAt: string;
   snapshot: MallaSnapshot;
   theme: ViewerTheme;
-  flags: Required<ViewerExportFlags>;
+  flags: PublicationExportFlags;
   kind: 'standalone-html' | 'print-document';
-  printSettings?: ViewerPrintSettings;
-}
-
-interface ViewerStandaloneHtmlInput {
-  snapshot: MallaSnapshot;
-  theme: ViewerTheme;
-  flags?: ViewerExportFlags;
-}
-
-interface ViewerPrintHtmlInput {
-  snapshot: MallaSnapshot;
-  theme: ViewerTheme;
-  printSettings?: ViewerPrintSettings;
-  flags?: ViewerExportFlags;
+  printSettings?: PublicationOutputConfig['printSettings'];
+  variant: PublicationExportInput['variant'];
 }
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
   refineAxisX: true,
   refineAxisY: true,
 } as const;
-
-const DEFAULT_FLAGS: Required<ViewerExportFlags> = {
-  includeEditorial: true,
-  includeOverlay: false,
-};
 
 const escapeHtml = (value: string): string =>
   value
@@ -103,11 +90,6 @@ const cellTextFromType = (text: string, type: string, checked?: boolean): string
   }
   return text;
 };
-
-const normalizeViewerExportFlags = (value?: ViewerExportFlags): Required<ViewerExportFlags> => ({
-  includeEditorial: value?.includeEditorial !== false,
-  includeOverlay: value?.includeOverlay === true,
-});
 
 const sanitizeFileNamePart = (value: string): string => {
   const trimmed = value.trim().toLowerCase();
@@ -489,7 +471,7 @@ const createViewerDocumentStyles = (): string => `
   }
 `;
 
-const createStandaloneEditorialHtml = (renderModel: ViewerRenderModel, flags: Required<ViewerExportFlags>) => {
+const createStandaloneEditorialHtml = (renderModel: ViewerRenderModel, flags: PublicationExportFlags) => {
   if (!flags.includeEditorial || !renderModel.theme.showHeaderFooter) {
     return { header: '', footer: '' };
   }
@@ -507,52 +489,22 @@ const createStandaloneEditorialHtml = (renderModel: ViewerRenderModel, flags: Re
   };
 };
 
-export const createViewerStandaloneHtml = (input: ViewerStandaloneHtmlInput): string => {
-  const theme = normalizeViewerTheme(input.theme);
-  const flags = normalizeViewerExportFlags(input.flags);
-  const renderModel = applyViewerTheme(input.snapshot, theme);
-  const editorial = createStandaloneEditorialHtml(renderModel, flags);
-  const payload: ViewerExportPayload = {
-    format: 'malla-viewer-export',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    snapshot: input.snapshot,
-    theme,
-    flags,
-    kind: 'standalone-html',
-  };
-
-  return `<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(renderModel.projectName || 'Publicacion')}</title>
-    <style>${createViewerDocumentStyles()}</style>
-  </head>
-  <body>
-    <main class="mve-export-root mve-standalone-shell" data-export-kind="standalone-html">
-      ${editorial.header}
-      <section class="mve-standalone-surface">
-        <div class="mve-canvas" style="${styleToString({
-          width: `${Math.max(renderModel.width, 1)}px`,
-          height: `${Math.max(renderModel.height, 1)}px`,
-        })}">
-          ${renderFullCanvasHtml(renderModel)}
-        </div>
-      </section>
-      ${editorial.footer}
-    </main>
-    <script id="malla-export-payload" type="application/json">${serializeJsonScript(payload)}</script>
-  </body>
-</html>`;
+const resolvePublicationExportConfig = (
+  value?: Partial<PublicationOutputConfig>,
+): PublicationOutputConfig => {
+  const defaults = createDefaultPublicationOutputConfig();
+  return normalizePublicationOutputConfig({
+    theme: value?.theme ?? defaults.theme,
+    printSettings: value?.printSettings ?? defaults.printSettings,
+    flags: value?.flags ?? defaults.flags,
+  });
 };
 
-const resolvePrintDocumentInput = (input: ViewerPrintHtmlInput) => {
-  const theme = normalizeViewerTheme(input.theme);
-  const flags = normalizeViewerExportFlags(input.flags);
-  const renderModel = applyViewerTheme(input.snapshot, theme);
-  const printSettings = normalizeViewerPrintSettings(input.printSettings);
+export const resolvePublicationOutputModel = (input: PublicationExportInput) => {
+  const config = resolvePublicationExportConfig(input.config);
+  const renderModel = applyViewerTheme(input.snapshot, config.theme);
+  const printSettings = config.printSettings;
+  const flags = config.flags;
   const measuredPxPerMm = createDefaultViewerMeasuredPxPerMm();
   const pageMetrics = resolveViewerPageMetrics(printSettings);
   const previewMetrics = resolveViewerPreviewPageMetrics(pageMetrics, measuredPxPerMm);
@@ -626,43 +578,93 @@ const resolvePrintDocumentInput = (input: ViewerPrintHtmlInput) => {
   });
 
   return {
-    theme,
-    flags,
+    config,
+    normalizedTheme: config.theme,
+    normalizedPrintSettings: printSettings,
+    normalizedFlags: flags,
     renderModel,
-    printSettings,
     pageMetrics,
     measuredPxPerMm,
     printedPages,
     paginatedSurfaceLayout,
     contentPlacementMetrics,
+    previewMetrics,
+    editorialHeights,
+    paginationGridMetrics: gridPaginationMetrics,
+    variant: input.variant,
+    snapshot: input.snapshot,
   };
 };
 
-export const createViewerPrintHtml = (input: ViewerPrintHtmlInput): string => {
-  const resolved = resolvePrintDocumentInput(input);
+const createStandaloneHtmlFromResolvedModel = (
+  resolved: ReturnType<typeof resolvePublicationOutputModel>,
+): string => {
+  const editorial = createStandaloneEditorialHtml(resolved.renderModel, resolved.normalizedFlags);
   const payload: ViewerExportPayload = {
     format: 'malla-viewer-export',
     version: 1,
     exportedAt: new Date().toISOString(),
-    snapshot: input.snapshot,
-    theme: resolved.theme,
-    flags: resolved.flags,
+    snapshot: resolved.snapshot,
+    theme: resolved.normalizedTheme,
+    flags: resolved.normalizedFlags,
+    kind: 'standalone-html',
+    printSettings: resolved.normalizedPrintSettings,
+    variant: resolved.variant,
+  };
+
+  return `<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(resolved.renderModel.projectName || 'Publicacion')}</title>
+    <style>${createViewerDocumentStyles()}</style>
+  </head>
+  <body>
+    <main class="mve-export-root mve-standalone-shell" data-export-kind="standalone-html" data-export-variant="${resolved.variant}">
+      ${editorial.header}
+      <section class="mve-standalone-surface">
+        <div class="mve-canvas" style="${styleToString({
+          width: `${Math.max(resolved.renderModel.width, 1)}px`,
+          height: `${Math.max(resolved.renderModel.height, 1)}px`,
+        })}">
+          ${renderFullCanvasHtml(resolved.renderModel)}
+        </div>
+      </section>
+      ${editorial.footer}
+    </main>
+    <script id="malla-export-payload" type="application/json">${serializeJsonScript(payload)}</script>
+  </body>
+</html>`;
+};
+
+const createPrintHtmlFromResolvedModel = (
+  resolved: ReturnType<typeof resolvePublicationOutputModel>,
+): string => {
+  const payload: ViewerExportPayload = {
+    format: 'malla-viewer-export',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    snapshot: resolved.snapshot,
+    theme: resolved.normalizedTheme,
+    flags: resolved.normalizedFlags,
     kind: 'print-document',
-    printSettings: resolved.printSettings,
+    printSettings: resolved.normalizedPrintSettings,
+    variant: resolved.variant,
   };
   const printPageCss = resolveViewerPrintPageCss(resolved.pageMetrics);
 
   const pagesHtml = resolved.printedPages
     .map((page) => {
       const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-        showDocumentTitle: resolved.flags.includeEditorial && resolved.printSettings.showDocumentTitle,
-        documentTitleOverride: resolved.printSettings.documentTitleOverride,
-        pageLayoutMode: resolved.printSettings.pageLayoutMode,
-        showHeader: resolved.flags.includeEditorial && resolved.printSettings.showHeader,
-        headerText: resolved.printSettings.headerText,
-        showFooter: resolved.flags.includeEditorial && resolved.printSettings.showFooter,
-        footerText: resolved.printSettings.footerText,
-        showPageNumbers: resolved.flags.includeEditorial && resolved.printSettings.showPageNumbers,
+        showDocumentTitle: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showDocumentTitle,
+        documentTitleOverride: resolved.normalizedPrintSettings.documentTitleOverride,
+        pageLayoutMode: resolved.normalizedPrintSettings.pageLayoutMode,
+        showHeader: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showHeader,
+        headerText: resolved.normalizedPrintSettings.headerText,
+        showFooter: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showFooter,
+        footerText: resolved.normalizedPrintSettings.footerText,
+        showPageNumbers: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showPageNumbers,
         projectName: resolved.renderModel.projectName,
         pageIndex: page.pageNumber - 1,
         pageCount: resolved.printedPages.length,
@@ -685,7 +687,7 @@ export const createViewerPrintHtml = (input: ViewerPrintHtmlInput): string => {
           padding: `${resolved.pageMetrics.marginTopMm}mm ${resolved.pageMetrics.marginRightMm}mm ${resolved.pageMetrics.marginBottomMm}mm ${resolved.pageMetrics.marginLeftMm}mm`,
         })}">
           ${editorialLayout.headerText ? `<div class="mve-print-header">${escapeHtml(editorialLayout.headerText)}</div>` : ''}
-          ${editorialLayout.documentTitle ? `<h1 class="mve-print-title" style="${styleToString({ 'font-size': `${resolved.printSettings.documentTitleFontSize}px` })}">${escapeHtml(editorialLayout.documentTitle)}</h1>` : ''}
+          ${editorialLayout.documentTitle ? `<h1 class="mve-print-title" style="${styleToString({ 'font-size': `${resolved.normalizedPrintSettings.documentTitleFontSize}px` })}">${escapeHtml(editorialLayout.documentTitle)}</h1>` : ''}
           <div class="mve-print-viewport" style="${styleToString({
             width: `${sliceLayout.viewportWidthPx}px`,
             height: `${sliceLayout.viewportHeightPx}px`,
@@ -714,7 +716,7 @@ html, body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 body { background: #fff; }</style>
   </head>
   <body>
-    <main class="mve-export-root mve-print-document" data-export-kind="print-document">
+    <main class="mve-export-root mve-print-document" data-export-kind="print-document" data-export-variant="${resolved.variant}">
       <div class="mve-print-sequence">${pagesHtml}</div>
     </main>
     <script id="malla-export-payload" type="application/json">${serializeJsonScript(payload)}</script>
@@ -722,14 +724,33 @@ body { background: #fff; }</style>
 </html>`;
 };
 
-export const downloadViewerStandaloneHtml = (input: ViewerStandaloneHtmlInput) => {
+export const createViewerStandaloneHtml = (input: PublicationExportInput): string => {
+  const resolved = resolvePublicationOutputModel(input);
+  if (resolved.variant === 'print') {
+    return createPrintHtmlFromResolvedModel(resolved);
+  }
+  return createStandaloneHtmlFromResolvedModel(resolved);
+};
+
+export const createViewerPrintHtml = (input: PublicationExportInput): string => {
+  const resolved = resolvePublicationOutputModel({
+    ...input,
+    variant: 'print',
+  });
+  return createPrintHtmlFromResolvedModel(resolved);
+};
+
+export const downloadViewerStandaloneHtml = (input: PublicationExportInput) => {
   const html = createViewerStandaloneHtml(input);
   const fileName = `${buildViewerExportBaseName(input.snapshot)}.html`;
   triggerFileDownload(new Blob([html], { type: 'text/html;charset=utf-8' }), fileName);
 };
 
-export const openViewerPdfExport = (input: ViewerPrintHtmlInput) => {
-  const html = createViewerPrintHtml(input);
+export const openViewerPdfExport = (input: PublicationExportInput) => {
+  const html = createViewerPrintHtml({
+    ...input,
+    variant: 'print',
+  });
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   iframe.tabIndex = -1;

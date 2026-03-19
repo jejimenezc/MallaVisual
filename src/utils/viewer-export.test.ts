@@ -6,6 +6,7 @@ import {
   buildViewerExportBaseName,
   createViewerPrintHtml,
   createViewerStandaloneHtml,
+  resolvePublicationOutputModel,
 } from './viewer-export.ts';
 
 const snapshot: MallaSnapshot = {
@@ -85,15 +86,18 @@ describe('viewer-export', () => {
   test('creates standalone html without editor shell', () => {
     const html = createViewerStandaloneHtml({
       snapshot,
-      theme: {
-        ...createDefaultViewerTheme(),
-        headerText: 'Cabecera standalone',
-        footerText: 'Pie standalone',
+      config: {
+        theme: {
+          ...createDefaultViewerTheme(),
+          headerText: 'Cabecera standalone',
+          footerText: 'Pie standalone',
+        },
+        flags: {
+          includeEditorial: true,
+          includeOverlay: false,
+        },
       },
-      flags: {
-        includeEditorial: true,
-        includeOverlay: false,
-      },
+      variant: 'presentation',
     });
 
     expect(html).toContain('mve-standalone-shell');
@@ -107,20 +111,23 @@ describe('viewer-export', () => {
   test('creates print html and honors editorial flag', () => {
     const html = createViewerPrintHtml({
       snapshot,
-      theme: createDefaultViewerTheme(),
-      printSettings: {
-        ...createDefaultViewerPrintSettings(),
-        showDocumentTitle: true,
-        showHeader: true,
-        headerText: 'Encabezado PDF',
-        showFooter: true,
-        footerText: 'Pie PDF',
-        showPageNumbers: true,
+      config: {
+        theme: createDefaultViewerTheme(),
+        printSettings: {
+          ...createDefaultViewerPrintSettings(),
+          showDocumentTitle: true,
+          showHeader: true,
+          headerText: 'Encabezado PDF',
+          showFooter: true,
+          footerText: 'Pie PDF',
+          showPageNumbers: true,
+        },
+        flags: {
+          includeEditorial: false,
+          includeOverlay: false,
+        },
       },
-      flags: {
-        includeEditorial: false,
-        includeOverlay: false,
-      },
+      variant: 'print',
     });
 
     expect(html).toContain('Calculo I');
@@ -128,5 +135,27 @@ describe('viewer-export', () => {
     expect(html).not.toContain('<div>Pie PDF</div>');
     expect(html).not.toContain('<div class="mve-print-page-number">Pagina 1 de 1</div>');
     expect(html).toContain('"kind":"print-document"');
+  });
+
+  test('resolves shared config into print metrics', () => {
+    const resolved = resolvePublicationOutputModel({
+      snapshot,
+      config: {
+        theme: createDefaultViewerTheme(),
+        printSettings: {
+          ...createDefaultViewerPrintSettings(),
+          paperSize: 'oficio',
+          orientation: 'landscape',
+          scale: 0.75,
+          fitToWidth: false,
+        },
+      },
+      variant: 'print',
+    });
+
+    expect(resolved.normalizedPrintSettings.paperSize).toBe('oficio');
+    expect(resolved.normalizedPrintSettings.orientation).toBe('landscape');
+    expect(resolved.normalizedPrintSettings.scale).toBe(0.75);
+    expect(resolved.pageMetrics.paperWidthMm).toBeGreaterThan(resolved.pageMetrics.paperHeightMm);
   });
 });
