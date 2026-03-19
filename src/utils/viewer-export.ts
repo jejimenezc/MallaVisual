@@ -4,6 +4,7 @@ import {
   createDefaultPublicationOutputConfig,
   normalizePublicationOutputConfig,
   type PublicationExportFlags,
+  type PublicationProduct,
   type PublicationOutputConfig,
 } from './publication-output.ts';
 import {
@@ -36,7 +37,7 @@ import {
 export interface PublicationExportInput {
   snapshot: MallaSnapshot;
   config?: Partial<PublicationOutputConfig>;
-  variant: 'presentation' | 'print';
+  product: PublicationProduct;
 }
 
 interface ViewerExportPayload {
@@ -46,9 +47,10 @@ interface ViewerExportPayload {
   snapshot: MallaSnapshot;
   theme: ViewerTheme;
   flags: PublicationExportFlags;
+  product: PublicationProduct;
   kind: 'standalone-html' | 'print-document';
   printSettings?: PublicationOutputConfig['printSettings'];
-  variant: PublicationExportInput['variant'];
+  variant: 'presentation' | 'print';
 }
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
@@ -115,6 +117,20 @@ const triggerFileDownload = (blob: Blob, fileName: string) => {
   anchor.click();
   URL.revokeObjectURL(url);
 };
+
+const openHtmlDocument = (html: string, target: '_blank' | '_self' = '_blank') => {
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  const opened = window.open(url, target, 'noopener,noreferrer');
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return opened;
+};
+
+const resolvePublicationVariantFromProduct = (
+  product: PublicationProduct,
+): 'presentation' | 'print' =>
+  product === 'pdf' || product === 'print' || product === 'html-paginated'
+    ? 'print'
+    : 'presentation';
 
 const renderBandCellHtml = (cell: ViewerRenderBandCell, rowHeight: number, scale: number): string => {
   const body = cell.label
@@ -591,7 +607,8 @@ export const resolvePublicationOutputModel = (input: PublicationExportInput) => 
     previewMetrics,
     editorialHeights,
     paginationGridMetrics: gridPaginationMetrics,
-    variant: input.variant,
+    product: input.product,
+    variant: resolvePublicationVariantFromProduct(input.product),
     snapshot: input.snapshot,
   };
 };
@@ -599,7 +616,14 @@ export const resolvePublicationOutputModel = (input: PublicationExportInput) => 
 const createStandaloneHtmlFromResolvedModel = (
   resolved: ReturnType<typeof resolvePublicationOutputModel>,
 ): string => {
-  const editorial = createStandaloneEditorialHtml(resolved.renderModel, resolved.normalizedFlags);
+  const includeEditorial =
+    resolved.product !== 'html-embed' &&
+    resolved.product !== 'html-paginated' &&
+    resolved.normalizedFlags.includeEditorial;
+  const editorial = createStandaloneEditorialHtml(resolved.renderModel, {
+    ...resolved.normalizedFlags,
+    includeEditorial,
+  });
   const payload: ViewerExportPayload = {
     format: 'malla-viewer-export',
     version: 1,
@@ -607,10 +631,12 @@ const createStandaloneHtmlFromResolvedModel = (
     snapshot: resolved.snapshot,
     theme: resolved.normalizedTheme,
     flags: resolved.normalizedFlags,
+    product: resolved.product,
     kind: 'standalone-html',
     printSettings: resolved.normalizedPrintSettings,
     variant: resolved.variant,
   };
+  const shellClass = resolved.product === 'html-embed' ? 'mve-standalone-embed' : 'mve-standalone-shell';
 
   return `<!doctype html>
 <html lang="es">
@@ -621,7 +647,7 @@ const createStandaloneHtmlFromResolvedModel = (
     <style>${createViewerDocumentStyles()}</style>
   </head>
   <body>
-    <main class="mve-export-root mve-standalone-shell" data-export-kind="standalone-html" data-export-variant="${resolved.variant}">
+    <main class="mve-export-root ${shellClass}" data-export-kind="standalone-html" data-export-product="${resolved.product}" data-export-variant="${resolved.variant}">
       ${editorial.header}
       <section class="mve-standalone-surface">
         <div class="mve-canvas" style="${styleToString({
@@ -648,6 +674,7 @@ const createPrintHtmlFromResolvedModel = (
     snapshot: resolved.snapshot,
     theme: resolved.normalizedTheme,
     flags: resolved.normalizedFlags,
+    product: resolved.product,
     kind: 'print-document',
     printSettings: resolved.normalizedPrintSettings,
     variant: resolved.variant,
@@ -716,7 +743,7 @@ html, body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 body { background: #fff; }</style>
   </head>
   <body>
-    <main class="mve-export-root mve-print-document" data-export-kind="print-document" data-export-variant="${resolved.variant}">
+    <main class="mve-export-root mve-print-document" data-export-kind="print-document" data-export-product="${resolved.product}" data-export-variant="${resolved.variant}">
       <div class="mve-print-sequence">${pagesHtml}</div>
     </main>
     <script id="malla-export-payload" type="application/json">${serializeJsonScript(payload)}</script>
@@ -726,7 +753,7 @@ body { background: #fff; }</style>
 
 export const createViewerStandaloneHtml = (input: PublicationExportInput): string => {
   const resolved = resolvePublicationOutputModel(input);
-  if (resolved.variant === 'print') {
+  if (resolved.product === 'html-paginated') {
     return createPrintHtmlFromResolvedModel(resolved);
   }
   return createStandaloneHtmlFromResolvedModel(resolved);
@@ -735,7 +762,7 @@ export const createViewerStandaloneHtml = (input: PublicationExportInput): strin
 export const createViewerPrintHtml = (input: PublicationExportInput): string => {
   const resolved = resolvePublicationOutputModel({
     ...input,
-    variant: 'print',
+    product: input.product === 'print' ? 'print' : 'pdf',
   });
   return createPrintHtmlFromResolvedModel(resolved);
 };
@@ -746,10 +773,15 @@ export const downloadViewerStandaloneHtml = (input: PublicationExportInput) => {
   triggerFileDownload(new Blob([html], { type: 'text/html;charset=utf-8' }), fileName);
 };
 
+export const openViewerStandaloneHtml = (input: PublicationExportInput) => {
+  const html = createViewerStandaloneHtml(input);
+  return openHtmlDocument(html);
+};
+
 export const openViewerPdfExport = (input: PublicationExportInput) => {
   const html = createViewerPrintHtml({
     ...input,
-    variant: 'print',
+    product: input.product === 'print' ? 'print' : 'pdf',
   });
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');

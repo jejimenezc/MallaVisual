@@ -1,51 +1,120 @@
-import React, { useEffect, useRef } from 'react';
-import type { JSX } from 'react';
+import { useEffect, useRef, type JSX } from 'react';
 import { Button } from './Button';
+import type {
+  PublicationMode,
+  PublicationProduct,
+} from '../utils/publication-output.ts';
 import styles from './PublishModal.module.css';
 
 export type PublishOrigin = 'editor' | 'viewer';
 export type PublishActionAvailability = 'ready' | 'placeholder';
-export type PublishActionKey = 'json' | 'pdf' | 'html';
+export type PublishActionKey = PublicationProduct;
 
 interface PublishActionConfig {
   availability: PublishActionAvailability;
   isRunning?: boolean;
 }
 
-interface PublishActions {
-  json: PublishActionConfig;
-  pdf: PublishActionConfig;
-  html: PublishActionConfig;
-}
+type PublishActions = Record<PublishActionKey, PublishActionConfig>;
 
 interface Props {
   isOpen: boolean;
   origin: PublishOrigin;
+  mode: PublicationMode;
   actions: PublishActions;
   onClose: () => void;
-  onDownloadJson: () => Promise<void> | void;
-  onDownloadPdf: () => Promise<void> | void;
-  onDownloadHtml: () => Promise<void> | void;
-  onGoToEditor: () => void;
-  onGoToViewer: () => void;
+  onSelectProduct: (product: PublicationProduct) => Promise<void> | void;
+  onGoToPresentation: () => void;
+  onGoToDocument: () => void;
 }
 
-const ACTION_TOOLTIPS: Record<PublishActionKey, string> = {
-  json: 'Guarda el archivo para volver a editarlo o cargarlo en esta aplicacion.',
-  pdf: 'Abre el flujo de exportacion PDF usando la salida imprimible de esta version.',
-  html: 'Genera un viewer standalone, limpio y listo para abrir fuera de la app.',
+interface ProductDescriptor {
+  key: PublicationProduct;
+  title: string;
+  description: string;
+  label: string;
+}
+
+const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
+  print: {
+    key: 'print',
+    title: 'Impresion',
+    description: 'Abre la salida documental actual en el flujo de impresion del navegador.',
+    label: 'Imprimir ahora',
+  },
+  pdf: {
+    key: 'pdf',
+    title: 'PDF',
+    description: 'Usa el documento visible como fuente de verdad para generar un PDF.',
+    label: 'Exportar PDF',
+  },
+  'html-web': {
+    key: 'html-web',
+    title: 'HTML web',
+    description: 'Version continua para pantalla, con marco editorial minimo si esta activado.',
+    label: 'Abrir HTML web',
+  },
+  'html-download': {
+    key: 'html-download',
+    title: 'HTML download',
+    description: 'Descarga la version web continua como archivo HTML autonomo.',
+    label: 'Descargar HTML',
+  },
+  'html-paginated': {
+    key: 'html-paginated',
+    title: 'HTML paginado',
+    description: 'Espejo documental del PDF, respetando paginas, margenes y cortes.',
+    label: 'Descargar HTML paginado',
+  },
+  'html-embed': {
+    key: 'html-embed',
+    title: 'HTML embed',
+    description: 'Version minima para incrustar la malla en otro sitio, sin linea editorial.',
+    label: 'Descargar HTML embed',
+  },
+};
+
+const MODE_SECTIONS: Record<
+  PublicationMode,
+  {
+    title: string;
+    subtitle: string;
+    sectionTitle: string;
+    sectionDescription: string;
+    products: PublicationProduct[];
+    note: string;
+    secondaryLabel: string;
+  }
+> = {
+  presentation: {
+    title: 'Publicar version actual',
+    subtitle: 'Este modo publica productos web continuos, alineados con la vista de presentacion.',
+    sectionTitle: 'Formato web',
+    sectionDescription: 'Salidas continuas y no paginadas, optimizadas para pantallas o incrustacion.',
+    products: ['html-web', 'html-download', 'html-embed'],
+    note: 'Para PDF, impresion o HTML paginado, cambia a Modo Documento.',
+    secondaryLabel: 'Ir a Modo Documento',
+  },
+  document: {
+    title: 'Publicar documento',
+    subtitle: 'Este modo publica productos documentales alineados con la previsualizacion paginada.',
+    sectionTitle: 'Formato documento',
+    sectionDescription: 'Salidas con margenes, orientacion, paginacion y linea editorial documental.',
+    products: ['pdf', 'html-paginated', 'print'],
+    note: 'Si necesitas una version web continua, vuelve a Modo Presentacion.',
+    secondaryLabel: 'Volver a Modo Presentacion',
+  },
 };
 
 export function PublishModal({
   isOpen,
   origin,
+  mode,
   actions,
   onClose,
-  onDownloadJson,
-  onDownloadPdf,
-  onDownloadHtml,
-  onGoToEditor,
-  onGoToViewer,
+  onSelectProduct,
+  onGoToPresentation,
+  onGoToDocument,
 }: Props): JSX.Element | null {
   const initialFocusRef = useRef<HTMLButtonElement | null>(null);
 
@@ -66,21 +135,13 @@ export function PublishModal({
 
   if (!isOpen) return null;
 
-  const footerSecondaryLabel = origin === 'viewer' ? 'Ir al editor' : 'Ver en modo Presentacion';
-  const footerSecondaryAction = origin === 'viewer' ? onGoToEditor : onGoToViewer;
+  const section = MODE_SECTIONS[mode];
+  const isBusy = section.products.some((product) => actions[product].isRunning);
+  const footerSecondaryAction = mode === 'document' ? onGoToPresentation : onGoToDocument;
   const footerNote =
     origin === 'viewer'
-      ? 'Desde aqui puedes exportar esta version o volver al editor para seguir ajustandola.'
-      : 'Puedes revisar la salida en el viewer antes de exportarla.';
-
-  const runAction =
-    (handler: () => Promise<void> | void, availability: PublishActionAvailability) =>
-    () => {
-      void handler();
-      if (availability === 'placeholder') return;
-    };
-
-  const isBusy = Boolean(actions.json.isRunning || actions.pdf.isRunning || actions.html.isRunning);
+      ? 'Las salidas disponibles respetan el modo activo para mantener el WYSIWYG por familia de producto.'
+      : 'Abre el viewer en el modo adecuado si necesitas revisar visualmente la salida antes de publicarla.';
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -95,81 +156,52 @@ export function PublishModal({
       >
         <header className={styles.header}>
           <h2 className={styles.title} id="publish-modal-title">
-            Exportar version
+            {section.title}
           </h2>
           <p className={styles.subtitle} id="publish-modal-description">
-            Elige que salida quieres generar para esta version consolidada.
+            {section.subtitle}
           </p>
         </header>
 
         <div className={styles.content}>
-          <section className={styles.section} aria-labelledby="publish-modal-web-title">
+          <section className={styles.section} aria-labelledby="publish-modal-products-title">
             <div className={styles.sectionHeader}>
               <div>
-                <h3 className={styles.sectionTitle} id="publish-modal-web-title">
-                  Viewer Standalone
+                <h3 className={styles.sectionTitle} id="publish-modal-products-title">
+                  {section.sectionTitle}
                 </h3>
-                <p className={styles.sectionDescription}>
-                  Exporta una publicacion HTML autonoma, sin shell ni controles del editor.
-                </p>
+                <p className={styles.sectionDescription}>{section.sectionDescription}</p>
               </div>
             </div>
 
             <div className={styles.grid}>
-              <article className={styles.actionCard}>
-                <Button
-                  type="button"
-                  variant="primary"
-                  title={ACTION_TOOLTIPS.html}
-                  aria-busy={actions.html.isRunning}
-                  disabled={actions.html.isRunning}
-                  onClick={runAction(onDownloadHtml, actions.html.availability)}
-                >
-                  {actions.html.isRunning ? 'Generando...' : 'Descargar Viewer (.html)'}
-                </Button>
-              </article>
+              {section.products.map((product, index) => {
+                const descriptor = PRODUCT_COPY[product];
+                const action = actions[product];
+                return (
+                  <article key={product} className={styles.actionCard}>
+                    <div className={styles.actionCardBody}>
+                      <h4 className={styles.actionTitle}>{descriptor.title}</h4>
+                      <p className={styles.actionDescription}>{descriptor.description}</p>
+                      <Button
+                        ref={index === 0 ? initialFocusRef : undefined}
+                        type="button"
+                        variant={index === 0 ? 'primary' : 'default'}
+                        aria-busy={action.isRunning}
+                        disabled={action.isRunning || action.availability !== 'ready'}
+                        onClick={() => void onSelectProduct(product)}
+                      >
+                        {action.isRunning ? 'Procesando...' : descriptor.label}
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </section>
 
-          <section className={styles.section} aria-labelledby="publish-modal-files-title">
-            <div className={styles.sectionHeader}>
-              <div>
-                <h3 className={styles.sectionTitle} id="publish-modal-files-title">
-                  Formatos de Archivo
-                </h3>
-                <p className={styles.sectionDescription}>
-                  Exporta esta version para respaldo, archivo o distribucion fuera de la app.
-                </p>
-              </div>
-            </div>
-
-            <div className={styles.grid}>
-              <article className={styles.actionCard}>
-                <Button
-                  ref={initialFocusRef}
-                  type="button"
-                  variant="primary"
-                  title={ACTION_TOOLTIPS.json}
-                  aria-busy={actions.json.isRunning}
-                  disabled={actions.json.isRunning}
-                  onClick={runAction(onDownloadJson, actions.json.availability)}
-                >
-                  {actions.json.isRunning ? 'Descargando...' : 'Descargar Respaldo (.json)'}
-                </Button>
-              </article>
-
-              <article className={styles.actionCard}>
-                <Button
-                  type="button"
-                  title={ACTION_TOOLTIPS.pdf}
-                  aria-busy={actions.pdf.isRunning}
-                  disabled={actions.pdf.isRunning}
-                  onClick={runAction(onDownloadPdf, actions.pdf.availability)}
-                >
-                  {actions.pdf.isRunning ? 'Preparando...' : 'Exportar PDF'}
-                </Button>
-              </article>
-            </div>
+          <section className={styles.section}>
+            <p className={styles.sectionNote}>{section.note}</p>
           </section>
         </div>
 
@@ -180,7 +212,7 @@ export function PublishModal({
               Cerrar
             </Button>
             <Button type="button" variant="secondary" onClick={footerSecondaryAction}>
-              {footerSecondaryLabel}
+              {section.secondaryLabel}
             </Button>
           </div>
         </footer>

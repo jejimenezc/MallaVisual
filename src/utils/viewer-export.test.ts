@@ -97,7 +97,7 @@ describe('viewer-export', () => {
           includeOverlay: false,
         },
       },
-      variant: 'presentation',
+      product: 'html-web',
     });
 
     expect(html).toContain('mve-standalone-shell');
@@ -127,7 +127,7 @@ describe('viewer-export', () => {
           includeOverlay: false,
         },
       },
-      variant: 'print',
+      product: 'pdf',
     });
 
     expect(html).toContain('Calculo I');
@@ -150,12 +150,32 @@ describe('viewer-export', () => {
           fitToWidth: false,
         },
       },
-      variant: 'print',
+      product: 'html-paginated',
     });
 
     expect(resolved.normalizedPrintSettings.paperSize).toBe('oficio');
     expect(resolved.normalizedPrintSettings.orientation).toBe('landscape');
     expect(resolved.normalizedPrintSettings.scale).toBe(0.75);
     expect(resolved.pageMetrics.paperWidthMm).toBeGreaterThan(resolved.pageMetrics.paperHeightMm);
+  });
+
+  test('creates embed html without editorial shell', () => {
+    const html = createViewerStandaloneHtml({
+      snapshot,
+      config: {
+        theme: {
+          ...createDefaultViewerTheme(),
+          showHeaderFooter: true,
+          headerText: 'Cabecera',
+          footerText: 'Pie',
+        },
+      },
+      product: 'html-embed',
+    });
+
+    expect(html).toContain('mve-standalone-embed');
+    expect(html).toContain('data-export-product="html-embed"');
+    expect(html).not.toContain('<header class="mve-standalone-header">');
+    expect(html).not.toContain('<footer class="mve-standalone-footer">');
   });
 });

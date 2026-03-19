@@ -68,6 +68,7 @@ import {
 } from './utils/viewer-print.ts';
 import {
   downloadViewerStandaloneHtml,
+  openViewerStandaloneHtml,
   openViewerPdfExport,
 } from './utils/viewer-export.ts';
 import {
@@ -78,7 +79,10 @@ import {
   readStoredPublicationPrintSettings,
   readStoredPublicationTheme,
   type PublicationExportFlags,
+  type PublicationMode,
+  type PublicationProduct,
   type PublicationOutputConfig,
+  resolvePublicationModeFromViewerPanelMode,
 } from './utils/publication-output.ts';
 import {
   type BlockState,
@@ -268,7 +272,10 @@ export default function App(): JSX.Element | null {
   const [publicationExportFlags, setPublicationExportFlags] = useState<PublicationExportFlags>(() =>
     readStoredPublicationExportFlags(getSafeLocalStorage()),
   );
-  const [publishOrigin, setPublishOrigin] = useState<PublishOrigin | null>(null);
+  const [publishContext, setPublishContext] = useState<{
+    origin: PublishOrigin;
+    mode: PublicationMode;
+  } | null>(null);
   const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
@@ -902,70 +909,89 @@ export default function App(): JSX.Element | null {
     pushToast,
   ]);
 
-  const openPublishModal = useCallback((origin: PublishOrigin) => {
-    setPublishOrigin(origin);
-  }, []);
+  const openPublishModal = useCallback(
+    (origin: PublishOrigin, mode?: PublicationMode) => {
+      setPublishContext({
+        origin,
+        mode: mode ?? resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference),
+      });
+    },
+    [viewerPanelModePreference],
+  );
 
   const closePublishModal = useCallback(() => {
-    setPublishOrigin(null);
+    setPublishContext(null);
     setRunningPublishAction(null);
   }, []);
 
-  const handleDownloadPublicationJson = useCallback(async () => {
-    setRunningPublishAction('json');
-    const appearance = publicationOutputConfig.theme;
-    const snapshot = createPublicationSnapshot(appearance);
-    if (!snapshot) {
-      pushToast('No se pudo generar la publicacion', 'error');
+  const handleSelectPublicationProduct = useCallback(
+    async (product: PublicationProduct) => {
+      setRunningPublishAction(product);
+      const appearance = publicationOutputConfig.theme;
+      const snapshot = createPublicationSnapshot(appearance);
+      if (!snapshot) {
+        pushToast('No se pudo generar la publicacion', 'error');
+        setRunningPublishAction(null);
+        return;
+      }
+
+      setPublicationSnapshot(snapshot);
+
+      if (product === 'pdf') {
+        openViewerPdfExport({
+          snapshot,
+          config: publicationOutputConfig,
+          product: 'pdf',
+        });
+        pushToast('Se abrio el flujo PDF del documento visible.', 'info');
+      } else if (product === 'print') {
+        openViewerPdfExport({
+          snapshot,
+          config: publicationOutputConfig,
+          product: 'print',
+        });
+        pushToast('Se abrio la impresion del documento visible.', 'info');
+      } else if (product === 'html-web') {
+        openViewerStandaloneHtml({
+          snapshot,
+          config: publicationOutputConfig,
+          product: 'html-web',
+        });
+        pushToast('HTML web abierto en una ventana nueva.', 'success');
+      } else if (product === 'html-download') {
+        downloadViewerStandaloneHtml({
+          snapshot,
+          config: publicationOutputConfig,
+          product: 'html-download',
+        });
+        pushToast('HTML web descargado.', 'success');
+      } else if (product === 'html-paginated') {
+        downloadViewerStandaloneHtml({
+          snapshot,
+          config: publicationOutputConfig,
+          product: 'html-paginated',
+        });
+        pushToast('HTML paginado descargado.', 'success');
+      } else if (product === 'html-embed') {
+        downloadViewerStandaloneHtml({
+          snapshot,
+          config: {
+            ...publicationOutputConfig,
+            flags: {
+              ...publicationOutputConfig.flags,
+              includeEditorial: false,
+            },
+          },
+          product: 'html-embed',
+        });
+        pushToast('HTML embed descargado.', 'success');
+      }
+
       setRunningPublishAction(null);
-      return;
-    }
-
-    downloadPublication(snapshot);
-    setPublicationSnapshot(snapshot);
-    pushToast('Respaldo descargado', 'success');
-    setRunningPublishAction(null);
-  }, [createPublicationSnapshot, downloadPublication, publicationOutputConfig.theme, pushToast]);
-
-  const handleGeneratePublicationPdf = useCallback(() => {
-    setRunningPublishAction('pdf');
-    const appearance = publicationOutputConfig.theme;
-    const snapshot = createPublicationSnapshot(appearance);
-    if (!snapshot) {
-      pushToast('No se pudo generar la publicacion', 'error');
-      setRunningPublishAction(null);
-      return;
-    }
-
-    setPublicationSnapshot(snapshot);
-    openViewerPdfExport({
-      snapshot,
-      config: publicationOutputConfig,
-      variant: 'print',
-    });
-    pushToast('Se abrio el flujo de exportacion PDF. Usa "Guardar como PDF" en el dialogo si lo necesitas.', 'info');
-    setRunningPublishAction(null);
-  }, [createPublicationSnapshot, publicationOutputConfig, pushToast]);
-
-  const handleDownloadPublicationHtml = useCallback(() => {
-    setRunningPublishAction('html');
-    const appearance = publicationOutputConfig.theme;
-    const snapshot = createPublicationSnapshot(appearance);
-    if (!snapshot) {
-      pushToast('No se pudo generar la publicacion', 'error');
-      setRunningPublishAction(null);
-      return;
-    }
-
-    setPublicationSnapshot(snapshot);
-    downloadViewerStandaloneHtml({
-      snapshot,
-      config: publicationOutputConfig,
-      variant: 'presentation',
-    });
-    pushToast('Viewer standalone exportado', 'success');
-    setRunningPublishAction(null);
-  }, [createPublicationSnapshot, publicationOutputConfig, pushToast]);
+      closePublishModal();
+    },
+    [closePublishModal, createPublicationSnapshot, publicationOutputConfig, pushToast],
+  );
 
   const handleImportPublicationFile = useCallback(
     async (file: File) => {
@@ -1012,27 +1038,34 @@ export default function App(): JSX.Element | null {
     setPublicationExportFlags(next);
   }, []);
 
+  const handleViewerPanelModeChange = useCallback((next: ViewerPanelMode) => {
+    setViewerPanelModePreference(next);
+  }, []);
+
   const handlePublishFromPreview = useCallback(() => {
-    openPublishModal('viewer');
-  }, [openPublishModal]);
+    openPublishModal('viewer', resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference));
+  }, [openPublishModal, viewerPanelModePreference]);
 
   const handleOpenPublishModalFromMenu = useCallback(() => {
     const origin = location.pathname === '/malla/viewer' && viewerMode === 'preview'
       ? 'viewer'
       : 'editor';
-    openPublishModal(origin);
-  }, [location.pathname, openPublishModal, viewerMode]);
+    const mode =
+      origin === 'viewer'
+        ? resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference)
+        : 'presentation';
+    openPublishModal(origin, mode);
+  }, [location.pathname, openPublishModal, viewerMode, viewerPanelModePreference]);
 
-  const handleGoToViewerFromPublishModal = useCallback(() => {
+  const handleGoToPresentationFromPublishModal = useCallback(() => {
     closePublishModal();
     handleOpenPreview();
   }, [closePublishModal, handleOpenPreview]);
 
-  const handleGoToEditorFromPublishModal = useCallback(() => {
+  const handleGoToDocumentFromPublishModal = useCallback(() => {
     closePublishModal();
-    setViewerMode(null);
-    navigate('/malla/design');
-  }, [closePublishModal, navigate]);
+    handleOpenPrintPreview();
+  }, [closePublishModal, handleOpenPrintPreview]);
 
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
@@ -1988,6 +2021,7 @@ export default function App(): JSX.Element | null {
                     onThemeChange={handleViewerThemeChange}
                     onPrintSettingsChange={handlePublicationPrintSettingsChange}
                     onExportFlagsChange={handlePublicationExportFlagsChange}
+                    onPanelModeChange={handleViewerPanelModeChange}
                     onBackToEditor={handleBackToEditorFromViewer}
                     onOpenPublishModal={handlePublishFromPreview}
                     onImportPublicationFile={handleImportPublicationFile}
@@ -2003,30 +2037,41 @@ export default function App(): JSX.Element | null {
             onClose={handleCloseProjectPalette}
             onApply={handleApplyProjectPalette}
           />
-          {publishOrigin ? (
+          {publishContext ? (
             <PublishModal
               isOpen
-              origin={publishOrigin}
+              origin={publishContext.origin}
+              mode={publishContext.mode}
               actions={{
-                json: {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'json',
-                },
                 pdf: {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'pdf',
                 },
-                html: {
+                print: {
                   availability: 'ready',
-                  isRunning: runningPublishAction === 'html',
+                  isRunning: runningPublishAction === 'print',
+                },
+                'html-web': {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'html-web',
+                },
+                'html-download': {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'html-download',
+                },
+                'html-paginated': {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'html-paginated',
+                },
+                'html-embed': {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'html-embed',
                 },
               }}
               onClose={closePublishModal}
-              onDownloadJson={handleDownloadPublicationJson}
-              onDownloadPdf={handleGeneratePublicationPdf}
-              onDownloadHtml={handleDownloadPublicationHtml}
-              onGoToEditor={handleGoToEditorFromPublishModal}
-              onGoToViewer={handleGoToViewerFromPublishModal}
+              onSelectProduct={handleSelectPublicationProduct}
+              onGoToPresentation={handleGoToPresentationFromPublishModal}
+              onGoToDocument={handleGoToDocumentFromPublishModal}
             />
           ) : null}
         </ProceedToMallaProvider>
