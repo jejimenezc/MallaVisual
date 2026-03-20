@@ -1034,10 +1034,6 @@ export default function App(): JSX.Element | null {
     setPublicationPrintSettings(next);
   }, []);
 
-  const handlePublicationExportFlagsChange = useCallback((next: PublicationExportFlags) => {
-    setPublicationExportFlags(next);
-  }, []);
-
   const handleViewerPanelModeChange = useCallback((next: ViewerPanelMode) => {
     setViewerPanelModePreference(next);
   }, []);
@@ -2017,10 +2013,8 @@ export default function App(): JSX.Element | null {
                     initialPanelMode={viewerPanelModePreference}
                     theme={activeViewerTheme}
                     printSettings={publicationPrintSettings}
-                    exportFlags={publicationExportFlags}
                     onThemeChange={handleViewerThemeChange}
                     onPrintSettingsChange={handlePublicationPrintSettingsChange}
-                    onExportFlagsChange={handlePublicationExportFlagsChange}
                     onPanelModeChange={handleViewerPanelModeChange}
                     onBackToEditor={handleBackToEditorFromViewer}
                     onOpenPublishModal={handlePublishFromPreview}

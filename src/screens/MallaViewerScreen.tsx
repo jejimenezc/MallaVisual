@@ -43,7 +43,6 @@ import {
   type ViewerPrintSettings,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
-import type { PublicationExportFlags } from '../utils/publication-output.ts';
 import styles from './MallaViewerScreen.module.css';
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
@@ -57,10 +56,8 @@ interface Props {
   initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
   printSettings: ViewerPrintSettings;
-  exportFlags?: PublicationExportFlags;
   onThemeChange: (theme: ViewerTheme) => void;
   onPrintSettingsChange: (settings: ViewerPrintSettings) => void;
-  onExportFlagsChange?: (flags: PublicationExportFlags) => void;
   onPanelModeChange?: (mode: ViewerPanelMode) => void;
   onBackToEditor: () => void;
   onOpenPublishModal: () => Promise<void> | void;
@@ -104,10 +101,8 @@ export function MallaViewerScreen({
   initialPanelMode = 'preview',
   theme,
   printSettings,
-  exportFlags,
   onThemeChange,
   onPrintSettingsChange,
-  onExportFlagsChange,
   onPanelModeChange,
   onBackToEditor,
   onOpenPublishModal,
@@ -1505,21 +1500,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="same-on-all-pages">Todas las páginas iguales</option>
                 </select>
               </label>
-              {exportFlags && onExportFlagsChange ? (
-                <label className={styles.toggleField}>
-                  <input
-                    type="checkbox"
-                    checked={exportFlags.includeEditorial}
-                    onChange={(event) =>
-                      onExportFlagsChange({
-                        ...exportFlags,
-                        includeEditorial: event.target.checked,
-                      })
-                    }
-                  />
-                  <span>Incluir capa editorial en exportaciones</span>
-                </label>
-              ) : null}
             </>
           )}
         </aside>
