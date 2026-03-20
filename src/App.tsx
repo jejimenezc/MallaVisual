@@ -937,7 +937,10 @@ export default function App(): JSX.Element | null {
 
       setPublicationSnapshot(snapshot);
 
-      if (product === 'pdf') {
+      if (product === 'snapshot-json') {
+        downloadPublication(snapshot);
+        pushToast('Snapshot publicado descargado.', 'success');
+      } else if (product === 'pdf') {
         openViewerPdfExport({
           snapshot,
           config: publicationOutputConfig,
@@ -990,7 +993,13 @@ export default function App(): JSX.Element | null {
       setRunningPublishAction(null);
       closePublishModal();
     },
-    [closePublishModal, createPublicationSnapshot, publicationOutputConfig, pushToast],
+    [
+      closePublishModal,
+      createPublicationSnapshot,
+      downloadPublication,
+      publicationOutputConfig,
+      pushToast,
+    ],
   );
 
   const handleImportPublicationFile = useCallback(
@@ -2037,6 +2046,10 @@ export default function App(): JSX.Element | null {
               origin={publishContext.origin}
               mode={publishContext.mode}
               actions={{
+                'snapshot-json': {
+                  availability: 'ready',
+                  isRunning: runningPublishAction === 'snapshot-json',
+                },
                 pdf: {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'pdf',

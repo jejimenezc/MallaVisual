@@ -36,6 +36,12 @@ interface ProductDescriptor {
 }
 
 const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
+  'snapshot-json': {
+    key: 'snapshot-json',
+    title: 'Snapshot JSON',
+    description: 'Descarga la version publicada como archivo JSON para volver a abrirla en el viewer.',
+    label: 'Descargar snapshot',
+  },
   print: {
     key: 'print',
     title: 'Impresion',
@@ -91,7 +97,7 @@ const MODE_SECTIONS: Record<
     subtitle: 'Este modo publica productos web continuos, alineados con la vista de presentacion.',
     sectionTitle: 'Formato web',
     sectionDescription: 'Salidas continuas y no paginadas, optimizadas para pantallas o incrustacion.',
-    products: ['html-web', 'html-download', 'html-embed'],
+    products: ['html-web', 'html-download', 'html-embed', 'snapshot-json'],
     note: 'Para PDF, impresion o HTML paginado, cambia a Modo Documento.',
     secondaryLabel: 'Ir a Modo Documento',
   },
