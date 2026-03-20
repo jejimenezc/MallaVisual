@@ -13,6 +13,7 @@ export type PublishActionKey = PublicationProduct;
 interface PublishActionConfig {
   availability: PublishActionAvailability;
   isRunning?: boolean;
+  isCompleted?: boolean;
 }
 
 type PublishActions = Record<PublishActionKey, PublishActionConfig>;
@@ -36,42 +37,55 @@ interface ProductDescriptor {
 }
 
 const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
+  'snapshot-json': {
+    key: 'snapshot-json',
+    title: 'Respaldo de Lectura',
+    description: 'Descarga un archivo de datos para volver a cargar esta versión específica en el visor de la aplicación.',
+    label: 'Descargar respaldo',
+  },
   print: {
     key: 'print',
-    title: 'Impresion',
-    description: 'Abre la salida documental actual en el flujo de impresion del navegador.',
+    title: 'Impresión',
+    description: 'Envía el documento directamente a la impresora o al gestor de impresión de tu equipo.',
     label: 'Imprimir ahora',
   },
   pdf: {
     key: 'pdf',
     title: 'PDF',
-    description: 'Usa el documento visible como fuente de verdad para generar un PDF.',
+    description: 'Crea un documento PDF fiel a la previsualización, con márgenes y numeración de páginas.',
     label: 'Exportar PDF',
   },
   'html-web': {
     key: 'html-web',
-    title: 'HTML web',
-    description: 'Version continua para pantalla, con marco editorial minimo si esta activado.',
-    label: 'Abrir HTML web',
+    title: 'Vista Online',
+    description: 'Enlace para visualizar la malla en el navegador, con el diseño editorial activo.',
+    label: 'Abrir vista online',
   },
   'html-download': {
     key: 'html-download',
-    title: 'HTML download',
-    description: 'Descarga la version web continua como archivo HTML autonomo.',
-    label: 'Descargar HTML',
+    title: 'Archivo Web (.html)',
+    description: 'Descarga la versión para abrirla en cualquier navegador sin necesidad de internet.',
+    label: 'Descargar archivo web',
   },
   'html-paginated': {
     key: 'html-paginated',
-    title: 'HTML paginado',
-    description: 'Espejo documental del PDF, respetando paginas, margenes y cortes.',
+    title: 'HTML Paginado',
+    description: 'Versión web que respeta la división por hojas, idéntica al formato impreso.',
     label: 'Descargar HTML paginado',
   },
   'html-embed': {
     key: 'html-embed',
-    title: 'HTML embed',
-    description: 'Version minima para incrustar la malla en otro sitio, sin linea editorial.',
-    label: 'Descargar HTML embed',
+    title: 'Código para Insertar',
+    description: 'Versión simplificada para integrar la malla dentro de otra página web o plataforma institucional.',
+    label: 'Descargar código',
   },
+};
+
+const PRODUCT_COMPLETED_LABEL: Partial<Record<PublicationProduct, string>> = {
+  'snapshot-json': 'Descargado',
+  'html-download': 'Descargado',
+  'html-paginated': 'Descargado',
+  'html-embed': 'Descargado',
 };
 
 const MODE_SECTIONS: Record<
@@ -87,22 +101,22 @@ const MODE_SECTIONS: Record<
   }
 > = {
   presentation: {
-    title: 'Publicar version actual',
-    subtitle: 'Este modo publica productos web continuos, alineados con la vista de presentacion.',
-    sectionTitle: 'Formato web',
-    sectionDescription: 'Salidas continuas y no paginadas, optimizadas para pantallas o incrustacion.',
-    products: ['html-web', 'html-download', 'html-embed'],
-    note: 'Para PDF, impresion o HTML paginado, cambia a Modo Documento.',
-    secondaryLabel: 'Ir a Modo Documento',
+    title: 'Publicar Web/Datos',
+    subtitle: 'Genera formatos de visualización continua para compartir en línea o respaldar información.',
+    sectionTitle: 'Visualización y respaldo',
+    sectionDescription: 'Opciones pensadas para pantallas, navegación continua y respaldo de datos.',
+    products: ['html-web', 'html-download', 'html-embed', 'snapshot-json'],
+    note: 'Para PDF, impresión o HTML paginado, cambia al Modo Documento.',
+    secondaryLabel: 'Ir al Modo Documento',
   },
   document: {
-    title: 'Publicar documento',
-    subtitle: 'Este modo publica productos documentales alineados con la previsualizacion paginada.',
+    title: 'Publicar Documento',
+    subtitle: 'Genera archivos estructurados en páginas, ideales para impresión o envío de documentos oficiales.',
     sectionTitle: 'Formato documento',
-    sectionDescription: 'Salidas con margenes, orientacion, paginacion y linea editorial documental.',
+    sectionDescription: 'Salidas organizadas por páginas, con márgenes, orientación y estructura editorial.',
     products: ['pdf', 'html-paginated', 'print'],
-    note: 'Si necesitas una version web continua, vuelve a Modo Presentacion.',
-    secondaryLabel: 'Volver a Modo Presentacion',
+    note: 'Si necesitas una visualización continua o un respaldo de datos, vuelve al Modo Presentación.',
+    secondaryLabel: 'Volver al Modo Presentación',
   },
 };
 
@@ -140,8 +154,8 @@ export function PublishModal({
   const footerSecondaryAction = mode === 'document' ? onGoToPresentation : onGoToDocument;
   const footerNote =
     origin === 'viewer'
-      ? 'Las salidas disponibles respetan el modo activo para mantener el WYSIWYG por familia de producto.'
-      : 'Abre el viewer en el modo adecuado si necesitas revisar visualmente la salida antes de publicarla.';
+      ? 'Los archivos generados mantienen exactamente el diseño y la organización que ves en pantalla.'
+      : 'Abre el visor en el modo adecuado si necesitas revisar visualmente la salida antes de publicarla.';
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -191,7 +205,11 @@ export function PublishModal({
                         disabled={action.isRunning || action.availability !== 'ready'}
                         onClick={() => void onSelectProduct(product)}
                       >
-                        {action.isRunning ? 'Procesando...' : descriptor.label}
+                        {action.isRunning
+                          ? 'Procesando...'
+                          : action.isCompleted
+                            ? PRODUCT_COMPLETED_LABEL[product] ?? descriptor.label
+                            : descriptor.label}
                       </Button>
                     </div>
                   </article>

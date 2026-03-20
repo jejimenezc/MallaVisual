@@ -10,6 +10,9 @@ import {
   createDefaultViewerTheme,
   VIEWER_MAX_ZOOM,
   VIEWER_MIN_ZOOM,
+  VIEWER_THEME_MAX_TITLE_FONT_SIZE,
+  VIEWER_THEME_MIN_TITLE_FONT_SIZE,
+  VIEWER_THEME_TITLE_FONT_SIZE_STEP,
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
 import {
@@ -43,7 +46,7 @@ import {
   type ViewerPrintSettings,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
-import type { PublicationExportFlags } from '../utils/publication-output.ts';
+import { ViewerPrintDocument } from '../components/ViewerPrintDocument.tsx';
 import styles from './MallaViewerScreen.module.css';
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
@@ -57,10 +60,8 @@ interface Props {
   initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
   printSettings: ViewerPrintSettings;
-  exportFlags?: PublicationExportFlags;
   onThemeChange: (theme: ViewerTheme) => void;
   onPrintSettingsChange: (settings: ViewerPrintSettings) => void;
-  onExportFlagsChange?: (flags: PublicationExportFlags) => void;
   onPanelModeChange?: (mode: ViewerPanelMode) => void;
   onBackToEditor: () => void;
   onOpenPublishModal: () => Promise<void> | void;
@@ -104,10 +105,8 @@ export function MallaViewerScreen({
   initialPanelMode = 'preview',
   theme,
   printSettings,
-  exportFlags,
   onThemeChange,
   onPrintSettingsChange,
-  onExportFlagsChange,
   onPanelModeChange,
   onBackToEditor,
   onOpenPublishModal,
@@ -784,15 +783,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
-        <h2>{mode === 'publication' ? 'Version publicada' : 'Vista previa de malla'}</h2>
+        <h2>{mode === 'publication' ? 'Versión publicada' : 'Vista previa de malla'}</h2>
         <p>
           {mode === 'publication'
-            ? 'No hay una version publicada cargada.'
+            ? 'No hay una versión publicada cargada.'
             : 'No hay datos para vista previa.'}
         </p>
         {mode === 'publication' ? (
           <Button type="button" variant="primary" onClick={handleOpenImporter}>
-            Abrir version publicada
+            Abrir versión publicada
           </Button>
         ) : (
           <Button type="button" variant="primary" onClick={onBackToEditor}>
@@ -1014,7 +1013,40 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const printDocumentContent = isPrintPreview ? (
     <div className={styles.printOnly}>
-      <div className={styles.viewerPrintedPageSequence}>{printedPages.map(renderPrintedPage)}</div>
+      <ViewerPrintDocument
+        renderModel={renderModel}
+        printedPages={printedPages}
+        paginatedSurfaceLayout={paginatedSurfaceLayout}
+        contentScale={contentPlacementMetrics.scale}
+        printSettings={printSettings}
+        pageMetrics={pageMetrics}
+        pxPerMmY={measuredPxPerMm.pxPerMmY}
+        classNames={{
+          sequence: styles.viewerPrintedPageSequence,
+          page: `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePrint} ${styles.viewerPrintedPage}`,
+          contentBox: `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPrint}`,
+          flow: `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPrint}`,
+          headerBlock: styles.viewerPageHeaderBlock,
+          header: styles.runtimeHeader,
+          titleBlock: styles.viewerPageTitleBlock,
+          title: styles.runtimeDocumentTitle,
+          viewport: styles.viewerCanvasScaledViewport,
+          canvas: styles.viewerCanvasScaled,
+          footerBlock: styles.viewerPageFooterBlock,
+          footer: styles.runtimeFooter,
+          pageNumber: styles.viewerPageNumber,
+          bandRow: styles.viewerBandRow,
+          bandRowHeader: styles.viewerBandRowHeader,
+          bandRowMetric: styles.viewerBandRowMetric,
+          bandCell: styles.viewerBandCell,
+          bandCellMetric: styles.viewerBandCellMetric,
+          bandCellMetricLabel: styles.viewerBandCellMetricLabel,
+          bandCellMetricValue: styles.viewerBandCellMetricValue,
+          piece: styles.viewerPiece,
+          pieceGrid: styles.viewerPieceGrid,
+          cell: styles.viewerCell,
+        }}
+      />
     </div>
   ) : null;
 
@@ -1109,14 +1141,14 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             {isPrintPreview ? (
               <>
                 <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a Modo Presentacion
+                  Volver al Modo Presentación
                 </Button>
                 <Button
                   type="button"
                   onClick={() => void onOpenPublishModal()}
                   className={styles.viewerPublishCta}
                 >
-                  Publicar ahora
+                  Publicar documento
                 </Button>
                 <Button
                   type="button"
@@ -1131,9 +1163,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <Button
                   type="button"
                   onClick={handleEnterPrintPreview}
-                  title="Ir al modo documento para configurar la salida editorial y paginada"
+                  title="Ir al Modo Documento para configurar la salida editorial y paginada"
                 >
-                  Ir a Modo Documento
+                  Ir al Modo Documento
                 </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (
@@ -1142,7 +1174,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
               >
-                Publicar version actual
+                Publicar Web/Datos
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (
@@ -1183,7 +1215,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             <>
               <h3>Apariencia base</h3>
               <label className={`${styles.field} ${styles.scaleField}`}>
-                <span>Separacion horizontal</span>
+                <span>Separación horizontal</span>
                 <input
                   className={styles.compactRange}
                   type="range"
@@ -1194,7 +1226,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={`${styles.field} ${styles.scaleField}`}>
-                <span>Separacion vertical</span>
+                <span>Separación vertical</span>
                 <input
                   className={styles.compactRange}
                   type="range"
@@ -1205,7 +1237,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Ancho minimo de columnas</span>
+                <span>Ancho mínimo de columnas</span>
                 <input
                   type="range"
                   min={0}
@@ -1218,7 +1250,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Alto minimo de lineas curriculares</span>
+                <span>Alto mínimo de líneas curriculares</span>
                 <input
                   type="range"
                   min={0}
@@ -1282,30 +1314,64 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               <label className={styles.toggleField}>
                 <input
                   type="checkbox"
+                  checked={theme.showTitle}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, showTitle: event.target.checked }))
+                  }
+                />
+                <span>Agregar título</span>
+              </label>
+              <label className={styles.field} title="Si queda vacío, se usa el nombre del proyecto.">
+                <input
+                  type="text"
+                  value={theme.titleText}
+                  placeholder="Personaliza el título de la salida web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, titleText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Escala del título</span>
+                <input
+                  type="range"
+                  min={VIEWER_THEME_MIN_TITLE_FONT_SIZE}
+                  max={VIEWER_THEME_MAX_TITLE_FONT_SIZE}
+                  step={VIEWER_THEME_TITLE_FONT_SIZE_STEP}
+                  value={theme.titleFontSize}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, titleFontSize: Number(event.target.value) }))
+                  }
+                />
+                <span className={styles.fieldHint}>{`${Math.round(theme.titleFontSize)} px`}</span>
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
                   checked={theme.showHeaderFooter}
                   onChange={(event) =>
                     setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
                   }
                 />
-                <span>Marco editorial web minimo</span>
+                <span>Marco editorial web mínimo</span>
               </label>
               <label className={styles.field}>
-                <span>Header web</span>
+                <span>Encabezado web</span>
                 <input
                   type="text"
                   value={theme.headerText}
-                  placeholder="Texto opcional para la salida HTML web"
+                  placeholder="Texto opcional para la salida web"
                   onChange={(event) =>
                     setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))
                   }
                 />
               </label>
               <label className={styles.field}>
-                <span>Footer web</span>
+                <span>Pie web</span>
                 <input
                   type="text"
                   value={theme.footerText}
-                  placeholder="Texto opcional para la salida HTML web"
+                  placeholder="Texto opcional para la salida web"
                   onChange={(event) =>
                     setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))
                   }
@@ -1395,9 +1461,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     }))
                   }
                 >
-                  <option value="narrow">Narrow</option>
-                  <option value="normal">Normal</option>
-                  <option value="wide">Wide</option>
+                  <option value="narrow">Estrechos</option>
+                  <option value="normal">Normales</option>
+                  <option value="wide">Amplios</option>
                 </select>
               </label>
               <label className={styles.toggleField}>
@@ -1488,7 +1554,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Layout de página</span>
+                <span>Distribución de páginas</span>
                 <select
                   value={printSettings.pageLayoutMode}
                   onChange={(event) =>
@@ -1505,21 +1571,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="same-on-all-pages">Todas las páginas iguales</option>
                 </select>
               </label>
-              {exportFlags && onExportFlagsChange ? (
-                <label className={styles.toggleField}>
-                  <input
-                    type="checkbox"
-                    checked={exportFlags.includeEditorial}
-                    onChange={(event) =>
-                      onExportFlagsChange({
-                        ...exportFlags,
-                        includeEditorial: event.target.checked,
-                      })
-                    }
-                  />
-                  <span>Incluir capa editorial en exportaciones</span>
-                </label>
-              ) : null}
             </>
           )}
         </aside>

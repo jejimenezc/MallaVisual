@@ -13,6 +13,7 @@ import {
 
 export type PublicationMode = 'presentation' | 'document';
 export type PublicationProduct =
+  | 'snapshot-json'
   | 'print'
   | 'pdf'
   | 'html-web'
@@ -40,7 +41,7 @@ export const resolvePublicationProductsForMode = (
 ): PublicationProduct[] =>
   mode === 'document'
     ? ['pdf', 'html-paginated', 'print']
-    : ['html-web', 'html-download', 'html-embed'];
+    : ['html-web', 'html-download', 'html-embed', 'snapshot-json'];
 
 export const PUBLICATION_PRINT_SETTINGS_STORAGE_KEY = 'viewerPrintSettingsLastUsed';
 export const PUBLICATION_EXPORT_FLAGS_STORAGE_KEY = 'publicationExportFlagsLastUsed';

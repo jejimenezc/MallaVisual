@@ -7,6 +7,9 @@ export interface ViewerTheme {
   blockBorderWidth: number;
   blockBorderRadius: number;
   typographyScale: number;
+  showTitle: boolean;
+  titleText: string;
+  titleFontSize: number;
   headerText: string;
   footerText: string;
   showHeaderFooter: boolean;

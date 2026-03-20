@@ -89,6 +89,9 @@ describe('viewer-export', () => {
       config: {
         theme: {
           ...createDefaultViewerTheme(),
+          showTitle: true,
+          titleText: 'Titulo standalone',
+          titleFontSize: 30,
           headerText: 'Cabecera standalone',
           footerText: 'Pie standalone',
         },
@@ -101,6 +104,7 @@ describe('viewer-export', () => {
     });
 
     expect(html).toContain('mve-standalone-shell');
+    expect(html).toContain('Titulo standalone');
     expect(html).toContain('Cabecera standalone');
     expect(html).toContain('Pie standalone');
     expect(html).toContain('Calculo I');
@@ -133,8 +137,11 @@ describe('viewer-export', () => {
     expect(html).toContain('Calculo I');
     expect(html).not.toContain('<div class="mve-print-header">Encabezado PDF</div>');
     expect(html).not.toContain('<div>Pie PDF</div>');
-    expect(html).not.toContain('<div class="mve-print-page-number">Pagina 1 de 1</div>');
+    expect(html).not.toContain('Pagina 1 de 1');
     expect(html).toContain('"kind":"print-document"');
+    expect(html).toContain('viewerPrintedPageSequence');
+    expect(html).not.toContain('mve-print-page');
+    expect(html).toContain('--print-content-width-mm');
   });
 
   test('resolves shared config into print metrics', () => {
@@ -177,5 +184,25 @@ describe('viewer-export', () => {
     expect(html).toContain('data-export-product="html-embed"');
     expect(html).not.toContain('<header class="mve-standalone-header">');
     expect(html).not.toContain('<footer class="mve-standalone-footer">');
+  });
+
+  test('creates paginated html with the shared document renderer', () => {
+    const html = createViewerStandaloneHtml({
+      snapshot,
+      config: {
+        theme: createDefaultViewerTheme(),
+        printSettings: {
+          ...createDefaultViewerPrintSettings(),
+          showDocumentTitle: true,
+          documentTitleOverride: 'Documento paginado',
+        },
+      },
+      product: 'html-paginated',
+    });
+
+    expect(html).toContain('viewerPrintExportRoot');
+    expect(html).toContain('viewerPrintedPageSequence');
+    expect(html).toContain('Documento paginado');
+    expect(html).not.toContain('mve-print-page');
   });
 });

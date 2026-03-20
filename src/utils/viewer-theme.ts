@@ -11,6 +11,9 @@ export const VIEWER_THEME_STORAGE_KEY = 'viewerThemeLastUsed';
 export const VIEWER_MIN_ZOOM = 0.5;
 export const VIEWER_MAX_ZOOM = 2;
 export const VIEWER_ZOOM_STEP = 0.1;
+export const VIEWER_THEME_MIN_TITLE_FONT_SIZE = 16;
+export const VIEWER_THEME_MAX_TITLE_FONT_SIZE = 40;
+export const VIEWER_THEME_TITLE_FONT_SIZE_STEP = 1;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -23,6 +26,9 @@ export const createDefaultViewerTheme = (): ViewerTheme => ({
   blockBorderWidth: 1,
   blockBorderRadius: 8,
   typographyScale: 1,
+  showTitle: false,
+  titleText: '',
+  titleFontSize: 24,
   headerText: '',
   footerText: '',
   showHeaderFooter: true,
@@ -44,6 +50,13 @@ export const normalizeViewerTheme = (value: unknown): ViewerTheme => {
     blockBorderWidth: clamp(Number(source.blockBorderWidth ?? defaults.blockBorderWidth), 0, 8),
     blockBorderRadius: clamp(Number(source.blockBorderRadius ?? defaults.blockBorderRadius), 0, 32),
     typographyScale: clamp(Number(source.typographyScale ?? defaults.typographyScale), 0.5, 2),
+    showTitle: source.showTitle === true,
+    titleText: typeof source.titleText === 'string' ? source.titleText : defaults.titleText,
+    titleFontSize: clamp(
+      Number(source.titleFontSize ?? defaults.titleFontSize),
+      VIEWER_THEME_MIN_TITLE_FONT_SIZE,
+      VIEWER_THEME_MAX_TITLE_FONT_SIZE,
+    ),
     headerText: typeof source.headerText === 'string' ? source.headerText : defaults.headerText,
     footerText: typeof source.footerText === 'string' ? source.footerText : defaults.footerText,
     showHeaderFooter: source.showHeaderFooter !== false,
