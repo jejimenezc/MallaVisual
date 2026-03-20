@@ -1,4 +1,11 @@
 import type { MallaSnapshot } from '../types/malla-snapshot.ts';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  createViewerPrintDocumentExportStyles,
+  ViewerPrintDocument,
+  VIEWER_PRINT_DOCUMENT_EXPORT_CLASS_NAMES,
+} from '../components/ViewerPrintDocument.tsx';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
   createDefaultPublicationOutputConfig,
@@ -24,14 +31,12 @@ import {
   resolveViewerGridCutGuides,
   resolveViewerPageEditorialHeights,
   resolveViewerPageMetrics,
-  resolveViewerPageSliceLayout,
   resolveViewerPaginatedSurfaceLayout,
   resolveViewerPaginationGridMetrics,
+  resolveViewerPrintCssVars,
   resolveViewerPrintPageCss,
-  resolveViewerPrintedPageEditorialLayout,
   resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPreviewPageMetrics,
-  type ViewerPageSliceLayout,
 } from './viewer-print.ts';
 
 export interface PublicationExportInput {
@@ -207,64 +212,6 @@ const renderFullCanvasHtml = (renderModel: ViewerRenderModel): string =>
     .map((item) => renderViewerItemHtml(item, renderModel.theme, 1))
     .join('')}`;
 
-const renderSliceCanvasHtml = (
-  renderModel: ViewerRenderModel,
-  sliceLayout: ViewerPageSliceLayout,
-  scale: number,
-): string => {
-  const sliceLeftPx = sliceLayout.offsetX;
-  const sliceTopPx = sliceLayout.offsetY;
-  const sliceRightPx = sliceLayout.offsetX + sliceLayout.viewportWidthPx;
-  const sliceBottomPx = sliceLayout.offsetY + sliceLayout.viewportHeightPx;
-  const localWidthPx = sliceLayout.viewportWidthPx;
-
-  const visibleBandRows = renderModel.bandsRenderRows
-    .filter((row) => {
-      const rowTopPx = row.top * scale;
-      const rowHeightPx = row.height * scale;
-      return rowTopPx + rowHeightPx > sliceTopPx && rowTopPx < sliceBottomPx;
-    })
-    .map((row) => ({
-      ...row,
-      top: row.top * scale - sliceTopPx,
-      height: row.height * scale,
-      cells: row.cells
-        .filter((cell) => {
-          const cellLeftPx = cell.left * scale;
-          const cellWidthPx = cell.width * scale;
-          return cellLeftPx + cellWidthPx > sliceLeftPx && cellLeftPx < sliceRightPx;
-        })
-        .map((cell) => ({
-          ...cell,
-          left: cell.left * scale - sliceLeftPx,
-          width: cell.width * scale,
-        })),
-    }));
-
-  const visibleItems = renderModel.items
-    .filter(
-      (item) =>
-        item.left * scale + item.width * scale > sliceLeftPx &&
-        item.left * scale < sliceRightPx &&
-        item.top * scale + item.height * scale > sliceTopPx &&
-        item.top * scale < sliceBottomPx,
-    )
-    .map((item) => ({
-      ...item,
-      left: item.left * scale - sliceLeftPx,
-      top: item.top * scale - sliceTopPx,
-      width: item.width * scale,
-      height: item.height * scale,
-    }));
-
-  return `<div class="mve-print-canvas" style="${styleToString({
-    width: `${Math.max(localWidthPx, 1)}px`,
-    height: `${Math.max(sliceLayout.viewportHeightPx, 1)}px`,
-  })}">${visibleBandRows
-    .map((row) => renderBandRowHtml(row, localWidthPx, scale))
-    .join('')}${visibleItems.map((item) => renderViewerItemHtml(item, renderModel.theme, scale)).join('')}</div>`;
-};
-
 const createViewerDocumentStyles = (): string => `
   :root {
     color-scheme: light;
@@ -403,64 +350,6 @@ const createViewerDocumentStyles = (): string => `
     width: 100%;
   }
 
-  .mve-print-document {
-    background: #cbd5e1;
-    padding: 12mm 0;
-  }
-
-  .mve-print-sequence {
-    display: flex;
-    flex-direction: column;
-    gap: 10mm;
-    align-items: center;
-  }
-
-  .mve-print-page {
-    position: relative;
-    background: #fff;
-    overflow: hidden;
-    page-break-after: always;
-    break-after: page;
-    box-shadow: 0 18px 60px rgba(15, 23, 42, 0.18);
-  }
-
-  .mve-print-page:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-
-  .mve-print-page-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .mve-print-header,
-  .mve-print-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8mm;
-    white-space: pre-wrap;
-  }
-
-  .mve-print-title {
-    margin: 0;
-    line-height: 1.1;
-  }
-
-  .mve-print-viewport {
-    position: relative;
-    overflow: hidden;
-    flex: 0 0 auto;
-  }
-
-  .mve-print-page-number {
-    flex: 0 0 auto;
-    text-align: right;
-  }
-
   @media print {
     html, body {
       background: #fff;
@@ -477,19 +366,6 @@ const createViewerDocumentStyles = (): string => `
       background: transparent;
     }
 
-    .mve-print-document {
-      padding: 0;
-      background: #fff;
-    }
-
-    .mve-print-sequence {
-      gap: 0;
-    }
-
-    .mve-print-page {
-      box-shadow: none;
-      margin: 0;
-    }
   }
 `;
 
@@ -698,56 +574,41 @@ const createPrintHtmlFromResolvedModel = (
     variant: resolved.variant,
   };
   const printPageCss = resolveViewerPrintPageCss(resolved.pageMetrics);
-
-  const pagesHtml = resolved.printedPages
-    .map((page) => {
-      const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-        showDocumentTitle: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showDocumentTitle,
-        documentTitleOverride: resolved.normalizedPrintSettings.documentTitleOverride,
-        pageLayoutMode: resolved.normalizedPrintSettings.pageLayoutMode,
-        showHeader: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showHeader,
-        headerText: resolved.normalizedPrintSettings.headerText,
-        showFooter: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showFooter,
-        footerText: resolved.normalizedPrintSettings.footerText,
-        showPageNumbers: resolved.normalizedFlags.includeEditorial && resolved.normalizedPrintSettings.showPageNumbers,
-        projectName: resolved.renderModel.projectName,
-        pageIndex: page.pageNumber - 1,
-        pageCount: resolved.printedPages.length,
-        contentHeightMm: resolved.pageMetrics.contentHeightMm,
-        pxPerMmY: resolved.measuredPxPerMm.pxPerMmY,
-      });
-      const sliceLayout = resolveViewerPageSliceLayout({
-        viewportWidthPx: page.viewportWidthPx,
-        viewportHeightPx: page.viewportHeightPx,
-        surfaceWidthPx: resolved.paginatedSurfaceLayout.scaledSurfaceWidthPx,
-        surfaceHeightPx: resolved.paginatedSurfaceLayout.scaledSurfaceHeightPx,
-        offsetX: page.printOffsetX,
-        offsetY: page.printOffsetY,
-      });
-
-      return `<section class="mve-print-page" data-page-number="${page.pageNumber}">
-        <div class="mve-print-page-content" style="${styleToString({
-          width: `${resolved.pageMetrics.paperWidthMm}mm`,
-          height: `${resolved.pageMetrics.paperHeightMm}mm`,
-          padding: `${resolved.pageMetrics.marginTopMm}mm ${resolved.pageMetrics.marginRightMm}mm ${resolved.pageMetrics.marginBottomMm}mm ${resolved.pageMetrics.marginLeftMm}mm`,
-        })}">
-          ${editorialLayout.headerText ? `<div class="mve-print-header">${escapeHtml(editorialLayout.headerText)}</div>` : ''}
-          ${editorialLayout.documentTitle ? `<h1 class="mve-print-title" style="${styleToString({ 'font-size': `${resolved.normalizedPrintSettings.documentTitleFontSize}px` })}">${escapeHtml(editorialLayout.documentTitle)}</h1>` : ''}
-          <div class="mve-print-viewport" style="${styleToString({
-            width: `${sliceLayout.viewportWidthPx}px`,
-            height: `${sliceLayout.viewportHeightPx}px`,
-          })}">
-            ${renderSliceCanvasHtml(resolved.renderModel, sliceLayout, resolved.contentPlacementMetrics.scale)}
-          </div>
-          ${
-            editorialLayout.footerText || editorialLayout.pageNumberText
-              ? `<div class="mve-print-footer"><div>${escapeHtml(editorialLayout.footerText)}</div><div class="mve-print-page-number">${escapeHtml(editorialLayout.pageNumberText)}</div></div>`
-              : ''
-          }
-        </div>
-      </section>`;
-    })
-    .join('');
+  const printCssVars = resolveViewerPrintCssVars(resolved.pageMetrics);
+  const printSettings = resolved.normalizedFlags.includeEditorial
+    ? resolved.normalizedPrintSettings
+    : {
+        ...resolved.normalizedPrintSettings,
+        showDocumentTitle: false,
+        showHeader: false,
+        showFooter: false,
+        showPageNumbers: false,
+      };
+  const pagesHtml = renderToStaticMarkup(
+    createElement(ViewerPrintDocument, {
+      renderModel: resolved.renderModel,
+      printedPages: resolved.printedPages,
+      paginatedSurfaceLayout: resolved.paginatedSurfaceLayout,
+      contentScale: resolved.contentPlacementMetrics.scale,
+      printSettings,
+      pageMetrics: resolved.pageMetrics,
+      pxPerMmY: resolved.measuredPxPerMm.pxPerMmY,
+      classNames: VIEWER_PRINT_DOCUMENT_EXPORT_CLASS_NAMES,
+      pageStyle: {
+        width: `${resolved.previewMetrics.paperWidthPx}px`,
+        height: `${resolved.previewMetrics.paperHeightPx}px`,
+        minHeight: `${resolved.previewMetrics.paperHeightPx}px`,
+        maxHeight: `${resolved.previewMetrics.paperHeightPx}px`,
+      },
+      contentBoxStyle: {
+        width: `${resolved.paginatedSurfaceLayout.contentWidthPx}px`,
+        height: `${resolved.paginatedSurfaceLayout.contentHeightPx}px`,
+        minHeight: `${resolved.paginatedSurfaceLayout.contentHeightPx}px`,
+        maxHeight: `${resolved.paginatedSurfaceLayout.contentHeightPx}px`,
+        margin: `${resolved.paginatedSurfaceLayout.paperPaddingPx.top}px ${resolved.paginatedSurfaceLayout.paperPaddingPx.right}px ${resolved.paginatedSurfaceLayout.paperPaddingPx.bottom}px ${resolved.paginatedSurfaceLayout.paperPaddingPx.left}px`,
+      },
+    }),
+  );
 
   return `<!doctype html>
 <html lang="es">
@@ -756,13 +617,14 @@ const createPrintHtmlFromResolvedModel = (
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(resolved.renderModel.projectName || 'Exportacion PDF')}</title>
     <style>${createViewerDocumentStyles()}</style>
+    <style>${createViewerPrintDocumentExportStyles()}</style>
     <style>${printPageCss}
 html, body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 body { background: #fff; }</style>
   </head>
   <body>
-    <main class="mve-export-root mve-print-document" data-export-kind="print-document" data-export-product="${resolved.product}" data-export-variant="${resolved.variant}">
-      <div class="mve-print-sequence">${pagesHtml}</div>
+    <main class="mve-export-root viewerPrintExportRoot" style="${styleToString(printCssVars as unknown as Record<string, string>)}" data-export-kind="print-document" data-export-product="${resolved.product}" data-export-variant="${resolved.variant}">
+      ${pagesHtml}
     </main>
     <script id="malla-export-payload" type="application/json">${serializeJsonScript(payload)}</script>
   </body>

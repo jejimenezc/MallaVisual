@@ -46,6 +46,7 @@ import {
   type ViewerPrintSettings,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
+import { ViewerPrintDocument } from '../components/ViewerPrintDocument.tsx';
 import styles from './MallaViewerScreen.module.css';
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
@@ -1012,7 +1013,40 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const printDocumentContent = isPrintPreview ? (
     <div className={styles.printOnly}>
-      <div className={styles.viewerPrintedPageSequence}>{printedPages.map(renderPrintedPage)}</div>
+      <ViewerPrintDocument
+        renderModel={renderModel}
+        printedPages={printedPages}
+        paginatedSurfaceLayout={paginatedSurfaceLayout}
+        contentScale={contentPlacementMetrics.scale}
+        printSettings={printSettings}
+        pageMetrics={pageMetrics}
+        pxPerMmY={measuredPxPerMm.pxPerMmY}
+        classNames={{
+          sequence: styles.viewerPrintedPageSequence,
+          page: `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePrint} ${styles.viewerPrintedPage}`,
+          contentBox: `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPrint}`,
+          flow: `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPrint}`,
+          headerBlock: styles.viewerPageHeaderBlock,
+          header: styles.runtimeHeader,
+          titleBlock: styles.viewerPageTitleBlock,
+          title: styles.runtimeDocumentTitle,
+          viewport: styles.viewerCanvasScaledViewport,
+          canvas: styles.viewerCanvasScaled,
+          footerBlock: styles.viewerPageFooterBlock,
+          footer: styles.runtimeFooter,
+          pageNumber: styles.viewerPageNumber,
+          bandRow: styles.viewerBandRow,
+          bandRowHeader: styles.viewerBandRowHeader,
+          bandRowMetric: styles.viewerBandRowMetric,
+          bandCell: styles.viewerBandCell,
+          bandCellMetric: styles.viewerBandCellMetric,
+          bandCellMetricLabel: styles.viewerBandCellMetricLabel,
+          bandCellMetricValue: styles.viewerBandCellMetricValue,
+          piece: styles.viewerPiece,
+          pieceGrid: styles.viewerPieceGrid,
+          cell: styles.viewerCell,
+        }}
+      />
     </div>
   ) : null;
 
