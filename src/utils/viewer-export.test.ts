@@ -89,6 +89,9 @@ describe('viewer-export', () => {
       config: {
         theme: {
           ...createDefaultViewerTheme(),
+          showTitle: true,
+          titleText: 'Titulo standalone',
+          titleFontSize: 30,
           headerText: 'Cabecera standalone',
           footerText: 'Pie standalone',
         },
@@ -101,6 +104,7 @@ describe('viewer-export', () => {
     });
 
     expect(html).toContain('mve-standalone-shell');
+    expect(html).toContain('Titulo standalone');
     expect(html).toContain('Cabecera standalone');
     expect(html).toContain('Pie standalone');
     expect(html).toContain('Calculo I');

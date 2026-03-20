@@ -10,6 +10,9 @@ import {
   createDefaultViewerTheme,
   VIEWER_MAX_ZOOM,
   VIEWER_MIN_ZOOM,
+  VIEWER_THEME_MAX_TITLE_FONT_SIZE,
+  VIEWER_THEME_MIN_TITLE_FONT_SIZE,
+  VIEWER_THEME_TITLE_FONT_SIZE_STEP,
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
 import {
@@ -1273,6 +1276,40 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setThemeSafe((prev) => ({ ...prev, typographyScale: Number(event.target.value) }))
                   }
                 />
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={theme.showTitle}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, showTitle: event.target.checked }))
+                  }
+                />
+                <span>Agregar titulo</span>
+              </label>
+              <label className={styles.field} title="Si queda vacio, se usa el nombre del proyecto.">
+                <input
+                  type="text"
+                  value={theme.titleText}
+                  placeholder="Personaliza el titulo de la salida web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, titleText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Escala del titulo</span>
+                <input
+                  type="range"
+                  min={VIEWER_THEME_MIN_TITLE_FONT_SIZE}
+                  max={VIEWER_THEME_MAX_TITLE_FONT_SIZE}
+                  step={VIEWER_THEME_TITLE_FONT_SIZE_STEP}
+                  value={theme.titleFontSize}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, titleFontSize: Number(event.target.value) }))
+                  }
+                />
+                <span className={styles.fieldHint}>{`${Math.round(theme.titleFontSize)} px`}</span>
               </label>
               <label className={styles.toggleField}>
                 <input

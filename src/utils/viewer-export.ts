@@ -299,6 +299,7 @@ const createViewerDocumentStyles = (): string => `
   }
 
   .mve-standalone-header,
+  .mve-standalone-title,
   .mve-standalone-footer {
     width: min(100%, max-content);
     margin: 0 auto 16px;
@@ -308,6 +309,11 @@ const createViewerDocumentStyles = (): string => `
     border: 1px solid rgba(148, 163, 184, 0.28);
     backdrop-filter: blur(8px);
     white-space: pre-wrap;
+  }
+
+  .mve-standalone-title {
+    font-weight: 700;
+    line-height: 1.1;
   }
 
   .mve-standalone-footer {
@@ -488,14 +494,25 @@ const createViewerDocumentStyles = (): string => `
 `;
 
 const createStandaloneEditorialHtml = (renderModel: ViewerRenderModel, flags: PublicationExportFlags) => {
-  if (!flags.includeEditorial || !renderModel.theme.showHeaderFooter) {
-    return { header: '', footer: '' };
+  if (!flags.includeEditorial) {
+    return { title: '', header: '', footer: '' };
+  }
+
+  const titleText = renderModel.theme.titleText.trim() || renderModel.projectName.trim();
+  const title =
+    renderModel.theme.showTitle && titleText
+      ? `<h1 class="mve-standalone-title" style="${styleToString({ 'font-size': `${renderModel.theme.titleFontSize}px` })}">${escapeHtml(titleText)}</h1>`
+      : '';
+
+  if (!renderModel.theme.showHeaderFooter) {
+    return { title, header: '', footer: '' };
   }
 
   const headerText = renderModel.theme.headerText.trim();
   const footerText = renderModel.theme.footerText.trim();
 
   return {
+    title,
     header: headerText
       ? `<header class="mve-standalone-header">${escapeHtml(headerText)}</header>`
       : '',
@@ -648,6 +665,7 @@ const createStandaloneHtmlFromResolvedModel = (
   </head>
   <body>
     <main class="mve-export-root ${shellClass}" data-export-kind="standalone-html" data-export-product="${resolved.product}" data-export-variant="${resolved.variant}">
+      ${editorial.title}
       ${editorial.header}
       <section class="mve-standalone-surface">
         <div class="mve-canvas" style="${styleToString({

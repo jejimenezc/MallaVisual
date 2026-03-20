@@ -238,17 +238,26 @@ test('snapshot publication appearance is normalized and preserved', () => {
     appearance: {
       ...createDefaultViewerTheme(),
       gapX: 999,
+      showTitle: true,
+      titleText: 'Titulo web',
+      titleFontSize: 99,
       showHeaderFooter: true,
     },
   });
 
   assert.equal(snapshot.appearance?.gapX, 96);
+  assert.equal(snapshot.appearance?.showTitle, true);
+  assert.equal(snapshot.appearance?.titleText, 'Titulo web');
+  assert.equal(snapshot.appearance?.titleFontSize, 40);
   assert.equal(snapshot.appearance?.showHeaderFooter, true);
 
   const normalized = validateAndNormalizeMallaSnapshot(snapshot);
   assert.equal(normalized.ok, true);
   if (normalized.ok) {
     assert.equal(normalized.normalizedSnapshot.appearance?.gapX, 96);
+    assert.equal(normalized.normalizedSnapshot.appearance?.showTitle, true);
+    assert.equal(normalized.normalizedSnapshot.appearance?.titleText, 'Titulo web');
+    assert.equal(normalized.normalizedSnapshot.appearance?.titleFontSize, 40);
     assert.equal(normalized.normalizedSnapshot.appearance?.showHeaderFooter, true);
   }
 });
