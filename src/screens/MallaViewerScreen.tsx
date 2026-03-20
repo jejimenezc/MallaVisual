@@ -782,15 +782,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
-        <h2>{mode === 'publication' ? 'Version publicada' : 'Vista previa de malla'}</h2>
+        <h2>{mode === 'publication' ? 'Versión publicada' : 'Vista previa de malla'}</h2>
         <p>
           {mode === 'publication'
-            ? 'No hay una version publicada cargada.'
+            ? 'No hay una versión publicada cargada.'
             : 'No hay datos para vista previa.'}
         </p>
         {mode === 'publication' ? (
           <Button type="button" variant="primary" onClick={handleOpenImporter}>
-            Abrir version publicada
+            Abrir versión publicada
           </Button>
         ) : (
           <Button type="button" variant="primary" onClick={onBackToEditor}>
@@ -1107,14 +1107,14 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             {isPrintPreview ? (
               <>
                 <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a Modo Presentacion
+                  Volver al Modo Presentación
                 </Button>
                 <Button
                   type="button"
                   onClick={() => void onOpenPublishModal()}
                   className={styles.viewerPublishCta}
                 >
-                  Publicar ahora
+                  Publicar documento
                 </Button>
                 <Button
                   type="button"
@@ -1129,9 +1129,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <Button
                   type="button"
                   onClick={handleEnterPrintPreview}
-                  title="Ir al modo documento para configurar la salida editorial y paginada"
+                  title="Ir al Modo Documento para configurar la salida editorial y paginada"
                 >
-                  Ir a Modo Documento
+                  Ir al Modo Documento
                 </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (
@@ -1140,7 +1140,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
               >
-                Publicar version actual
+                Publicar Web/Datos
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (
@@ -1181,7 +1181,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             <>
               <h3>Apariencia base</h3>
               <label className={`${styles.field} ${styles.scaleField}`}>
-                <span>Separacion horizontal</span>
+                <span>Separación horizontal</span>
                 <input
                   className={styles.compactRange}
                   type="range"
@@ -1192,7 +1192,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={`${styles.field} ${styles.scaleField}`}>
-                <span>Separacion vertical</span>
+                <span>Separación vertical</span>
                 <input
                   className={styles.compactRange}
                   type="range"
@@ -1203,7 +1203,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Ancho minimo de columnas</span>
+                <span>Ancho mínimo de columnas</span>
                 <input
                   type="range"
                   min={0}
@@ -1216,7 +1216,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Alto minimo de lineas curriculares</span>
+                <span>Alto mínimo de líneas curriculares</span>
                 <input
                   type="range"
                   min={0}
@@ -1285,20 +1285,20 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setThemeSafe((prev) => ({ ...prev, showTitle: event.target.checked }))
                   }
                 />
-                <span>Agregar titulo</span>
+                <span>Agregar título</span>
               </label>
-              <label className={styles.field} title="Si queda vacio, se usa el nombre del proyecto.">
+              <label className={styles.field} title="Si queda vacío, se usa el nombre del proyecto.">
                 <input
                   type="text"
                   value={theme.titleText}
-                  placeholder="Personaliza el titulo de la salida web"
+                  placeholder="Personaliza el título de la salida web"
                   onChange={(event) =>
                     setThemeSafe((prev) => ({ ...prev, titleText: event.target.value }))
                   }
                 />
               </label>
               <label className={styles.field}>
-                <span>Escala del titulo</span>
+                <span>Escala del título</span>
                 <input
                   type="range"
                   min={VIEWER_THEME_MIN_TITLE_FONT_SIZE}
@@ -1319,25 +1319,25 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
                   }
                 />
-                <span>Marco editorial web minimo</span>
+                <span>Marco editorial web mínimo</span>
               </label>
               <label className={styles.field}>
-                <span>Header web</span>
+                <span>Encabezado web</span>
                 <input
                   type="text"
                   value={theme.headerText}
-                  placeholder="Texto opcional para la salida HTML web"
+                  placeholder="Texto opcional para la salida web"
                   onChange={(event) =>
                     setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))
                   }
                 />
               </label>
               <label className={styles.field}>
-                <span>Footer web</span>
+                <span>Pie web</span>
                 <input
                   type="text"
                   value={theme.footerText}
-                  placeholder="Texto opcional para la salida HTML web"
+                  placeholder="Texto opcional para la salida web"
                   onChange={(event) =>
                     setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))
                   }
@@ -1427,9 +1427,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     }))
                   }
                 >
-                  <option value="narrow">Narrow</option>
-                  <option value="normal">Normal</option>
-                  <option value="wide">Wide</option>
+                  <option value="narrow">Estrechos</option>
+                  <option value="normal">Normales</option>
+                  <option value="wide">Amplios</option>
                 </select>
               </label>
               <label className={styles.toggleField}>
@@ -1520,7 +1520,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Layout de página</span>
+                <span>Distribución de páginas</span>
                 <select
                   value={printSettings.pageLayoutMode}
                   onChange={(event) =>
