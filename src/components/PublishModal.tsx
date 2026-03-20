@@ -13,6 +13,7 @@ export type PublishActionKey = PublicationProduct;
 interface PublishActionConfig {
   availability: PublishActionAvailability;
   isRunning?: boolean;
+  isCompleted?: boolean;
 }
 
 type PublishActions = Record<PublishActionKey, PublishActionConfig>;
@@ -78,6 +79,13 @@ const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
     description: 'Versión simplificada para integrar la malla dentro de otra página web o plataforma institucional.',
     label: 'Descargar código',
   },
+};
+
+const PRODUCT_COMPLETED_LABEL: Partial<Record<PublicationProduct, string>> = {
+  'snapshot-json': 'Descargado',
+  'html-download': 'Descargado',
+  'html-paginated': 'Descargado',
+  'html-embed': 'Descargado',
 };
 
 const MODE_SECTIONS: Record<
@@ -197,7 +205,11 @@ export function PublishModal({
                         disabled={action.isRunning || action.availability !== 'ready'}
                         onClick={() => void onSelectProduct(product)}
                       >
-                        {action.isRunning ? 'Procesando...' : descriptor.label}
+                        {action.isRunning
+                          ? 'Procesando...'
+                          : action.isCompleted
+                            ? PRODUCT_COMPLETED_LABEL[product] ?? descriptor.label
+                            : descriptor.label}
                       </Button>
                     </div>
                   </article>

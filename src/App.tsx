@@ -277,6 +277,7 @@ export default function App(): JSX.Element | null {
     mode: PublicationMode;
   } | null>(null);
   const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
+  const [completedPublishAction, setCompletedPublishAction] = useState<PublishActionKey | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -922,11 +923,23 @@ export default function App(): JSX.Element | null {
   const closePublishModal = useCallback(() => {
     setPublishContext(null);
     setRunningPublishAction(null);
+    setCompletedPublishAction(null);
   }, []);
+
+  useEffect(() => {
+    if (!completedPublishAction) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setCompletedPublishAction((current) =>
+        current === completedPublishAction ? null : current,
+      );
+    }, 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [completedPublishAction]);
 
   const handleSelectPublicationProduct = useCallback(
     async (product: PublicationProduct) => {
       setRunningPublishAction(product);
+      setCompletedPublishAction(null);
       const appearance = publicationOutputConfig.theme;
       const snapshot = createPublicationSnapshot(appearance);
       if (!snapshot) {
@@ -940,6 +953,7 @@ export default function App(): JSX.Element | null {
       if (product === 'snapshot-json') {
         downloadPublication(snapshot);
         pushToast('Snapshot publicado descargado.', 'success');
+        setCompletedPublishAction(product);
       } else if (product === 'pdf') {
         openViewerPdfExport({
           snapshot,
@@ -947,6 +961,9 @@ export default function App(): JSX.Element | null {
           product: 'pdf',
         });
         pushToast('Se abrio el flujo PDF del documento visible.', 'info');
+        setRunningPublishAction(null);
+        closePublishModal();
+        return;
       } else if (product === 'print') {
         openViewerPdfExport({
           snapshot,
@@ -954,6 +971,9 @@ export default function App(): JSX.Element | null {
           product: 'print',
         });
         pushToast('Se abrio la impresion del documento visible.', 'info');
+        setRunningPublishAction(null);
+        closePublishModal();
+        return;
       } else if (product === 'html-web') {
         openViewerStandaloneHtml({
           snapshot,
@@ -968,6 +988,7 @@ export default function App(): JSX.Element | null {
           product: 'html-download',
         });
         pushToast('HTML web descargado.', 'success');
+        setCompletedPublishAction(product);
       } else if (product === 'html-paginated') {
         downloadViewerStandaloneHtml({
           snapshot,
@@ -975,6 +996,7 @@ export default function App(): JSX.Element | null {
           product: 'html-paginated',
         });
         pushToast('HTML paginado descargado.', 'success');
+        setCompletedPublishAction(product);
       } else if (product === 'html-embed') {
         downloadViewerStandaloneHtml({
           snapshot,
@@ -988,15 +1010,16 @@ export default function App(): JSX.Element | null {
           product: 'html-embed',
         });
         pushToast('HTML embed descargado.', 'success');
+        setCompletedPublishAction(product);
       }
 
       setRunningPublishAction(null);
-      closePublishModal();
     },
     [
       closePublishModal,
       createPublicationSnapshot,
       downloadPublication,
+      openViewerStandaloneHtml,
       publicationOutputConfig,
       pushToast,
     ],
@@ -2049,30 +2072,37 @@ export default function App(): JSX.Element | null {
                 'snapshot-json': {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'snapshot-json',
+                  isCompleted: completedPublishAction === 'snapshot-json',
                 },
                 pdf: {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'pdf',
+                  isCompleted: completedPublishAction === 'pdf',
                 },
                 print: {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'print',
+                  isCompleted: completedPublishAction === 'print',
                 },
                 'html-web': {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'html-web',
+                  isCompleted: completedPublishAction === 'html-web',
                 },
                 'html-download': {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'html-download',
+                  isCompleted: completedPublishAction === 'html-download',
                 },
                 'html-paginated': {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'html-paginated',
+                  isCompleted: completedPublishAction === 'html-paginated',
                 },
                 'html-embed': {
                   availability: 'ready',
                   isRunning: runningPublishAction === 'html-embed',
+                  isCompleted: completedPublishAction === 'html-embed',
                 },
               }}
               onClose={closePublishModal}
