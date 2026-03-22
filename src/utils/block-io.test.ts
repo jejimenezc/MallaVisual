@@ -1,7 +1,12 @@
 // src/utils/block-io.test.ts
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { exportBlock, importBlock } from './block-io.ts';
+import {
+  BLOCK_SCHEMA_VERSION,
+  exportBlock,
+  importBlock,
+  migrateBlock,
+} from './block-io.ts';
 import type { ProjectTheme } from './project-theme.ts';
 import { createDefaultProjectTheme } from './project-theme.ts';
 import type { BlockTemplate } from '../types/curricular.ts';
@@ -37,9 +42,53 @@ test('export followed by import yields same block', () => {
   const json = exportBlock(template, visual, aspect, metadata, theme);
   const result = importBlock(json);
 
+  assert.equal(result.version, BLOCK_SCHEMA_VERSION);
   assert.deepEqual(result.template, template);
   assert.deepEqual(result.visual, visual);
   assert.equal(result.aspect, aspect);
   assert.deepEqual(result.metadata, metadata);
   assert.deepEqual(result.theme, { ...createDefaultProjectTheme(), ...theme });
+});
+
+test('importBlock rejects missing version', () => {
+  assert.throws(
+    () =>
+      importBlock(
+        JSON.stringify({
+          template: [[{ active: true }]],
+          visual: {},
+          aspect: '1/1',
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Versión de bloque faltante/,
+  );
+});
+
+test('importBlock rejects unsupported version', () => {
+  assert.throws(
+    () =>
+      importBlock(
+        JSON.stringify({
+          version: 99,
+          template: [[{ active: true }]],
+          visual: {},
+          aspect: '1/1',
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Versión de bloque no soportada/,
+  );
+});
+
+test('migrateBlock is identity for current schema', () => {
+  const input = {
+    version: BLOCK_SCHEMA_VERSION,
+    template: [[{ active: true }]],
+    visual: {},
+    aspect: '1/1',
+    theme: createDefaultProjectTheme(),
+  };
+
+  assert.deepEqual(migrateBlock(input), input);
 });
