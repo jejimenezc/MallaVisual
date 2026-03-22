@@ -89,6 +89,7 @@ export interface MallaSnapshotV1 {
   projectName: string;
   snapshotId?: string;
   appVersion?: string;
+  sourceSchemaVersion?: number;
   grid: {
     rows: number;
     cols: number;
