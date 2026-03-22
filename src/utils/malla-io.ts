@@ -53,6 +53,7 @@ export interface MallaExport {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const MALLA_SCHEMA_VERSION = 6;
+export const SUPPORTED_MALLA_SCHEMA_VERSIONS = [2, 3, 4, 5, 6] as const;
 
 export { createDefaultProjectTheme, normalizeProjectTheme };
 export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
@@ -521,6 +522,13 @@ export function importMalla(json: string): MallaExport {
   };
 
   const version = typeof data.version === 'number' ? data.version : 2;
+  if (
+    !SUPPORTED_MALLA_SCHEMA_VERSIONS.includes(
+      version as (typeof SUPPORTED_MALLA_SCHEMA_VERSIONS)[number],
+    )
+  ) {
+    throw new Error('Versión incompatible');
+  }
   if (version > MALLA_SCHEMA_VERSION) {
     throw new Error('Versión incompatible');
   }
