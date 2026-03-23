@@ -53,6 +53,8 @@ import { IntroOverlay } from './components/IntroOverlay';
 import { handleProjectFile } from './utils/project-file.ts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
+import { EditorErrorBoundary, ViewerErrorBoundary } from './core/runtime/RuntimeErrorBoundary.tsx';
+import { logAppError } from './core/runtime/logger.ts';
 import type { MallaSnapshot } from './types/malla-snapshot.ts';
 import {
   buildMallaSnapshotFromState,
@@ -649,67 +651,80 @@ export default function App(): JSX.Element | null {
     if (isHydrated) return;
     void (async () => {
       const switchToken = beginProjectSwitch();
-      if (typeof window === 'undefined') {
-        setIsHydrated(true);
-        return;
-      }
-      const stored = readStoredActiveProject(getSafeLocalStorage());
-      if (!stored.id) {
-        setIsHydrated(true);
-        return;
-      }
-      const record = loadProject(stored.id);
-      if (!isProjectSwitchTokenCurrent(switchToken)) {
-        return;
-      }
-      if (!record) {
-        clearStoredActiveProject(getSafeLocalStorage());
-        setProjectId(null);
-        setProjectName('');
-        setBlock(null);
-        loadMallaState(null);
-        setShouldPersistProject(false);
-        setIsHydrated(true);
-        return;
-      }
-      if ('masters' in record.data) {
-        const normalizedRepo = await applyRepositoryChange(
-          record.data.repository ?? {},
-          {
-            reason: 'abrir el proyecto almacenado',
-            targetDescription: 'el proyecto almacenado',
-            skipConfirmation: true,
-          },
-          undefined,
-          switchToken,
-        );
-        if (!isProjectSwitchTokenCurrent(switchToken)) return;
-        if (!normalizedRepo) {
+      try {
+        if (typeof window === 'undefined') {
           setIsHydrated(true);
           return;
         }
-        const prepared = prepareMallaProjectState(record.data, normalizedRepo);
-        setBlock(prepared.block);
-        loadMallaState(prepared.malla);
-      } else {
-        await applyRepositoryChange(
-          {},
-          {
-            reason: 'abrir el proyecto almacenado',
-            targetDescription: 'el proyecto almacenado',
-            skipConfirmation: true,
-          },
-          undefined,
-          switchToken,
-        );
+
+        const stored = readStoredActiveProject(getSafeLocalStorage());
+        if (!stored.id) {
+          setIsHydrated(true);
+          return;
+        }
+
+        const record = loadProject(stored.id);
         if (!isProjectSwitchTokenCurrent(switchToken)) return;
-        setBlock(createBlockStateFromContent(toBlockContent(record.data)));
-        loadMallaState(null);
+        if (!record) {
+          clearStoredActiveProject(getSafeLocalStorage());
+          setProjectId(null);
+          setProjectName('');
+          setBlock(null);
+          loadMallaState(null);
+          setShouldPersistProject(false);
+          setIsHydrated(true);
+          return;
+        }
+
+        if ('masters' in record.data) {
+          const normalizedRepo = await applyRepositoryChange(
+            record.data.repository ?? {},
+            {
+              reason: 'abrir el proyecto almacenado',
+              targetDescription: 'el proyecto almacenado',
+              skipConfirmation: true,
+            },
+            undefined,
+            switchToken,
+          );
+          if (!isProjectSwitchTokenCurrent(switchToken)) return;
+          if (!normalizedRepo) {
+            setIsHydrated(true);
+            return;
+          }
+          const prepared = prepareMallaProjectState(record.data, normalizedRepo);
+          setBlock(prepared.block);
+          loadMallaState(prepared.malla);
+        } else {
+          await applyRepositoryChange(
+            {},
+            {
+              reason: 'abrir el proyecto almacenado',
+              targetDescription: 'el proyecto almacenado',
+              skipConfirmation: true,
+            },
+            undefined,
+            switchToken,
+          );
+          if (!isProjectSwitchTokenCurrent(switchToken)) return;
+          setBlock(createBlockStateFromContent(toBlockContent(record.data)));
+          loadMallaState(null);
+        }
+
+        setProjectId(stored.id);
+        setProjectName(record.meta.name ?? stored.name ?? '');
+        setShouldPersistProject(true);
+        setIsHydrated(true);
+      } catch (error) {
+        logAppError({
+          scope: 'persistence',
+          severity: 'non-fatal',
+          message: 'Fallo la rehidratacion del proyecto activo.',
+          error,
+        });
+        setIsHydrated(true);
+        pushToast('No se pudo restaurar el proyecto activo', 'error');
       }
-      setProjectId(stored.id);
-      setProjectName(record.meta.name ?? stored.name ?? '');
-      setShouldPersistProject(true);
-      setIsHydrated(true);
     })();
   }, [
     applyRepositoryChange,
@@ -717,6 +732,7 @@ export default function App(): JSX.Element | null {
     isHydrated,
     isProjectSwitchTokenCurrent,
     loadProject,
+    pushToast,
   ]);
 
   useEffect(() => {
@@ -803,14 +819,28 @@ export default function App(): JSX.Element | null {
 
   const handleExportProject = () => {
     if (!currentProject) return;
-    const json = exportProject({ ...currentProject });
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${projectName || 'proyecto'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const json = exportProject({ ...currentProject });
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectName || 'proyecto'}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      logAppError({
+        scope: 'import-export',
+        severity: 'non-fatal',
+        message: 'Fallo la exportacion del proyecto.',
+        error,
+        context: {
+          projectId,
+          projectName,
+        },
+      });
+      pushToast('No se pudo exportar el proyecto', 'error');
+    }
   };
 
   const resolvePublicationTheme = useCallback(
@@ -833,24 +863,42 @@ export default function App(): JSX.Element | null {
       return buildMallaSnapshotFromState(currentProject, {
         projectName: projectName || 'Proyecto',
       });
-    } catch {
+    } catch (error) {
+      logAppError({
+        scope: 'viewer',
+        severity: 'non-fatal',
+        message: 'Fallo la generacion del snapshot de vista previa.',
+        error,
+        context: {
+          projectId,
+          projectName,
+        },
+      });
       return null;
     }
-  }, [currentProject, projectName]);
+  }, [currentProject, projectId, projectName]);
 
   const handleOpenPreview = useCallback(() => {
     if (!currentProject) return;
+    if (!previewSnapshot) {
+      pushToast('No se pudo abrir la vista previa', 'error');
+      return;
+    }
     setViewerPanelModePreference('preview');
     setViewerMode('preview');
     navigate('/malla/viewer');
-  }, [currentProject, navigate]);
+  }, [currentProject, navigate, previewSnapshot, pushToast]);
 
   const handleOpenPrintPreview = useCallback(() => {
     if (!currentProject) return;
+    if (!previewSnapshot) {
+      pushToast('No se pudo abrir la vista de impresion', 'error');
+      return;
+    }
     setViewerPanelModePreference('print-preview');
     setViewerMode('preview');
     navigate('/malla/viewer');
-  }, [currentProject, navigate]);
+  }, [currentProject, navigate, previewSnapshot, pushToast]);
 
   const createPublicationSnapshot = useCallback(
     (appearance: ViewerTheme): MallaSnapshot | null => {
@@ -860,11 +908,21 @@ export default function App(): JSX.Element | null {
           projectName: projectName || 'Proyecto',
           appearance,
         });
-      } catch {
+      } catch (error) {
+        logAppError({
+          scope: 'publication',
+          severity: 'non-fatal',
+          message: 'Fallo la generacion del snapshot publicable.',
+          error,
+          context: {
+            projectId,
+            projectName,
+          },
+        });
         return null;
       }
     },
-    [currentProject, projectName],
+    [currentProject, projectId, projectName],
   );
 
   const downloadPublication = useCallback((snapshot: MallaSnapshot) => {
@@ -940,77 +998,89 @@ export default function App(): JSX.Element | null {
     async (product: PublicationProduct) => {
       setRunningPublishAction(product);
       setCompletedPublishAction(null);
-      const appearance = publicationOutputConfig.theme;
-      const snapshot = createPublicationSnapshot(appearance);
-      if (!snapshot) {
-        pushToast('No se pudo generar la publicacion', 'error');
-        setRunningPublishAction(null);
-        return;
-      }
+      try {
+        const appearance = publicationOutputConfig.theme;
+        const snapshot = createPublicationSnapshot(appearance);
+        if (!snapshot) {
+          pushToast('No se pudo generar la publicacion', 'error');
+          return;
+        }
 
-      setPublicationSnapshot(snapshot);
+        setPublicationSnapshot(snapshot);
 
-      if (product === 'snapshot-json') {
-        downloadPublication(snapshot);
-        pushToast('Snapshot publicado descargado.', 'success');
-        setCompletedPublishAction(product);
-      } else if (product === 'pdf') {
-        openViewerPdfExport({
-          snapshot,
-          config: publicationOutputConfig,
-          product: 'pdf',
-        });
-        pushToast('Se abrio el flujo PDF del documento visible.', 'info');
-        setRunningPublishAction(null);
-        closePublishModal();
-        return;
-      } else if (product === 'print') {
-        openViewerPdfExport({
-          snapshot,
-          config: publicationOutputConfig,
-          product: 'print',
-        });
-        pushToast('Se abrio la impresion del documento visible.', 'info');
-        setRunningPublishAction(null);
-        closePublishModal();
-        return;
-      } else if (product === 'html-web') {
-        openViewerStandaloneHtml({
-          snapshot,
-          config: publicationOutputConfig,
-          product: 'html-web',
-        });
-        pushToast('HTML web abierto en una ventana nueva.', 'success');
-      } else if (product === 'html-download') {
-        downloadViewerStandaloneHtml({
-          snapshot,
-          config: publicationOutputConfig,
-          product: 'html-download',
-        });
-        pushToast('HTML web descargado.', 'success');
-        setCompletedPublishAction(product);
-      } else if (product === 'html-paginated') {
-        downloadViewerStandaloneHtml({
-          snapshot,
-          config: publicationOutputConfig,
-          product: 'html-paginated',
-        });
-        pushToast('HTML paginado descargado.', 'success');
-        setCompletedPublishAction(product);
-      } else if (product === 'html-embed') {
-        downloadViewerStandaloneHtml({
-          snapshot,
-          config: {
-            ...publicationOutputConfig,
-            flags: {
-              ...publicationOutputConfig.flags,
-              includeEditorial: false,
+        if (product === 'snapshot-json') {
+          downloadPublication(snapshot);
+          pushToast('Snapshot publicado descargado.', 'success');
+          setCompletedPublishAction(product);
+        } else if (product === 'pdf') {
+          openViewerPdfExport({
+            snapshot,
+            config: publicationOutputConfig,
+            product: 'pdf',
+          });
+          pushToast('Se abrio el flujo PDF del documento visible.', 'info');
+          closePublishModal();
+          return;
+        } else if (product === 'print') {
+          openViewerPdfExport({
+            snapshot,
+            config: publicationOutputConfig,
+            product: 'print',
+          });
+          pushToast('Se abrio la impresion del documento visible.', 'info');
+          closePublishModal();
+          return;
+        } else if (product === 'html-web') {
+          openViewerStandaloneHtml({
+            snapshot,
+            config: publicationOutputConfig,
+            product: 'html-web',
+          });
+          pushToast('HTML web abierto en una ventana nueva.', 'success');
+        } else if (product === 'html-download') {
+          downloadViewerStandaloneHtml({
+            snapshot,
+            config: publicationOutputConfig,
+            product: 'html-download',
+          });
+          pushToast('HTML web descargado.', 'success');
+          setCompletedPublishAction(product);
+        } else if (product === 'html-paginated') {
+          downloadViewerStandaloneHtml({
+            snapshot,
+            config: publicationOutputConfig,
+            product: 'html-paginated',
+          });
+          pushToast('HTML paginado descargado.', 'success');
+          setCompletedPublishAction(product);
+        } else if (product === 'html-embed') {
+          downloadViewerStandaloneHtml({
+            snapshot,
+            config: {
+              ...publicationOutputConfig,
+              flags: {
+                ...publicationOutputConfig.flags,
+                includeEditorial: false,
+              },
             },
+            product: 'html-embed',
+          });
+          pushToast('HTML embed descargado.', 'success');
+          setCompletedPublishAction(product);
+        }
+      } catch (error) {
+        logAppError({
+          scope: 'publication',
+          severity: 'non-fatal',
+          message: 'Fallo una accion de publicacion.',
+          error,
+          context: {
+            product,
+            projectId,
+            projectName,
           },
-          product: 'html-embed',
         });
-        pushToast('HTML embed descargado.', 'success');
-        setCompletedPublishAction(product);
+        pushToast(`No se pudo completar la accion ${product}`, 'error');
       }
 
       setRunningPublishAction(null);
@@ -1020,6 +1090,8 @@ export default function App(): JSX.Element | null {
       createPublicationSnapshot,
       downloadPublication,
       openViewerStandaloneHtml,
+      projectId,
+      projectName,
       publicationOutputConfig,
       pushToast,
     ],
@@ -1041,7 +1113,16 @@ export default function App(): JSX.Element | null {
         setViewerMode('publication');
         navigate('/malla/viewer');
         pushToast('Versión publicada abierta', 'success');
-      } catch {
+      } catch (error) {
+        logAppError({
+          scope: 'publication',
+          severity: 'non-fatal',
+          message: 'Fallo la apertura de un snapshot publicado.',
+          error,
+          context: {
+            fileName: file.name,
+          },
+        });
         pushToast('No se pudo abrir la versión publicada', 'error');
       }
     },
@@ -1251,7 +1332,16 @@ export default function App(): JSX.Element | null {
           onBlock: (data, name) => handleLoadBlock(data, name, switchToken),
           onMalla: (data, name) => handleLoadMalla(data, name, switchToken),
         });
-      } catch {
+      } catch (error) {
+        logAppError({
+          scope: 'import-export',
+          severity: 'non-fatal',
+          message: 'Fallo la importacion de un archivo de proyecto.',
+          error,
+          context: {
+            fileName: file.name,
+          },
+        });
         pushToast('Archivo inválido', 'error');
       }
       if (!isProjectSwitchTokenCurrent(switchToken)) return;
@@ -1333,12 +1423,25 @@ export default function App(): JSX.Element | null {
   const openProjectById = useCallback(
     async (id: string) => {
       const switchToken = beginProjectSwitch();
-      const record = loadProject(id);
-      if (!record) return;
-      await handleOpenProject(id, record.data, record.meta.name, switchToken);
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
+      try {
+        const record = loadProject(id);
+        if (!record) return;
+        await handleOpenProject(id, record.data, record.meta.name, switchToken);
+        if (!isProjectSwitchTokenCurrent(switchToken)) return;
+      } catch (error) {
+        logAppError({
+          scope: 'persistence',
+          severity: 'non-fatal',
+          message: 'Fallo la apertura de un proyecto guardado.',
+          error,
+          context: {
+            projectId: id,
+          },
+        });
+        pushToast('No se pudo abrir el proyecto', 'error');
+      }
     },
-    [beginProjectSwitch, handleOpenProject, isProjectSwitchTokenCurrent, loadProject],
+    [beginProjectSwitch, handleOpenProject, isProjectSwitchTokenCurrent, loadProject, pushToast],
   );
 
   const handleProceedToMalla = useCallback(
@@ -1942,54 +2045,27 @@ export default function App(): JSX.Element | null {
               <Route
                 path="/block/design"
                 element={
-                  <BlockEditorScreen
-                    onProceedToMalla={handleProceedToMalla}
-                    onDraftChange={handleBlockDraftChange}
-                    initialData={
-                      block
-                        ? {
-                          version: BLOCK_SCHEMA_VERSION,
-                          template: block.draft.template,
-                          visual: block.draft.visual,
-                          aspect: block.draft.aspect,
-                          theme: projectThemeState,
-                        }
-                        : undefined
-                    }
-                    projectId={projectId ?? undefined}
-                    projectName={projectName}
-                    initialMode="edit"
-                    initialRepoId={block?.repoId ?? null}
-                    initialRepoName={block?.repoName ?? null}
-                    initialRepoMetadata={block?.repoMetadata ?? null}
-                    onRepoIdChange={handleRepoIdChange}
-                    onRepoMetadataChange={handleRepoMetadataChange}
-                    onPublishBlock={handleBlockPublish}
-                    isBlockInUse={blockInUse}
-                    controlsInUse={controlsInUse}
-                    onRequestControlDataClear={handleRequestControlDataClear}
-                  />
-                }
-              />
-              <Route
-                path="/block/style"
-                element={
-                  block ? (
+                  <EditorErrorBoundary>
                     <BlockEditorScreen
+                      onProceedToMalla={handleProceedToMalla}
                       onDraftChange={handleBlockDraftChange}
-                      initialData={{
-                        version: BLOCK_SCHEMA_VERSION,
-                        template: block.draft.template,
-                        visual: block.draft.visual,
-                        aspect: block.draft.aspect,
-                        theme: projectThemeState,
-                      }}
+                      initialData={
+                        block
+                          ? {
+                            version: BLOCK_SCHEMA_VERSION,
+                            template: block.draft.template,
+                            visual: block.draft.visual,
+                            aspect: block.draft.aspect,
+                            theme: projectThemeState,
+                          }
+                          : undefined
+                      }
                       projectId={projectId ?? undefined}
                       projectName={projectName}
-                      initialMode="view"
-                      initialRepoId={block.repoId ?? null}
-                      initialRepoName={block.repoName ?? null}
-                      initialRepoMetadata={block.repoMetadata ?? null}
+                      initialMode="edit"
+                      initialRepoId={block?.repoId ?? null}
+                      initialRepoName={block?.repoName ?? null}
+                      initialRepoMetadata={block?.repoMetadata ?? null}
                       onRepoIdChange={handleRepoIdChange}
                       onRepoMetadataChange={handleRepoMetadataChange}
                       onPublishBlock={handleBlockPublish}
@@ -1997,6 +2073,37 @@ export default function App(): JSX.Element | null {
                       controlsInUse={controlsInUse}
                       onRequestControlDataClear={handleRequestControlDataClear}
                     />
+                  </EditorErrorBoundary>
+                }
+              />
+              <Route
+                path="/block/style"
+                element={
+                  block ? (
+                    <EditorErrorBoundary>
+                      <BlockEditorScreen
+                        onDraftChange={handleBlockDraftChange}
+                        initialData={{
+                          version: BLOCK_SCHEMA_VERSION,
+                          template: block.draft.template,
+                          visual: block.draft.visual,
+                          aspect: block.draft.aspect,
+                          theme: projectThemeState,
+                        }}
+                        projectId={projectId ?? undefined}
+                        projectName={projectName}
+                        initialMode="view"
+                        initialRepoId={block.repoId ?? null}
+                        initialRepoName={block.repoName ?? null}
+                        initialRepoMetadata={block.repoMetadata ?? null}
+                        onRepoIdChange={handleRepoIdChange}
+                        onRepoMetadataChange={handleRepoMetadataChange}
+                        onPublishBlock={handleBlockPublish}
+                        isBlockInUse={blockInUse}
+                        controlsInUse={controlsInUse}
+                        onRequestControlDataClear={handleRequestControlDataClear}
+                      />
+                    </EditorErrorBoundary>
                   ) : (
                     <Navigate to="/" replace />
                   )
@@ -2017,20 +2124,22 @@ export default function App(): JSX.Element | null {
                 path="/malla/design"
                 element={
                   block ? (
-                    <MallaEditorScreen
-                      template={block.published?.template ?? block.draft.template}
-                      visual={block.published?.visual ?? block.draft.visual}
-                      aspect={block.published?.aspect ?? block.draft.aspect}
-                      repoId={block.repoId ?? null}
-                      onBack={() => navigate('/block/design')}
-                      onOpenPublicationPreview={handleOpenPreview}
-                      onUpdateMaster={handleUpdateMaster}
-                      initialMalla={malla ?? undefined}
-                      onMallaChange={handleMallaChange}
-                      projectId={projectId ?? undefined}
-                      projectName={projectName}
-                      suspendAutosave={suspendMallaAutosave}
-                    />
+                    <EditorErrorBoundary>
+                      <MallaEditorScreen
+                        template={block.published?.template ?? block.draft.template}
+                        visual={block.published?.visual ?? block.draft.visual}
+                        aspect={block.published?.aspect ?? block.draft.aspect}
+                        repoId={block.repoId ?? null}
+                        onBack={() => navigate('/block/design')}
+                        onOpenPublicationPreview={handleOpenPreview}
+                        onUpdateMaster={handleUpdateMaster}
+                        initialMalla={malla ?? undefined}
+                        onMallaChange={handleMallaChange}
+                        projectId={projectId ?? undefined}
+                        projectName={projectName}
+                        suspendAutosave={suspendMallaAutosave}
+                      />
+                    </EditorErrorBoundary>
                   ) : (
                     <Navigate to="/" replace />
                   )
@@ -2039,19 +2148,21 @@ export default function App(): JSX.Element | null {
               <Route
                 path="/malla/viewer"
                 element={
-                  <MallaViewerScreen
-                    snapshot={activeViewerSnapshot}
-                    mode={viewerMode}
-                    initialPanelMode={viewerPanelModePreference}
-                    theme={activeViewerTheme}
-                    printSettings={publicationPrintSettings}
-                    onThemeChange={handleViewerThemeChange}
-                    onPrintSettingsChange={handlePublicationPrintSettingsChange}
-                    onPanelModeChange={handleViewerPanelModeChange}
-                    onBackToEditor={handleBackToEditorFromViewer}
-                    onOpenPublishModal={handlePublishFromPreview}
-                    onImportPublicationFile={handleImportPublicationFile}
-                  />
+                  <ViewerErrorBoundary>
+                    <MallaViewerScreen
+                      snapshot={activeViewerSnapshot}
+                      mode={viewerMode}
+                      initialPanelMode={viewerPanelModePreference}
+                      theme={activeViewerTheme}
+                      printSettings={publicationPrintSettings}
+                      onThemeChange={handleViewerThemeChange}
+                      onPrintSettingsChange={handlePublicationPrintSettingsChange}
+                      onPanelModeChange={handleViewerPanelModeChange}
+                      onBackToEditor={handleBackToEditorFromViewer}
+                      onOpenPublishModal={handlePublishFromPreview}
+                      onImportPublicationFile={handleImportPublicationFile}
+                    />
+                  </ViewerErrorBoundary>
                 }
               />
               <Route path="*" element={<Navigate to="/" />} />
@@ -2064,52 +2175,54 @@ export default function App(): JSX.Element | null {
             onApply={handleApplyProjectPalette}
           />
           {publishContext ? (
-            <PublishModal
-              isOpen
-              origin={publishContext.origin}
-              mode={publishContext.mode}
-              actions={{
-                'snapshot-json': {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'snapshot-json',
-                  isCompleted: completedPublishAction === 'snapshot-json',
-                },
-                pdf: {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'pdf',
-                  isCompleted: completedPublishAction === 'pdf',
-                },
-                print: {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'print',
-                  isCompleted: completedPublishAction === 'print',
-                },
-                'html-web': {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'html-web',
-                  isCompleted: completedPublishAction === 'html-web',
-                },
-                'html-download': {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'html-download',
-                  isCompleted: completedPublishAction === 'html-download',
-                },
-                'html-paginated': {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'html-paginated',
-                  isCompleted: completedPublishAction === 'html-paginated',
-                },
-                'html-embed': {
-                  availability: 'ready',
-                  isRunning: runningPublishAction === 'html-embed',
-                  isCompleted: completedPublishAction === 'html-embed',
-                },
-              }}
-              onClose={closePublishModal}
-              onSelectProduct={handleSelectPublicationProduct}
-              onGoToPresentation={handleGoToPresentationFromPublishModal}
-              onGoToDocument={handleGoToDocumentFromPublishModal}
-            />
+            <ViewerErrorBoundary>
+              <PublishModal
+                isOpen
+                origin={publishContext.origin}
+                mode={publishContext.mode}
+                actions={{
+                  'snapshot-json': {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'snapshot-json',
+                    isCompleted: completedPublishAction === 'snapshot-json',
+                  },
+                  pdf: {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'pdf',
+                    isCompleted: completedPublishAction === 'pdf',
+                  },
+                  print: {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'print',
+                    isCompleted: completedPublishAction === 'print',
+                  },
+                  'html-web': {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'html-web',
+                    isCompleted: completedPublishAction === 'html-web',
+                  },
+                  'html-download': {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'html-download',
+                    isCompleted: completedPublishAction === 'html-download',
+                  },
+                  'html-paginated': {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'html-paginated',
+                    isCompleted: completedPublishAction === 'html-paginated',
+                  },
+                  'html-embed': {
+                    availability: 'ready',
+                    isRunning: runningPublishAction === 'html-embed',
+                    isCompleted: completedPublishAction === 'html-embed',
+                  },
+                }}
+                onClose={closePublishModal}
+                onSelectProduct={handleSelectPublicationProduct}
+                onGoToPresentation={handleGoToPresentationFromPublishModal}
+                onGoToDocument={handleGoToDocumentFromPublishModal}
+              />
+            </ViewerErrorBoundary>
           ) : null}
         </ProceedToMallaProvider>
         {isIntroOverlayVisible ? (
@@ -2119,3 +2232,5 @@ export default function App(): JSX.Element | null {
     </ProjectThemeProvider>
   );
 }
+
+
