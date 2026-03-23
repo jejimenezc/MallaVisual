@@ -38,6 +38,7 @@ import {
   resolveViewerPrintedPagesFromPaginationGrid,
   resolveViewerPreviewPageMetrics,
 } from './viewer-print.ts';
+import { logAppError } from '../core/runtime/logger.ts';
 
 export interface PublicationExportInput {
   snapshot: MallaSnapshot;
@@ -700,7 +701,17 @@ export const openViewerPdfExport = (input: PublicationExportInput) => {
   };
 
   const fontsReady = 'fonts' in frameDocument ? frameDocument.fonts.ready : Promise.resolve();
-  void fontsReady.catch(() => undefined).finally(() => window.requestAnimationFrame(printNow));
+  void fontsReady
+    .catch((error) => {
+      logAppError({
+        scope: 'publication',
+        severity: 'non-fatal',
+        message: 'La carga de fuentes para exportacion fallo; se continuara con la salida.',
+        error,
+      });
+      return undefined;
+    })
+    .finally(() => window.requestAnimationFrame(printNow));
 
   window.setTimeout(cleanup, 4000);
 };

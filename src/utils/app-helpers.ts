@@ -11,6 +11,7 @@ import {
   remapIds,
   synchronizeMastersWithRepository,
 } from './malla-sync.ts';
+import { logAppError } from '../core/runtime/logger.ts';
 
 export const ACTIVE_PROJECT_ID_STORAGE_KEY = 'activeProjectId';
 export const ACTIVE_PROJECT_NAME_STORAGE_KEY = 'activeProjectName';
@@ -47,7 +48,13 @@ export function readStoredActiveProject(storage: Storage | null): StoredActivePr
     const id = storage.getItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
     const name = storage.getItem(ACTIVE_PROJECT_NAME_STORAGE_KEY) ?? '';
     return { id, name };
-  } catch {
+  } catch (error) {
+    logAppError({
+      scope: 'persistence',
+      severity: 'non-fatal',
+      message: 'Fallo la lectura del proyecto activo persistido.',
+      error,
+    });
     return { id: null, name: '' };
   }
 }
@@ -61,8 +68,17 @@ export function persistActiveProject(
   try {
     storage.setItem(ACTIVE_PROJECT_ID_STORAGE_KEY, id);
     storage.setItem(ACTIVE_PROJECT_NAME_STORAGE_KEY, name);
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logAppError({
+      scope: 'persistence',
+      severity: 'non-fatal',
+      message: 'Fallo la persistencia del proyecto activo.',
+      error,
+      context: {
+        id,
+        name,
+      },
+    });
   }
 }
 
@@ -71,8 +87,13 @@ export function clearStoredActiveProject(storage: Storage | null): void {
   try {
     storage.removeItem(ACTIVE_PROJECT_ID_STORAGE_KEY);
     storage.removeItem(ACTIVE_PROJECT_NAME_STORAGE_KEY);
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logAppError({
+      scope: 'persistence',
+      severity: 'non-fatal',
+      message: 'Fallo la limpieza del proyecto activo persistido.',
+      error,
+    });
   }
 }
 

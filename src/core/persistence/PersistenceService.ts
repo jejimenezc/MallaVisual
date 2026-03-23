@@ -21,6 +21,7 @@ import { createLocalStorageProjectRepository } from '../../utils/master-repo.ts'
 import type { ProjectRepository, ProjectRecord } from '../../utils/master-repo.ts';
 import type { BlockExport } from '../../utils/block-io.ts';
 import type { BlockId, BlockMetadata } from '../../types/block.ts';
+import { logAppError } from '../runtime/logger.ts';
 
 export type AutosaveStatus = 'idle' | 'saving' | 'error';
 
@@ -87,7 +88,18 @@ export class PersistenceService {
       }
       this.lastSaved = Date.now();
       this.setStatus('idle');
-    } catch {
+    } catch (error) {
+      logAppError({
+        scope: 'persistence',
+        severity: 'non-fatal',
+        message: 'Fallo el autosave del proyecto.',
+        error,
+        context: {
+          storageKey: pending.storageKey,
+          projectId: pending.projectId,
+          projectName: pending.projectName,
+        },
+      });
       this.setStatus('error');
     }
   }
@@ -135,8 +147,16 @@ export class PersistenceService {
 
     try {
       window.localStorage.removeItem(storageKey);
-    } catch {
-      /* ignore */
+    } catch (error) {
+      logAppError({
+        scope: 'persistence',
+        severity: 'non-fatal',
+        message: 'Fallo la limpieza del borrador autosave.',
+        error,
+        context: {
+          storageKey,
+        },
+      });
     }
   }
 
@@ -164,7 +184,16 @@ export class PersistenceService {
       const raw = window.localStorage.getItem(storageKey);
       if (!raw) return null;
       return importMalla(raw);
-    } catch {
+    } catch (error) {
+      logAppError({
+        scope: 'persistence',
+        severity: 'non-fatal',
+        message: 'Fallo la lectura del borrador autosave.',
+        error,
+        context: {
+          storageKey,
+        },
+      });
       return null;
     }
   }

@@ -81,6 +81,7 @@ import {
   formatMasterDisplayName,
   isInteractive,
 } from '../utils/malla-editor-helpers.ts';
+import { logAppError } from '../core/runtime/logger.ts';
 
 const STORAGE_KEY = 'malla-editor-state';
 const MIN_ZOOM = 0.5;
@@ -1480,7 +1481,16 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setActiveMetaColIndex(null);
       showToast('Métrica guardada', 'success');
     } catch (error) {
-      console.error('[MetaCalc] Error saving cell config', error);
+      logAppError({
+        scope: 'editor',
+        severity: 'non-fatal',
+        message: 'Fallo el guardado de configuracion de una metrica.',
+        error,
+        context: {
+          rowId,
+          activeMetaColIndex,
+        },
+      });
       showToast('No se pudo guardar la métrica', 'error');
     }
   }, [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, showToast]);

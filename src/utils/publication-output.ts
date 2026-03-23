@@ -10,6 +10,7 @@ import {
   type ViewerPanelMode,
   type ViewerPrintSettings,
 } from './viewer-print.ts';
+import { logAppError } from '../core/runtime/logger.ts';
 
 export type PublicationMode = 'presentation' | 'document';
 export type PublicationProduct =
@@ -82,7 +83,16 @@ const readJsonFromStorage = (storage: Storage | null, key: string): unknown => {
     const raw = storage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    logAppError({
+      scope: 'publication',
+      severity: 'non-fatal',
+      message: 'Fallo la lectura de configuracion de publicacion persistida.',
+      error,
+      context: {
+        key,
+      },
+    });
     return null;
   }
 };
@@ -91,8 +101,16 @@ const persistJsonToStorage = (storage: Storage | null, key: string, value: unkno
   if (!storage) return;
   try {
     storage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
+  } catch (error) {
+    logAppError({
+      scope: 'publication',
+      severity: 'non-fatal',
+      message: 'Fallo la persistencia de configuracion de publicacion.',
+      error,
+      context: {
+        key,
+      },
+    });
   }
 };
 

@@ -48,6 +48,7 @@ import {
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
 import { ViewerPrintDocument } from '../components/ViewerPrintDocument.tsx';
 import styles from './MallaViewerScreen.module.css';
+import { logAppError } from '../core/runtime/logger.ts';
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
   refineAxisX: true,
@@ -530,7 +531,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       frameWindow.onafterprint = finish;
 
       void frameDocument.fonts.ready
-        .catch(() => undefined)
+        .catch((error) => {
+          logAppError({
+            scope: 'viewer',
+            severity: 'non-fatal',
+            message: 'La carga de fuentes para impresion fallo; se continuara con el print.',
+            error,
+          });
+          return undefined;
+        })
         .finally(() => window.requestAnimationFrame(printNow));
 
       window.setTimeout(() => {
