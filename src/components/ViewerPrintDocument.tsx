@@ -308,10 +308,11 @@ export function ViewerPrintDocument({
   pageStyle,
   contentBoxStyle,
 }: ViewerPrintDocumentProps): JSX.Element {
-  return (
-    <div className={classNames.sequence}>
-      {printedPages.map((page) => {
-        const editorialLayout = resolveViewerPrintedPageEditorialLayout({
+  const pageModels = React.useMemo(
+    () =>
+      printedPages.map((page) => ({
+        page,
+        editorialLayout: resolveViewerPrintedPageEditorialLayout({
           showDocumentTitle: printSettings.showDocumentTitle,
           documentTitleOverride: printSettings.documentTitleOverride,
           pageLayoutMode: printSettings.pageLayoutMode,
@@ -325,18 +326,39 @@ export function ViewerPrintDocument({
           pageCount: printedPages.length,
           contentHeightMm: pageMetrics.contentHeightMm,
           pxPerMmY,
-        });
-        const sliceLayout = resolveViewerPageSliceLayout({
+        }),
+        sliceLayout: resolveViewerPageSliceLayout({
           viewportWidthPx: page.viewportWidthPx,
           viewportHeightPx: page.viewportHeightPx,
           surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
           surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
           offsetX: page.printOffsetX,
           offsetY: page.printOffsetY,
-        });
-        const isPartialLastPage =
-          page.tileCol === 0 && page.isLastRow && page.sliceHeightPx < page.usablePageHeightPx;
+        }),
+        isPartialLastPage:
+          page.tileCol === 0 && page.isLastRow && page.sliceHeightPx < page.usablePageHeightPx,
+      })),
+    [
+      pageMetrics.contentHeightMm,
+      paginatedSurfaceLayout.scaledSurfaceHeightPx,
+      paginatedSurfaceLayout.scaledSurfaceWidthPx,
+      printSettings.documentTitleOverride,
+      printSettings.footerText,
+      printSettings.headerText,
+      printSettings.pageLayoutMode,
+      printSettings.showDocumentTitle,
+      printSettings.showFooter,
+      printSettings.showHeader,
+      printSettings.showPageNumbers,
+      printedPages,
+      pxPerMmY,
+      renderModel.projectName,
+    ],
+  );
 
+  return (
+    <div className={classNames.sequence}>
+      {pageModels.map(({ page, editorialLayout, sliceLayout, isPartialLastPage }) => {
         return (
           <div
             key={`printed-page-${page.pageNumber}`}

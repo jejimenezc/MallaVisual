@@ -207,6 +207,36 @@ export function MallaViewerScreen({
       renderModel?.width,
     ],
   );
+  const cutGuides = useMemo(
+    () =>
+      renderModel
+        ? resolveViewerGridCutGuides({
+            renderModel,
+            scale: contentPlacementMetrics.scale,
+          })
+        : undefined,
+    [contentPlacementMetrics.scale, renderModel],
+  );
+  const axisXColumnSegments = useMemo(
+    () =>
+      renderModel
+        ? resolveViewerAxisXColumnSegments({
+            renderModel,
+            scale: contentPlacementMetrics.scale,
+          })
+        : undefined,
+    [contentPlacementMetrics.scale, renderModel],
+  );
+  const axisYLineSegments = useMemo(
+    () =>
+      renderModel
+        ? resolveViewerAxisYLineSegments({
+            renderModel,
+            scale: contentPlacementMetrics.scale,
+          })
+        : undefined,
+    [contentPlacementMetrics.scale, renderModel],
+  );
   const gridPaginationMetrics = useMemo(
     () =>
       resolveViewerPaginationGridMetrics({
@@ -216,35 +246,21 @@ export function MallaViewerScreen({
         usablePageHeightPx: previewMetrics.contentHeightPx,
         firstPageUsableHeightPx: editorialHeights.firstPageUsableHeightPx,
         continuationPageUsableHeightPx: editorialHeights.continuationPageUsableHeightPx,
-        cutGuides: renderModel
-          ? resolveViewerGridCutGuides({
-              renderModel,
-              scale: contentPlacementMetrics.scale,
-            })
-          : undefined,
-        axisXColumnSegments: renderModel
-          ? resolveViewerAxisXColumnSegments({
-              renderModel,
-              scale: contentPlacementMetrics.scale,
-            })
-          : undefined,
-        axisYLineSegments: renderModel
-          ? resolveViewerAxisYLineSegments({
-              renderModel,
-              scale: contentPlacementMetrics.scale,
-            })
-          : undefined,
+        cutGuides,
+        axisXColumnSegments,
+        axisYLineSegments,
         refinementPolicy: VIEWER_PRINT_CUT_REFINEMENT_POLICY,
       }),
     [
+      axisXColumnSegments,
+      axisYLineSegments,
       contentPlacementMetrics.scaledContentHeightPx,
       contentPlacementMetrics.scaledContentWidthPx,
-      contentPlacementMetrics.scale,
+      cutGuides,
       editorialHeights.continuationPageUsableHeightPx,
       editorialHeights.firstPageUsableHeightPx,
       previewMetrics.contentHeightPx,
       previewMetrics.contentWidthPx,
-      renderModel,
     ],
   );
   const previewGridTiles = gridPaginationMetrics.tiles;
@@ -264,6 +280,88 @@ export function MallaViewerScreen({
       contentPlacementMetrics.scaledContentWidthPx,
       previewMetrics,
     ],
+  );
+  const previewTilePageModels = useMemo(
+    () =>
+      previewGridTiles.map((tile) => {
+        const editorialLayout = resolveViewerPrintedPageEditorialLayout({
+          showDocumentTitle: printSettings.showDocumentTitle,
+          documentTitleOverride: printSettings.documentTitleOverride,
+          pageLayoutMode: printSettings.pageLayoutMode,
+          showHeader: printSettings.showHeader,
+          headerText: printSettings.headerText,
+          showFooter: printSettings.showFooter,
+          footerText: printSettings.footerText,
+          showPageNumbers: printSettings.showPageNumbers,
+          projectName: renderModel?.projectName ?? '',
+          pageIndex: tile.pageNumber - 1,
+          pageCount: gridPaginationMetrics.pageCount,
+          contentHeightMm: pageMetrics.contentHeightMm,
+          pxPerMmY: measuredPxPerMm.pxPerMmY,
+        });
+        return {
+          tile,
+          editorialLayout,
+          isPartialLastPage:
+            tile.col === 0 &&
+            tile.row === gridPaginationMetrics.pagesY - 1 &&
+            tile.sliceHeightPx < tile.usablePageHeightPx,
+          sliceLayout: resolveViewerPageSliceLayout({
+            viewportWidthPx: tile.sliceWidthPx,
+            viewportHeightPx: tile.sliceHeightPx,
+            surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
+            surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
+            offsetX: tile.offsetX,
+            offsetY: tile.offsetY,
+          }),
+        };
+      }),
+    [
+      gridPaginationMetrics.pageCount,
+      gridPaginationMetrics.pagesY,
+      measuredPxPerMm.pxPerMmY,
+      pageMetrics.contentHeightMm,
+      paginatedSurfaceLayout.scaledSurfaceHeightPx,
+      paginatedSurfaceLayout.scaledSurfaceWidthPx,
+      previewGridTiles,
+      printSettings.documentTitleOverride,
+      printSettings.footerText,
+      printSettings.headerText,
+      printSettings.pageLayoutMode,
+      printSettings.showDocumentTitle,
+      printSettings.showFooter,
+      printSettings.showHeader,
+      printSettings.showPageNumbers,
+      renderModel?.projectName,
+    ],
+  );
+  const viewerPrintDocumentClassNames = useMemo(
+    () => ({
+      sequence: styles.viewerPrintedPageSequence,
+      page: `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePrint} ${styles.viewerPrintedPage}`,
+      contentBox: `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPrint}`,
+      flow: `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPrint}`,
+      headerBlock: styles.viewerPageHeaderBlock,
+      header: styles.runtimeHeader,
+      titleBlock: styles.viewerPageTitleBlock,
+      title: styles.runtimeDocumentTitle,
+      viewport: styles.viewerCanvasScaledViewport,
+      canvas: styles.viewerCanvasScaled,
+      footerBlock: styles.viewerPageFooterBlock,
+      footer: styles.runtimeFooter,
+      pageNumber: styles.viewerPageNumber,
+      bandRow: styles.viewerBandRow,
+      bandRowHeader: styles.viewerBandRowHeader,
+      bandRowMetric: styles.viewerBandRowMetric,
+      bandCell: styles.viewerBandCell,
+      bandCellMetric: styles.viewerBandCellMetric,
+      bandCellMetricLabel: styles.viewerBandCellMetricLabel,
+      bandCellMetricValue: styles.viewerBandCellMetricValue,
+      piece: styles.viewerPiece,
+      pieceGrid: styles.viewerPieceGrid,
+      cell: styles.viewerCell,
+    }),
+    [],
   );
 
   const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
@@ -998,7 +1096,19 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         gridTemplateColumns: `repeat(${gridPaginationMetrics.pagesX}, max-content)`,
       }}
     >
-      {previewGridTiles.map(renderPreviewGridTile)}
+      {previewTilePageModels.map(({ tile, editorialLayout, isPartialLastPage, sliceLayout }) =>
+        renderPaginatedSurfacePage({
+          key: `preview-page-${tile.row}-${tile.col}`,
+          variant: 'preview',
+          sliceLayout,
+          isPartialLastPage,
+          editorialLayout,
+          pageAttrs: {
+            'data-grid-row': `${tile.row}`,
+            'data-grid-col': `${tile.col}`,
+          },
+        }),
+      )}
     </div>
   ) : null;
 
@@ -1030,31 +1140,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         printSettings={printSettings}
         pageMetrics={pageMetrics}
         pxPerMmY={measuredPxPerMm.pxPerMmY}
-        classNames={{
-          sequence: styles.viewerPrintedPageSequence,
-          page: `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePrint} ${styles.viewerPrintedPage}`,
-          contentBox: `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPrint}`,
-          flow: `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPrint}`,
-          headerBlock: styles.viewerPageHeaderBlock,
-          header: styles.runtimeHeader,
-          titleBlock: styles.viewerPageTitleBlock,
-          title: styles.runtimeDocumentTitle,
-          viewport: styles.viewerCanvasScaledViewport,
-          canvas: styles.viewerCanvasScaled,
-          footerBlock: styles.viewerPageFooterBlock,
-          footer: styles.runtimeFooter,
-          pageNumber: styles.viewerPageNumber,
-          bandRow: styles.viewerBandRow,
-          bandRowHeader: styles.viewerBandRowHeader,
-          bandRowMetric: styles.viewerBandRowMetric,
-          bandCell: styles.viewerBandCell,
-          bandCellMetric: styles.viewerBandCellMetric,
-          bandCellMetricLabel: styles.viewerBandCellMetricLabel,
-          bandCellMetricValue: styles.viewerBandCellMetricValue,
-          piece: styles.viewerPiece,
-          pieceGrid: styles.viewerPieceGrid,
-          cell: styles.viewerCell,
-        }}
+        classNames={viewerPrintDocumentClassNames}
       />
     </div>
   ) : null;
@@ -1156,6 +1242,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="button"
                   onClick={() => void onOpenPublishModal()}
                   className={styles.viewerPublishCta}
+                  title="Publica salidas documentales a partir del layout paginado visible"
                 >
                   Publicar documento
                 </Button>
@@ -1164,6 +1251,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   variant="primary"
                   onClick={handlePrintNow}
                   className={styles.viewerPrintCta}
+                  title="Abre el dialogo de impresion usando esta misma configuracion documental"
                 >
                   Imprimir ahora
                 </Button>
@@ -1172,7 +1260,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <Button
                   type="button"
                   onClick={handleEnterPrintPreview}
-                  title="Ir al Modo Documento para configurar la salida editorial y paginada"
+                  title="Cambia a modo documento para revisar paginacion, margenes y salida de impresion"
                 >
                   Ir al Modo Documento
                 </Button>
@@ -1182,12 +1270,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 type="button"
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
+                title="Publica una salida web o de respaldo desde la vista actual"
               >
                 Publicar Web/Datos
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (
-              <Button type="button" onClick={handleOpenImporter}>
+              <Button type="button" onClick={handleOpenImporter} title="Carga un snapshot publicado para revisarlo en este visor">
                 Abrir publicación
               </Button>
             ) : null}
