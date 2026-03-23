@@ -4,6 +4,10 @@ import type {
   PublicationMode,
   PublicationProduct,
 } from '../utils/publication-output.ts';
+import {
+  getPublicationActionButtonLabel,
+  type OperationStatus,
+} from '../utils/publication-feedback.ts';
 import styles from './PublishModal.module.css';
 
 export type PublishOrigin = 'editor' | 'viewer';
@@ -12,8 +16,8 @@ export type PublishActionKey = PublicationProduct;
 
 interface PublishActionConfig {
   availability: PublishActionAvailability;
-  isRunning?: boolean;
-  isCompleted?: boolean;
+  status?: OperationStatus;
+  detail?: string;
 }
 
 type PublishActions = Record<PublishActionKey, PublishActionConfig>;
@@ -33,59 +37,44 @@ interface ProductDescriptor {
   key: PublicationProduct;
   title: string;
   description: string;
-  label: string;
 }
 
 const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
   'snapshot-json': {
     key: 'snapshot-json',
-    title: 'Respaldo de Lectura',
-    description: 'Descarga un archivo de datos para volver a cargar esta versión específica en el visor de la aplicación.',
-    label: 'Descargar respaldo',
+    title: 'Respaldo de lectura',
+    description: 'Descarga un archivo de datos para volver a abrir esta version especifica en el visor.',
   },
   print: {
     key: 'print',
-    title: 'Impresión',
-    description: 'Envía el documento directamente a la impresora o al gestor de impresión de tu equipo.',
-    label: 'Imprimir ahora',
+    title: 'Impresion',
+    description: 'Abre el dialogo de impresion con la configuracion documental visible en pantalla.',
   },
   pdf: {
     key: 'pdf',
     title: 'PDF',
-    description: 'Crea un documento PDF fiel a la previsualización, con márgenes y numeración de páginas.',
-    label: 'Exportar PDF',
+    description: 'Prepara un documento paginado para guardarlo como PDF desde el navegador.',
   },
   'html-web': {
     key: 'html-web',
-    title: 'Vista Online',
-    description: 'Enlace para visualizar la malla en el navegador, con el diseño editorial activo.',
-    label: 'Abrir vista online',
+    title: 'Vista online',
+    description: 'Abre una publicacion continua en otra pestaña para revision o difusion web.',
   },
   'html-download': {
     key: 'html-download',
-    title: 'Archivo Web (.html)',
-    description: 'Descarga la versión para abrirla en cualquier navegador sin necesidad de internet.',
-    label: 'Descargar archivo web',
+    title: 'Archivo web (.html)',
+    description: 'Descarga una version HTML autonoma para abrirla sin conexion.',
   },
   'html-paginated': {
     key: 'html-paginated',
-    title: 'HTML Paginado',
-    description: 'Versión web que respeta la división por hojas, idéntica al formato impreso.',
-    label: 'Descargar HTML paginado',
+    title: 'HTML paginado',
+    description: 'Descarga una version web que conserva la division por paginas del modo documento.',
   },
   'html-embed': {
     key: 'html-embed',
-    title: 'Código para Insertar',
-    description: 'Versión simplificada para integrar la malla dentro de otra página web o plataforma institucional.',
-    label: 'Descargar código',
+    title: 'Codigo para insertar',
+    description: 'Descarga una variante simplificada para embeber la malla en otro sitio.',
   },
-};
-
-const PRODUCT_COMPLETED_LABEL: Partial<Record<PublicationProduct, string>> = {
-  'snapshot-json': 'Descargado',
-  'html-download': 'Descargado',
-  'html-paginated': 'Descargado',
-  'html-embed': 'Descargado',
 };
 
 const MODE_SECTIONS: Record<
@@ -101,23 +90,39 @@ const MODE_SECTIONS: Record<
   }
 > = {
   presentation: {
-    title: 'Publicar Web/Datos',
-    subtitle: 'Genera formatos de visualización continua para compartir en línea o respaldar información.',
-    sectionTitle: 'Visualización y respaldo',
-    sectionDescription: 'Opciones pensadas para pantallas, navegación continua y respaldo de datos.',
+    title: 'Publicar web/datos',
+    subtitle: 'Genera salidas continuas para compartir en linea o respaldar la informacion visible.',
+    sectionTitle: 'Visualizacion y respaldo',
+    sectionDescription: 'Opciones pensadas para pantalla, apertura en navegador y respaldo de datos.',
     products: ['html-web', 'html-download', 'html-embed', 'snapshot-json'],
-    note: 'Para PDF, impresión o HTML paginado, cambia al Modo Documento.',
-    secondaryLabel: 'Ir al Modo Documento',
+    note: 'Para PDF, impresion o HTML paginado, cambia al modo documento.',
+    secondaryLabel: 'Ir al modo documento',
   },
   document: {
-    title: 'Publicar Documento',
-    subtitle: 'Genera archivos estructurados en páginas, ideales para impresión o envío de documentos oficiales.',
+    title: 'Publicar documento',
+    subtitle: 'Genera salidas paginadas para impresion, PDF o distribucion documental.',
     sectionTitle: 'Formato documento',
-    sectionDescription: 'Salidas organizadas por páginas, con márgenes, orientación y estructura editorial.',
+    sectionDescription: 'Salidas por pagina con margenes, orientacion y estructura editorial.',
     products: ['pdf', 'html-paginated', 'print'],
-    note: 'Si necesitas una visualización continua o un respaldo de datos, vuelve al Modo Presentación.',
-    secondaryLabel: 'Volver al Modo Presentación',
+    note: 'Si necesitas una visualizacion continua o un respaldo de datos, vuelve al modo presentacion.',
+    secondaryLabel: 'Volver al modo presentacion',
   },
+};
+
+const STATUS_LABEL: Record<OperationStatus, string> = {
+  success: 'Completado',
+  idle: '',
+  waiting: '',
+  running: '',
+  error: '',
+};
+
+const STATUS_CLASS_BY_KEY: Record<OperationStatus, string> = {
+  idle: styles.actionStatusIdle,
+  waiting: styles.actionStatusWaiting,
+  running: styles.actionStatusRunning,
+  success: styles.actionStatusSuccess,
+  error: styles.actionStatusError,
 };
 
 export function PublishModal({
@@ -150,12 +155,12 @@ export function PublishModal({
   if (!isOpen) return null;
 
   const section = MODE_SECTIONS[mode];
-  const isBusy = section.products.some((product) => actions[product].isRunning);
+  const isBusy = section.products.some((product) => actions[product].status === 'running');
   const footerSecondaryAction = mode === 'document' ? onGoToPresentation : onGoToDocument;
   const footerNote =
     origin === 'viewer'
-      ? 'Los archivos generados mantienen exactamente el diseño y la organización que ves en pantalla.'
-      : 'Abre el visor en el modo adecuado si necesitas revisar visualmente la salida antes de publicarla.';
+      ? 'Las salidas usan el mismo layout que ves en el visor activo.'
+      : 'Abre el visor en el modo adecuado si necesitas revisar la salida antes de publicarla.';
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -192,24 +197,28 @@ export function PublishModal({
               {section.products.map((product, index) => {
                 const descriptor = PRODUCT_COPY[product];
                 const action = actions[product];
+                const status = action.status ?? 'idle';
+
                 return (
                   <article key={product} className={styles.actionCard}>
                     <div className={styles.actionCardBody}>
                       <h4 className={styles.actionTitle}>{descriptor.title}</h4>
                       <p className={styles.actionDescription}>{descriptor.description}</p>
+                      {status === 'success' ? (
+                        <p className={`${styles.actionStatus} ${STATUS_CLASS_BY_KEY[status]}`}>
+                          {STATUS_LABEL[status]}
+                        </p>
+                      ) : null}
                       <Button
                         ref={index === 0 ? initialFocusRef : undefined}
                         type="button"
                         variant={index === 0 ? 'primary' : 'default'}
-                        aria-busy={action.isRunning}
-                        disabled={action.isRunning || action.availability !== 'ready'}
+                        aria-busy={status === 'running'}
+                        className={status === 'success' ? styles.actionButtonSuccess : undefined}
+                        disabled={status === 'running' || action.availability !== 'ready'}
                         onClick={() => void onSelectProduct(product)}
                       >
-                        {action.isRunning
-                          ? 'Procesando...'
-                          : action.isCompleted
-                            ? PRODUCT_COMPLETED_LABEL[product] ?? descriptor.label
-                            : descriptor.label}
+                        {getPublicationActionButtonLabel(product, status)}
                       </Button>
                     </div>
                   </article>

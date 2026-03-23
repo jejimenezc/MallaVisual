@@ -17,6 +17,11 @@ import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { ColorPaletteModal } from './components/ColorPaletteModal';
 import { PublishModal, type PublishActionKey, type PublishOrigin } from './components/PublishModal';
 import {
+  PUBLICATION_ACTION_COPY,
+  type OperationStatus,
+  type PublicationOperationState,
+} from './utils/publication-feedback.ts';
+import {
   createDefaultMetaPanel,
   type MallaExport,
   type MallaRepositoryEntry,
@@ -100,6 +105,18 @@ import {
   readStoredActiveProject,
   summarizePieceValues,
 } from './utils/app-helpers.ts';
+
+const createPublicationOperation = (
+  key: PublicationOperationState['key'],
+  status: OperationStatus,
+  message: string,
+  detail?: string,
+): PublicationOperationState => ({
+  key,
+  status,
+  message,
+  detail,
+});
 
 function getSafeLocalStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -278,8 +295,7 @@ export default function App(): JSX.Element | null {
     origin: PublishOrigin;
     mode: PublicationMode;
   } | null>(null);
-  const [runningPublishAction, setRunningPublishAction] = useState<PublishActionKey | null>(null);
-  const [completedPublishAction, setCompletedPublishAction] = useState<PublishActionKey | null>(null);
+  const [publicationOperation, setPublicationOperation] = useState<PublicationOperationState | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -980,29 +996,38 @@ export default function App(): JSX.Element | null {
 
   const closePublishModal = useCallback(() => {
     setPublishContext(null);
-    setRunningPublishAction(null);
-    setCompletedPublishAction(null);
   }, []);
 
   useEffect(() => {
-    if (!completedPublishAction) return undefined;
+    if (!publicationOperation || publicationOperation.status === 'running') return undefined;
     const timeoutId = window.setTimeout(() => {
-      setCompletedPublishAction((current) =>
-        current === completedPublishAction ? null : current,
+      setPublicationOperation((current) =>
+        current === publicationOperation ? null : current,
       );
-    }, 2000);
+    }, publicationOperation.status === 'error' ? 8000 : 5000);
     return () => window.clearTimeout(timeoutId);
-  }, [completedPublishAction]);
+  }, [publicationOperation]);
 
   const handleSelectPublicationProduct = useCallback(
     async (product: PublicationProduct) => {
-      setRunningPublishAction(product);
-      setCompletedPublishAction(null);
+      const copy = PUBLICATION_ACTION_COPY[product];
+      setPublicationOperation(
+        createPublicationOperation(
+          product,
+          'running',
+          copy.runningLabel,
+          copy.statusDetail,
+        ),
+      );
       try {
         const appearance = publicationOutputConfig.theme;
         const snapshot = createPublicationSnapshot(appearance);
         if (!snapshot) {
-          pushToast('No se pudo generar la publicacion', 'error');
+          const failureMessage = 'No se pudo generar la salida publicada.';
+          setPublicationOperation(
+            createPublicationOperation(product, 'error', failureMessage, 'Revisa la configuracion visible y vuelve a intentarlo.'),
+          );
+          pushToast(failureMessage, 'error');
           return;
         }
 
@@ -1010,49 +1035,81 @@ export default function App(): JSX.Element | null {
 
         if (product === 'snapshot-json') {
           downloadPublication(snapshot);
-          pushToast('Snapshot publicado descargado.', 'success');
-          setCompletedPublishAction(product);
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+            ),
+          );
         } else if (product === 'pdf') {
           openViewerPdfExport({
             snapshot,
             config: publicationOutputConfig,
             product: 'pdf',
           });
-          pushToast('Se abrio el flujo PDF del documento visible.', 'info');
-          closePublishModal();
-          return;
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+            ),
+          );
         } else if (product === 'print') {
           openViewerPdfExport({
             snapshot,
             config: publicationOutputConfig,
             product: 'print',
           });
-          pushToast('Se abrio la impresion del documento visible.', 'info');
-          closePublishModal();
-          return;
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+            ),
+          );
         } else if (product === 'html-web') {
           openViewerStandaloneHtml({
             snapshot,
             config: publicationOutputConfig,
             product: 'html-web',
           });
-          pushToast('HTML web abierto en una ventana nueva.', 'success');
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+              'La publicacion se abrio en otra pestaña para revision inmediata.',
+            ),
+          );
         } else if (product === 'html-download') {
           downloadViewerStandaloneHtml({
             snapshot,
             config: publicationOutputConfig,
             product: 'html-download',
           });
-          pushToast('HTML web descargado.', 'success');
-          setCompletedPublishAction(product);
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+              'El archivo web autonomo ya fue descargado con la apariencia actual.',
+            ),
+          );
         } else if (product === 'html-paginated') {
           downloadViewerStandaloneHtml({
             snapshot,
             config: publicationOutputConfig,
             product: 'html-paginated',
           });
-          pushToast('HTML paginado descargado.', 'success');
-          setCompletedPublishAction(product);
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+              'La version descargada conserva la division por paginas del modo documento.',
+            ),
+          );
         } else if (product === 'html-embed') {
           downloadViewerStandaloneHtml({
             snapshot,
@@ -1065,10 +1122,17 @@ export default function App(): JSX.Element | null {
             },
             product: 'html-embed',
           });
-          pushToast('HTML embed descargado.', 'success');
-          setCompletedPublishAction(product);
+          setPublicationOperation(
+            createPublicationOperation(
+              product,
+              'success',
+              'Completado',
+              'La variante para insercion ya fue descargada sin elementos editoriales extra.',
+            ),
+          );
         }
       } catch (error) {
+        const failureMessage = `No se pudo completar ${copy.idleLabel.toLowerCase()}.`;
         logAppError({
           scope: 'publication',
           severity: 'non-fatal',
@@ -1080,13 +1144,13 @@ export default function App(): JSX.Element | null {
             projectName,
           },
         });
-        pushToast(`No se pudo completar la accion ${product}`, 'error');
+        setPublicationOperation(
+          createPublicationOperation(product, 'error', failureMessage, 'El navegador o la generacion local no pudo completar la salida solicitada.'),
+        );
+        pushToast(failureMessage, 'error');
       }
-
-      setRunningPublishAction(null);
     },
     [
-      closePublishModal,
       createPublicationSnapshot,
       downloadPublication,
       openViewerStandaloneHtml,
@@ -1100,10 +1164,26 @@ export default function App(): JSX.Element | null {
   const handleImportPublicationFile = useCallback(
     async (file: File) => {
       try {
+        setPublicationOperation(
+          createPublicationOperation(
+            'import-publication',
+            'running',
+            'Abriendo version publicada...',
+            'Se esta validando el archivo seleccionado antes de cargarlo en el visor.',
+          ),
+        );
         const text = await file.text();
         const parsed: unknown = JSON.parse(text);
         const validation = validateAndNormalizeMallaSnapshot(parsed);
         if (!validation.ok) {
+          setPublicationOperation(
+            createPublicationOperation(
+              'import-publication',
+              'error',
+              'Archivo de publicacion invalido.',
+              validation.error,
+            ),
+          );
           pushToast(validation.error, 'error');
           return;
         }
@@ -1112,6 +1192,14 @@ export default function App(): JSX.Element | null {
         setViewerPanelModePreference('preview');
         setViewerMode('publication');
         navigate('/malla/viewer');
+        setPublicationOperation(
+          createPublicationOperation(
+            'import-publication',
+            'success',
+            'Version publicada abierta.',
+            'El snapshot se valido y ya esta disponible en el visor de publicacion.',
+          ),
+        );
         pushToast('Versión publicada abierta', 'success');
       } catch (error) {
         logAppError({
@@ -1175,6 +1263,81 @@ export default function App(): JSX.Element | null {
     closePublishModal();
     handleOpenPrintPreview();
   }, [closePublishModal, handleOpenPrintPreview]);
+
+  const publishActionStates = useMemo<Record<PublishActionKey, {
+    availability: 'ready';
+    status: OperationStatus;
+    detail?: string;
+  }>>(
+    () => ({
+      'snapshot-json': {
+        availability: 'ready',
+        status:
+          publicationOperation?.key === 'snapshot-json'
+            ? publicationOperation.status
+            : 'idle',
+        detail:
+          publicationOperation?.key === 'snapshot-json'
+            ? publicationOperation.detail
+            : undefined,
+      },
+      pdf: {
+        availability: 'ready',
+        status: publicationOperation?.key === 'pdf' ? publicationOperation.status : 'idle',
+        detail: publicationOperation?.key === 'pdf' ? publicationOperation.detail : undefined,
+      },
+      print: {
+        availability: 'ready',
+        status: publicationOperation?.key === 'print' ? publicationOperation.status : 'idle',
+        detail: publicationOperation?.key === 'print' ? publicationOperation.detail : undefined,
+      },
+      'html-web': {
+        availability: 'ready',
+        status:
+          publicationOperation?.key === 'html-web'
+            ? publicationOperation.status
+            : 'idle',
+        detail:
+          publicationOperation?.key === 'html-web'
+            ? publicationOperation.detail
+            : undefined,
+      },
+      'html-download': {
+        availability: 'ready',
+        status:
+          publicationOperation?.key === 'html-download'
+            ? publicationOperation.status
+            : 'idle',
+        detail:
+          publicationOperation?.key === 'html-download'
+            ? publicationOperation.detail
+            : undefined,
+      },
+      'html-paginated': {
+        availability: 'ready',
+        status:
+          publicationOperation?.key === 'html-paginated'
+            ? publicationOperation.status
+            : 'idle',
+        detail:
+          publicationOperation?.key === 'html-paginated'
+            ? publicationOperation.detail
+            : undefined,
+      },
+      'html-embed': {
+        availability: 'ready',
+        status:
+          publicationOperation?.key === 'html-embed'
+            ? publicationOperation.status
+            : 'idle',
+        detail:
+          publicationOperation?.key === 'html-embed'
+            ? publicationOperation.detail
+            : undefined,
+      },
+    }),
+    [publicationOperation],
+  );
 
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
@@ -2180,43 +2343,7 @@ export default function App(): JSX.Element | null {
                 isOpen
                 origin={publishContext.origin}
                 mode={publishContext.mode}
-                actions={{
-                  'snapshot-json': {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'snapshot-json',
-                    isCompleted: completedPublishAction === 'snapshot-json',
-                  },
-                  pdf: {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'pdf',
-                    isCompleted: completedPublishAction === 'pdf',
-                  },
-                  print: {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'print',
-                    isCompleted: completedPublishAction === 'print',
-                  },
-                  'html-web': {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'html-web',
-                    isCompleted: completedPublishAction === 'html-web',
-                  },
-                  'html-download': {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'html-download',
-                    isCompleted: completedPublishAction === 'html-download',
-                  },
-                  'html-paginated': {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'html-paginated',
-                    isCompleted: completedPublishAction === 'html-paginated',
-                  },
-                  'html-embed': {
-                    availability: 'ready',
-                    isRunning: runningPublishAction === 'html-embed',
-                    isCompleted: completedPublishAction === 'html-embed',
-                  },
-                }}
+                actions={publishActionStates}
                 onClose={closePublishModal}
                 onSelectProduct={handleSelectPublicationProduct}
                 onGoToPresentation={handleGoToPresentationFromPublishModal}

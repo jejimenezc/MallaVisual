@@ -101,6 +101,47 @@
   line-height: 1.32;
 }
 
+.actionStatus {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.actionStatusIdle {
+  color: #64748b;
+}
+
+.actionStatusRunning {
+  color: #b45309;
+}
+
+.actionStatusWaiting {
+  color: #2563eb;
+}
+
+.actionStatusSuccess {
+  color: #15803d;
+}
+
+.actionStatusError {
+  color: #b91c1c;
+}
+
+.actionButtonSuccess {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.actionButtonSuccess:hover,
+.actionButtonSuccess:focus-visible {
+  color: #166534;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
 .actionCard button {
   width: 100%;
   justify-content: center;
