@@ -144,6 +144,23 @@ describe('viewer-export', () => {
     expect(html).toContain('--print-content-width-mm');
   });
 
+  test('print html resets preview page dimensions in print media', () => {
+    const html = createViewerPrintHtml({
+      snapshot,
+      config: {
+        theme: createDefaultViewerTheme(),
+        printSettings: createDefaultViewerPrintSettings(),
+      },
+      product: 'pdf',
+    });
+
+    expect(html).toContain('.viewerPrintedPage {');
+    expect(html).toContain('width: auto !important;');
+    expect(html).toContain('height: auto !important;');
+    expect(html).toContain('min-height: 0 !important;');
+    expect(html).toContain('max-height: none !important;');
+  });
+
   test('resolves shared config into print metrics', () => {
     const resolved = resolvePublicationOutputModel({
       snapshot,

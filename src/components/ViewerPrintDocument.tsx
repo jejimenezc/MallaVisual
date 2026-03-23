@@ -651,6 +651,10 @@ export const createViewerPrintDocumentExportStyles = (): string => `
       margin: 0 !important;
       background: transparent !important;
       box-shadow: none !important;
+      width: auto !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
       break-inside: auto !important;
       page-break-inside: auto !important;
     }
