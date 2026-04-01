@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 0 - Cierre de deuda de release local |
 | Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.1 chore: dejar repo totalmente verde en lint, test y typecheck` |
+| Proximo PR recomendado | `PR-0.2 refactor: reducir acoplamiento en App y pantallas criticas` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -35,12 +35,14 @@ Objetivo: pasar de producto local solido a producto local maduro.
 
 | PR | Estado | Objetivo principal | Cierre esperado |
 | --- | --- | --- | --- |
-| PR-0.1 | in-progress | Dejar el repo verde en `lint`, `test` y `typecheck`. | Sin errores de lint y sin deuda obvia de higiene que bloquee release local. |
+| PR-0.1 | validated | Dejar el repo verde en `lint`, `test` y `typecheck`. | Sin errores de lint y sin deuda obvia de higiene que bloquee release local. |
 | PR-0.2 | planned | Reducir acoplamiento en `App` y pantallas criticas. | Logica mas separada y riesgo de regresion menor sin cambiar features. |
 | PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
 **Hito desbloqueado al validar la fase:** "producto local maduro".
+
+- Validado: 2026-04-01 - PR/commit: tests confirmados localmente tras `chore: prepare PR-0.1 lint cleanup` - Nota: desbloquea PR-0.2.
 
 ### Fase 1 - Endurecimiento de publicacion externa
 Objetivo: pasar de maduro local a publicable externamente.
