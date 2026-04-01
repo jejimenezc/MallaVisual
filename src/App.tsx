@@ -15,12 +15,7 @@ import { StatusBar } from './components/StatusBar/StatusBar';
 import { AppHeader } from './components/AppHeader';
 import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { ColorPaletteModal } from './components/ColorPaletteModal';
-import { PublishModal, type PublishActionKey, type PublishOrigin } from './components/PublishModal';
-import {
-  PUBLICATION_ACTION_COPY,
-  type OperationStatus,
-  type PublicationOperationState,
-} from './utils/publication-feedback.ts';
+import { PublishModal } from './components/PublishModal';
 import {
   createDefaultMetaPanel,
   type MallaExport,
@@ -61,36 +56,9 @@ import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
 import { EditorErrorBoundary, ViewerErrorBoundary } from './core/runtime/RuntimeErrorBoundary.tsx';
 import { logAppError } from './core/runtime/logger.ts';
 import type { MallaSnapshot } from './types/malla-snapshot.ts';
-import {
-  buildMallaSnapshotFromState,
-  validateAndNormalizeMallaSnapshot,
-} from './utils/malla-snapshot.ts';
-import {
-  normalizeViewerTheme,
-} from './utils/viewer-theme.ts';
+import { normalizeViewerTheme } from './utils/viewer-theme.ts';
 import type { ViewerTheme } from './types/viewer-theme.ts';
-import {
-  type ViewerPrintSettings,
-  type ViewerPanelMode,
-} from './utils/viewer-print.ts';
-import {
-  downloadViewerStandaloneHtml,
-  openViewerStandaloneHtml,
-  openViewerPdfExport,
-} from './utils/viewer-export.ts';
-import {
-  persistPublicationExportFlags,
-  persistPublicationPrintSettings,
-  persistPublicationTheme,
-  readStoredPublicationExportFlags,
-  readStoredPublicationPrintSettings,
-  readStoredPublicationTheme,
-  type PublicationExportFlags,
-  type PublicationMode,
-  type PublicationProduct,
-  type PublicationOutputConfig,
-  resolvePublicationModeFromViewerPanelMode,
-} from './utils/publication-output.ts';
+import { usePublicationWorkflow } from './state/use-publication-workflow.ts';
 import {
   type BlockState,
   type ControlDataClearRequest,
@@ -105,18 +73,6 @@ import {
   readStoredActiveProject,
   summarizePieceValues,
 } from './utils/app-helpers.ts';
-
-const createPublicationOperation = (
-  key: PublicationOperationState['key'],
-  status: OperationStatus,
-  message: string,
-  detail?: string,
-): PublicationOperationState => ({
-  key,
-  status,
-  message,
-  detail,
-});
 
 function getSafeLocalStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
@@ -280,22 +236,6 @@ export default function App(): JSX.Element | null {
   const [malla, setMalla] = useState<MallaExport | null>(null);
   const [publicationSnapshot, setPublicationSnapshot] = useState<MallaSnapshot | null>(null);
   const [viewerMode, setViewerMode] = useState<ViewerMode | null>(null);
-  const [viewerPanelModePreference, setViewerPanelModePreference] =
-    useState<ViewerPanelMode>('preview');
-  const [publicationTheme, setPublicationTheme] = useState<ViewerTheme>(() =>
-    readStoredPublicationTheme(getSafeLocalStorage()),
-  );
-  const [publicationPrintSettings, setPublicationPrintSettings] = useState(() =>
-    readStoredPublicationPrintSettings(getSafeLocalStorage()),
-  );
-  const [publicationExportFlags] = useState<PublicationExportFlags>(() =>
-    readStoredPublicationExportFlags(getSafeLocalStorage()),
-  );
-  const [publishContext, setPublishContext] = useState<{
-    origin: PublishOrigin;
-    mode: PublicationMode;
-  } | null>(null);
-  const [publicationOperation, setPublicationOperation] = useState<PublicationOperationState | null>(null);
   const [projectThemeState, setProjectThemeState] = useState<ProjectTheme>(
     createDefaultProjectTheme(),
   );
@@ -753,18 +693,6 @@ export default function App(): JSX.Element | null {
   ]);
 
   useEffect(() => {
-    persistPublicationTheme(getSafeLocalStorage(), publicationTheme);
-  }, [publicationTheme]);
-
-  useEffect(() => {
-    persistPublicationPrintSettings(getSafeLocalStorage(), publicationPrintSettings);
-  }, [publicationPrintSettings]);
-
-  useEffect(() => {
-    persistPublicationExportFlags(getSafeLocalStorage(), publicationExportFlags);
-  }, [publicationExportFlags]);
-
-  useEffect(() => {
     passiveAutosaveSignatureRef.current = null;
   }, [projectId]);
 
@@ -860,484 +788,38 @@ export default function App(): JSX.Element | null {
     }
   };
 
-  const resolvePublicationTheme = useCallback(
-    () => normalizeViewerTheme(publicationTheme),
-    [publicationTheme],
-  );
-
-  const publicationOutputConfig = useMemo<PublicationOutputConfig>(
-    () => ({
-      theme: resolvePublicationTheme(),
-      printSettings: publicationPrintSettings,
-      flags: publicationExportFlags,
-    }),
-    [publicationExportFlags, publicationPrintSettings, resolvePublicationTheme],
-  );
-
-  const previewSnapshot = useMemo<MallaSnapshot | null>(() => {
-    if (!currentProject) return null;
-    try {
-      return buildMallaSnapshotFromState(currentProject, {
-        projectName: projectName || 'Proyecto',
-      });
-    } catch (error) {
-      logAppError({
-        scope: 'viewer',
-        severity: 'non-fatal',
-        message: 'Fallo la generacion del snapshot de vista previa.',
-        error,
-        context: {
-          projectId,
-          projectName,
-        },
-      });
-      return null;
-    }
-  }, [currentProject, projectId, projectName]);
-
-  const handleOpenPreview = useCallback(() => {
-    if (!currentProject) return;
-    if (!previewSnapshot) {
-      pushToast('No se pudo abrir la vista previa', 'error');
-      return;
-    }
-    setViewerPanelModePreference('preview');
-    setViewerMode('preview');
-    navigate('/malla/viewer');
-  }, [currentProject, navigate, previewSnapshot, pushToast]);
-
-  const handleOpenPrintPreview = useCallback(() => {
-    if (!currentProject) return;
-    if (!previewSnapshot) {
-      pushToast('No se pudo abrir la vista de impresion', 'error');
-      return;
-    }
-    setViewerPanelModePreference('print-preview');
-    setViewerMode('preview');
-    navigate('/malla/viewer');
-  }, [currentProject, navigate, previewSnapshot, pushToast]);
-
-  const createPublicationSnapshot = useCallback(
-    (appearance: ViewerTheme): MallaSnapshot | null => {
-      if (!currentProject) return null;
-      try {
-        return buildMallaSnapshotFromState(currentProject, {
-          projectName: projectName || 'Proyecto',
-          appearance,
-        });
-      } catch (error) {
-        logAppError({
-          scope: 'publication',
-          severity: 'non-fatal',
-          message: 'Fallo la generacion del snapshot publicable.',
-          error,
-          context: {
-            projectId,
-            projectName,
-          },
-        });
-        return null;
-      }
-    },
-    [currentProject, projectId, projectName],
-  );
-
-  const downloadPublication = useCallback((snapshot: MallaSnapshot) => {
-    const json = JSON.stringify(snapshot, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${snapshot.projectName || 'proyecto'}-publicacion-v1.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
-
-  const _handleGeneratePublication = useCallback(async () => {
-    const appearance = publicationOutputConfig.theme;
-    const snapshot = createPublicationSnapshot(appearance);
-    if (!snapshot) {
-      pushToast('No se pudo generar la publicación', 'error');
-      return;
-    }
-
-    downloadPublication(snapshot);
-    setPublicationSnapshot(snapshot);
-    pushToast('Publicacion generada', 'success');
-
-    const shouldOpen = await confirmAsync({
-      title: 'Publicacion generada',
-      message: '¿Deseas ver la version publicada?',
-      confirmLabel: 'Ver version publicada',
-      cancelLabel: 'Cerrar',
-      variant: 'info',
-    });
-    if (shouldOpen) {
-      setViewerMode('publication');
-      navigate('/malla/viewer');
-    }
-  }, [
-    confirmAsync,
-    createPublicationSnapshot,
-    downloadPublication,
+  const {
+    viewerPanelModePreference,
+    publicationPrintSettings,
+    publishContext,
+    publicationOutputConfig,
+    previewSnapshot,
+    publishActionStates,
+    closePublishModal,
+    handleBackToEditorFromViewer,
+    handleGoToDocumentFromPublishModal,
+    handleGoToPresentationFromPublishModal,
+    handleImportPublicationFile,
+    handleOpenPreview,
+    handleOpenPrintPreview,
+    handleOpenPublishModalFromMenu,
+    handlePublicationPrintSettingsChange,
+    handlePublishFromPreview,
+    handleSelectPublicationProduct,
+    handleViewerPanelModeChange,
+    handleViewerThemeChange,
+  } = usePublicationWorkflow({
+    currentProject,
+    projectId,
+    projectName,
+    viewerMode,
+    locationPathname: location.pathname,
     navigate,
-    publicationOutputConfig.theme,
+    setPublicationSnapshot,
+    setViewerMode,
     pushToast,
-  ]);
-
-  const openPublishModal = useCallback(
-    (origin: PublishOrigin, mode?: PublicationMode) => {
-      setPublishContext({
-        origin,
-        mode: mode ?? resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference),
-      });
-    },
-    [viewerPanelModePreference],
-  );
-
-  const closePublishModal = useCallback(() => {
-    setPublishContext(null);
-  }, []);
-
-  useEffect(() => {
-    if (!publicationOperation || publicationOperation.status === 'running') return undefined;
-    const timeoutId = window.setTimeout(() => {
-      setPublicationOperation((current) =>
-        current === publicationOperation ? null : current,
-      );
-    }, publicationOperation.status === 'error' ? 8000 : 5000);
-    return () => window.clearTimeout(timeoutId);
-  }, [publicationOperation]);
-
-  const handleSelectPublicationProduct = useCallback(
-    async (product: PublicationProduct) => {
-      const copy = PUBLICATION_ACTION_COPY[product];
-      setPublicationOperation(
-        createPublicationOperation(
-          product,
-          'running',
-          copy.runningLabel,
-          copy.statusDetail,
-        ),
-      );
-      try {
-        const appearance = publicationOutputConfig.theme;
-        const snapshot = createPublicationSnapshot(appearance);
-        if (!snapshot) {
-          const failureMessage = 'No se pudo generar la salida publicada.';
-          setPublicationOperation(
-            createPublicationOperation(product, 'error', failureMessage, 'Revisa la configuracion visible y vuelve a intentarlo.'),
-          );
-          pushToast(failureMessage, 'error');
-          return;
-        }
-
-        setPublicationSnapshot(snapshot);
-
-        if (product === 'snapshot-json') {
-          downloadPublication(snapshot);
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-            ),
-          );
-        } else if (product === 'pdf') {
-          openViewerPdfExport({
-            snapshot,
-            config: publicationOutputConfig,
-            product: 'pdf',
-          });
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-            ),
-          );
-        } else if (product === 'print') {
-          openViewerPdfExport({
-            snapshot,
-            config: publicationOutputConfig,
-            product: 'print',
-          });
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-            ),
-          );
-        } else if (product === 'html-web') {
-          openViewerStandaloneHtml({
-            snapshot,
-            config: publicationOutputConfig,
-            product: 'html-web',
-          });
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-              'La publicacion se abrio en otra pestaña para revision inmediata.',
-            ),
-          );
-        } else if (product === 'html-download') {
-          downloadViewerStandaloneHtml({
-            snapshot,
-            config: publicationOutputConfig,
-            product: 'html-download',
-          });
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-              'El archivo web autonomo ya fue descargado con la apariencia actual.',
-            ),
-          );
-        } else if (product === 'html-paginated') {
-          downloadViewerStandaloneHtml({
-            snapshot,
-            config: publicationOutputConfig,
-            product: 'html-paginated',
-          });
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-              'La version descargada conserva la division por paginas del modo documento.',
-            ),
-          );
-        } else if (product === 'html-embed') {
-          downloadViewerStandaloneHtml({
-            snapshot,
-            config: {
-              ...publicationOutputConfig,
-              flags: {
-                ...publicationOutputConfig.flags,
-                includeEditorial: false,
-              },
-            },
-            product: 'html-embed',
-          });
-          setPublicationOperation(
-            createPublicationOperation(
-              product,
-              'success',
-              'Completado',
-              'La variante para insercion ya fue descargada sin elementos editoriales extra.',
-            ),
-          );
-        }
-      } catch (error) {
-        const failureMessage = `No se pudo completar ${copy.idleLabel.toLowerCase()}.`;
-        logAppError({
-          scope: 'publication',
-          severity: 'non-fatal',
-          message: 'Fallo una accion de publicacion.',
-          error,
-          context: {
-            product,
-            projectId,
-            projectName,
-          },
-        });
-        setPublicationOperation(
-          createPublicationOperation(product, 'error', failureMessage, 'El navegador o la generacion local no pudo completar la salida solicitada.'),
-        );
-        pushToast(failureMessage, 'error');
-      }
-    },
-    [
-      createPublicationSnapshot,
-      downloadPublication,
-      projectId,
-      projectName,
-      publicationOutputConfig,
-      pushToast,
-    ],
-  );
-
-  const handleImportPublicationFile = useCallback(
-    async (file: File) => {
-      try {
-        setPublicationOperation(
-          createPublicationOperation(
-            'import-publication',
-            'running',
-            'Abriendo version publicada...',
-            'Se esta validando el archivo seleccionado antes de cargarlo en el visor.',
-          ),
-        );
-        const text = await file.text();
-        const parsed: unknown = JSON.parse(text);
-        const validation = validateAndNormalizeMallaSnapshot(parsed);
-        if (!validation.ok) {
-          setPublicationOperation(
-            createPublicationOperation(
-              'import-publication',
-              'error',
-              'Archivo de publicacion invalido.',
-              validation.error,
-            ),
-          );
-          pushToast(validation.error, 'error');
-          return;
-        }
-        const normalized = validation.normalizedSnapshot;
-        setPublicationSnapshot(normalized);
-        setViewerPanelModePreference('preview');
-        setViewerMode('publication');
-        navigate('/malla/viewer');
-        setPublicationOperation(
-          createPublicationOperation(
-            'import-publication',
-            'success',
-            'Version publicada abierta.',
-            'El snapshot se valido y ya esta disponible en el visor de publicacion.',
-          ),
-        );
-        pushToast('Versión publicada abierta', 'success');
-      } catch (error) {
-        logAppError({
-          scope: 'publication',
-          severity: 'non-fatal',
-          message: 'Fallo la apertura de un snapshot publicado.',
-          error,
-          context: {
-            fileName: file.name,
-          },
-        });
-        pushToast('No se pudo abrir la versión publicada', 'error');
-      }
-    },
-    [navigate, pushToast],
-  );
-
-  const handleBackToEditorFromViewer = useCallback(() => {
-    setViewerPanelModePreference('preview');
-    setViewerMode(null);
-    navigate('/malla/design');
-  }, [navigate]);
-
-  const handleViewerThemeChange = useCallback(
-    (next: ViewerTheme) => {
-      if (viewerMode !== 'preview') return;
-      setPublicationTheme(normalizeViewerTheme(next));
-    },
-    [viewerMode],
-  );
-
-  const handlePublicationPrintSettingsChange = useCallback((next: ViewerPrintSettings) => {
-    setPublicationPrintSettings(next);
-  }, []);
-
-  const handleViewerPanelModeChange = useCallback((next: ViewerPanelMode) => {
-    setViewerPanelModePreference(next);
-  }, []);
-
-  const handlePublishFromPreview = useCallback(() => {
-    openPublishModal('viewer', resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference));
-  }, [openPublishModal, viewerPanelModePreference]);
-
-  const handleOpenPublishModalFromMenu = useCallback(() => {
-    const origin = location.pathname === '/malla/viewer' && viewerMode === 'preview'
-      ? 'viewer'
-      : 'editor';
-    const mode =
-      origin === 'viewer'
-        ? resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference)
-        : 'presentation';
-    openPublishModal(origin, mode);
-  }, [location.pathname, openPublishModal, viewerMode, viewerPanelModePreference]);
-
-  const handleGoToPresentationFromPublishModal = useCallback(() => {
-    closePublishModal();
-    handleOpenPreview();
-  }, [closePublishModal, handleOpenPreview]);
-
-  const handleGoToDocumentFromPublishModal = useCallback(() => {
-    closePublishModal();
-    handleOpenPrintPreview();
-  }, [closePublishModal, handleOpenPrintPreview]);
-
-  const publishActionStates = useMemo<Record<PublishActionKey, {
-    availability: 'ready';
-    status: OperationStatus;
-    detail?: string;
-  }>>(
-    () => ({
-      'snapshot-json': {
-        availability: 'ready',
-        status:
-          publicationOperation?.key === 'snapshot-json'
-            ? publicationOperation.status
-            : 'idle',
-        detail:
-          publicationOperation?.key === 'snapshot-json'
-            ? publicationOperation.detail
-            : undefined,
-      },
-      pdf: {
-        availability: 'ready',
-        status: publicationOperation?.key === 'pdf' ? publicationOperation.status : 'idle',
-        detail: publicationOperation?.key === 'pdf' ? publicationOperation.detail : undefined,
-      },
-      print: {
-        availability: 'ready',
-        status: publicationOperation?.key === 'print' ? publicationOperation.status : 'idle',
-        detail: publicationOperation?.key === 'print' ? publicationOperation.detail : undefined,
-      },
-      'html-web': {
-        availability: 'ready',
-        status:
-          publicationOperation?.key === 'html-web'
-            ? publicationOperation.status
-            : 'idle',
-        detail:
-          publicationOperation?.key === 'html-web'
-            ? publicationOperation.detail
-            : undefined,
-      },
-      'html-download': {
-        availability: 'ready',
-        status:
-          publicationOperation?.key === 'html-download'
-            ? publicationOperation.status
-            : 'idle',
-        detail:
-          publicationOperation?.key === 'html-download'
-            ? publicationOperation.detail
-            : undefined,
-      },
-      'html-paginated': {
-        availability: 'ready',
-        status:
-          publicationOperation?.key === 'html-paginated'
-            ? publicationOperation.status
-            : 'idle',
-        detail:
-          publicationOperation?.key === 'html-paginated'
-            ? publicationOperation.detail
-            : undefined,
-      },
-      'html-embed': {
-        availability: 'ready',
-        status:
-          publicationOperation?.key === 'html-embed'
-            ? publicationOperation.status
-            : 'idle',
-        detail:
-          publicationOperation?.key === 'html-embed'
-            ? publicationOperation.detail
-            : undefined,
-      },
-    }),
-    [publicationOperation],
-  );
+    getSafeLocalStorage,
+  });
 
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();

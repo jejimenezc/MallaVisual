@@ -46,7 +46,7 @@ import { useProjectTheme } from '../state/project-theme.tsx';
 import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
 import { confirmAsync, promptAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
-import { pushHistoryEntry } from '../utils/history.ts';
+import { useBlockEditorHistory, type VisualUpdateMetadata } from '../state/use-block-editor-history.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -128,8 +128,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
   );
-  type VisualUpdateMetadata = { historyBatchId?: string };
-
   const [visual, setVisualState] = useState<VisualTemplate>(
     initialData?.visual ?? {}
   ); // mapa visual separado
@@ -499,101 +497,16 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => ({ template, visual, aspect }),
     [template, visual, aspect],
   );
-  const draftSerialized = useMemo(() => computeSignature(draftContent), [draftContent]);
   const hasDraftDesign = useMemo(() => hasBlockDesign(draftContent), [draftContent]);
-
-  const historyRef = useRef<BlockContent[]>([]);
-  const historySerializedRef = useRef<string[]>([]);
-  const historyMetadataRef = useRef<(VisualUpdateMetadata | null)[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
-  const isRestoringRef = useRef(false);
-  const ignoreNextInitialDataRef = useRef(false);
-
-  useEffect(() => {
-    if (ignoreNextInitialDataRef.current) {
-      ignoreNextInitialDataRef.current = false;
-      return;
-    }
-    setIsHistoryInitialized(false);
-  }, [initialDataSignature]);
-
-  useEffect(() => {
-    if (!isHistoryInitialized) {
-      const initialEntry = cloneBlockContent(draftContent);
-      historyRef.current = [initialEntry];
-      historySerializedRef.current = [draftSerialized];
-      historyMetadataRef.current = [null];
-      pendingVisualUpdateMetaRef.current = null;
-      setHistoryIndex(0);
-      setIsHistoryInitialized(true);
-      return;
-    }
-    if (isRestoringRef.current) {
-      isRestoringRef.current = false;
-      pendingVisualUpdateMetaRef.current = null;
-      return;
-    }
-    const currentSerialized = historySerializedRef.current[historyIndex];
-    if (currentSerialized === draftSerialized) {
-      pendingVisualUpdateMetaRef.current = null;
-      return;
-    }
-    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
-    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
-    const truncatedMetadata = historyMetadataRef.current.slice(0, historyIndex + 1);
-    const nextEntry = cloneBlockContent(draftContent);
-    const pendingMeta = pendingVisualUpdateMetaRef.current;
-    pendingVisualUpdateMetaRef.current = null;
-    if (
-      pendingMeta?.historyBatchId &&
-      truncatedHistory.length > 0 &&
-      truncatedMetadata[truncatedMetadata.length - 1]?.historyBatchId === pendingMeta.historyBatchId
-    ) {
-      truncatedHistory[truncatedHistory.length - 1] = nextEntry;
-      truncatedSerialized[truncatedSerialized.length - 1] = draftSerialized;
-      truncatedMetadata[truncatedMetadata.length - 1] = pendingMeta;
-      historyRef.current = truncatedHistory;
-      historySerializedRef.current = truncatedSerialized;
-      historyMetadataRef.current = truncatedMetadata;
-      setHistoryIndex(truncatedHistory.length - 1);
-      return;
-    }
-    const result = pushHistoryEntry({
-      entries: historyRef.current,
-      serialized: historySerializedRef.current,
-      index: historyIndex,
-      newEntry: nextEntry,
-      newSerialized: draftSerialized,
-      metadata: historyMetadataRef.current,
-      newMetadata: pendingMeta ?? null,
-    });
-    historyRef.current = result.entries;
-    historySerializedRef.current = result.serialized;
-    historyMetadataRef.current = result.metadata ?? [];
-    setHistoryIndex(result.index);
-  }, [
+  const { canUndo, canRedo, handleUndo, handleRedo } = useBlockEditorHistory({
     draftContent,
-    draftSerialized,
-    historyIndex,
-    isHistoryInitialized,
-  ]);
-
-  const applyHistoryEntry = useCallback(
-    (entry: BlockContent) => {
-      const clone = cloneBlockContent(entry);
-      setTemplate(clone.template);
-      setVisual(clone.visual);
-      setAspect(clone.aspect);
-    },
-    [setTemplate, setVisual, setAspect],
-  );
-
-  useEffect(() => {
-    if (!onDraftChange) return;
-    ignoreNextInitialDataRef.current = true;
-    onDraftChange(cloneBlockContent(draftContent));
-  }, [draftContent, onDraftChange]);
+    initialDataSignature,
+    pendingVisualUpdateMetaRef,
+    setTemplate,
+    setVisual,
+    setAspect,
+    onDraftChange,
+  });
   const repoRecord = useMemo(
     () => (repoId ? repoBlocks.find((b) => b.metadata.uuid === repoId) ?? null : null),
     [repoBlocks, repoId],
@@ -885,29 +798,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   useEffect(() => {
     setSelectedCoord(undefined);
   }, [mode]);
-
-  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < historyRef.current.length - 1;
-
-  const handleUndo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
-    const entry = historyRef.current[newIndex];
-    if (!entry) return;
-    isRestoringRef.current = true;
-    applyHistoryEntry(entry);
-    setHistoryIndex(newIndex);
-  }, [historyIndex, applyHistoryEntry]);
-
-  const handleRedo = useCallback(() => {
-    if (historyIndex >= historyRef.current.length - 1) return;
-    const newIndex = historyIndex + 1;
-    const entry = historyRef.current[newIndex];
-    if (!entry) return;
-    isRestoringRef.current = true;
-    applyHistoryEntry(entry);
-    setHistoryIndex(newIndex);
-  }, [historyIndex, applyHistoryEntry]);
 
   useAppCommand('undo', handleUndo, canUndo);
   useAppCommand('redo', handleRedo, canRedo);
