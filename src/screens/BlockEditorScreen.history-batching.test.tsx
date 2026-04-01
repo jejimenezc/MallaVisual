@@ -87,7 +87,14 @@ const formatPanelUpdateRef: { current: ((
 ) => void) | null } = { current: null };
 
 vi.mock('../components/FormatStylePanel', () => ({
-  FormatStylePanel: ({ onUpdateVisual }: { onUpdateVisual: (next: any, meta?: any) => void }) => {
+  FormatStylePanel: ({
+    onUpdateVisual,
+  }: {
+    onUpdateVisual: (
+      next: React.SetStateAction<VisualTemplate>,
+      meta?: { historyBatchId?: string },
+    ) => void;
+  }) => {
     useEffect(() => {
       formatPanelUpdateRef.current = onUpdateVisual;
       return () => {

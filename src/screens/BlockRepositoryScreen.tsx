@@ -1,5 +1,5 @@
 // src/screens/BlockRepositoryScreen.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { BlockSnapshot } from '../components/BlockSnapshot';
 import { Button } from '../components/Button';
@@ -37,14 +37,14 @@ export const BlockRepositoryScreen: React.FC<BlockRepositoryScreenProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pushToast = useToast();
 
-  const refresh = () => setBlocks(listBlocks());
+  const refresh = useCallback(() => setBlocks(listBlocks()), [listBlocks]);
 
   useEffect(() => {
     refresh();
     const handler = () => refresh();
     window.addEventListener('block-repo-updated', handler);
     return () => window.removeEventListener('block-repo-updated', handler);
-  }, [listBlocks]);
+  }, [refresh]);
 
   const handleImport = () => fileInputRef.current?.click();
 

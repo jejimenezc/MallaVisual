@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BlockTemplate } from '../types/curricular';
-import { VisualTemplate, BlockAspect } from '../types/visual';
+import type { BlockTemplate } from '../types/curricular';
+import type { VisualTemplate, BlockAspect } from '../types/visual';
 import { TemplateGrid } from './TemplateGrid';
 import { getActiveBounds, cropTemplate, cropVisualTemplate } from '../utils/block-active';
 import { GRID_GAP, GRID_PAD } from '../styles/constants.ts';

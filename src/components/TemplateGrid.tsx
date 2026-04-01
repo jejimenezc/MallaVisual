@@ -1,9 +1,9 @@
 // src/components/TemplateGrid.tsx
 
 import React from 'react';
-import { BlockTemplate } from '../types/curricular';
+import type { BlockTemplate } from '../types/curricular';
 import { TemplateCell } from './TemplateCell';
-import { VisualTemplate } from '../types/visual';
+import type { VisualTemplate } from '../types/visual';
 import './BlockTemplateEditor.css';
 
 interface Props {

@@ -40,8 +40,6 @@ import {
   VIEWER_PRINT_TITLE_MAX_FONT_SIZE,
   VIEWER_PRINT_TITLE_MIN_FONT_SIZE,
   type ViewerPanelMode,
-  type ViewerPaginationTile,
-  type ViewerPrintedPage,
   type ViewerPrintPaperSize,
   type ViewerPrintSettings,
 } from '../utils/viewer-print.ts';
@@ -1002,89 +1000,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         </div>
       </div>
     );
-  };
-
-  const renderPreviewGridTile = (tile: ViewerPaginationTile) => {
-    const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-      showDocumentTitle: printSettings.showDocumentTitle,
-      documentTitleOverride: printSettings.documentTitleOverride,
-      pageLayoutMode: printSettings.pageLayoutMode,
-      showHeader: printSettings.showHeader,
-      headerText: printSettings.headerText,
-      showFooter: printSettings.showFooter,
-      footerText: printSettings.footerText,
-      showPageNumbers: printSettings.showPageNumbers,
-      projectName: renderModel.projectName,
-      pageIndex: tile.pageNumber - 1,
-      pageCount: gridPaginationMetrics.pageCount,
-      contentHeightMm: pageMetrics.contentHeightMm,
-      pxPerMmY: measuredPxPerMm.pxPerMmY,
-    });
-    const isPartialLastPage =
-      tile.col === 0 &&
-      tile.row === gridPaginationMetrics.pagesY - 1 &&
-      tile.sliceHeightPx < tile.usablePageHeightPx;
-    const sliceLayout = resolveViewerPageSliceLayout({
-      viewportWidthPx: tile.sliceWidthPx,
-      viewportHeightPx: tile.sliceHeightPx,
-      surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
-      surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
-      offsetX: tile.offsetX,
-      offsetY: tile.offsetY,
-    });
-
-    return renderPaginatedSurfacePage({
-      key: `preview-page-${tile.row}-${tile.col}`,
-      variant: 'preview',
-      sliceLayout,
-      isPartialLastPage,
-      editorialLayout,
-      pageAttrs: {
-        'data-grid-row': `${tile.row}`,
-        'data-grid-col': `${tile.col}`,
-      },
-    });
-  };
-
-  const renderPrintedPage = (page: ViewerPrintedPage) => {
-    const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-      showDocumentTitle: printSettings.showDocumentTitle,
-      documentTitleOverride: printSettings.documentTitleOverride,
-      pageLayoutMode: printSettings.pageLayoutMode,
-      showHeader: printSettings.showHeader,
-      headerText: printSettings.headerText,
-      showFooter: printSettings.showFooter,
-      footerText: printSettings.footerText,
-      showPageNumbers: printSettings.showPageNumbers,
-      projectName: renderModel.projectName,
-      pageIndex: page.pageNumber - 1,
-      pageCount: printedPages.length,
-      contentHeightMm: pageMetrics.contentHeightMm,
-      pxPerMmY: measuredPxPerMm.pxPerMmY,
-    });
-    const isPartialLastPage = page.tileCol === 0 && page.isLastRow && page.sliceHeightPx < page.usablePageHeightPx;
-
-    const sliceLayout = resolveViewerPageSliceLayout({
-      viewportWidthPx: page.viewportWidthPx,
-      viewportHeightPx: page.viewportHeightPx,
-      surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
-      surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
-      offsetX: page.printOffsetX,
-      offsetY: page.printOffsetY,
-    });
-
-    return renderPaginatedSurfacePage({
-      key: `printed-page-${page.pageNumber}`,
-      variant: 'print',
-      sliceLayout,
-      isPartialLastPage,
-      editorialLayout,
-      pageAttrs: {
-        'data-page-number': `${page.pageNumber}`,
-        'data-tile-row': `${page.tileRow}`,
-        'data-tile-col': `${page.tileCol}`,
-      },
-    });
   };
 
   const previewPaginatedGridSurface = isPrintPreview ? (

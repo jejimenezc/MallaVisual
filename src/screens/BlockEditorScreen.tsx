@@ -1,6 +1,6 @@
 // src/screens/BlockEditorScreen.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from 'react';
-import { BlockTemplate } from '../types/curricular.ts';
+import type { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor, type ControlCleanupMode } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
 import { ContextSidebarPanel } from '../components/ContextSidebarPanel';
@@ -8,7 +8,8 @@ import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { VisualTemplate, BlockAspect, VisualStyle, coordKey } from '../types/visual.ts';
+import { coordKey } from '../types/visual.ts';
+import type { VisualTemplate, BlockAspect, VisualStyle } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import {
   type MallaExport,
@@ -273,7 +274,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       });
       return shouldDelete;
     },
-    [confirmAsync, controlsInUseForRepo, repoId],
+    [controlsInUseForRepo, repoId],
   );
 
   const handleControlDeleted = useCallback(
@@ -716,12 +717,12 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     projectId,
     repoSaveBlock,
     draftContent,
+    projectTheme,
     onRepoIdChange,
     onRepoMetadataChange,
     onPublishBlock,
     isBlockInUse,
     pushToast,
-    promptAsync,
   ]);
 
   const handleRename = useCallback(async () => {
@@ -765,7 +766,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     projectId,
     repoUpdateBlockMetadata,
     onRepoMetadataChange,
-    promptAsync,
   ]);
 
   const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
@@ -839,7 +839,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       repoContent,
       pushToast,
       skipNextDirtyBlockCheck,
-      confirmAsync,
     ],
   );
 

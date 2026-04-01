@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CSSProperties, JSX } from 'react';
-import type { ViewerRenderBandCell, ViewerRenderBandRow, ViewerRenderCell, ViewerRenderItem, ViewerRenderModel } from '../utils/viewer-theme.ts';
+import type { ViewerRenderBandCell, ViewerRenderBandRow, ViewerRenderItem, ViewerRenderModel } from '../utils/viewer-theme.ts';
 import {
   resolveViewerPageSliceLayout,
   resolveViewerPrintedPageEditorialLayout,

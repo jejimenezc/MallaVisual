@@ -1,9 +1,9 @@
 // src/components/BlockTemplateViewer.tsx
 
 import React, { useMemo, useState } from 'react';
-import { BlockTemplate } from '../types/curricular';
+import type { BlockTemplate } from '../types/curricular';
 import { TemplateGrid } from './TemplateGrid';
-import { VisualTemplate, BlockAspect } from '../types/visual';
+import type { VisualTemplate, BlockAspect } from '../types/visual';
 import './BlockTemplateEditor.css';
 import './BlockTemplateViewer.css';
 import type { ProjectThemeTokens } from '../utils/project-theme.ts';

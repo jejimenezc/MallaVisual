@@ -288,7 +288,7 @@ export default function App(): JSX.Element | null {
   const [publicationPrintSettings, setPublicationPrintSettings] = useState(() =>
     readStoredPublicationPrintSettings(getSafeLocalStorage()),
   );
-  const [publicationExportFlags, setPublicationExportFlags] = useState<PublicationExportFlags>(() =>
+  const [publicationExportFlags] = useState<PublicationExportFlags>(() =>
     readStoredPublicationExportFlags(getSafeLocalStorage()),
   );
   const [publishContext, setPublishContext] = useState<{
@@ -347,7 +347,7 @@ export default function App(): JSX.Element | null {
       setProjectThemeState(normalized);
       setMalla((prev) => (prev ? { ...prev, theme: normalized } : prev));
     },
-    [normalizeProjectTheme],
+    [],
   );
 
   const loadMallaState = useCallback(
@@ -361,7 +361,7 @@ export default function App(): JSX.Element | null {
       setProjectThemeState(normalizedTheme);
       setMalla({ ...next, theme: normalizedTheme });
     },
-    [createDefaultProjectTheme, normalizeProjectTheme],
+    [],
   );
 
   const handleMallaChange = useCallback<
@@ -747,6 +747,7 @@ export default function App(): JSX.Element | null {
     beginProjectSwitch,
     isHydrated,
     isProjectSwitchTokenCurrent,
+    loadMallaState,
     loadProject,
     pushToast,
   ]);
@@ -952,7 +953,7 @@ export default function App(): JSX.Element | null {
     URL.revokeObjectURL(url);
   }, []);
 
-  const handleGeneratePublication = useCallback(async () => {
+  const _handleGeneratePublication = useCallback(async () => {
     const appearance = publicationOutputConfig.theme;
     const snapshot = createPublicationSnapshot(appearance);
     if (!snapshot) {
@@ -1153,7 +1154,6 @@ export default function App(): JSX.Element | null {
     [
       createPublicationSnapshot,
       downloadPublication,
-      openViewerStandaloneHtml,
       projectId,
       projectName,
       publicationOutputConfig,
@@ -1380,6 +1380,7 @@ export default function App(): JSX.Element | null {
     clearPersistedProjectMetadata,
     clearRepository,
     beginProjectSwitch,
+    clearDraft,
     computeDirty,
     confirmAsync,
     currentProject,
@@ -1430,62 +1431,84 @@ export default function App(): JSX.Element | null {
     navigate('/block/design');
   };
 
-  const handleLoadBlock = async (
-    data: BlockExport,
-    inferredName?: string,
-    switchToken = beginProjectSwitch(),
-  ) => {
-    resetWorkspaceState();
-    const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
-    const normalized = await applyRepositoryChange(
-      {},
-      {
-        reason: 'importar el bloque seleccionado',
-        targetDescription: 'el bloque importado',
-      },
-      id,
-      switchToken,
-    );
-    if (!isProjectSwitchTokenCurrent(switchToken)) return;
-    if (!normalized) return;
-    const theme = normalizeProjectTheme(data.theme);
-    setProjectId(id);
-    setProjectName(name);
-    setBlock(createBlockStateFromContent(toBlockContent(data)));
-    loadMallaState(null);
-    setProjectThemeState(theme);
-    clearPersistedProjectMetadata();
-    navigate('/block/design');
-  };
+  const handleLoadBlock = useCallback(
+    async (
+      data: BlockExport,
+      inferredName?: string,
+      switchToken = beginProjectSwitch(),
+    ) => {
+      resetWorkspaceState();
+      const name = inferredName?.trim() || 'Importado';
+      const id = crypto.randomUUID();
+      const normalized = await applyRepositoryChange(
+        {},
+        {
+          reason: 'importar el bloque seleccionado',
+          targetDescription: 'el bloque importado',
+        },
+        id,
+        switchToken,
+      );
+      if (!isProjectSwitchTokenCurrent(switchToken)) return;
+      if (!normalized) return;
+      const theme = normalizeProjectTheme(data.theme);
+      setProjectId(id);
+      setProjectName(name);
+      setBlock(createBlockStateFromContent(toBlockContent(data)));
+      loadMallaState(null);
+      setProjectThemeState(theme);
+      clearPersistedProjectMetadata();
+      navigate('/block/design');
+    },
+    [
+      applyRepositoryChange,
+      beginProjectSwitch,
+      clearPersistedProjectMetadata,
+      isProjectSwitchTokenCurrent,
+      loadMallaState,
+      navigate,
+      resetWorkspaceState,
+    ],
+  );
 
-  const handleLoadMalla = async (
-    data: MallaExport,
-    inferredName?: string,
-    switchToken = beginProjectSwitch(),
-  ) => {
-    resetWorkspaceState();
-    const name = inferredName?.trim() || 'Importado';
-    const id = crypto.randomUUID();
-    const normalizedRepo = await applyRepositoryChange(
-      data.repository ?? {},
-      {
-        reason: 'importar el proyecto',
-        targetDescription: 'el proyecto importado',
-      },
-      id,
-      switchToken,
-    );
-    if (!isProjectSwitchTokenCurrent(switchToken)) return;
-    if (!normalizedRepo) return;
-    const prepared = prepareMallaProjectState(data, normalizedRepo);
-    setProjectId(id);
-    setProjectName(name);
-    setBlock(prepared.block);
-    loadMallaState(prepared.malla);
-    clearPersistedProjectMetadata();
-    navigate('/malla/design');
-  };
+  const handleLoadMalla = useCallback(
+    async (
+      data: MallaExport,
+      inferredName?: string,
+      switchToken = beginProjectSwitch(),
+    ) => {
+      resetWorkspaceState();
+      const name = inferredName?.trim() || 'Importado';
+      const id = crypto.randomUUID();
+      const normalizedRepo = await applyRepositoryChange(
+        data.repository ?? {},
+        {
+          reason: 'importar el proyecto',
+          targetDescription: 'el proyecto importado',
+        },
+        id,
+        switchToken,
+      );
+      if (!isProjectSwitchTokenCurrent(switchToken)) return;
+      if (!normalizedRepo) return;
+      const prepared = prepareMallaProjectState(data, normalizedRepo);
+      setProjectId(id);
+      setProjectName(name);
+      setBlock(prepared.block);
+      loadMallaState(prepared.malla);
+      clearPersistedProjectMetadata();
+      navigate('/malla/design');
+    },
+    [
+      applyRepositoryChange,
+      beginProjectSwitch,
+      clearPersistedProjectMetadata,
+      isProjectSwitchTokenCurrent,
+      loadMallaState,
+      navigate,
+      resetWorkspaceState,
+    ],
+  );
 
   const handleImportProjectFile = useCallback(
     async (file: File) => {
@@ -1565,7 +1588,6 @@ export default function App(): JSX.Element | null {
     [
       applyRepositoryChange,
       beginProjectSwitch,
-      createBlockStateFromContent,
       isProjectSwitchTokenCurrent,
       loadMallaState,
       navigate,
@@ -1574,7 +1596,6 @@ export default function App(): JSX.Element | null {
       setProjectId,
       setProjectName,
       setShouldPersistProject,
-      toBlockContent,
     ],
   );
 
@@ -1650,7 +1671,7 @@ export default function App(): JSX.Element | null {
         };
       });
     },
-    [setBlock],
+    [clearDraft, setBlock],
   );
 
   const handleRepoIdChange = (repoId: string | null) => {
