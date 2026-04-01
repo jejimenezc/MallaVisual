@@ -32,6 +32,7 @@ import { useUILayout } from './state/ui-layout.tsx';
 import { AppCommandsProvider } from './state/app-commands';
 import { ProjectThemeProvider } from './state/project-theme.tsx';
 import { useCurrentProjectState } from './state/use-current-project-state.ts';
+import { useProjectOpening } from './state/use-project-opening.ts';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -39,13 +40,11 @@ import {
   cloneBlockContent,
   hasBlockDesign,
   toBlockContent,
-  type BlockContent,
 } from './utils/block-content.ts';
 import { areContentsEqual } from './utils/comparators.ts';
 import { blocksToRepository, type RepositorySnapshot } from './utils/repository-snapshot.ts';
 import { clearControlValues } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
-import { handleProjectFile } from './utils/project-file.ts';
 import { useToast } from './ui/toast/ToastContext.tsx';
 import { useConfirm, usePrompt } from './ui/confirm/ConfirmContext.tsx';
 import { EditorErrorBoundary, ViewerErrorBoundary } from './core/runtime/RuntimeErrorBoundary.tsx';
@@ -739,6 +738,47 @@ export default function App(): JSX.Element | null {
     getSafeLocalStorage,
   });
 
+  const {
+    handleLoadBlock,
+    handleLoadMalla,
+    handleImportProjectFile,
+    getRecentProjects,
+    openProjectById,
+    handleProceedToMalla,
+    handleRepoIdChange,
+    handleRepoMetadataChange,
+    handleBlockPublish,
+    handleBlockDraftChange,
+    handleOpenRepositoryBlock,
+    handleProjectRemoved,
+    handleProjectRenamed,
+    handleBlockImported,
+  } = useProjectOpening({
+    beginProjectSwitch,
+    isProjectSwitchTokenCurrent,
+    resetWorkspaceState,
+    applyRepositoryChange,
+    clearPersistedProjectMetadata,
+    clearDraft,
+    loadMallaState,
+    navigate,
+    loadProject,
+    listProjects,
+    pushToast,
+    confirmAsync,
+    computeDirty,
+    repositorySnapshot,
+    malla,
+    projectId,
+    block,
+    setProjectId,
+    setProjectName,
+    setBlock,
+    setShouldPersistProject,
+    setProjectThemeState,
+    storedActiveProjectRef,
+  });
+
   const handleCloseProject = useCallback(async () => {
     const switchToken = beginProjectSwitch();
     const hasUnsavedBlock = computeDirty();
@@ -829,427 +869,6 @@ export default function App(): JSX.Element | null {
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id, name: normalizedName };
     navigate('/block/design');
-  };
-
-  const handleLoadBlock = useCallback(
-    async (
-      data: BlockExport,
-      inferredName?: string,
-      switchToken = beginProjectSwitch(),
-    ) => {
-      resetWorkspaceState();
-      const name = inferredName?.trim() || 'Importado';
-      const id = crypto.randomUUID();
-      const normalized = await applyRepositoryChange(
-        {},
-        {
-          reason: 'importar el bloque seleccionado',
-          targetDescription: 'el bloque importado',
-        },
-        id,
-        switchToken,
-      );
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
-      if (!normalized) return;
-      const theme = normalizeProjectTheme(data.theme);
-      setProjectId(id);
-      setProjectName(name);
-      setBlock(createBlockStateFromContent(toBlockContent(data)));
-      loadMallaState(null);
-      setProjectThemeState(theme);
-      clearPersistedProjectMetadata();
-      navigate('/block/design');
-    },
-    [
-      applyRepositoryChange,
-      beginProjectSwitch,
-      clearPersistedProjectMetadata,
-      isProjectSwitchTokenCurrent,
-      loadMallaState,
-      navigate,
-      resetWorkspaceState,
-    ],
-  );
-
-  const handleLoadMalla = useCallback(
-    async (
-      data: MallaExport,
-      inferredName?: string,
-      switchToken = beginProjectSwitch(),
-    ) => {
-      resetWorkspaceState();
-      const name = inferredName?.trim() || 'Importado';
-      const id = crypto.randomUUID();
-      const normalizedRepo = await applyRepositoryChange(
-        data.repository ?? {},
-        {
-          reason: 'importar el proyecto',
-          targetDescription: 'el proyecto importado',
-        },
-        id,
-        switchToken,
-      );
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
-      if (!normalizedRepo) return;
-      const prepared = prepareMallaProjectState(data, normalizedRepo);
-      setProjectId(id);
-      setProjectName(name);
-      setBlock(prepared.block);
-      loadMallaState(prepared.malla);
-      clearPersistedProjectMetadata();
-      navigate('/malla/design');
-    },
-    [
-      applyRepositoryChange,
-      beginProjectSwitch,
-      clearPersistedProjectMetadata,
-      isProjectSwitchTokenCurrent,
-      loadMallaState,
-      navigate,
-      resetWorkspaceState,
-    ],
-  );
-
-  const handleImportProjectFile = useCallback(
-    async (file: File) => {
-      const switchToken = beginProjectSwitch();
-      try {
-        await handleProjectFile(file, {
-          onBlock: (data, name) => handleLoadBlock(data, name, switchToken),
-          onMalla: (data, name) => handleLoadMalla(data, name, switchToken),
-        });
-      } catch (error) {
-        logAppError({
-          scope: 'import-export',
-          severity: 'non-fatal',
-          message: 'Fallo la importacion de un archivo de proyecto.',
-          error,
-          context: {
-            fileName: file.name,
-          },
-        });
-        pushToast('Archivo inválido', 'error');
-      }
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
-    },
-    [beginProjectSwitch, handleLoadBlock, handleLoadMalla, isProjectSwitchTokenCurrent, pushToast],
-  );
-
-  const handleOpenProject = useCallback(
-    async (
-      id: string,
-      data: BlockExport | MallaExport,
-      name: string,
-      switchToken = beginProjectSwitch(),
-    ) => {
-      resetWorkspaceState();
-      if (!isProjectSwitchTokenCurrent(switchToken)) return;
-      if ('masters' in data) {
-        const m = data as MallaExport;
-        const normalizedRepo = await applyRepositoryChange(
-          m.repository ?? {},
-          {
-            reason: 'abrir el proyecto seleccionado',
-            targetDescription: 'el proyecto seleccionado',
-          },
-          id,
-          switchToken,
-        );
-        if (!isProjectSwitchTokenCurrent(switchToken)) return;
-        if (!normalizedRepo) return;
-        const prepared = prepareMallaProjectState(m, normalizedRepo);
-        setProjectId(id);
-        setProjectName(name);
-        setBlock(prepared.block);
-        loadMallaState(prepared.malla);
-        setShouldPersistProject(true);
-        navigate('/malla/design');
-      } else {
-        const b = data as BlockExport;
-        const normalizedRepo = await applyRepositoryChange(
-          {},
-          {
-            reason: 'abrir el proyecto seleccionado',
-            targetDescription: 'el proyecto seleccionado',
-          },
-          id,
-          switchToken,
-        );
-        if (!isProjectSwitchTokenCurrent(switchToken)) return;
-        if (!normalizedRepo) return;
-        setProjectId(id);
-        setProjectName(name);
-        setBlock(createBlockStateFromContent(toBlockContent(b)));
-        loadMallaState(null);
-        setShouldPersistProject(true);
-        navigate('/block/design');
-      }
-    },
-    [
-      applyRepositoryChange,
-      beginProjectSwitch,
-      isProjectSwitchTokenCurrent,
-      loadMallaState,
-      navigate,
-      resetWorkspaceState,
-      setBlock,
-      setProjectId,
-      setProjectName,
-      setShouldPersistProject,
-    ],
-  );
-
-  const getRecentProjects = useCallback(
-    () => listProjects().slice(0, 10),
-    [listProjects],
-  );
-
-  const openProjectById = useCallback(
-    async (id: string) => {
-      const switchToken = beginProjectSwitch();
-      try {
-        const record = loadProject(id);
-        if (!record) return;
-        await handleOpenProject(id, record.data, record.meta.name, switchToken);
-        if (!isProjectSwitchTokenCurrent(switchToken)) return;
-      } catch (error) {
-        logAppError({
-          scope: 'persistence',
-          severity: 'non-fatal',
-          message: 'Fallo la apertura de un proyecto guardado.',
-          error,
-          context: {
-            projectId: id,
-          },
-        });
-        pushToast('No se pudo abrir el proyecto', 'error');
-      }
-    },
-    [beginProjectSwitch, handleOpenProject, isProjectSwitchTokenCurrent, loadProject, pushToast],
-  );
-
-  const handleProceedToMalla = useCallback(
-    (
-      template: BlockTemplate,
-      visual: VisualTemplate,
-      aspect: BlockAspect,
-      targetPath?: string,
-      repoId?: string | null,
-      published?: BlockContent | null,
-    ) => {
-      const destination = targetPath ?? '/malla/design';
-      if (!mallaRef.current && destination === '/malla/design') {
-        clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
-      }
-      const content: BlockContent = { template, visual, aspect };
-      setBlock((prev) => {
-        const snapshot = repositorySnapshotRef.current;
-        const nextRepoId =
-          repoId !== undefined ? repoId ?? null : prev?.repoId ?? null;
-        const draft = cloneBlockContent(content);
-        const nextMetadata =
-          nextRepoId && snapshot.metadata[nextRepoId]
-            ? snapshot.metadata[nextRepoId]
-            : nextRepoId
-              ? prev?.repoMetadata ?? null
-              : null;
-        const nextPublished = !nextRepoId
-          ? null
-          : published === undefined
-            ? prev?.published
-              ? cloneBlockContent(prev.published)
-              : null
-            : published === null
-              ? null
-              : cloneBlockContent(published);
-        return {
-          draft,
-          repoId: nextRepoId,
-          repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
-          repoMetadata: nextMetadata,
-          published: nextPublished,
-        };
-      });
-    },
-    [clearDraft, setBlock],
-  );
-
-  const handleRepoIdChange = (repoId: string | null) => {
-    setBlock((prev) => {
-      if (!prev) return prev;
-      const nextRepoId = repoId ?? null;
-      if (prev.repoId === nextRepoId) return prev;
-      const nextMetadata = nextRepoId ? repositorySnapshot.metadata[nextRepoId] ?? null : null;
-      return {
-        ...prev,
-        repoId: nextRepoId,
-        repoName: nextMetadata?.name ?? null,
-        repoMetadata: nextMetadata,
-        published:
-          nextRepoId && prev.published
-            ? cloneBlockContent(prev.published)
-            : null,
-      };
-    });
-  };
-
-  const handleRepoMetadataChange = useCallback(
-    (metadata: BlockMetadata | null) => {
-      setBlock((prev) => {
-        if (!prev) return prev;
-        const nextMetadata = metadata ? { ...metadata } : null;
-        return {
-          ...prev,
-          repoMetadata: nextMetadata,
-          repoName: nextMetadata?.name ?? prev.repoName ?? null,
-        };
-      });
-    },
-    [setBlock],
-  );
-
-  const handleBlockPublish = useCallback(
-    ({
-      repoId,
-      metadata,
-      template,
-      visual,
-      aspect,
-    }: {
-      repoId: string;
-      metadata: BlockMetadata;
-      template: BlockTemplate;
-      visual: VisualTemplate;
-      aspect: BlockAspect;
-      theme: ProjectTheme;
-    }) => {
-      const content: BlockContent = {
-        template,
-        visual,
-        aspect,
-      };
-      const metadataCopy = { ...metadata };
-      setBlock((prev) => {
-        const nextDraft = cloneBlockContent(content);
-        if (!prev) {
-          return {
-            draft: nextDraft,
-            repoId,
-            repoName: metadataCopy.name,
-            repoMetadata: metadataCopy,
-            published: cloneBlockContent(nextDraft),
-          };
-        }
-        return {
-          ...prev,
-          draft: nextDraft,
-          repoId: repoId ?? prev.repoId,
-          repoName: metadataCopy.name,
-          repoMetadata: metadataCopy,
-          published: cloneBlockContent(nextDraft),
-        };
-      });
-    },
-    [setBlock],
-  );
-
-  const loadRepositoryBlock = (
-    stored: StoredBlock,
-    options?: { navigate?: boolean },
-  ) => {
-    const shouldNavigate = options?.navigate ?? true;
-    const content = toBlockContent(stored.data);
-    const draft = cloneBlockContent(content);
-    const published = cloneBlockContent(content);
-    const theme = normalizeProjectTheme(stored.data.theme);
-    setBlock({
-      draft,
-      repoId: stored.metadata.uuid,
-      repoName: stored.metadata.name,
-      repoMetadata: { ...stored.metadata },
-      published,
-    });
-    clearPersistedProjectMetadata();
-    if (malla && !projectId) {
-      clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
-      loadMallaState(null);
-    }
-    setProjectThemeState(theme);
-    if (shouldNavigate) {
-      navigate('/block/design');
-    }
-  };
-
-  const handleBlockDraftChange = useCallback((draft: BlockContent) => {
-    const nextDraft = cloneBlockContent(draft);
-    setBlock((prev) => {
-      if (!prev) {
-        return {
-          draft: nextDraft,
-          repoId: null,
-          repoName: null,
-          repoMetadata: null,
-          published: null,
-        };
-      }
-      if (blockContentEquals(prev.draft, nextDraft)) {
-        return prev;
-      }
-      return {
-        ...prev,
-        draft: nextDraft,
-      };
-    });
-  }, []);
-
-  const handleOpenRepositoryBlock = async (stored: StoredBlock) => {
-    const hasUnsavedChanges = computeDirty();
-    if (hasUnsavedChanges) {
-      const message =
-        'Se descartarán los cambios no guardados del bloque actual. ¿Deseas continuar?';
-      const confirmed = await confirmAsync({
-        title: 'Descartar cambios sin guardar',
-        message,
-        confirmLabel: 'Descartar y abrir',
-        cancelLabel: 'Seguir editando',
-        variant: 'destructive',
-      });
-      if (!confirmed) {
-        return;
-      }
-    }
-    loadRepositoryBlock(stored);
-  };
-
-  const handleProjectRemoved = useCallback(
-    (id: string) => {
-      if (!projectId || projectId !== id) return;
-      clearPersistedProjectMetadata();
-      setProjectId(null);
-      setProjectName('');
-    },
-    [clearPersistedProjectMetadata, projectId],
-  );
-
-  const handleProjectRenamed = useCallback(
-    (id: string, name: string) => {
-      if (!projectId || projectId !== id) return;
-      setProjectName(name);
-      storedActiveProjectRef.current = { id, name };
-    },
-    [projectId],
-  );
-
-  const handleBlockImported = (stored: StoredBlock) => {
-    const hasExistingBlock = !!block;
-    const shouldReplaceCurrent =
-      !block || (!block.repoId && !hasBlockDesign(block.draft));
-
-    if (!shouldReplaceCurrent) {
-      return;
-    }
-
-    loadRepositoryBlock(stored, { navigate: !hasExistingBlock });
   };
 
   const { blocksInUse, controlsInUse } = useMemo(() => {
