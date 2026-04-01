@@ -17,19 +17,13 @@ import { GlobalMenuBar } from './components/GlobalMenuBar/GlobalMenuBar';
 import { ColorPaletteModal } from './components/ColorPaletteModal';
 import { PublishModal } from './components/PublishModal';
 import {
-  createDefaultMetaPanel,
   type MallaExport,
   type MallaRepositoryEntry,
   MALLA_SCHEMA_VERSION,
   createDefaultProjectTheme,
-  normalizeMetaPanelConfig,
   normalizeProjectTheme,
   type ProjectTheme,
 } from './utils/malla-io.ts';
-import {
-  createDefaultColumnHeaders,
-  normalizeColumnHeadersConfig,
-} from './utils/column-headers.ts';
 import { BLOCK_SCHEMA_VERSION, type BlockExport } from './utils/block-io.ts';
 import styles from './App.module.css';
 import { useProject, useBlocksRepo } from './core/persistence/hooks.ts';
@@ -37,6 +31,7 @@ import { ProceedToMallaProvider, useProceedToMalla } from './state/proceed-to-ma
 import { useUILayout } from './state/ui-layout.tsx';
 import { AppCommandsProvider } from './state/app-commands';
 import { ProjectThemeProvider } from './state/project-theme.tsx';
+import { useCurrentProjectState } from './state/use-current-project-state.ts';
 import type { StoredBlock } from './utils/block-repo.ts';
 import { buildBlockId, type BlockMetadata } from './types/block.ts';
 import {
@@ -46,7 +41,7 @@ import {
   toBlockContent,
   type BlockContent,
 } from './utils/block-content.ts';
-import { areContentsEqual, computeSignature } from './utils/comparators.ts';
+import { areContentsEqual } from './utils/comparators.ts';
 import { blocksToRepository, type RepositorySnapshot } from './utils/repository-snapshot.ts';
 import { clearControlValues } from './utils/malla-sync.ts';
 import { IntroOverlay } from './components/IntroOverlay';
@@ -259,7 +254,6 @@ export default function App(): JSX.Element | null {
   const projectSwitchTokenRef = useRef(0);
   const previousProjectIdRef = useRef<string | null>(projectId);
   const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
-  const passiveAutosaveSignatureRef = useRef<string | null>(null);
   const { autoSave, exportProject, loadProject, flushAutoSave, listProjects, clearDraft } =
     useProject({
       projectId: projectId ?? undefined,
@@ -692,101 +686,25 @@ export default function App(): JSX.Element | null {
     pushToast,
   ]);
 
-  useEffect(() => {
-    passiveAutosaveSignatureRef.current = null;
-  }, [projectId]);
-
-  const currentProject: MallaExport | null = useMemo(() => {
-    if (malla) {
-      return {
-        ...malla,
-        version: MALLA_SCHEMA_VERSION,
-        repository: repositorySnapshot.entries,
-        theme: projectThemeState,
-        columnHeaders: normalizeColumnHeadersConfig(malla.columnHeaders),
-      };
-    }
-    if (block) {
-      return {
-        version: MALLA_SCHEMA_VERSION,
-        masters: {
-          master: {
-            template: block.draft.template,
-            visual: block.draft.visual,
-            aspect: block.draft.aspect,
-          },
-        },
-        repository: repositorySnapshot.entries,
-        grid: { cols: 5, rows: 5 },
-        pieces: [],
-        values: {},
-        floatingPieces: [],
-        activeMasterId: 'master',
-        theme: projectThemeState,
-        metaPanel: createDefaultMetaPanel(false),
-        columnHeaders: createDefaultColumnHeaders(false),
-      };
-    }
-    return null;
-  }, [malla, block, repositorySnapshot, projectThemeState]);
-
-  const isMetaPanelEnabled = currentProject ? currentProject.metaPanel?.enabled !== false : false;
-  const canToggleMetaPanel = Boolean(currentProject);
-
-  const handleToggleMetaPanelEnabled = useCallback(() => {
-    setMalla((prev) => {
-      const source = prev ?? currentProject;
-      if (!source) {
-        return prev;
-      }
-      const normalizedMetaPanel = normalizeMetaPanelConfig(source.metaPanel);
-      return {
-        ...source,
-        metaPanel: {
-          ...normalizedMetaPanel,
-          enabled: normalizedMetaPanel.enabled === false,
-        },
-      };
-    });
-  }, [currentProject]);
-
-  useEffect(() => {
-    if (!projectId || !currentProject) return;
-    const isEditorRoute =
-      location.pathname === '/block/design' || location.pathname === '/malla/design';
-    if (isEditorRoute) return;
-
-    const serialized = computeSignature(currentProject);
-    if (passiveAutosaveSignatureRef.current === serialized) return;
-    passiveAutosaveSignatureRef.current = serialized;
-    autoSave(currentProject);
-  }, [autoSave, currentProject, location.pathname, projectId]);
-
-  const handleExportProject = () => {
-    if (!currentProject) return;
-    try {
-      const json = exportProject({ ...currentProject });
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${projectName || 'proyecto'}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      logAppError({
-        scope: 'import-export',
-        severity: 'non-fatal',
-        message: 'Fallo la exportacion del proyecto.',
-        error,
-        context: {
-          projectId,
-          projectName,
-        },
-      });
-      pushToast('No se pudo exportar el proyecto', 'error');
-    }
-  };
+  const {
+    currentProject,
+    isMetaPanelEnabled,
+    canToggleMetaPanel,
+    handleToggleMetaPanelEnabled,
+    handleExportProject,
+  } = useCurrentProjectState({
+    malla,
+    block,
+    repositorySnapshot,
+    projectThemeState,
+    setMalla,
+    autoSave,
+    exportProject,
+    locationPathname: location.pathname,
+    projectId,
+    projectName,
+    pushToast,
+  });
 
   const {
     viewerPanelModePreference,
