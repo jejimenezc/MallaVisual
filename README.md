@@ -114,6 +114,7 @@ La terminología del dominio (Bloque maestro, Pieza referenciada, Snapshot, Macr
 ## Documentación relacionada
 - [architecture.md](architecture.md): arquitectura técnica detallada.
 - [Design Notes.md](Design%20Notes.md): decisiones UI/UX y roadmap corto.
+- [docs/roadmap-operativo.md](docs/roadmap-operativo.md): roadmap operativo, protocolo por fases y seguimiento de PRs.
 - [CHANGELOG.md](CHANGELOG.md): evolución histórica del proyecto.
 - [GLOSSARY.md](GLOSSARY.md): terminología oficial.
 - [Working Agreement.md](Working%20Agreement.md): acuerdos de colaboración (si aplica).
