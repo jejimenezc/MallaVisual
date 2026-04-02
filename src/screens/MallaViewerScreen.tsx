@@ -6,7 +6,6 @@ import { Button } from '../components/Button';
 import type { MallaSnapshot } from '../types/malla-snapshot.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
-  applyViewerTheme,
   createDefaultViewerTheme,
   VIEWER_MAX_ZOOM,
   VIEWER_MIN_ZOOM,
@@ -16,22 +15,6 @@ import {
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
 import {
-  resolveViewerAxisXColumnSegments,
-  resolveViewerContentPlacementMetrics,
-  resolveViewerEffectivePrintScale,
-  resolveViewerAxisYLineSegments,
-  resolveViewerGridCutGuides,
-  resolveViewerPaginatedSurfaceLayout,
-  resolveViewerPaginationGridMetrics,
-  resolveViewerPageMetrics,
-  resolveViewerPageEditorialHeights,
-  resolveViewerPageSliceLayout,
-  resolveViewerPrintCssVars,
-  resolveViewerPrintedPageEditorialLayout,
-  resolveViewerPrintedPagesFromPaginationGrid,
-  resolveViewerPreviewCssVars,
-  resolveViewerPreviewPageMetrics,
-  resolveViewerPrintPageCss,
   resolveViewerPanelMode,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
@@ -43,15 +26,15 @@ import {
   type ViewerPrintPaperSize,
   type ViewerPrintSettings,
 } from '../utils/viewer-print.ts';
+import type {
+  resolveViewerPageSliceLayout,
+  resolveViewerPrintedPageEditorialLayout,
+} from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
 import { ViewerPrintDocument } from '../components/ViewerPrintDocument.tsx';
 import styles from './MallaViewerScreen.module.css';
 import { logAppError } from '../core/runtime/logger.ts';
-
-const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
-  refineAxisX: true,
-  refineAxisY: true,
-} as const;
+import { useViewerLayoutModel } from '../state/use-viewer-layout-model.ts';
 
 interface Props {
   snapshot: MallaSnapshot | null;
@@ -122,306 +105,36 @@ export function MallaViewerScreen({
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
-  const renderModel = useMemo(() => {
-    if (!snapshot) return null;
-    return applyViewerTheme(snapshot, theme);
-  }, [snapshot, theme]);
-
   const zoomPct = `${Math.round(zoom * 100)}%`;
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
   const measuredPxPerMm = useMeasuredPxPerMm();
-  const pageMetrics = useMemo(
-    () => resolveViewerPageMetrics(printSettings),
-    [printSettings],
-  );
-  const previewMetrics = useMemo(
-    () => resolveViewerPreviewPageMetrics(pageMetrics, measuredPxPerMm),
-    [measuredPxPerMm, pageMetrics],
-  );
-  const printCssVars = useMemo(
-    () => resolveViewerPrintCssVars(pageMetrics),
-    [pageMetrics],
-  );
-  const previewCssVars = useMemo(
-    () => resolveViewerPreviewCssVars(previewMetrics),
-    [previewMetrics],
-  );
-  const editorialHeights = useMemo(
-    () =>
-      resolveViewerPageEditorialHeights({
-        showDocumentTitle: printSettings.showDocumentTitle,
-        documentTitleOverride: printSettings.documentTitleOverride,
-        pageLayoutMode: printSettings.pageLayoutMode,
-        showHeader: printSettings.showHeader,
-        headerText: printSettings.headerText,
-        showFooter: printSettings.showFooter,
-        footerText: printSettings.footerText,
-        showPageNumbers: printSettings.showPageNumbers,
-        projectName: renderModel?.projectName ?? '',
-        contentHeightMm: pageMetrics.contentHeightMm,
-        pxPerMmY: measuredPxPerMm.pxPerMmY,
-      }),
-    [
-      measuredPxPerMm.pxPerMmY,
-      pageMetrics.contentHeightMm,
-      printSettings.documentTitleOverride,
-      printSettings.footerText,
-      printSettings.headerText,
-      printSettings.pageLayoutMode,
-      printSettings.showDocumentTitle,
-      printSettings.showFooter,
-      printSettings.showHeader,
-      printSettings.showPageNumbers,
-      renderModel?.projectName,
-    ],
-  );
-  const effectivePrintScale = useMemo(
-    () =>
-      resolveViewerEffectivePrintScale({
-        fitToWidth: printSettings.fitToWidth,
-        manualScale: printSettings.scale,
-        baseContentWidthPx: renderModel?.width ?? 1,
-        previewContentWidthPx: previewMetrics.contentWidthPx,
-      }),
-    [previewMetrics.contentWidthPx, printSettings.fitToWidth, printSettings.scale, renderModel?.width],
-  );
-  const effectivePrintScalePct = `${Math.round(effectivePrintScale * 100)}%`;
-  const contentPlacementMetrics = useMemo(
-    () =>
-      resolveViewerContentPlacementMetrics({
-        baseContentWidthPx: renderModel?.width ?? 1,
-        baseContentHeightPx: renderModel?.height ?? 1,
-        previewContentWidthPx: previewMetrics.contentWidthPx,
-        previewContentHeightPx: previewMetrics.contentHeightPx,
-        scale: effectivePrintScale,
-      }),
-    [
-      effectivePrintScale,
-      previewMetrics.contentHeightPx,
-      previewMetrics.contentWidthPx,
-      renderModel?.height,
-      renderModel?.width,
-    ],
-  );
-  const cutGuides = useMemo(
-    () =>
-      renderModel
-        ? resolveViewerGridCutGuides({
-            renderModel,
-            scale: contentPlacementMetrics.scale,
-          })
-        : undefined,
-    [contentPlacementMetrics.scale, renderModel],
-  );
-  const axisXColumnSegments = useMemo(
-    () =>
-      renderModel
-        ? resolveViewerAxisXColumnSegments({
-            renderModel,
-            scale: contentPlacementMetrics.scale,
-          })
-        : undefined,
-    [contentPlacementMetrics.scale, renderModel],
-  );
-  const axisYLineSegments = useMemo(
-    () =>
-      renderModel
-        ? resolveViewerAxisYLineSegments({
-            renderModel,
-            scale: contentPlacementMetrics.scale,
-          })
-        : undefined,
-    [contentPlacementMetrics.scale, renderModel],
-  );
-  const gridPaginationMetrics = useMemo(
-    () =>
-      resolveViewerPaginationGridMetrics({
-        scaledContentWidthPx: contentPlacementMetrics.scaledContentWidthPx,
-        scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
-        usablePageWidthPx: previewMetrics.contentWidthPx,
-        usablePageHeightPx: previewMetrics.contentHeightPx,
-        firstPageUsableHeightPx: editorialHeights.firstPageUsableHeightPx,
-        continuationPageUsableHeightPx: editorialHeights.continuationPageUsableHeightPx,
-        cutGuides,
-        axisXColumnSegments,
-        axisYLineSegments,
-        refinementPolicy: VIEWER_PRINT_CUT_REFINEMENT_POLICY,
-      }),
-    [
-      axisXColumnSegments,
-      axisYLineSegments,
-      contentPlacementMetrics.scaledContentHeightPx,
-      contentPlacementMetrics.scaledContentWidthPx,
-      cutGuides,
-      editorialHeights.continuationPageUsableHeightPx,
-      editorialHeights.firstPageUsableHeightPx,
-      previewMetrics.contentHeightPx,
-      previewMetrics.contentWidthPx,
-    ],
-  );
-  const previewGridTiles = gridPaginationMetrics.tiles;
-  const printedPages = useMemo(
-    () => resolveViewerPrintedPagesFromPaginationGrid(gridPaginationMetrics),
-    [gridPaginationMetrics],
-  );
-  const paginatedSurfaceLayout = useMemo(
-    () =>
-      resolveViewerPaginatedSurfaceLayout({
-        previewMetrics,
-        scaledSurfaceWidthPx: contentPlacementMetrics.scaledContentWidthPx,
-        scaledSurfaceHeightPx: contentPlacementMetrics.scaledContentHeightPx,
-      }),
-    [
-      contentPlacementMetrics.scaledContentHeightPx,
-      contentPlacementMetrics.scaledContentWidthPx,
-      previewMetrics,
-    ],
-  );
-  const previewTilePageModels = useMemo(
-    () =>
-      previewGridTiles.map((tile) => {
-        const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-          showDocumentTitle: printSettings.showDocumentTitle,
-          documentTitleOverride: printSettings.documentTitleOverride,
-          pageLayoutMode: printSettings.pageLayoutMode,
-          showHeader: printSettings.showHeader,
-          headerText: printSettings.headerText,
-          showFooter: printSettings.showFooter,
-          footerText: printSettings.footerText,
-          showPageNumbers: printSettings.showPageNumbers,
-          projectName: renderModel?.projectName ?? '',
-          pageIndex: tile.pageNumber - 1,
-          pageCount: gridPaginationMetrics.pageCount,
-          contentHeightMm: pageMetrics.contentHeightMm,
-          pxPerMmY: measuredPxPerMm.pxPerMmY,
-        });
-        return {
-          tile,
-          editorialLayout,
-          isPartialLastPage:
-            tile.col === 0 &&
-            tile.row === gridPaginationMetrics.pagesY - 1 &&
-            tile.sliceHeightPx < tile.usablePageHeightPx,
-          sliceLayout: resolveViewerPageSliceLayout({
-            viewportWidthPx: tile.sliceWidthPx,
-            viewportHeightPx: tile.sliceHeightPx,
-            surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
-            surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
-            offsetX: tile.offsetX,
-            offsetY: tile.offsetY,
-          }),
-        };
-      }),
-    [
-      gridPaginationMetrics.pageCount,
-      gridPaginationMetrics.pagesY,
-      measuredPxPerMm.pxPerMmY,
-      pageMetrics.contentHeightMm,
-      paginatedSurfaceLayout.scaledSurfaceHeightPx,
-      paginatedSurfaceLayout.scaledSurfaceWidthPx,
-      previewGridTiles,
-      printSettings.documentTitleOverride,
-      printSettings.footerText,
-      printSettings.headerText,
-      printSettings.pageLayoutMode,
-      printSettings.showDocumentTitle,
-      printSettings.showFooter,
-      printSettings.showHeader,
-      printSettings.showPageNumbers,
-      renderModel?.projectName,
-    ],
-  );
-  const viewerPrintDocumentClassNames = useMemo(
-    () => ({
-      sequence: styles.viewerPrintedPageSequence,
-      page: `${styles.viewerCanvasFrame} ${styles.viewerPaginatedPageFrame} ${styles.viewerPaginatedPageFramePrint} ${styles.viewerPrintedPage}`,
-      contentBox: `${styles.viewerPageContentBox} ${styles.viewerPaginatedPageContentBox} ${styles.viewerPaginatedPageContentBoxPrint}`,
-      flow: `${styles.viewerPrintDocumentFlow} ${styles.viewerPaginatedPageFlow} ${styles.viewerPaginatedPageFlowPrint}`,
-      headerBlock: styles.viewerPageHeaderBlock,
-      header: styles.runtimeHeader,
-      titleBlock: styles.viewerPageTitleBlock,
-      title: styles.runtimeDocumentTitle,
-      viewport: styles.viewerCanvasScaledViewport,
-      canvas: styles.viewerCanvasScaled,
-      footerBlock: styles.viewerPageFooterBlock,
-      footer: styles.runtimeFooter,
-      pageNumber: styles.viewerPageNumber,
-      bandRow: styles.viewerBandRow,
-      bandRowHeader: styles.viewerBandRowHeader,
-      bandRowMetric: styles.viewerBandRowMetric,
-      bandCell: styles.viewerBandCell,
-      bandCellMetric: styles.viewerBandCellMetric,
-      bandCellMetricLabel: styles.viewerBandCellMetricLabel,
-      bandCellMetricValue: styles.viewerBandCellMetricValue,
-      piece: styles.viewerPiece,
-      pieceGrid: styles.viewerPieceGrid,
-      cell: styles.viewerCell,
-    }),
-    [],
-  );
-
-  const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (!isPrintPreview) return undefined;
-    return {
-      width: `${paginatedSurfaceLayout.paperWidthPx}px`,
-      height: `${paginatedSurfaceLayout.paperHeightPx}px`,
-      minHeight: `${paginatedSurfaceLayout.paperHeightPx}px`,
-      maxHeight: `${paginatedSurfaceLayout.paperHeightPx}px`,
-      margin: '0 auto',
-    };
-  }, [
-    isPrintPreview,
-    paginatedSurfaceLayout.paperHeightPx,
-    paginatedSurfaceLayout.paperWidthPx,
-  ]);
-
-  const printContentBoxStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (!isPrintPreview) return undefined;
-    return {
-      width: `${paginatedSurfaceLayout.contentWidthPx}px`,
-      height: `${paginatedSurfaceLayout.contentHeightPx}px`,
-      minHeight: `${paginatedSurfaceLayout.contentHeightPx}px`,
-      maxHeight: `${paginatedSurfaceLayout.contentHeightPx}px`,
-      margin: `${paginatedSurfaceLayout.paperPaddingPx.top}px ${paginatedSurfaceLayout.paperPaddingPx.right}px ${paginatedSurfaceLayout.paperPaddingPx.bottom}px ${paginatedSurfaceLayout.paperPaddingPx.left}px`,
-    };
-  }, [
-    isPrintPreview,
-    paginatedSurfaceLayout.contentHeightPx,
-    paginatedSurfaceLayout.contentWidthPx,
-    paginatedSurfaceLayout.paperPaddingPx.bottom,
-    paginatedSurfaceLayout.paperPaddingPx.left,
-    paginatedSurfaceLayout.paperPaddingPx.right,
-    paginatedSurfaceLayout.paperPaddingPx.top,
-  ]);
-
-  const previewCanvasInnerStyle = useMemo<React.CSSProperties>(() => {
-    const width = `${contentPlacementMetrics.baseContentWidthPx}px`;
-    const height = `${contentPlacementMetrics.baseContentHeightPx}px`;
-    if (!isPrintPreview) {
-      return {
-        width,
-        height,
-        transform: `scale(${zoom})`,
-      };
-    }
-    return {
-      width,
-      height,
-      transform: `scale(${contentPlacementMetrics.scale})`,
-    };
-  }, [
-    contentPlacementMetrics.baseContentHeightPx,
-    contentPlacementMetrics.baseContentWidthPx,
-    contentPlacementMetrics.scale,
-    isPrintPreview,
+  const {
+    renderModel,
+    pageMetrics,
+    printCssVars,
+    previewCssVars,
+    effectivePrintScalePct,
+    contentPlacementMetrics,
+    gridPaginationMetrics,
+    printedPages,
+    paginatedSurfaceLayout,
+    previewTilePageModels,
+    viewerPrintDocumentClassNames,
+    printFrameStyle,
+    printContentBoxStyle,
+    previewCanvasInnerStyle,
+    printStyleText,
+  } = useViewerLayoutModel({
+    snapshot,
+    theme,
+    printSettings,
     zoom,
-  ]);
-
-  const printStyleText = useMemo(() => {
-    return resolveViewerPrintPageCss(pageMetrics);
-  }, [pageMetrics]);
+    isPrintPreview,
+    measuredPxPerMm,
+    styles,
+  });
   const snapshotVersionText = snapshot
     ? `Versión Publicable (${formatSnapshotVersionId(snapshot.createdAt)})`
     : '';
