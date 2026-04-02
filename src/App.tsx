@@ -746,6 +746,7 @@ export default function App(): JSX.Element | null {
     openProjectById,
     handleProceedToMalla,
     handleRepoIdChange,
+    handleRepoNameChange,
     handleRepoMetadataChange,
     handleBlockPublish,
     handleBlockDraftChange,
@@ -1272,6 +1273,7 @@ export default function App(): JSX.Element | null {
                       initialRepoId={block?.repoId ?? null}
                       initialRepoName={block?.repoName ?? null}
                       initialRepoMetadata={block?.repoMetadata ?? null}
+                      onRepoNameChange={handleRepoNameChange}
                       onRepoIdChange={handleRepoIdChange}
                       onRepoMetadataChange={handleRepoMetadataChange}
                       onPublishBlock={handleBlockPublish}
@@ -1302,6 +1304,7 @@ export default function App(): JSX.Element | null {
                         initialRepoId={block.repoId ?? null}
                         initialRepoName={block.repoName ?? null}
                         initialRepoMetadata={block.repoMetadata ?? null}
+                        onRepoNameChange={handleRepoNameChange}
                         onRepoIdChange={handleRepoIdChange}
                         onRepoMetadataChange={handleRepoMetadataChange}
                         onPublishBlock={handleBlockPublish}

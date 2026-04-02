@@ -83,6 +83,7 @@ interface UseProjectOpeningResult {
     published?: BlockContent | null,
   ) => void;
   handleRepoIdChange: (repoId: string | null) => void;
+  handleRepoNameChange: (name: string | null) => void;
   handleRepoMetadataChange: (metadata: BlockMetadata | null) => void;
   handleBlockPublish: (payload: {
     repoId: string;
@@ -147,7 +148,11 @@ export function useProjectOpening({
       const theme = normalizeProjectTheme(data.theme);
       setProjectId(id);
       setProjectName(name);
-      setBlock(createBlockStateFromContent(toBlockContent(data)));
+      setBlock((prev) => ({
+        ...createBlockStateFromContent(toBlockContent(data)),
+        repoName: name,
+        repoMetadata: prev?.repoMetadata ?? null,
+      }));
       loadMallaState(null);
       setProjectThemeState(theme);
       clearPersistedProjectMetadata();
@@ -359,8 +364,8 @@ export function useProjectOpening({
         return {
           draft,
           repoId: nextRepoId,
-          repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : null),
-          repoMetadata: nextMetadata,
+          repoName: nextMetadata?.name ?? (nextRepoId ? prev?.repoName ?? null : prev?.repoName ?? null),
+          repoMetadata: nextMetadata ?? (nextRepoId ? prev?.repoMetadata ?? null : prev?.repoMetadata ?? null),
           published: nextPublished,
         };
       });
@@ -385,6 +390,19 @@ export function useProjectOpening({
       });
     },
     [repositorySnapshot.metadata, setBlock],
+  );
+
+  const handleRepoNameChange = useCallback(
+    (name: string | null) => {
+      setBlock((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          repoName: name,
+        };
+      });
+    },
+    [setBlock],
   );
 
   const handleRepoMetadataChange = useCallback(
@@ -560,6 +578,7 @@ export function useProjectOpening({
     openProjectById,
     handleProceedToMalla,
     handleRepoIdChange,
+    handleRepoNameChange,
     handleRepoMetadataChange,
     handleBlockPublish,
     handleBlockDraftChange,

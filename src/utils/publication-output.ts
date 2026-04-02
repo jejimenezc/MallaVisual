@@ -97,6 +97,9 @@ const readJsonFromStorage = (storage: Storage | null, key: string): unknown => {
   }
 };
 
+const resolvePublicationStorageKey = (baseKey: string, scopeKey?: string | null): string =>
+  scopeKey && scopeKey.trim().length > 0 ? `${baseKey}:${scopeKey}` : baseKey;
+
 const persistJsonToStorage = (storage: Storage | null, key: string, value: unknown): void => {
   if (!storage) return;
   try {
@@ -114,39 +117,60 @@ const persistJsonToStorage = (storage: Storage | null, key: string, value: unkno
   }
 };
 
-export const readStoredPublicationTheme = (storage: Storage | null): ViewerTheme =>
-  normalizeViewerTheme(readJsonFromStorage(storage, VIEWER_THEME_STORAGE_KEY));
+export const readStoredPublicationTheme = (
+  storage: Storage | null,
+  scopeKey?: string | null,
+): ViewerTheme =>
+  normalizeViewerTheme(readJsonFromStorage(storage, resolvePublicationStorageKey(VIEWER_THEME_STORAGE_KEY, scopeKey)));
 
-export const persistPublicationTheme = (storage: Storage | null, theme: ViewerTheme): void => {
-  persistJsonToStorage(storage, VIEWER_THEME_STORAGE_KEY, normalizeViewerTheme(theme));
+export const persistPublicationTheme = (
+  storage: Storage | null,
+  theme: ViewerTheme,
+  scopeKey?: string | null,
+): void => {
+  persistJsonToStorage(
+    storage,
+    resolvePublicationStorageKey(VIEWER_THEME_STORAGE_KEY, scopeKey),
+    normalizeViewerTheme(theme),
+  );
 };
 
-export const readStoredPublicationPrintSettings = (storage: Storage | null): ViewerPrintSettings =>
-  normalizeViewerPrintSettings(readJsonFromStorage(storage, PUBLICATION_PRINT_SETTINGS_STORAGE_KEY));
+export const readStoredPublicationPrintSettings = (
+  storage: Storage | null,
+  scopeKey?: string | null,
+): ViewerPrintSettings =>
+  normalizeViewerPrintSettings(
+    readJsonFromStorage(storage, resolvePublicationStorageKey(PUBLICATION_PRINT_SETTINGS_STORAGE_KEY, scopeKey)),
+  );
 
 export const persistPublicationPrintSettings = (
   storage: Storage | null,
   settings: ViewerPrintSettings,
+  scopeKey?: string | null,
 ): void => {
   persistJsonToStorage(
     storage,
-    PUBLICATION_PRINT_SETTINGS_STORAGE_KEY,
+    resolvePublicationStorageKey(PUBLICATION_PRINT_SETTINGS_STORAGE_KEY, scopeKey),
     normalizeViewerPrintSettings(settings),
   );
 };
 
 export const readStoredPublicationExportFlags = (
   storage: Storage | null,
+  scopeKey?: string | null,
 ): PublicationExportFlags =>
-  normalizePublicationExportFlags(readJsonFromStorage(storage, PUBLICATION_EXPORT_FLAGS_STORAGE_KEY));
+  normalizePublicationExportFlags(
+    readJsonFromStorage(storage, resolvePublicationStorageKey(PUBLICATION_EXPORT_FLAGS_STORAGE_KEY, scopeKey)),
+  );
 
 export const persistPublicationExportFlags = (
   storage: Storage | null,
   flags: PublicationExportFlags,
+  scopeKey?: string | null,
 ): void => {
   persistJsonToStorage(
     storage,
-    PUBLICATION_EXPORT_FLAGS_STORAGE_KEY,
+    resolvePublicationStorageKey(PUBLICATION_EXPORT_FLAGS_STORAGE_KEY, scopeKey),
     normalizePublicationExportFlags(flags),
   );
 };

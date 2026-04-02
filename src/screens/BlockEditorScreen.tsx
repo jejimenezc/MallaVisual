@@ -86,6 +86,7 @@ interface BlockEditorScreenProps {
   initialRepoId?: string | null;
   initialRepoName?: string | null;
   initialRepoMetadata?: BlockMetadata | null;
+  onRepoNameChange?: (name: string | null) => void;
   onRepoIdChange?: (repoId: string | null) => void;
   onRepoMetadataChange?: (metadata: BlockMetadata | null) => void;
   onPublishBlock?: (payload: {
@@ -111,6 +112,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   initialRepoId,
   initialRepoName,
   initialRepoMetadata,
+  onRepoNameChange,
   onRepoIdChange,
   onRepoMetadataChange,
   onPublishBlock,
@@ -405,6 +407,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [initialRepoId]);
 
   useEffect(() => {
+    setRepoMetadata(initialRepoMetadata ?? null);
+  }, [initialRepoMetadata]);
+
+  useEffect(() => {
+    setRepoName(initialRepoMetadata?.name ?? initialRepoName ?? '');
+  }, [initialRepoMetadata?.name, initialRepoName]);
+
+  useEffect(() => {
     persistedProjectRef.current = null;
     hasLoadedProjectRef.current = false;
   }, [projectId]);
@@ -558,6 +568,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (input === null) return null;
       name = input.trim();
       setRepoName(name);
+      onRepoNameChange?.(name);
     }
     const now = new Date().toISOString();
     const existingMetadata = repoMetadata ?? repoRecord?.metadata ?? null;
@@ -603,6 +614,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
     setRepoMetadata(metadata);
     setRepoName(metadata.name);
+    onRepoNameChange?.(metadata.name);
     onRepoMetadataChange?.(metadata);
 
     const savedContent = cloneBlockContent(draftContent);
@@ -632,6 +644,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     draftContent,
     projectTheme,
     onRepoIdChange,
+    onRepoNameChange,
     onRepoMetadataChange,
     onPublishBlock,
     isBlockInUse,
@@ -646,13 +659,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       message: 'Ingresa el nuevo nombre para este bloque.',
       defaultValue: defaultName,
       placeholder: 'Nombre del bloque',
-      confirmLabel: 'Guardar',
+      confirmLabel: 'Actualizar',
       cancelLabel: 'Cancelar',
       normalize: (value) => value.trim(),
     });
     if (input === null) return;
     const trimmed = input.trim();
     setRepoName(trimmed);
+    onRepoNameChange?.(trimmed);
     if (!repoId) {
       return;
     }
@@ -678,6 +692,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     repoRecord,
     projectId,
     repoUpdateBlockMetadata,
+    onRepoNameChange,
     onRepoMetadataChange,
   ]);
 

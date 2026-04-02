@@ -5,10 +5,12 @@ import type { MallaExport } from '../utils/malla-io.ts';
 import type { MallaSnapshot } from '../types/malla-snapshot.ts';
 import { buildMallaSnapshotFromState, validateAndNormalizeMallaSnapshot } from '../utils/malla-snapshot.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
-import { normalizeViewerTheme } from '../utils/viewer-theme.ts';
+import { createDefaultViewerTheme, normalizeViewerTheme } from '../utils/viewer-theme.ts';
 import type { ViewerPanelMode, ViewerPrintSettings } from '../utils/viewer-print.ts';
+import { createDefaultViewerPrintSettings } from '../utils/viewer-print.ts';
 import { downloadViewerStandaloneHtml, openViewerPdfExport, openViewerStandaloneHtml } from '../utils/viewer-export.ts';
 import {
+  createDefaultPublicationExportFlags,
   persistPublicationExportFlags,
   persistPublicationPrintSettings,
   persistPublicationTheme,
@@ -85,24 +87,55 @@ export function usePublicationWorkflow({
   pushToast,
   getSafeLocalStorage,
 }: UsePublicationWorkflowArgs): UsePublicationWorkflowResult {
+  const publicationStorageScope = projectId ?? null;
+  const readThemeState = useCallback(
+    () =>
+      publicationStorageScope
+        ? readStoredPublicationTheme(getSafeLocalStorage(), publicationStorageScope)
+        : createDefaultViewerTheme(),
+    [getSafeLocalStorage, publicationStorageScope],
+  );
+  const readPrintSettingsState = useCallback(
+    () =>
+      publicationStorageScope
+        ? readStoredPublicationPrintSettings(getSafeLocalStorage(), publicationStorageScope)
+        : createDefaultViewerPrintSettings(),
+    [getSafeLocalStorage, publicationStorageScope],
+  );
+  const readExportFlagsState = useCallback(
+    () =>
+      publicationStorageScope
+        ? readStoredPublicationExportFlags(getSafeLocalStorage(), publicationStorageScope)
+        : createDefaultPublicationExportFlags(),
+    [getSafeLocalStorage, publicationStorageScope],
+  );
   const [viewerPanelModePreference, setViewerPanelModePreference] = useState<ViewerPanelMode>('preview');
-  const [publicationTheme, setPublicationTheme] = useState<ViewerTheme>(() => readStoredPublicationTheme(getSafeLocalStorage()));
-  const [publicationPrintSettings, setPublicationPrintSettings] = useState(() => readStoredPublicationPrintSettings(getSafeLocalStorage()));
-  const [publicationExportFlags] = useState<PublicationExportFlags>(() => readStoredPublicationExportFlags(getSafeLocalStorage()));
+  const [publicationTheme, setPublicationTheme] = useState<ViewerTheme>(readThemeState);
+  const [publicationPrintSettings, setPublicationPrintSettings] = useState(readPrintSettingsState);
+  const [publicationExportFlags, setPublicationExportFlags] = useState<PublicationExportFlags>(readExportFlagsState);
   const [publishContext, setPublishContext] = useState<{ origin: PublishOrigin; mode: PublicationMode } | null>(null);
   const [publicationOperation, setPublicationOperation] = useState<PublicationOperationState | null>(null);
 
   useEffect(() => {
-    persistPublicationTheme(getSafeLocalStorage(), publicationTheme);
-  }, [getSafeLocalStorage, publicationTheme]);
+    setPublicationTheme(readThemeState());
+    setPublicationPrintSettings(readPrintSettingsState());
+    setPublicationExportFlags(readExportFlagsState());
+  }, [readExportFlagsState, readPrintSettingsState, readThemeState]);
 
   useEffect(() => {
-    persistPublicationPrintSettings(getSafeLocalStorage(), publicationPrintSettings);
-  }, [getSafeLocalStorage, publicationPrintSettings]);
+    if (!publicationStorageScope) return;
+    persistPublicationTheme(getSafeLocalStorage(), publicationTheme, publicationStorageScope);
+  }, [getSafeLocalStorage, publicationStorageScope, publicationTheme]);
 
   useEffect(() => {
-    persistPublicationExportFlags(getSafeLocalStorage(), publicationExportFlags);
-  }, [getSafeLocalStorage, publicationExportFlags]);
+    if (!publicationStorageScope) return;
+    persistPublicationPrintSettings(getSafeLocalStorage(), publicationPrintSettings, publicationStorageScope);
+  }, [getSafeLocalStorage, publicationPrintSettings, publicationStorageScope]);
+
+  useEffect(() => {
+    if (!publicationStorageScope) return;
+    persistPublicationExportFlags(getSafeLocalStorage(), publicationExportFlags, publicationStorageScope);
+  }, [getSafeLocalStorage, publicationExportFlags, publicationStorageScope]);
 
   const publicationOutputConfig = useMemo<PublicationOutputConfig>(
     () => ({
