@@ -39,7 +39,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2a | validated | Reducir acoplamiento principal en `App` y `BlockEditorScreen`. | `App` y editor de bloques mas livianos, con hooks extraidos y review cerrada sin hallazgos bloqueantes del refactor. |
 | PR-0.2-support | validated | Corregir bugs funcionales detectados en review que no provienen del refactor principal. | Nombres importados y estado de configuracion de viewer/publicacion alineados antes de retomar el desacople pendiente. |
 | PR-0.2c | validated | Reabrir pseudoproyectos de bloque en el editor de bloques al abrirlos desde recientes. | Los bloques abiertos como proyecto liviano no deben quedar atrapados en una entrada inconsistente hacia la malla. |
-| PR-0.2b | planned | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
+| PR-0.2b | in-progress | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
 | PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
