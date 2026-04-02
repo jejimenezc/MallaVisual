@@ -15,7 +15,12 @@ import type { BlockExport } from '../utils/block-io.ts';
 import type { StoredBlock } from '../utils/block-repo.ts';
 import { blockContentEquals, cloneBlockContent, hasBlockDesign, toBlockContent, type BlockContent } from '../utils/block-content.ts';
 import type { BlockState } from '../utils/app-helpers.ts';
-import { MALLA_AUTOSAVE_STORAGE_KEY, createBlockStateFromContent } from '../utils/app-helpers.ts';
+import {
+  MALLA_AUTOSAVE_STORAGE_KEY,
+  createBlockStateFromContent,
+  createBlockStateFromProjectMaster,
+  isBlockOnlyProjectState,
+} from '../utils/app-helpers.ts';
 import { handleProjectFile } from '../utils/project-file.ts';
 import { prepareMallaProjectState } from '../utils/app-helpers.ts';
 import type { RepositorySnapshot } from '../utils/repository-snapshot.ts';
@@ -261,14 +266,23 @@ export function useProjectOpening({
         );
         if (!isProjectSwitchTokenCurrent(switchToken)) return;
         if (!normalizedRepo) return;
-        const prepared = prepareMallaProjectState(data, normalizedRepo);
         setProjectId(id);
         setProjectName(name);
+        if (isBlockOnlyProjectState(data)) {
+          setBlock(createBlockStateFromProjectMaster(data));
+          loadMallaState(null);
+          setProjectThemeState(normalizeProjectTheme(data.theme));
+          setShouldPersistProject(true);
+          navigate('/block/design');
+          return;
+        }
+        const prepared = prepareMallaProjectState(data, normalizedRepo);
         setBlock(prepared.block);
         loadMallaState(prepared.malla);
         setShouldPersistProject(true);
         navigate('/malla/design');
       } else {
+        const blockData = data as BlockExport;
         const normalizedRepo = await applyRepositoryChange(
           {},
           {
@@ -282,8 +296,9 @@ export function useProjectOpening({
         if (!normalizedRepo) return;
         setProjectId(id);
         setProjectName(name);
-        setBlock(createBlockStateFromContent(toBlockContent(data)));
+        setBlock(createBlockStateFromContent(toBlockContent(blockData)));
         loadMallaState(null);
+        setProjectThemeState(normalizeProjectTheme(blockData.theme));
         setShouldPersistProject(true);
         navigate('/block/design');
       }
@@ -298,6 +313,7 @@ export function useProjectOpening({
       setBlock,
       setProjectId,
       setProjectName,
+      setProjectThemeState,
       setShouldPersistProject,
     ],
   );

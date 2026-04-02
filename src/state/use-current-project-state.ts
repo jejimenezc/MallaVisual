@@ -80,6 +80,7 @@ export function useCurrentProjectState({
           },
         },
         repository: repositorySnapshot.entries,
+        draftBlockName: !block.repoId ? block.repoName?.trim() || undefined : undefined,
         grid: { cols: 5, rows: 5 },
         pieces: [],
         values: {},

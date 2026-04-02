@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 0 - Cierre de deuda de release local |
 | Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.2c fix: reabrir pseudoproyectos de bloque en editor de bloques` |
+| Proximo PR recomendado | `PR-0.2b refactor: completar desacople pendiente en App, MallaEditorScreen y MallaViewerScreen` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -38,7 +38,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.1 | validated | Dejar el repo verde en `lint`, `test` y `typecheck`. | Sin errores de lint y sin deuda obvia de higiene que bloquee release local. |
 | PR-0.2a | validated | Reducir acoplamiento principal en `App` y `BlockEditorScreen`. | `App` y editor de bloques mas livianos, con hooks extraidos y review cerrada sin hallazgos bloqueantes del refactor. |
 | PR-0.2-support | validated | Corregir bugs funcionales detectados en review que no provienen del refactor principal. | Nombres importados y estado de configuracion de viewer/publicacion alineados antes de retomar el desacople pendiente. |
-| PR-0.2c | planned | Reabrir pseudoproyectos de bloque en el editor de bloques al abrirlos desde recientes. | Los bloques abiertos como proyecto liviano no deben quedar atrapados en una entrada inconsistente hacia la malla. |
+| PR-0.2c | validated | Reabrir pseudoproyectos de bloque en el editor de bloques al abrirlos desde recientes. | Los bloques abiertos como proyecto liviano no deben quedar atrapados en una entrada inconsistente hacia la malla. |
 | PR-0.2b | planned | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
 | PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
@@ -49,6 +49,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 - Validado: 2026-04-02 - PR/commit: `9fc0987`, `b962cfd`, `c18bb40`, `16b800c` - Nota: `PR-0.2a` cierra el desacople principal de `App` y `BlockEditorScreen`; quedan follow-ups funcionales chicos y un desacople pendiente como `PR-0.2b`.
 - Review: 2026-04-02 - Resultado: `validated` - Evidencia: `lint`/`typecheck` ok, pruebas manuales satisfactorias sobre nombres importados, viewer/publicacion y renombre local; sin hallazgos bloqueantes restantes dentro del alcance del support.
 - Validado: 2026-04-02 - PR/commit: `dcddc25` - Nota: `PR-0.2-support` corrige nombres importados, renombre local no publicado y alcance por proyecto de configuracion de viewer/publicacion; desbloquea `PR-0.2c`.
+- Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2c` - Nota: `PR-0.2c` corrige la reapertura de pseudoproyectos en editor de bloques y preserva el nombre local del bloque no publicado al cambiar de proyecto o rehidratar; desbloquea `PR-0.2b`.
 
 ### Fase 1 - Endurecimiento de publicacion externa
 Objetivo: pasar de maduro local a publicable externamente.

@@ -462,6 +462,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         ...base,
         version: MALLA_SCHEMA_VERSION,
         masters: nextMasters,
+        draftBlockName: !repoId ? repoName.trim() || undefined : undefined,
         grid: base.grid ?? { cols: 5, rows: 5 },
         pieces: base.pieces ?? [],
         values: base.values ?? {},
@@ -474,6 +475,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       data = {
         version: MALLA_SCHEMA_VERSION,
         masters: { master: { template, visual, aspect } },
+        draftBlockName: !repoId ? repoName.trim() || undefined : undefined,
         grid: { cols: 5, rows: 5 },
         pieces: [],
         values: {},
@@ -498,6 +500,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     repoBlocks,
     loadProject,
     repoId,
+    repoName,
     shouldReusePersistedMalla,
   ]);
 

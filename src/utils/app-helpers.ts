@@ -127,6 +127,36 @@ export function createEmptyBlockState(): BlockState {
   return createBlockStateFromContent(emptyContent);
 }
 
+export function isBlockOnlyProjectState(data: MallaExport): boolean {
+  const masters = data.masters ?? {};
+  const masterIds = Object.keys(masters);
+  const activeMasterId = data.activeMasterId ?? masterIds[0] ?? '';
+  const repositoryIds = Object.keys(data.repository ?? {});
+
+  return (
+    masterIds.length === 1 &&
+    activeMasterId.length > 0 &&
+    Boolean(masters[activeMasterId]) &&
+    repositoryIds.length === 0 &&
+    (data.pieces?.length ?? 0) === 0 &&
+    Object.keys(data.values ?? {}).length === 0 &&
+    (data.floatingPieces?.length ?? 0) === 0
+  );
+}
+
+export function createBlockStateFromProjectMaster(data: MallaExport): BlockState {
+  const masters = data.masters ?? {};
+  const activeMasterId = data.activeMasterId ?? Object.keys(masters)[0] ?? '';
+  const activeMaster = masters[activeMasterId];
+  if (!activeMaster) {
+    return createEmptyBlockState();
+  }
+  return {
+    ...createBlockStateFromContent(toBlockContent(activeMaster)),
+    repoName: data.draftBlockName?.trim() || null,
+  };
+}
+
 export function summarizePieceValues(values: PieceValueMap) {
   const pieceIds = Object.keys(values);
   let entryCount = 0;

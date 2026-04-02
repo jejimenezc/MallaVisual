@@ -59,9 +59,11 @@ import {
   type TemplateControlSnapshot,
   MALLA_AUTOSAVE_STORAGE_KEY,
   clearStoredActiveProject,
+  createBlockStateFromProjectMaster,
   createBlockStateFromContent,
   createEmptyBlockState,
   diffPieceValues,
+  isBlockOnlyProjectState,
   persistActiveProject,
   prepareMallaProjectState,
   readStoredActiveProject,
@@ -641,10 +643,17 @@ export default function App(): JSX.Element | null {
             setIsHydrated(true);
             return;
           }
-          const prepared = prepareMallaProjectState(record.data, normalizedRepo);
-          setBlock(prepared.block);
-          loadMallaState(prepared.malla);
+          if (isBlockOnlyProjectState(record.data)) {
+            setBlock(createBlockStateFromProjectMaster(record.data));
+            loadMallaState(null);
+            setProjectThemeState(normalizeProjectTheme(record.data.theme));
+          } else {
+            const prepared = prepareMallaProjectState(record.data, normalizedRepo);
+            setBlock(prepared.block);
+            loadMallaState(prepared.malla);
+          }
         } else {
+          const blockData = record.data as BlockExport;
           await applyRepositoryChange(
             {},
             {
@@ -656,8 +665,9 @@ export default function App(): JSX.Element | null {
             switchToken,
           );
           if (!isProjectSwitchTokenCurrent(switchToken)) return;
-          setBlock(createBlockStateFromContent(toBlockContent(record.data)));
+          setBlock(createBlockStateFromContent(toBlockContent(blockData)));
           loadMallaState(null);
+          setProjectThemeState(normalizeProjectTheme(blockData.theme));
         }
 
         setProjectId(stored.id);

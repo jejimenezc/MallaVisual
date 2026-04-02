@@ -40,6 +40,7 @@ export interface MallaExport {
   masters: Record<string, MasterBlockData>;
   repository: Record<string, MallaRepositoryEntry>;
   repositoryMetadata?: Record<string, BlockMetadata>;
+  draftBlockName?: string;
   grid?: { cols: number; rows: number };
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
@@ -573,6 +574,11 @@ export function importMalla(json: string): MallaExport {
     masters,
     repository,
     repositoryMetadata,
+    draftBlockName:
+      typeof (data as { draftBlockName?: unknown }).draftBlockName === 'string' &&
+      (data as { draftBlockName?: string }).draftBlockName?.trim()
+        ? (data as { draftBlockName?: string }).draftBlockName?.trim()
+        : undefined,
     grid: data.grid ?? { cols: 5, rows: 5 },
     pieces,
     values: data.values ?? {},
