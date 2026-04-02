@@ -7,7 +7,6 @@ import type {
   CurricularPieceRef,
   CurricularPieceSnapshot,
   BlockSourceRef,
-  MasterBlockData,
 } from '../types/curricular.ts';
 import { TemplateGrid } from '../components/TemplateGrid';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
@@ -18,7 +17,6 @@ import {
   expandBoundsToMerges,
 } from '../utils/block-active.ts';
 import { BlockSnapshot } from '../components/BlockSnapshot';
-import { blockContentEquals } from '../utils/block-content.ts';
 import {
   type MallaExport,
   MALLA_SCHEMA_VERSION,
@@ -45,9 +43,7 @@ import {
   rowHasAnyOverrides,
 } from '../utils/column-headers.ts';
 import type { ColumnHeaderRowConfig } from '../types/column-headers.ts';
-import type { StoredBlock } from '../utils/block-repo.ts';
 import { useProject, useBlocksRepo } from '../core/persistence/hooks.ts';
-import { blocksToRepository } from '../utils/repository-snapshot.ts';
 import styles from './MallaEditorScreen.module.css';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
@@ -59,6 +55,7 @@ import { ColumnHeadersBand } from '../components/ColumnHeadersBand';
 import { ColumnHeaderRowEditor } from '../components/ColumnHeaderRowEditor';
 import addRefIcon from '../assets/icons/icono-plus-50.png';
 import { useAppCommand } from '../state/app-commands';
+import { useMallaEditorMasters } from '../state/use-malla-editor-masters.ts';
 import { computeSignature } from '../utils/comparators.ts';
 import { pushHistoryEntry } from '../utils/history.ts';
 import { confirmAsync } from '../ui/alerts';
@@ -197,74 +194,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const { listBlocks } = useBlocksRepo();
   const showToast = useToast();
 
-  // --- repositorio y estado de maestros
-  const [availableMasters, setAvailableMasters] = useState<StoredBlock[]>([]);
-  const initialMasters = useMemo<Record<string, MasterBlockData>>(() => {
-    let masters: Record<string, MasterBlockData> = {};
-    if (initialMalla?.masters) {
-      masters = { ...initialMalla.masters };
-    } else if (repoId) {
-      masters = { [repoId]: { template, visual, aspect } };
-    }
-
-    if (repoId && !masters[repoId]) {
-      masters = {
-        ...masters,
-        [repoId]: { template, visual, aspect },
-      };
-    }
-
-    return masters;
-  }, [initialMalla, repoId, template, visual, aspect]);
-  const initialMasterId = useMemo(() => {
-    if (repoId) {
-      return repoId;
-    }
-    if (initialMalla?.activeMasterId) {
-      return initialMalla.activeMasterId;
-    }
-    const keys = Object.keys(initialMasters);
-    if (keys.length > 0) {
-      return keys[0];
-    }
-    return '';
-  }, [initialMalla, initialMasters, repoId]);
-  const [mastersById, setMastersById] = useState<Record<string, MasterBlockData>>(initialMasters);
-  const [selectedMasterId, setSelectedMasterId] = useState(initialMasterId);
-  const selectedMasterIdRef = useRef(selectedMasterId);
-  const { repoMinOuterW, repoMinOuterH } = useMemo(() => {
-    const masters = Object.values(mastersById);
-    if (masters.length === 0) {
-      return {
-        repoMinOuterW: REPO_MIN_OUTER_METRICS_FALLBACK.outerW,
-        repoMinOuterH: REPO_MIN_OUTER_METRICS_FALLBACK.outerH,
-      };
-    }
-
-    let minOuterW = Number.POSITIVE_INFINITY;
-    let minOuterH = Number.POSITIVE_INFINITY;
-    for (const master of masters) {
-      const masterBounds = getActiveBounds(master.template);
-      const masterSubTemplate = cropTemplate(master.template, masterBounds);
-      const { outerW, outerH } = computeMetrics(masterSubTemplate, master.aspect);
-      if (outerW < minOuterW) {
-        minOuterW = outerW;
-      }
-      if (outerH < minOuterH) {
-        minOuterH = outerH;
-      }
-    }
-
-    return {
-      repoMinOuterW: Number.isFinite(minOuterW)
-        ? minOuterW
-        : REPO_MIN_OUTER_METRICS_FALLBACK.outerW,
-      repoMinOuterH: Number.isFinite(minOuterH)
-        ? minOuterH
-        : REPO_MIN_OUTER_METRICS_FALLBACK.outerH,
-    };
-  }, [mastersById]);
-
   const historyRef = useRef<MallaHistoryEntry[]>([]);
   const historySerializedRef = useRef<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -273,7 +202,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const ignoreNextInitialMallaRef = useRef(false);
   const initialProjectIdRef = useRef<string | null | undefined>(projectId);
   const ignoreDraftForProjectChangeRef = useRef(false);
-  const skipNextMasterSyncRef = useRef(false);
   const skipNextHistoryForMasterChangeRef = useRef(false);
   const historyTransactionDepthRef = useRef(0);
   const historyShouldMergeRef = useRef(false);
@@ -304,6 +232,30 @@ export const MallaEditorScreen: React.FC<Props> = ({
       throw error;
     }
   }, []);
+
+  const {
+    availableMasters,
+    mastersById,
+    setMastersById,
+    initialMasters,
+    initialMasterId,
+    selectedMasterId,
+    setSelectedMasterId,
+    selectedMasterIdRef,
+    skipNextMasterSyncRef,
+    repositoryEntries,
+    repoMinOuterW,
+    repoMinOuterH,
+  } = useMallaEditorMasters({
+    initialMalla,
+    repoId,
+    template,
+    visual,
+    aspect,
+    listBlocks,
+    runHistoryTransaction,
+    repoMinOuterFallback: REPO_MIN_OUTER_METRICS_FALLBACK,
+  });
 
   const historySnapshot = useMemo<MallaHistoryEntry>(
     () => ({
@@ -385,67 +337,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setIsHistoryInitialized(false);
   }, [initialMallaSignature]);
 
-  useEffect(() => {
-    if (!repoId) return;
-    setSelectedMasterId((prevId) => (prevId === repoId ? prevId : repoId));
-  }, [repoId]);
-
-  useEffect(() => {
-    setAvailableMasters(listBlocks());
-    const handler = () => setAvailableMasters(listBlocks());
-    window.addEventListener('block-repo-updated', handler);
-    return () => window.removeEventListener('block-repo-updated', handler);
-  }, [listBlocks]);
-
-  const repositorySnapshot = useMemo(
-    () => blocksToRepository(availableMasters),
-    [availableMasters],
-  );
-  const repositoryEntries = repositorySnapshot.entries;
-
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < historyRef.current.length - 1;
-
-  // Refresca los maestros almacenados cuando el repositorio cambia
-  useEffect(() => {
-    if (availableMasters.length === 0) return;
-    setMastersById((prev) => {
-      let updated = false;
-      let next = prev;
-      for (const { metadata, data } of availableMasters) {
-        const key = metadata.uuid;
-        const incoming: MasterBlockData = {
-          template: data.template,
-          visual: data.visual,
-          aspect: data.aspect,
-        };
-        if (!blockContentEquals(prev[key], incoming)) {
-          if (!updated) {
-            next = { ...prev };
-            updated = true;
-          }
-          next[key] = incoming;
-        }
-      }
-      return updated ? next : prev;
-    });
-  }, [availableMasters]);
-
-  // Sincroniza el maestro activo con el mapa local
-  useEffect(() => {
-    if (!selectedMasterId) return;
-    if (skipNextMasterSyncRef.current) {
-      skipNextMasterSyncRef.current = false;
-      return;
-    }
-    const data: MasterBlockData = { template, visual, aspect };
-    runHistoryTransaction(() => {
-      setMastersById((prev) => ({
-        ...prev,
-        [selectedMasterId]: data,
-      }));
-    });
-  }, [selectedMasterId, template, visual, aspect, runHistoryTransaction]);
 
   // --- drag & drop
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -470,10 +363,6 @@ export const MallaEditorScreen: React.FC<Props> = ({
   const skipNextSyncRef = useRef(false);
   const skipNextNormalizedInitialRef = useRef(false);
   const initialPersistenceSignatureRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    selectedMasterIdRef.current = selectedMasterId;
-  }, [selectedMasterId]);
 
   const applyHistorySnapshot = useCallback(
     (entry: MallaHistoryEntry) => {
@@ -523,6 +412,8 @@ export const MallaEditorScreen: React.FC<Props> = ({
       setColumnHeaders,
       setTheme,
       onUpdateMaster,
+      selectedMasterIdRef,
+      skipNextMasterSyncRef,
     ],
   );
 
@@ -1789,7 +1680,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     setSelectedMasterId(activeMasterId);
     setTheme(nextTheme);
     setIsHistoryInitialized(false);
-  }, [normalizedInitial]);
+  }, [normalizedInitial, setMastersById, setSelectedMasterId]);
 
   useEffect(() => {
     if (isResetting && ignoreDraftForProjectChangeRef.current) return;
@@ -1926,6 +1817,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     loadDraft,
     onUpdateMaster,
     repoId,
+    selectedMasterIdRef,
+    setMastersById,
+    setSelectedMasterId,
     template,
     visual,
   ]);
@@ -1994,6 +1888,9 @@ export const MallaEditorScreen: React.FC<Props> = ({
     initialMasterId,
     initialMasters,
     projectId,
+    selectedMasterIdRef,
+    setMastersById,
+    setSelectedMasterId,
   ]);
 
   useEffect(() => {
