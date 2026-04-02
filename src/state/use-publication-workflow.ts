@@ -172,8 +172,10 @@ export function usePublicationWorkflow({
     }
     setViewerPanelModePreference('preview');
     setViewerMode('preview');
-    navigate('/malla/viewer');
-  }, [currentProject, navigate, previewSnapshot, pushToast, setViewerMode]);
+    if (locationPathname !== '/malla/viewer') {
+      navigate('/malla/viewer');
+    }
+  }, [currentProject, locationPathname, navigate, previewSnapshot, pushToast, setViewerMode]);
 
   const handleOpenPrintPreview = useCallback(() => {
     if (!currentProject) return;
@@ -183,8 +185,10 @@ export function usePublicationWorkflow({
     }
     setViewerPanelModePreference('print-preview');
     setViewerMode('preview');
-    navigate('/malla/viewer');
-  }, [currentProject, navigate, previewSnapshot, pushToast, setViewerMode]);
+    if (locationPathname !== '/malla/viewer') {
+      navigate('/malla/viewer');
+    }
+  }, [currentProject, locationPathname, navigate, previewSnapshot, pushToast, setViewerMode]);
 
   const openPublishModal = useCallback(
     (origin: PublishOrigin, mode?: PublicationMode) => {

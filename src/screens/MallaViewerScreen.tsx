@@ -117,7 +117,7 @@ export function MallaViewerScreen({
   const printIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
-  const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('preview');
+  const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>(initialPanelMode);
   const [isPanning, setIsPanning] = useState(false);
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });

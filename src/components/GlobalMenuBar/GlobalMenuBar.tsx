@@ -539,8 +539,8 @@ export function GlobalMenuBar({
                   onClick={handleOpenPrintPreviewClick}
                   disabled={!hasProject}
                 >
-                  <span className={styles.itemPrimary}>Modo de Impresión</span>
-                  <span className={styles.itemSecondary}>(Vista papel)</span>
+                  <span className={styles.itemPrimary}>Modo Documento</span>
+                  <span className={styles.itemSecondary}>(Vista paginada)</span>
                 </button>
               </li>
               <li className={styles.dropdownSeparator} aria-hidden="true" />

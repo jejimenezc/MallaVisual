@@ -1183,7 +1183,10 @@ export default function App(): JSX.Element | null {
   const projectTheme = projectThemeState;
 
   const hasProject = !!currentProject;
-  const isExternalPublicationOpen = viewerMode === 'publication' && publicationSnapshot !== null;
+  const isExternalPublicationOpen =
+    location.pathname === '/malla/viewer' &&
+    viewerMode === 'publication' &&
+    publicationSnapshot !== null;
   const activeViewerSnapshot = viewerMode === 'preview' ? previewSnapshot : publicationSnapshot;
   const activeViewerTheme = useMemo<ViewerTheme>(() => {
     if (viewerMode === 'preview') {
