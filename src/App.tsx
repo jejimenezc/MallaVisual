@@ -647,6 +647,7 @@ export default function App(): JSX.Element | null {
     projectId,
     projectName,
     viewerMode,
+    publicationSnapshot,
     locationPathname: location.pathname,
     navigate,
     setPublicationSnapshot,

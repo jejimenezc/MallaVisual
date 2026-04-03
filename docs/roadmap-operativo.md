@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 0 - Cierre de deuda de release local |
 | Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.2b refactor: completar desacople pendiente en App, MallaEditorScreen y MallaViewerScreen` |
+| Proximo PR recomendado | `PR-0.2d ux: mejorar overflow vertical del panel lateral del viewer` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -39,7 +39,9 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2a | validated | Reducir acoplamiento principal en `App` y `BlockEditorScreen`. | `App` y editor de bloques mas livianos, con hooks extraidos y review cerrada sin hallazgos bloqueantes del refactor. |
 | PR-0.2-support | validated | Corregir bugs funcionales detectados en review que no provienen del refactor principal. | Nombres importados y estado de configuracion de viewer/publicacion alineados antes de retomar el desacople pendiente. |
 | PR-0.2c | validated | Reabrir pseudoproyectos de bloque en el editor de bloques al abrirlos desde recientes. | Los bloques abiertos como proyecto liviano no deben quedar atrapados en una entrada inconsistente hacia la malla. |
-| PR-0.2b | in-progress | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
+| PR-0.2b | validated | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
+| PR-0.2d | planned | Mejorar overflow vertical del panel lateral del viewer con scroll limpio e indicadores visuales. | Paneles laterales utilizables en pantallas medianas sin ensuciar la UI con una segunda barra intrusiva. |
+| PR-0.2e | planned | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
 | PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
@@ -50,6 +52,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 - Review: 2026-04-02 - Resultado: `validated` - Evidencia: `lint`/`typecheck` ok, pruebas manuales satisfactorias sobre nombres importados, viewer/publicacion y renombre local; sin hallazgos bloqueantes restantes dentro del alcance del support.
 - Validado: 2026-04-02 - PR/commit: `dcddc25` - Nota: `PR-0.2-support` corrige nombres importados, renombre local no publicado y alcance por proyecto de configuracion de viewer/publicacion; desbloquea `PR-0.2c`.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2c` - Nota: `PR-0.2c` corrige la reapertura de pseudoproyectos en editor de bloques y preserva el nombre local del bloque no publicado al cambiar de proyecto o rehidratar; desbloquea `PR-0.2b`.
+- Validado: 2026-04-02 - PR/commit: `f39f938`, `6939621`, `966e131` + fixes de review sobre viewer/publicacion - Nota: `PR-0.2b` completa un nuevo recorte de desacople en `App`, `MallaViewerScreen` y `MallaEditorScreen`, y corrige la fuente activa de salida documental para publicaciones externas; desbloquea follow-ups de UX del viewer y definiciones de publicacion.
 
 ### Fase 1 - Endurecimiento de publicacion externa
 Objetivo: pasar de maduro local a publicable externamente.
@@ -60,6 +63,8 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.2 | planned | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | planned | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
 | PR-1.4 | planned | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
+| PR-1.5 | planned | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
+| PR-1.6 | planned | Definir politica de republicacion web/datos desde snapshot abierto en viewer. | Reglas claras sobre cuando un snapshot puede reutilizarse como fuente de salidas web/datos y como se comunica esa capacidad en UX. |
 
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
 

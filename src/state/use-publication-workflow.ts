@@ -42,6 +42,7 @@ interface UsePublicationWorkflowArgs {
   projectId: string | null;
   projectName: string;
   viewerMode: ViewerMode;
+  publicationSnapshot: MallaSnapshot | null;
   locationPathname: string;
   navigate: NavigateFunction;
   setPublicationSnapshot: React.Dispatch<React.SetStateAction<MallaSnapshot | null>>;
@@ -80,6 +81,7 @@ export function usePublicationWorkflow({
   projectId,
   projectName,
   viewerMode,
+  publicationSnapshot,
   locationPathname,
   navigate,
   setPublicationSnapshot,
@@ -87,7 +89,7 @@ export function usePublicationWorkflow({
   pushToast,
   getSafeLocalStorage,
 }: UsePublicationWorkflowArgs): UsePublicationWorkflowResult {
-  const publicationStorageScope = projectId ?? null;
+  const publicationStorageScope = viewerMode === 'publication' ? null : projectId ?? null;
   const readThemeState = useCallback(
     () =>
       publicationStorageScope
@@ -163,6 +165,13 @@ export function usePublicationWorkflow({
       return null;
     }
   }, [currentProject, projectId, projectName]);
+
+  const activePublicationSource = useMemo<MallaSnapshot | null>(() => {
+    if (viewerMode === 'publication') {
+      return publicationSnapshot;
+    }
+    return previewSnapshot;
+  }, [previewSnapshot, publicationSnapshot, viewerMode]);
 
   const createPublicationSnapshot = useCallback(
     (appearance: ViewerTheme): MallaSnapshot | null => {
@@ -250,7 +259,10 @@ export function usePublicationWorkflow({
       const copy = PUBLICATION_ACTION_COPY[product];
       setPublicationOperation(createPublicationOperation(product, 'running', copy.runningLabel, copy.statusDetail));
       try {
-        const snapshot = createPublicationSnapshot(publicationOutputConfig.theme);
+        const snapshot =
+          viewerMode === 'publication'
+            ? activePublicationSource
+            : createPublicationSnapshot(publicationOutputConfig.theme);
         if (!snapshot) {
           const failureMessage = 'No se pudo generar la salida publicada.';
           setPublicationOperation(createPublicationOperation(product, 'error', failureMessage, 'Revisa la configuracion visible y vuelve a intentarlo.'));
@@ -306,7 +318,17 @@ export function usePublicationWorkflow({
         pushToast(failureMessage, 'error');
       }
     },
-    [createPublicationSnapshot, downloadPublication, projectId, projectName, publicationOutputConfig, pushToast, setPublicationSnapshot],
+    [
+      activePublicationSource,
+      createPublicationSnapshot,
+      downloadPublication,
+      projectId,
+      projectName,
+      publicationOutputConfig,
+      pushToast,
+      setPublicationSnapshot,
+      viewerMode,
+    ],
   );
 
   const handleImportPublicationFile = useCallback(
