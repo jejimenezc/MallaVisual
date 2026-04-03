@@ -2,7 +2,6 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   createDefaultMetaPanel,
-  getCellConfigForColumn,
   normalizeMetaPanelConfig,
   type ColumnHeadersConfig,
   type MetaCellConfig,
@@ -15,25 +14,15 @@ import {
   createHeaderOverride,
   createHeaderRow,
   ensureHeaderInvariants,
-  isHeaderRowVisible,
   normalizeColumnHeadersConfig,
   rowHasAnyOverrides,
 } from '../utils/column-headers.ts';
 import type { ColumnHeaderRowConfig } from '../types/column-headers.ts';
 import type { BlockTemplate, CurricularPiece } from '../types/curricular.ts';
-import type { MetaCalcDeps } from '../utils/meta-calc.ts';
-import type { MallaQuerySource } from '../utils/malla-queries.ts';
-import type { MetaPanelCatalog } from '../utils/meta-panel-catalog.ts';
-import {
-  buildMetaPanelCatalogForColumn,
-  buildMetaPanelCatalogForMalla,
-} from '../utils/meta-panel-catalog.ts';
 import { confirmAsync } from '../ui/alerts';
-import { cropTemplate, expandBoundsToMerges } from '../utils/block-active.ts';
 import { logAppError } from '../core/runtime/logger.ts';
-
-const COLUMN_HEADER_ROW_HEIGHT = 28;
-const META_CALC_HEADER_ROW_HEIGHT = 30;
+import { useMallaEditorBandsData } from './use-malla-editor-bands-data.ts';
+import { useMallaEditorBandsLayout } from './use-malla-editor-bands-layout.ts';
 
 interface UseMallaEditorBandsParams<TMetadata extends { uuid: string }> {
   cols: number;
@@ -88,53 +77,21 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
   const headersMenuRef = useRef<HTMLDivElement>(null);
 
   const normalizedMetaPanel = useMemo(() => normalizeMetaPanelConfig(metaPanel), [metaPanel]);
-  const normalizedColumnHeaders = useMemo(
-    () => ensureHeaderInvariants(columnHeaders),
-    [columnHeaders],
-  );
-  const normalizedMetaRows = normalizedMetaPanel.rows;
-  const columnHeaderRowCount = useMemo(() => {
-    if (normalizedColumnHeaders.enabled === false) {
-      return 0;
-    }
-    return normalizedColumnHeaders.rows.filter((row) => isHeaderRowVisible(row)).length;
-  }, [normalizedColumnHeaders]);
-  const columnHeadersBandHeight = useMemo(
-    () => columnHeaderRowCount * COLUMN_HEADER_ROW_HEIGHT,
-    [columnHeaderRowCount],
-  );
-  const metaCalcRowCount = useMemo(() => {
-    if (normalizedMetaPanel.enabled === false) {
-      return 0;
-    }
-    return normalizedMetaRows.length;
-  }, [normalizedMetaPanel.enabled, normalizedMetaRows]);
-  const metaCalcHeaderHeight = useMemo(
-    () => metaCalcRowCount * META_CALC_HEADER_ROW_HEIGHT,
-    [metaCalcRowCount],
-  );
-  const topBandsHeight = columnHeadersBandHeight + metaCalcHeaderHeight;
-
-  const zoomedGridContainerStyle = useMemo(
-    () =>
-      ({
-        height: gridHeight * zoomScale + topBandsHeight,
-      }) as React.CSSProperties,
-    [gridHeight, topBandsHeight, zoomScale],
-  );
-
-  const zoomedMetaCalcHeaderWrapperStyle = useMemo(
-    () =>
-      ({
-        width: gridWidth * zoomScale,
-      }) as React.CSSProperties,
-    [gridWidth, zoomScale],
-  );
-
-  const zoomedMetaCalcColWidths = useMemo(
-    () => colWidths.map((width) => width * zoomScale),
-    [colWidths, zoomScale],
-  );
+  const {
+    normalizedColumnHeaders,
+    normalizedMetaRows,
+    topBandsHeight,
+    zoomedGridContainerStyle,
+    zoomedMetaCalcHeaderWrapperStyle,
+    zoomedMetaCalcColWidths,
+  } = useMallaEditorBandsLayout({
+    colWidths,
+    gridWidth,
+    gridHeight,
+    zoomScale,
+    metaPanel: normalizedMetaPanel,
+    columnHeaders,
+  });
 
   useEffect(() => {
     if (!isMetaMenuOpen) {
@@ -211,94 +168,28 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
     }
     setActiveMetaRowId(fallbackRow.id);
   }, [activeMetaRowId, normalizedMetaPanel.enabled, normalizedMetaRows]);
-
-  const activeMetaRow = useMemo<MetaPanelRowConfig>(() => {
-    const fallbackRow = normalizedMetaRows[0]!;
-    if (activeMetaRowId == null) {
-      return fallbackRow;
-    }
-    return normalizedMetaRows.find((row) => row.id === activeMetaRowId) ?? fallbackRow;
-  }, [activeMetaRowId, normalizedMetaRows]);
-
-  const activeMetaRowPosition = useMemo(() => {
-    const index = normalizedMetaRows.findIndex((row) => row.id === activeMetaRow.id);
-    return index >= 0 ? index + 1 : 1;
-  }, [activeMetaRow.id, normalizedMetaRows]);
-
-  const mallaForMetaCalc = useMemo<MallaQuerySource>(
-    () => ({
-      grid: { cols, rows },
-      pieces,
-    }),
-    [cols, rows, pieces],
-  );
-
-  const resolveTemplateForPiece = useCallback(
-    (piece: CurricularPiece): BlockTemplate | null => {
-      if (piece.kind === 'ref') {
-        const master = mastersById[piece.ref.sourceId] ?? { template };
-        const safeBounds = expandBoundsToMerges(master.template, piece.ref.bounds);
-        return cropTemplate(master.template, safeBounds);
-      }
-      return piece.template;
-    },
-    [mastersById, template],
-  );
-
-  const metaCalcDeps = useMemo<MetaCalcDeps>(
-    () => ({
-      valuesByPiece: pieceValues,
-      resolveTemplateForPiece,
-    }),
-    [pieceValues, resolveTemplateForPiece],
-  );
-
-  const templateLabelById = useMemo<Record<string, string>>(
-    () =>
-      Object.fromEntries(
-        availableMasters.map((entry) => [
-          entry.metadata.uuid,
-          formatMasterDisplayName(entry.metadata, entry.metadata.uuid),
-        ]),
-      ),
-    [availableMasters, formatMasterDisplayName],
-  );
-
-  const activeMetaCellConfig = useMemo(() => {
-    if (activeMetaColIndex == null) return activeMetaRow.defaultCell;
-    return getCellConfigForColumn(activeMetaRow, activeMetaColIndex);
-  }, [activeMetaColIndex, activeMetaRow]);
-
-  const isEditingOverrideActive = useMemo(
-    () => (activeMetaColIndex != null ? !!activeMetaRow.columns?.[activeMetaColIndex] : false),
-    [activeMetaColIndex, activeMetaRow],
-  );
-
-  const globalMetaEditorCatalog = useMemo<MetaPanelCatalog>(
-    () =>
-      buildMetaPanelCatalogForMalla({
-        malla: mallaForMetaCalc,
-        resolveTemplateForPiece,
-        resolveTemplateLabel: (templateId) => templateLabelById[templateId] ?? templateId,
-      }),
-    [mallaForMetaCalc, resolveTemplateForPiece, templateLabelById],
-  );
-
-  const columnMetaEditorCatalog = useMemo<MetaPanelCatalog>(() => {
-    if (activeMetaColIndex == null) {
-      return { templates: [], controlsByTemplateId: {} };
-    }
-    return buildMetaPanelCatalogForColumn({
-      malla: mallaForMetaCalc,
-      colIndex: activeMetaColIndex,
-      resolveTemplateForPiece,
-      resolveTemplateLabel: (templateId) => templateLabelById[templateId] ?? templateId,
-    });
-  }, [activeMetaColIndex, mallaForMetaCalc, resolveTemplateForPiece, templateLabelById]);
-
-  const activeMetaEditorCatalog = isEditingOverrideActive
-    ? columnMetaEditorCatalog
-    : globalMetaEditorCatalog;
+  const {
+    mallaForMetaCalc,
+    metaCalcDeps,
+    activeMetaRow,
+    activeMetaRowPosition,
+    activeMetaCellConfig,
+    isEditingOverrideActive,
+    activeMetaEditorCatalog,
+    columnMetaEditorCatalog,
+  } = useMallaEditorBandsData({
+    cols,
+    rows,
+    pieces,
+    pieceValues,
+    mastersById,
+    template,
+    availableMasters,
+    formatMasterDisplayName,
+    normalizedMetaRows,
+    activeMetaRowId,
+    activeMetaColIndex,
+  });
 
   const handleMetaCellClick = useCallback(
     (rowId: string, colIndex: number) => {
