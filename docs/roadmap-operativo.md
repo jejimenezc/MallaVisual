@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 0 - Cierre de deuda de release local |
 | Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.3 ux: reemplazar prompts nativos y unificar confirmaciones` |
+| Proximo PR recomendado | `PR-0.2f refactor: extraer logica de franjas, encabezados y metricas de MallaEditorScreen` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -42,6 +42,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2b | validated | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
 | PR-0.2d | validated | Mejorar overflow vertical del panel lateral del viewer con scroll limpio e indicadores visuales. | Paneles laterales utilizables en pantallas medianas sin ensuciar la UI con una segunda barra intrusiva. |
 | PR-0.2e | validated | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
+| PR-0.2f | in-progress | Extraer logica de franjas, encabezados y metricas de `MallaEditorScreen`. | `MallaEditorScreen` mas corta y con una frontera clara para configuracion de bandas superiores, edicion de encabezados y wiring del meta-panel relacionado. |
 | PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
