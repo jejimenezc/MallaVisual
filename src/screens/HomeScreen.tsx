@@ -6,6 +6,7 @@ import { useProject } from '../core/persistence/hooks.ts';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { handleProjectFile } from '../utils/project-file.ts';
+import { confirmAsync, promptAsync } from '../ui/alerts';
 import './HomeScreen.css';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 
@@ -66,7 +67,18 @@ export const HomeScreen: React.FC<Props> = ({
       });
   };
 
-  const handleDeleteProject = (id: string) => {
+  const handleDeleteProject = async (id: string, currentName: string) => {
+    const confirmed = await confirmAsync({
+      title: 'Eliminar proyecto',
+      message: `Se eliminara "${currentName}" de proyectos recientes. Esta accion no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) {
+      return;
+    }
+
     removeProject(id);
     setProjects(listProjects());
     if (id === currentProjectId) {
@@ -74,9 +86,16 @@ export const HomeScreen: React.FC<Props> = ({
     }
   };
 
-  const handleRenameProject = (id: string, currentName: string) => {
-    const proposed = window.prompt('Nuevo nombre del proyecto', currentName);
-    if (!proposed) return;
+  const handleRenameProject = async (id: string, currentName: string) => {
+    const proposed = await promptAsync({
+      title: 'Renombrar proyecto',
+      message: 'Ingresa el nuevo nombre del proyecto.',
+      defaultValue: currentName,
+      placeholder: 'Nombre del proyecto',
+      confirmLabel: 'Actualizar',
+      cancelLabel: 'Cancelar',
+    });
+    if (proposed === null) return;
     const trimmed = proposed.trim();
     if (trimmed.length === 0 || trimmed === currentName) return;
     renameProject(id, trimmed);
@@ -117,7 +136,7 @@ export const HomeScreen: React.FC<Props> = ({
                     className="icon-button"
                     title="Renombrar"
                     aria-label={`Renombrar ${p.name}`}
-                    onClick={() => handleRenameProject(p.id, p.name)}
+                    onClick={() => void handleRenameProject(p.id, p.name)}
                   >
                     ✏️
                   </button>
@@ -126,7 +145,7 @@ export const HomeScreen: React.FC<Props> = ({
                       className="icon-button"
                       title="Eliminar"
                       aria-label={`Eliminar ${p.name}`}
-                      onClick={() => handleDeleteProject(p.id)}
+                      onClick={() => void handleDeleteProject(p.id, p.name)}
                     >
                       🗑️
                     </button>

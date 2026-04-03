@@ -42,8 +42,8 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2b | validated | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
 | PR-0.2d | validated | Mejorar overflow vertical del panel lateral del viewer con scroll limpio e indicadores visuales. | Paneles laterales utilizables en pantallas medianas sin ensuciar la UI con una segunda barra intrusiva. |
 | PR-0.2e | validated | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
-| PR-0.2f | review | Extraer logica de franjas, encabezados y metricas de `MallaEditorScreen`. | `MallaEditorScreen` mas corta y con una frontera clara para configuracion de bandas superiores, edicion de encabezados y wiring del meta-panel relacionado. |
-| PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
+| PR-0.2f | validated | Extraer logica de franjas, encabezados y metricas de `MallaEditorScreen`. | `MallaEditorScreen` mas corta y con una frontera clara para configuracion de bandas superiores, edicion de encabezados y wiring del meta-panel relacionado. |
+| PR-0.3 | in-progress | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
 **Hito desbloqueado al validar la fase:** "producto local maduro".
@@ -56,6 +56,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 - Validado: 2026-04-02 - PR/commit: `f39f938`, `6939621`, `966e131` + fixes de review sobre viewer/publicacion - Nota: `PR-0.2b` completa un nuevo recorte de desacople en `App`, `MallaViewerScreen` y `MallaEditorScreen`, y corrige la fuente activa de salida documental para publicaciones externas; desbloquea follow-ups de UX del viewer y definiciones de publicacion.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2d` - Nota: `PR-0.2d` habilita scroll vertical limpio en el panel lateral del viewer con indicadores interactivos; desbloquea `PR-0.2e`.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2e` - Nota: `PR-0.2e` retrae por defecto el panel lateral al abrir publicaciones externas y deja el viewer menos confuso desde el primer frame; desbloquea `PR-0.3`.
+- Validado: 2026-04-03 - PR/commit: `9042c98`, `4eb380d` - Nota: `PR-0.2f` completa la extraccion de bandas de `MallaEditorScreen` con una segunda pasada que separa layout, datos y coordinacion UI; desbloquea `PR-0.3`.
 
 ### Fase 1 - Endurecimiento de publicacion externa
 Objetivo: pasar de maduro local a publicable externamente.
