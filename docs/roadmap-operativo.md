@@ -43,7 +43,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2d | validated | Mejorar overflow vertical del panel lateral del viewer con scroll limpio e indicadores visuales. | Paneles laterales utilizables en pantallas medianas sin ensuciar la UI con una segunda barra intrusiva. |
 | PR-0.2e | validated | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
 | PR-0.2f | validated | Extraer logica de franjas, encabezados y metricas de `MallaEditorScreen`. | `MallaEditorScreen` mas corta y con una frontera clara para configuracion de bandas superiores, edicion de encabezados y wiring del meta-panel relacionado. |
-| PR-0.3 | in-progress | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
+| PR-0.3 | validated | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
 **Hito desbloqueado al validar la fase:** "producto local maduro".
@@ -57,6 +57,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2d` - Nota: `PR-0.2d` habilita scroll vertical limpio en el panel lateral del viewer con indicadores interactivos; desbloquea `PR-0.2e`.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2e` - Nota: `PR-0.2e` retrae por defecto el panel lateral al abrir publicaciones externas y deja el viewer menos confuso desde el primer frame; desbloquea `PR-0.3`.
 - Validado: 2026-04-03 - PR/commit: `9042c98`, `4eb380d` - Nota: `PR-0.2f` completa la extraccion de bandas de `MallaEditorScreen` con una segunda pasada que separa layout, datos y coordinacion UI; desbloquea `PR-0.3`.
+- Validado: 2026-04-03 - PR/commit: `f40b250` + cierre local de review final - Nota: `PR-0.3` migra el renombrado y la eliminacion de proyectos recientes en `HomeScreen` a `promptAsync` y `confirmAsync`, y deja la documentacion alineada; desbloquea `PR-0.4`.
 
 ### Fase 1 - Endurecimiento de publicacion externa
 Objetivo: pasar de maduro local a publicable externamente.
