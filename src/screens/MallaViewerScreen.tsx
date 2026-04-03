@@ -98,9 +98,13 @@ export function MallaViewerScreen({
   const viewportRef = useRef<HTMLDivElement>(null);
   const printableRootRef = useRef<HTMLDivElement>(null);
   const printIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const appearancePanelScrollRef = useRef<HTMLDivElement>(null);
+  const appearanceScrollIntervalRef = useRef<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
   const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>(initialPanelMode);
+  const [appearanceCanScrollUp, setAppearanceCanScrollUp] = useState(false);
+  const [appearanceCanScrollDown, setAppearanceCanScrollDown] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -172,6 +176,51 @@ export function MallaViewerScreen({
     [onPrintSettingsChange, printSettings],
   );
 
+  const updateAppearanceOverflowState = useCallback(() => {
+    const panel = appearancePanelScrollRef.current;
+    if (!panel || !isAppearanceOpen) {
+      setAppearanceCanScrollUp(false);
+      setAppearanceCanScrollDown(false);
+      return;
+    }
+
+    const maxScrollTop = Math.max(panel.scrollHeight - panel.clientHeight, 0);
+    const scrollTop = Math.min(Math.max(panel.scrollTop, 0), maxScrollTop);
+    const threshold = 2;
+    setAppearanceCanScrollUp(scrollTop > threshold);
+    setAppearanceCanScrollDown(maxScrollTop - scrollTop > threshold);
+  }, [isAppearanceOpen]);
+
+  const stopAppearanceAutoScroll = useCallback(() => {
+    if (appearanceScrollIntervalRef.current == null) return;
+    window.clearInterval(appearanceScrollIntervalRef.current);
+    appearanceScrollIntervalRef.current = null;
+  }, []);
+
+  const scrollAppearancePanelBy = useCallback(
+    (delta: number) => {
+      const panel = appearancePanelScrollRef.current;
+      if (!panel) return;
+      panel.scrollBy({ top: delta, behavior: 'smooth' });
+      window.requestAnimationFrame(updateAppearanceOverflowState);
+    },
+    [updateAppearanceOverflowState],
+  );
+
+  const startAppearanceAutoScroll = useCallback(
+    (direction: 'up' | 'down') => {
+      const panel = appearancePanelScrollRef.current;
+      if (!panel) return;
+      stopAppearanceAutoScroll();
+      const delta = direction === 'up' ? -11 : 11;
+      appearanceScrollIntervalRef.current = window.setInterval(() => {
+        panel.scrollTop += delta;
+        updateAppearanceOverflowState();
+      }, 16);
+    },
+    [stopAppearanceAutoScroll, updateAppearanceOverflowState],
+  );
+
   const handleZoomIn = useCallback(() => {
     setZoomSafe(zoom + VIEWER_ZOOM_STEP);
   }, [setZoomSafe, zoom]);
@@ -241,6 +290,39 @@ export function MallaViewerScreen({
   useEffect(() => {
     onPanelModeChange?.(viewerPanelMode);
   }, [onPanelModeChange, viewerPanelMode]);
+
+  useEffect(() => {
+    const panel = appearancePanelScrollRef.current;
+    if (!panel || !isAppearanceOpen) {
+      updateAppearanceOverflowState();
+      return;
+    }
+
+    const handleScroll = () => updateAppearanceOverflowState();
+    panel.addEventListener('scroll', handleScroll, { passive: true });
+    updateAppearanceOverflowState();
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => updateAppearanceOverflowState());
+    resizeObserver?.observe(panel);
+
+    const handleWindowResize = () => updateAppearanceOverflowState();
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      panel.removeEventListener('scroll', handleScroll);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, [isAppearanceOpen, panelMode, snapshot, updateAppearanceOverflowState]);
+
+  useEffect(() => {
+    updateAppearanceOverflowState();
+  }, [updateAppearanceOverflowState, mode, printSettings, theme]);
+
+  useEffect(() => stopAppearanceAutoScroll, [stopAppearanceAutoScroll]);
 
   const handleEnterPrintPreview = useCallback(() => {
     setViewerPanelMode('print-preview');
@@ -937,7 +1019,23 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               ‹
             </Button>
           </div>
-          {panelMode === 'preview' ? (
+          <div className={styles.appearancePanelScrollShell}>
+            <button
+              type="button"
+              className={`${styles.appearanceScrollFade} ${styles.appearanceScrollFadeTop} ${appearanceCanScrollUp ? styles.appearanceScrollFadeVisible : ''}`}
+              aria-label="Desplazar panel lateral hacia arriba"
+              tabIndex={appearanceCanScrollUp ? 0 : -1}
+              disabled={!appearanceCanScrollUp}
+              onMouseEnter={() => startAppearanceAutoScroll('up')}
+              onMouseLeave={stopAppearanceAutoScroll}
+              onFocus={() => startAppearanceAutoScroll('up')}
+              onBlur={stopAppearanceAutoScroll}
+              onClick={() => scrollAppearancePanelBy(-160)}
+            >
+              <span className={styles.appearanceScrollHint}>^</span>
+            </button>
+            <div ref={appearancePanelScrollRef} className={styles.appearancePanelContent}>
+              {panelMode === 'preview' ? (
             <>
               <h3>Apariencia base</h3>
               <label className={`${styles.field} ${styles.scaleField}`}>
@@ -1298,7 +1396,23 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 </select>
               </label>
             </>
-          )}
+              )}
+            </div>
+            <button
+              type="button"
+              className={`${styles.appearanceScrollFade} ${styles.appearanceScrollFadeBottom} ${appearanceCanScrollDown ? styles.appearanceScrollFadeVisible : ''}`}
+              aria-label="Desplazar panel lateral hacia abajo"
+              tabIndex={appearanceCanScrollDown ? 0 : -1}
+              disabled={!appearanceCanScrollDown}
+              onMouseEnter={() => startAppearanceAutoScroll('down')}
+              onMouseLeave={stopAppearanceAutoScroll}
+              onFocus={() => startAppearanceAutoScroll('down')}
+              onBlur={stopAppearanceAutoScroll}
+              onClick={() => scrollAppearancePanelBy(160)}
+            >
+              <span className={styles.appearanceScrollHint}>v</span>
+            </button>
+          </div>
         </aside>
 
         <div className={styles.viewerMain}>

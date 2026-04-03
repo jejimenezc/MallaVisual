@@ -177,6 +177,8 @@
 }
 
 .appearancePanel {
+  display: flex;
+  flex-direction: column;
   flex: 0 0 auto;
   width: 0;
   opacity: 0;
@@ -199,6 +201,81 @@
 .appearancePanel h3 {
   margin: 0 0 var(--space-sm);
   color: #0f172a;
+}
+
+.appearancePanelScrollShell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.appearancePanelContent {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+  margin-right: -0.25rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.appearancePanelContent::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.appearanceScrollFade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  padding: 0.15rem 0;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  border: 0;
+  width: 100%;
+  cursor: pointer;
+}
+
+.appearanceScrollFadeVisible {
+  opacity: 1;
+}
+
+.appearanceScrollFade:disabled {
+  cursor: default;
+}
+
+.appearanceScrollFadeTop {
+  top: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.appearanceScrollFadeBottom {
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.appearanceScrollHint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #64748b;
+  font-size: 0.72rem;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.appearanceScrollFade:hover .appearanceScrollHint,
+.appearanceScrollFade:focus-visible .appearanceScrollHint {
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
 }
 
 .appearanceToggle {
@@ -823,7 +900,6 @@
   .appearanceOpen {
     width: 100%;
     max-height: 70vh;
-    overflow: auto;
   }
 
   .appearanceToggleRow {
