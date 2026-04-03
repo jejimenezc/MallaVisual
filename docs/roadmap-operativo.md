@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 0 - Cierre de deuda de release local |
 | Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.2e ux: ocultar por defecto Apariencia base al abrir publicaciones externas` |
+| Proximo PR recomendado | `PR-0.3 ux: reemplazar prompts nativos y unificar confirmaciones` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -41,7 +41,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2c | validated | Reabrir pseudoproyectos de bloque en el editor de bloques al abrirlos desde recientes. | Los bloques abiertos como proyecto liviano no deben quedar atrapados en una entrada inconsistente hacia la malla. |
 | PR-0.2b | validated | Completar desacople pendiente en `App`, `MallaEditorScreen` y `MallaViewerScreen`. | Menor concentracion de logica restante en `App` y recorte adicional de pantallas criticas. |
 | PR-0.2d | validated | Mejorar overflow vertical del panel lateral del viewer con scroll limpio e indicadores visuales. | Paneles laterales utilizables en pantallas medianas sin ensuciar la UI con una segunda barra intrusiva. |
-| PR-0.2e | planned | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
+| PR-0.2e | validated | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
 | PR-0.3 | planned | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
@@ -54,6 +54,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2c` - Nota: `PR-0.2c` corrige la reapertura de pseudoproyectos en editor de bloques y preserva el nombre local del bloque no publicado al cambiar de proyecto o rehidratar; desbloquea `PR-0.2b`.
 - Validado: 2026-04-02 - PR/commit: `f39f938`, `6939621`, `966e131` + fixes de review sobre viewer/publicacion - Nota: `PR-0.2b` completa un nuevo recorte de desacople en `App`, `MallaViewerScreen` y `MallaEditorScreen`, y corrige la fuente activa de salida documental para publicaciones externas; desbloquea follow-ups de UX del viewer y definiciones de publicacion.
 - Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2d` - Nota: `PR-0.2d` habilita scroll vertical limpio en el panel lateral del viewer con indicadores interactivos; desbloquea `PR-0.2e`.
+- Validado: 2026-04-02 - PR/commit: cierre local de `PR-0.2e` - Nota: `PR-0.2e` retrae por defecto el panel lateral al abrir publicaciones externas y deja el viewer menos confuso desde el primer frame; desbloquea `PR-0.3`.
 
 ### Fase 1 - Endurecimiento de publicacion externa
 Objetivo: pasar de maduro local a publicable externamente.

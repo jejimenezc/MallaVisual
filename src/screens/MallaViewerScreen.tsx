@@ -100,6 +100,7 @@ export function MallaViewerScreen({
   const printIframeRef = useRef<HTMLIFrameElement | null>(null);
   const appearancePanelScrollRef = useRef<HTMLDivElement>(null);
   const appearanceScrollIntervalRef = useRef<number | null>(null);
+  const lastPublicationAppearanceResetRef = useRef<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
   const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>(initialPanelMode);
@@ -323,6 +324,21 @@ export function MallaViewerScreen({
   }, [updateAppearanceOverflowState, mode, printSettings, theme]);
 
   useEffect(() => stopAppearanceAutoScroll, [stopAppearanceAutoScroll]);
+
+  useEffect(() => {
+    if (mode !== 'publication') {
+      lastPublicationAppearanceResetRef.current = null;
+      return;
+    }
+
+    const publicationSessionKey = snapshot
+      ? `${snapshot.createdAt}:${snapshot.projectName}`
+      : 'publication-empty';
+    if (lastPublicationAppearanceResetRef.current === publicationSessionKey) return;
+
+    setAppearanceOpen(false);
+    lastPublicationAppearanceResetRef.current = publicationSessionKey;
+  }, [mode, snapshot]);
 
   const handleEnterPrintPreview = useCallback(() => {
     setViewerPanelMode('print-preview');
