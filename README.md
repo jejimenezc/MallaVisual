@@ -80,6 +80,16 @@ Sirve el contenido de `dist/` en un servidor local para validaciones finales.
 | `npm run test:watch` | Vitest en modo watch. |
 | `npm run typecheck` | Verificación estricta de tipos (`tsc --noEmit`). |【F:package.json†L8-L29】
 
+
+## Checklist de release local
+Antes de considerar una iteracion como lista para release local:
+1. Ejecuta `npm run lint`.
+2. Ejecuta `npm run typecheck`.
+3. Ejecuta `npm test`.
+4. Ejecuta `npm run build`.
+5. Haz un smoke test manual de Home ? Block Editor ? Malla Editor ? Viewer.
+6. Si el cambio toca import/export, snapshot o publicacion, valida tambien esos flujos manualmente.
+
 ## Estructura de carpetas
 ```
 src/
