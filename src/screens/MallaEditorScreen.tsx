@@ -599,6 +599,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
     handleMetaPanelEnabledChange,
     handleMetaEditorCancel,
     handleMetaAddRow,
+    handleMetaRowVisibilityChange,
     handleMetaDuplicateRow,
     handleMetaDeleteRow,
     handleMetaOverrideToggle,
@@ -1922,6 +1923,15 @@ export const MallaEditorScreen: React.FC<Props> = ({
                               <div className={styles.metaMenuRowActions}>
                                 <button
                                   type="button"
+                                  className={styles.metaMenuIconToggle}
+                                  onClick={() => handleMetaRowVisibilityChange(row.id, row.hidden === true)}
+                                  aria-label={`${row.hidden === true ? 'Mostrar' : 'Ocultar'} métrica ${index + 1}`}
+                                  title={row.hidden === true ? 'no visible' : 'visible'}
+                                >
+                                  {row.hidden === true ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                                </button>
+                                <button
+                                  type="button"
                                   className={styles.metaMenuIconAction}
                                   onClick={() => handleMetaDuplicateRow(row.id)}
                                   title="Duplicar"
@@ -2033,7 +2043,7 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     <MetaCalcHeader
                       columnCount={cols}
                       colWidths={zoomedMetaCalcColWidths}
-                      rowsConfig={metaPanel.rows}
+                      rowsConfig={metaPanel.rows.filter((row) => row.hidden !== true)}
                       malla={mallaForMetaCalc}
                       deps={metaCalcDeps}
                       onCellClick={handleMetaCellClick}

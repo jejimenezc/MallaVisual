@@ -226,6 +226,7 @@ const normalizeMetaPanelRowConfig = (
   const label = typeof value.label === 'string' && value.label.trim().length > 0
     ? value.label.trim()
     : undefined;
+  const hidden = value.hidden === true ? true : undefined;
   const normalizedColumns: Record<number, MetaCellConfig> = {};
   const rawColumns = isRecord(value.columns) ? value.columns : {};
   const sortedColumnIndices: number[] = [];
@@ -254,6 +255,7 @@ const normalizeMetaPanelRowConfig = (
     id,
     defaultCell,
     columns: normalizedColumns,
+    ...(hidden ? { hidden } : {}),
     ...(label ? { label } : {}),
   };
 };

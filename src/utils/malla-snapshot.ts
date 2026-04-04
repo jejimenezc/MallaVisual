@@ -426,7 +426,7 @@ const buildMetricsBand = (
   if (metaPanel.enabled === false) {
     return null;
   }
-  const rowsConfig = metaPanel.rows ?? [];
+  const rowsConfig = (metaPanel.rows ?? []).filter((row) => row.hidden !== true);
   if (rowsConfig.length === 0) {
     return null;
   }

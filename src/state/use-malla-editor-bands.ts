@@ -564,6 +564,40 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
     });
   }, [runHistoryTransaction, setMetaPanel]);
 
+  const handleMetaRowVisibilityChange = useCallback(
+    (rowId: string, isVisible: boolean) => {
+      runHistoryTransaction(() => {
+        setMetaPanel((prev) => {
+          const normalized = normalizeMetaPanelConfig(prev);
+          if (normalized.enabled === false) {
+            return normalized;
+          }
+          const targetIndex = normalized.rows.findIndex((row) => row.id === rowId);
+          if (targetIndex < 0) {
+            return normalized;
+          }
+          const targetRow = normalized.rows[targetIndex]!;
+          const nextRows = normalized.rows.slice();
+          nextRows[targetIndex] = {
+            ...targetRow,
+            hidden: isVisible ? undefined : true,
+          };
+          return {
+            ...normalized,
+            rows: nextRows,
+          };
+        });
+      });
+
+      if (!isVisible && activeMetaRowId === rowId) {
+        setIsMetaEditorOpen(false);
+        setActiveMetaRowId(null);
+        setActiveMetaColIndex(null);
+      }
+    },
+    [activeMetaRowId, runHistoryTransaction, setMetaPanel],
+  );
+
   const handleMetaDuplicateRow = useCallback(
     (rowId: string) => {
       runHistoryTransaction(() => {
@@ -813,6 +847,7 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
     handleMetaPanelEnabledChange,
     handleMetaEditorCancel,
     handleMetaAddRow,
+    handleMetaRowVisibilityChange,
     handleMetaDuplicateRow,
     handleMetaDeleteRow,
     handleMetaOverrideToggle,
