@@ -14,6 +14,10 @@ export const VIEWER_ZOOM_STEP = 0.1;
 export const VIEWER_THEME_MIN_TITLE_FONT_SIZE = 16;
 export const VIEWER_THEME_MAX_TITLE_FONT_SIZE = 40;
 export const VIEWER_THEME_TITLE_FONT_SIZE_STEP = 1;
+const VIEWER_HEADER_ROW_MIN_HEIGHT = 28;
+const VIEWER_HEADER_ROW_MAX_LINES = 3;
+const VIEWER_HEADER_ROW_LINE_HEIGHT = 1.15;
+const VIEWER_METRIC_ROW_HEIGHT = 30;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -121,6 +125,81 @@ export interface ViewerRenderModel {
 
 const normalizeCellPadding = (value: number) => clamp(Math.round(value), 0, 32);
 
+const estimateWrappedLineCount = (
+  text: string,
+  widthPx: number,
+  fontSizePx: number,
+  paddingX: number,
+  maxLines: number,
+) => {
+  const trimmed = text.trim();
+  if (!trimmed) return 1;
+
+  const availableWidth = Math.max(widthPx - paddingX * 2, fontSizePx * 6);
+  const avgCharWidth = Math.max(fontSizePx * 0.56, 1);
+  const charsPerLine = Math.max(1, Math.floor(availableWidth / avgCharWidth));
+  const paragraphs = trimmed.split(/\r?\n/);
+  let lines = 0;
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines += 1;
+      continue;
+    }
+
+    let currentLineLength = 0;
+    for (const word of words) {
+      const wordLength = word.length;
+      if (wordLength > charsPerLine) {
+        if (currentLineLength > 0) {
+          lines += 1;
+          currentLineLength = 0;
+        }
+        lines += Math.ceil(wordLength / charsPerLine);
+        continue;
+      }
+
+      const nextLength = currentLineLength === 0 ? wordLength : currentLineLength + 1 + wordLength;
+      if (nextLength <= charsPerLine) {
+        currentLineLength = nextLength;
+      } else {
+        lines += 1;
+        currentLineLength = wordLength;
+      }
+      if (lines >= maxLines) {
+        return maxLines;
+      }
+    }
+
+    if (currentLineLength > 0) {
+      lines += 1;
+    }
+    if (lines >= maxLines) {
+      return maxLines;
+    }
+  }
+
+  return clamp(lines, 1, maxLines);
+};
+
+const resolveHeaderRowHeight = (cells: ViewerRenderBandCell[]) => {
+  const tallest = cells.reduce((maxHeight, cell) => {
+    const lineCount = estimateWrappedLineCount(
+      cell.text,
+      cell.width,
+      cell.style.fontSizePx,
+      cell.style.paddingX,
+      VIEWER_HEADER_ROW_MAX_LINES,
+    );
+    const contentHeight =
+      lineCount * cell.style.fontSizePx * VIEWER_HEADER_ROW_LINE_HEIGHT + cell.style.paddingY * 2;
+    return Math.max(maxHeight, Math.ceil(contentHeight));
+  }, VIEWER_HEADER_ROW_MIN_HEIGHT);
+
+  return Math.max(VIEWER_HEADER_ROW_MIN_HEIGHT, tallest);
+};
+
 const scaleCellStyle = (cell: MallaSnapshotCell, theme: ViewerTheme): ViewerRenderCell => {
   const extraPadding = normalizeCellPadding(theme.cellPadding);
   const nextPaddingX = clamp(cell.style.paddingX + extraPadding, 0, 64);
@@ -209,14 +288,15 @@ export const applyViewerTheme = (
         width: colWidths[col] ?? 0,
       };
     });
+    const rowHeight = resolveHeaderRowHeight(cells);
     bandsRenderRows.push({
       id: row.id,
       kind: 'header',
       top: currentBandTop,
-      height: 28,
+      height: rowHeight,
       cells,
     });
-    currentBandTop += 28;
+    currentBandTop += rowHeight;
   }
   const metricRows = snapshot.bands?.metrics?.rows ?? [];
   for (const row of metricRows) {
@@ -233,10 +313,10 @@ export const applyViewerTheme = (
       id: row.id,
       kind: 'metric',
       top: currentBandTop,
-      height: 30,
+      height: VIEWER_METRIC_ROW_HEIGHT,
       cells,
     });
-    currentBandTop += 30;
+    currentBandTop += VIEWER_METRIC_ROW_HEIGHT;
   }
   const bandsHeight = currentBandTop;
   const height = bandsHeight + gridHeight;

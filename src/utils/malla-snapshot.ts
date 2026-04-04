@@ -45,8 +45,6 @@ const HEADER_BAND_BG_COLOR = '#f8fafc';
 const HEADER_BAND_TEXT_COLOR = '#475569';
 const METRIC_BAND_BG_COLOR = '#ffffff';
 const METRIC_BAND_TEXT_COLOR = '#6b7280';
-const EMPTY_HEADER_HINT = 'Click para editar';
-const EMPTY_METRIC_HINT = 'Click para editar';
 const BAND_FONT_SIZE_PX = 12;
 
 const createBandCellStyle = (input?: Partial<SnapshotCellStyle>): SnapshotCellStyle => ({
@@ -396,7 +394,7 @@ const buildHeaderBand = (malla: MallaExport, tokens: Record<string, string>): Sn
           : undefined;
       return {
         col: colIndex,
-        text: text.trim().length > 0 ? text : EMPTY_HEADER_HINT,
+        text: text.trim(),
         bold,
         style: createBandCellStyle({
           backgroundColor: paletteBackground ?? HEADER_BAND_BG_COLOR,
@@ -407,7 +405,7 @@ const buildHeaderBand = (malla: MallaExport, tokens: Record<string, string>): Sn
           paddingX: 6,
           paddingY: 4,
           bold,
-          italic: text.trim().length === 0,
+          italic: false,
         }),
       };
     });
@@ -454,7 +452,7 @@ const buildMetricsBand = (
       const hasRowLabel = typeof rowLabel === 'string' && rowLabel.trim().length > 0;
       const showEmptyHint = value == null && !hasTerms && !hasRowLabel;
       const displayValue = value == null
-        ? (showEmptyHint ? EMPTY_METRIC_HINT : '-')
+        ? (showEmptyHint ? '' : '-')
         : `#${value}${hasOverride ? '*' : ''}`;
 
       return {
@@ -469,7 +467,7 @@ const buildMetricsBand = (
           fontSizePx: BAND_FONT_SIZE_PX,
           paddingX: 6,
           paddingY: 4,
-          italic: showEmptyHint,
+          italic: false,
         }),
       };
     });

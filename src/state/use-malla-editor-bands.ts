@@ -6,7 +6,6 @@ import {
   type ColumnHeadersConfig,
   type MetaCellConfig,
   type MetaPanelConfig,
-  type MetaPanelRowConfig,
 } from '../utils/malla-io.ts';
 import {
   applySequentialOverrides,
@@ -21,6 +20,11 @@ import type { ColumnHeaderRowConfig } from '../types/column-headers.ts';
 import type { BlockTemplate, CurricularPiece } from '../types/curricular.ts';
 import { confirmAsync } from '../ui/alerts';
 import { logAppError } from '../core/runtime/logger.ts';
+import {
+  cloneMetaCellConfig,
+  cloneMetaRowWithNewIds,
+  createEmptyMetaRow,
+} from './malla-editor-bands-meta.ts';
 import { useMallaEditorBandsData } from './use-malla-editor-bands-data.ts';
 import { useMallaEditorBandsLayout } from './use-malla-editor-bands-layout.ts';
 
@@ -545,71 +549,6 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
     ],
   );
 
-  const cloneMetaCellConfig = useCallback((config: MetaCellConfig): MetaCellConfig => ({
-    ...config,
-    terms: (config.terms ?? []).map((term) => ({
-      ...term,
-      ...(term.condition ? { condition: { ...term.condition } } : {}),
-    })),
-  }), []);
-
-  const createMetaConfigId = useCallback(
-    (prefix: string) =>
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    [],
-  );
-
-  const cloneMetaCellConfigWithNewIds = useCallback(
-    (config: MetaCellConfig): MetaCellConfig => {
-      const clonedConfig = cloneMetaCellConfig(config);
-      return {
-        ...clonedConfig,
-        id: createMetaConfigId('meta-cell'),
-        terms: (clonedConfig.terms ?? []).map((term) => ({
-          ...term,
-          id: createMetaConfigId('meta-term'),
-        })),
-      };
-    },
-    [cloneMetaCellConfig, createMetaConfigId],
-  );
-
-  const createEmptyMetaRow = useCallback(
-    (): MetaPanelRowConfig => ({
-      id: createMetaConfigId('meta-row'),
-      defaultCell: {
-        id: createMetaConfigId('meta-cell'),
-        mode: 'count',
-        terms: [],
-      },
-      columns: {},
-    }),
-    [createMetaConfigId],
-  );
-
-  const cloneMetaRowWithNewIds = useCallback(
-    (row: MetaPanelRowConfig): MetaPanelRowConfig => {
-      const nextColumns: Record<number, MetaCellConfig> = {};
-      for (const [rawColIndex, cell] of Object.entries(row.columns ?? {})) {
-        const colIndex = Number(rawColIndex);
-        if (!Number.isInteger(colIndex) || colIndex < 0) {
-          continue;
-        }
-        nextColumns[colIndex] = cloneMetaCellConfigWithNewIds(cell);
-      }
-
-      return {
-        ...row,
-        id: createMetaConfigId('meta-row'),
-        defaultCell: cloneMetaCellConfigWithNewIds(row.defaultCell),
-        columns: nextColumns,
-      };
-    },
-    [cloneMetaCellConfigWithNewIds, createMetaConfigId],
-  );
-
   const handleMetaAddRow = useCallback(() => {
     runHistoryTransaction(() => {
       setMetaPanel((prev) => {
@@ -623,7 +562,7 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
         };
       });
     });
-  }, [createEmptyMetaRow, runHistoryTransaction, setMetaPanel]);
+  }, [runHistoryTransaction, setMetaPanel]);
 
   const handleMetaDuplicateRow = useCallback(
     (rowId: string) => {
@@ -643,7 +582,7 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
         });
       });
     },
-    [cloneMetaRowWithNewIds, runHistoryTransaction, setMetaPanel],
+    [runHistoryTransaction, setMetaPanel],
   );
 
   const handleMetaDeleteRow = useCallback(
@@ -743,7 +682,7 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
         });
       });
     },
-    [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, setMetaPanel],
+    [activeMetaColIndex, normalizedMetaRows, runHistoryTransaction, setMetaPanel],
   );
 
   const handleMetaEditorSave = useCallback(
@@ -810,7 +749,7 @@ export function useMallaEditorBands<TMetadata extends { uuid: string }>({
         showToast('No se pudo guardar la métrica', 'error');
       }
     },
-    [activeMetaColIndex, cloneMetaCellConfig, normalizedMetaRows, runHistoryTransaction, setMetaPanel, showToast],
+    [activeMetaColIndex, normalizedMetaRows, runHistoryTransaction, setMetaPanel, showToast],
   );
 
   const activeHeaderRow = useMemo<ColumnHeaderRowConfig | null>(

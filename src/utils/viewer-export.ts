@@ -141,7 +141,17 @@ const resolvePublicationVariantFromProduct = (
 const renderBandCellHtml = (cell: ViewerRenderBandCell, rowHeight: number, scale: number): string => {
   const body = cell.label
     ? `<div class="mve-band-metric"><span class="mve-band-metric-label">${escapeHtml(cell.label)}</span><span class="mve-band-metric-value">${escapeHtml(cell.text)}</span></div>`
-    : `<span>${escapeHtml(cell.text)}</span>`;
+    : `<span style="${styleToString({
+      display: '-webkit-box',
+      width: '100%',
+      overflow: 'hidden',
+      'white-space': 'normal',
+      'overflow-wrap': 'anywhere',
+      'word-break': 'break-word',
+      'line-height': '1.15',
+      '-webkit-box-orient': 'vertical',
+      '-webkit-line-clamp': '3',
+    })}">${escapeHtml(cell.text)}</span>`;
   return `<div class="mve-band-cell" style="${styleToString({
     left: `${cell.left}px`,
     width: `${cell.width}px`,

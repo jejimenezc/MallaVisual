@@ -83,6 +83,18 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
+const headerBandTextStyle: CSSProperties = {
+  display: '-webkit-box',
+  width: '100%',
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  lineHeight: '1.15',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 3,
+};
+
 const renderBandCellMetric = (
   classNames: ViewerPrintDocumentClassNames,
   cell: ViewerRenderBandCell,
@@ -130,7 +142,7 @@ const renderBandRow = (
           fontStyle: cell.style.italic ? 'italic' : 'normal',
         }}
       >
-        {cell.label ? renderBandCellMetric(classNames, cell) : <span>{cell.text}</span>}
+        {cell.label ? renderBandCellMetric(classNames, cell) : <span style={headerBandTextStyle}>{cell.text}</span>}
       </div>
     ))}
   </div>

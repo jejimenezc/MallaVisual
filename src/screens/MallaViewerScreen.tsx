@@ -81,6 +81,18 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
+const headerBandTextStyle: React.CSSProperties = {
+  display: '-webkit-box',
+  width: '100%',
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  lineHeight: '1.15',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 3,
+};
+
 export function MallaViewerScreen({
   snapshot,
   mode,
@@ -495,7 +507,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
                   </div>
                 ) : (
-                  <span>{cell.text}</span>
+                  <span style={headerBandTextStyle}>{cell.text}</span>
                 )}
               </div>
             ))}

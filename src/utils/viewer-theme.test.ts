@@ -249,4 +249,26 @@ describe('viewer-theme', () => {
     const firstPiece = model.items.find((item) => item.id === 'piece-1');
     expect(firstPiece?.top).toBeGreaterThanOrEqual(model.bandsHeight);
   });
+
+  test('applyViewerTheme expands long header rows up to three lines and keeps the full row synchronized', () => {
+    const snapshot = buildSnapshotFixture();
+    snapshot.bands!.headers!.rows[0]!.cells[0]!.text =
+      'Encabezado muy largo pensado para probar wrap controlado y altura sincronizada en la fila';
+    snapshot.bands!.headers!.rows[0]!.cells[1]!.text = 'Breve';
+
+    const model = applyViewerTheme(snapshot, {
+      ...createDefaultViewerTheme(),
+      minColumnWidth: 90,
+      gapX: 12,
+    });
+
+    const headerRow = model.bandsRenderRows[0];
+    const metricRow = model.bandsRenderRows[1];
+
+    expect(headerRow?.kind).toBe('header');
+    expect(headerRow?.height).toBeGreaterThan(28);
+    expect(headerRow?.height).toBeLessThanOrEqual(50);
+    expect(headerRow?.cells[0]?.width).toBe(headerRow?.cells[1]?.width);
+    expect(metricRow?.top).toBe(headerRow?.height);
+  });
 });
