@@ -6,8 +6,8 @@
 - `npm test`
 - `npm run build`
 - Smoke test manual de Home ? Block Editor ? Malla Editor ? Viewer
-- Validar import/export si el PR toca contratos de datos, snapshot o publicación
-- Revisar textos visibles modificados si el PR toca copy/UI en español
+- Validar import/export si el PR toca contratos de datos, snapshot o publicaciÃ³n
+- Revisar textos visibles modificados si el PR toca copy/UI en espaÃ±ol
 - Confirmar que el roadmap operativo y docs asociadas quedaron actualizados cuando aplica
 
 
