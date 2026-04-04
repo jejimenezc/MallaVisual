@@ -1,7 +1,7 @@
 // src/components/BlockTemplateEditor.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
-import { BlockTemplate, BlockTemplateCell, InputType } from '../types/curricular.ts';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { BlockTemplate, BlockTemplateCell, InputType } from '../types/curricular.ts';
 import { CellContextMenu } from './CellContextMenu';
 import { TemplateGrid } from './TemplateGrid';
 import './BlockTemplateEditor.css';
@@ -111,7 +111,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
   };
 
   // Combinar (reglas que ya venimos usando)
-  const onCombine = () => {
+  const onCombine = useCallback(() => {
     if (selectedCells.length < 2) return;
 
     // Máximo 1 celda configurada (type definido)
@@ -147,9 +147,9 @@ export const BlockTemplateEditor: React.FC<Props> = ({
 
       return next;
     });
-  };
+  }, [pushToast, selectedCells, setTemplate, template]);
 
-  const onSeparate = () => {
+  const onSeparate = useCallback(() => {
     if (selectedCells.length === 0) return;
     const selectedSet = new Set(selectedCells.map(({ row, col }) => coordKey(row, col)));
 
@@ -173,10 +173,10 @@ export const BlockTemplateEditor: React.FC<Props> = ({
 
       return next;
     });
-  };
+  }, [selectedCells, setTemplate]);
 
   // ✅ onUpdateCell con “ignorar durante borrar”
-  const onUpdateCell = (partialUpdate: Partial<BlockTemplateCell>, coord: { row: number; col: number }) => {
+  const onUpdateCell = useCallback((partialUpdate: Partial<BlockTemplateCell>, coord: { row: number; col: number }) => {
     const k = coordKey(coord.row, coord.col);
     if (ignoreUpdatesRef.current.has(k)) {
       // Estamos en un ciclo de "borrar": ignoramos escrituras de forms (p. ej. cleanup del Select)
@@ -187,7 +187,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
       Object.assign(next[coord.row][coord.col], partialUpdate);
       return next;
     });
-  };
+  }, [setTemplate]);
 
   // Menú contextual: asignar tipo / borrar tipo
   const handleSetInputType = (type: InputType | undefined) => {
@@ -330,7 +330,7 @@ export const BlockTemplateEditor: React.FC<Props> = ({
     };
 
     onSidebarStateChange(state);
-  }, [selectedCells, template, onSidebarStateChange]);
+  }, [selectedCells, template, onCombine, onSeparate, onSidebarStateChange, onUpdateCell]);
 
   return (
     <div

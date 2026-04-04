@@ -35,6 +35,7 @@ export interface MetaCellConfig {
 export interface MetaPanelRowConfig {
   id: string;
   label?: string;
+  hidden?: boolean;
   defaultCell: MetaCellConfig;
   columns?: Record<number, MetaCellConfig>;
 }

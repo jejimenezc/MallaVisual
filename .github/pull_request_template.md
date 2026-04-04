@@ -8,6 +8,9 @@
 <!-- Adjunta 1-3 capturas o GIFs: antes/después -->
 
 ## Pruebas realizadas
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
 - [ ] Navegación Home → Block Editor → Malla Editor
 - [ ] Persistencia: guardar JSON, recargar, editar bloque, volver a Malla
 - [ ] Tipos de entrada: texto/checkbox/select (vista + edición)
@@ -24,7 +27,7 @@
 - Rollback: `git revert <sha>` / tag previo: `vX.Y.Z`
 
 ## Checklist de calidad
-- [ ] CI verde (build, typecheck, tests)
+- [ ] CI verde (lint, build, typecheck, tests)
 - [ ] Lint sin errores
 - [ ] Docs/README/CHANGELOG actualizados si aplica
 - [ ] Sin secretos en diff

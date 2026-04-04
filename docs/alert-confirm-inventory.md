@@ -23,3 +23,5 @@
 - `src/components/BlockTemplateEditor.tsx`: validación de combinación ahora usa toast (`useToast`) en lugar de `window.alert`.
 - `src/state/proceed-to-malla.tsx`: bloquea navegación con confirm modal (`confirmAsync` desde provider) y toast informativo cuando no hay bloques publicados.
 - `src/App.tsx`: confirmaciones de repositorio, cierre de proyecto y apertura desde repositorio migradas a `confirmAsync`; flujo de importación espera manejadores async para evitar confirmaciones sincrónicas.
+- src/screens/HomeScreen.tsx: renombrado y eliminacion de proyectos recientes migrados a promptAsync y confirmAsync; deja de depender de window.prompt.
+

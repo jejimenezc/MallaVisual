@@ -136,6 +136,9 @@ describe('viewer-theme', () => {
     expect(defaults.minColumnWidth).toBe(0);
     expect(defaults.minRowHeight).toBe(0);
     expect(defaults.typographyScale).toBe(1);
+    expect(defaults.showTitle).toBe(false);
+    expect(defaults.titleText).toBe('');
+    expect(defaults.titleFontSize).toBe(24);
     expect(defaults.showHeaderFooter).toBe(true);
   });
 
@@ -146,6 +149,9 @@ describe('viewer-theme', () => {
       minColumnWidth: 1000,
       minRowHeight: -5,
       typographyScale: 20,
+      showTitle: true,
+      titleText: 'Titulo web',
+      titleFontSize: 999,
       showHeaderFooter: false,
     });
     expect(normalized.gapX).toBe(0);
@@ -153,6 +159,9 @@ describe('viewer-theme', () => {
     expect(normalized.minColumnWidth).toBe(500);
     expect(normalized.minRowHeight).toBe(0);
     expect(normalized.typographyScale).toBe(2);
+    expect(normalized.showTitle).toBe(true);
+    expect(normalized.titleText).toBe('Titulo web');
+    expect(normalized.titleFontSize).toBe(40);
     expect(normalized.showHeaderFooter).toBe(false);
   });
 
@@ -239,5 +248,27 @@ describe('viewer-theme', () => {
     expect(model.bandsRenderRows[0]?.cells[1]?.left).toBe(model.colOffsets[1]);
     const firstPiece = model.items.find((item) => item.id === 'piece-1');
     expect(firstPiece?.top).toBeGreaterThanOrEqual(model.bandsHeight);
+  });
+
+  test('applyViewerTheme expands long header rows up to three lines and keeps the full row synchronized', () => {
+    const snapshot = buildSnapshotFixture();
+    snapshot.bands!.headers!.rows[0]!.cells[0]!.text =
+      'Encabezado muy largo pensado para probar wrap controlado y altura sincronizada en la fila';
+    snapshot.bands!.headers!.rows[0]!.cells[1]!.text = 'Breve';
+
+    const model = applyViewerTheme(snapshot, {
+      ...createDefaultViewerTheme(),
+      minColumnWidth: 90,
+      gapX: 12,
+    });
+
+    const headerRow = model.bandsRenderRows[0];
+    const metricRow = model.bandsRenderRows[1];
+
+    expect(headerRow?.kind).toBe('header');
+    expect(headerRow?.height).toBeGreaterThan(28);
+    expect(headerRow?.height).toBeLessThanOrEqual(50);
+    expect(headerRow?.cells[0]?.width).toBe(headerRow?.cells[1]?.width);
+    expect(metricRow?.top).toBe(headerRow?.height);
   });
 });

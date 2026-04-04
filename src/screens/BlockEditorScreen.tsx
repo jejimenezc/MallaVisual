@@ -1,6 +1,6 @@
 // src/screens/BlockEditorScreen.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from 'react';
-import { BlockTemplate } from '../types/curricular.ts';
+import type { BlockTemplate } from '../types/curricular.ts';
 import { BlockTemplateEditor, type ControlCleanupMode } from '../components/BlockTemplateEditor';
 import { BlockTemplateViewer } from '../components/BlockTemplateViewer';
 import { ContextSidebarPanel } from '../components/ContextSidebarPanel';
@@ -8,7 +8,8 @@ import { FormatStylePanel } from '../components/FormatStylePanel';
 import { TwoPaneLayout } from '../layout/TwoPaneLayout';
 import { Button } from '../components/Button';
 import { Header } from '../components/Header';
-import { VisualTemplate, BlockAspect, VisualStyle, coordKey } from '../types/visual.ts';
+import { coordKey } from '../types/visual.ts';
+import type { VisualTemplate, BlockAspect, VisualStyle } from '../types/visual.ts';
 import type { BlockExport } from '../utils/block-io.ts';
 import {
   type MallaExport,
@@ -45,7 +46,7 @@ import { useProjectTheme } from '../state/project-theme.tsx';
 import { normalizePaletteHue, resolvePalettePresetId } from '../utils/palette.ts';
 import { confirmAsync, promptAsync } from '../ui/alerts';
 import { useToast } from '../ui/toast/ToastContext.tsx';
-import { pushHistoryEntry } from '../utils/history.ts';
+import { useBlockEditorHistory, type VisualUpdateMetadata } from '../state/use-block-editor-history.ts';
 
 const arrayShallowEqual = (a: string[], b: string[]) =>
   a.length === b.length && a.every((value, idx) => value === b[idx]);
@@ -85,6 +86,7 @@ interface BlockEditorScreenProps {
   initialRepoId?: string | null;
   initialRepoName?: string | null;
   initialRepoMetadata?: BlockMetadata | null;
+  onRepoNameChange?: (name: string | null) => void;
   onRepoIdChange?: (repoId: string | null) => void;
   onRepoMetadataChange?: (metadata: BlockMetadata | null) => void;
   onPublishBlock?: (payload: {
@@ -110,6 +112,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   initialRepoId,
   initialRepoName,
   initialRepoMetadata,
+  onRepoNameChange,
   onRepoIdChange,
   onRepoMetadataChange,
   onPublishBlock,
@@ -127,8 +130,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   const [template, setTemplate] = useState<BlockTemplate>(
     initialData?.template ?? generateEmptyTemplate()
   );
-  type VisualUpdateMetadata = { historyBatchId?: string };
-
   const [visual, setVisualState] = useState<VisualTemplate>(
     initialData?.visual ?? {}
   ); // mapa visual separado
@@ -273,7 +274,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       });
       return shouldDelete;
     },
-    [confirmAsync, controlsInUseForRepo, repoId],
+    [controlsInUseForRepo, repoId],
   );
 
   const handleControlDeleted = useCallback(
@@ -406,6 +407,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   }, [initialRepoId]);
 
   useEffect(() => {
+    setRepoMetadata(initialRepoMetadata ?? null);
+  }, [initialRepoMetadata]);
+
+  useEffect(() => {
+    setRepoName(initialRepoMetadata?.name ?? initialRepoName ?? '');
+  }, [initialRepoMetadata?.name, initialRepoName]);
+
+  useEffect(() => {
     persistedProjectRef.current = null;
     hasLoadedProjectRef.current = false;
   }, [projectId]);
@@ -453,6 +462,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
         ...base,
         version: MALLA_SCHEMA_VERSION,
         masters: nextMasters,
+        draftBlockName: !repoId ? repoName.trim() || undefined : undefined,
         grid: base.grid ?? { cols: 5, rows: 5 },
         pieces: base.pieces ?? [],
         values: base.values ?? {},
@@ -465,6 +475,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       data = {
         version: MALLA_SCHEMA_VERSION,
         masters: { master: { template, visual, aspect } },
+        draftBlockName: !repoId ? repoName.trim() || undefined : undefined,
         grid: { cols: 5, rows: 5 },
         pieces: [],
         values: {},
@@ -489,6 +500,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     repoBlocks,
     loadProject,
     repoId,
+    repoName,
     shouldReusePersistedMalla,
   ]);
 
@@ -498,101 +510,16 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     () => ({ template, visual, aspect }),
     [template, visual, aspect],
   );
-  const draftSerialized = useMemo(() => computeSignature(draftContent), [draftContent]);
   const hasDraftDesign = useMemo(() => hasBlockDesign(draftContent), [draftContent]);
-
-  const historyRef = useRef<BlockContent[]>([]);
-  const historySerializedRef = useRef<string[]>([]);
-  const historyMetadataRef = useRef<(VisualUpdateMetadata | null)[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const [isHistoryInitialized, setIsHistoryInitialized] = useState(false);
-  const isRestoringRef = useRef(false);
-  const ignoreNextInitialDataRef = useRef(false);
-
-  useEffect(() => {
-    if (ignoreNextInitialDataRef.current) {
-      ignoreNextInitialDataRef.current = false;
-      return;
-    }
-    setIsHistoryInitialized(false);
-  }, [initialDataSignature]);
-
-  useEffect(() => {
-    if (!isHistoryInitialized) {
-      const initialEntry = cloneBlockContent(draftContent);
-      historyRef.current = [initialEntry];
-      historySerializedRef.current = [draftSerialized];
-      historyMetadataRef.current = [null];
-      pendingVisualUpdateMetaRef.current = null;
-      setHistoryIndex(0);
-      setIsHistoryInitialized(true);
-      return;
-    }
-    if (isRestoringRef.current) {
-      isRestoringRef.current = false;
-      pendingVisualUpdateMetaRef.current = null;
-      return;
-    }
-    const currentSerialized = historySerializedRef.current[historyIndex];
-    if (currentSerialized === draftSerialized) {
-      pendingVisualUpdateMetaRef.current = null;
-      return;
-    }
-    const truncatedHistory = historyRef.current.slice(0, historyIndex + 1);
-    const truncatedSerialized = historySerializedRef.current.slice(0, historyIndex + 1);
-    const truncatedMetadata = historyMetadataRef.current.slice(0, historyIndex + 1);
-    const nextEntry = cloneBlockContent(draftContent);
-    const pendingMeta = pendingVisualUpdateMetaRef.current;
-    pendingVisualUpdateMetaRef.current = null;
-    if (
-      pendingMeta?.historyBatchId &&
-      truncatedHistory.length > 0 &&
-      truncatedMetadata[truncatedMetadata.length - 1]?.historyBatchId === pendingMeta.historyBatchId
-    ) {
-      truncatedHistory[truncatedHistory.length - 1] = nextEntry;
-      truncatedSerialized[truncatedSerialized.length - 1] = draftSerialized;
-      truncatedMetadata[truncatedMetadata.length - 1] = pendingMeta;
-      historyRef.current = truncatedHistory;
-      historySerializedRef.current = truncatedSerialized;
-      historyMetadataRef.current = truncatedMetadata;
-      setHistoryIndex(truncatedHistory.length - 1);
-      return;
-    }
-    const result = pushHistoryEntry({
-      entries: historyRef.current,
-      serialized: historySerializedRef.current,
-      index: historyIndex,
-      newEntry: nextEntry,
-      newSerialized: draftSerialized,
-      metadata: historyMetadataRef.current,
-      newMetadata: pendingMeta ?? null,
-    });
-    historyRef.current = result.entries;
-    historySerializedRef.current = result.serialized;
-    historyMetadataRef.current = result.metadata ?? [];
-    setHistoryIndex(result.index);
-  }, [
+  const { canUndo, canRedo, handleUndo, handleRedo } = useBlockEditorHistory({
     draftContent,
-    draftSerialized,
-    historyIndex,
-    isHistoryInitialized,
-  ]);
-
-  const applyHistoryEntry = useCallback(
-    (entry: BlockContent) => {
-      const clone = cloneBlockContent(entry);
-      setTemplate(clone.template);
-      setVisual(clone.visual);
-      setAspect(clone.aspect);
-    },
-    [setTemplate, setVisual, setAspect],
-  );
-
-  useEffect(() => {
-    if (!onDraftChange) return;
-    ignoreNextInitialDataRef.current = true;
-    onDraftChange(cloneBlockContent(draftContent));
-  }, [draftContent, onDraftChange]);
+    initialDataSignature,
+    pendingVisualUpdateMetaRef,
+    setTemplate,
+    setVisual,
+    setAspect,
+    onDraftChange,
+  });
   const repoRecord = useMemo(
     () => (repoId ? repoBlocks.find((b) => b.metadata.uuid === repoId) ?? null : null),
     [repoBlocks, repoId],
@@ -644,6 +571,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       if (input === null) return null;
       name = input.trim();
       setRepoName(name);
+      onRepoNameChange?.(name);
     }
     const now = new Date().toISOString();
     const existingMetadata = repoMetadata ?? repoRecord?.metadata ?? null;
@@ -689,6 +617,7 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
 
     setRepoMetadata(metadata);
     setRepoName(metadata.name);
+    onRepoNameChange?.(metadata.name);
     onRepoMetadataChange?.(metadata);
 
     const savedContent = cloneBlockContent(draftContent);
@@ -716,12 +645,13 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     projectId,
     repoSaveBlock,
     draftContent,
+    projectTheme,
     onRepoIdChange,
+    onRepoNameChange,
     onRepoMetadataChange,
     onPublishBlock,
     isBlockInUse,
     pushToast,
-    promptAsync,
   ]);
 
   const handleRename = useCallback(async () => {
@@ -732,13 +662,14 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       message: 'Ingresa el nuevo nombre para este bloque.',
       defaultValue: defaultName,
       placeholder: 'Nombre del bloque',
-      confirmLabel: 'Guardar',
+      confirmLabel: 'Actualizar',
       cancelLabel: 'Cancelar',
       normalize: (value) => value.trim(),
     });
     if (input === null) return;
     const trimmed = input.trim();
     setRepoName(trimmed);
+    onRepoNameChange?.(trimmed);
     if (!repoId) {
       return;
     }
@@ -764,8 +695,8 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
     repoRecord,
     projectId,
     repoUpdateBlockMetadata,
+    onRepoNameChange,
     onRepoMetadataChange,
-    promptAsync,
   ]);
 
   const ensurePublishedAndProceed = useCallback<ProceedToMallaHandler>(
@@ -839,7 +770,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
       repoContent,
       pushToast,
       skipNextDirtyBlockCheck,
-      confirmAsync,
     ],
   );
 
@@ -886,29 +816,6 @@ export const BlockEditorScreen: React.FC<BlockEditorScreenProps> = ({
   useEffect(() => {
     setSelectedCoord(undefined);
   }, [mode]);
-
-  const canUndo = historyIndex > 0;
-  const canRedo = historyIndex < historyRef.current.length - 1;
-
-  const handleUndo = useCallback(() => {
-    if (historyIndex <= 0) return;
-    const newIndex = historyIndex - 1;
-    const entry = historyRef.current[newIndex];
-    if (!entry) return;
-    isRestoringRef.current = true;
-    applyHistoryEntry(entry);
-    setHistoryIndex(newIndex);
-  }, [historyIndex, applyHistoryEntry]);
-
-  const handleRedo = useCallback(() => {
-    if (historyIndex >= historyRef.current.length - 1) return;
-    const newIndex = historyIndex + 1;
-    const entry = historyRef.current[newIndex];
-    if (!entry) return;
-    isRestoringRef.current = true;
-    applyHistoryEntry(entry);
-    setHistoryIndex(newIndex);
-  }, [historyIndex, applyHistoryEntry]);
 
   useAppCommand('undo', handleUndo, canUndo);
   useAppCommand('redo', handleRedo, canRedo);

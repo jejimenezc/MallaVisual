@@ -16,6 +16,7 @@ import {
   type SnapshotCellStyle,
 } from '../types/malla-snapshot.ts';
 import {
+  MALLA_SCHEMA_VERSION,
   type MallaExport,
   getCellConfigForColumn,
   normalizeMetaPanelConfig,
@@ -44,8 +45,6 @@ const HEADER_BAND_BG_COLOR = '#f8fafc';
 const HEADER_BAND_TEXT_COLOR = '#475569';
 const METRIC_BAND_BG_COLOR = '#ffffff';
 const METRIC_BAND_TEXT_COLOR = '#6b7280';
-const EMPTY_HEADER_HINT = 'Click para editar';
-const EMPTY_METRIC_HINT = 'Click para editar';
 const BAND_FONT_SIZE_PX = 12;
 
 const createBandCellStyle = (input?: Partial<SnapshotCellStyle>): SnapshotCellStyle => ({
@@ -65,8 +64,11 @@ interface BuildSnapshotOptions {
   createdAt?: string;
   snapshotId?: string;
   appVersion?: string;
+  sourceSchemaVersion?: number;
   appearance?: ViewerTheme;
 }
+
+export const SUPPORTED_MALLA_SNAPSHOT_FORMAT_VERSIONS = [MALLA_SNAPSHOT_FORMAT_VERSION] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -392,7 +394,7 @@ const buildHeaderBand = (malla: MallaExport, tokens: Record<string, string>): Sn
           : undefined;
       return {
         col: colIndex,
-        text: text.trim().length > 0 ? text : EMPTY_HEADER_HINT,
+        text: text.trim(),
         bold,
         style: createBandCellStyle({
           backgroundColor: paletteBackground ?? HEADER_BAND_BG_COLOR,
@@ -403,7 +405,7 @@ const buildHeaderBand = (malla: MallaExport, tokens: Record<string, string>): Sn
           paddingX: 6,
           paddingY: 4,
           bold,
-          italic: text.trim().length === 0,
+          italic: false,
         }),
       };
     });
@@ -424,7 +426,7 @@ const buildMetricsBand = (
   if (metaPanel.enabled === false) {
     return null;
   }
-  const rowsConfig = metaPanel.rows ?? [];
+  const rowsConfig = (metaPanel.rows ?? []).filter((row) => row.hidden !== true);
   if (rowsConfig.length === 0) {
     return null;
   }
@@ -450,7 +452,7 @@ const buildMetricsBand = (
       const hasRowLabel = typeof rowLabel === 'string' && rowLabel.trim().length > 0;
       const showEmptyHint = value == null && !hasTerms && !hasRowLabel;
       const displayValue = value == null
-        ? (showEmptyHint ? EMPTY_METRIC_HINT : '-')
+        ? (showEmptyHint ? '' : '-')
         : `#${value}${hasOverride ? '*' : ''}`;
 
       return {
@@ -465,7 +467,7 @@ const buildMetricsBand = (
           fontSizePx: BAND_FONT_SIZE_PX,
           paddingX: 6,
           paddingY: 4,
-          italic: showEmptyHint,
+          italic: false,
         }),
       };
     });
@@ -521,6 +523,7 @@ export const buildMallaSnapshotFromState = (
     projectName,
     ...(options.snapshotId ? { snapshotId: options.snapshotId } : {}),
     ...(options.appVersion ? { appVersion: options.appVersion } : {}),
+    sourceSchemaVersion: options.sourceSchemaVersion ?? MALLA_SCHEMA_VERSION,
     grid: {
       rows: Math.max(1, malla.grid?.rows ?? 1),
       cols: Math.max(1, malla.grid?.cols ?? 1),
@@ -737,6 +740,26 @@ const normalizeSnapshotBands = (value: unknown): SnapshotBands | null => {
   };
 };
 
+export const migrateSnapshot = (snapshot: unknown): Record<string, unknown> | null => {
+  if (!isRecord(snapshot)) {
+    return null;
+  }
+  if (snapshot.formatVersion === undefined) {
+    return null;
+  }
+  if (
+    typeof snapshot.formatVersion !== 'number' ||
+    !SUPPORTED_MALLA_SNAPSHOT_FORMAT_VERSIONS.includes(
+      snapshot.formatVersion as (typeof SUPPORTED_MALLA_SNAPSHOT_FORMAT_VERSIONS)[number],
+    )
+  ) {
+    return {
+      __migrationError: `Version de snapshot no soportada: ${String(snapshot.formatVersion)}`,
+    };
+  }
+  return snapshot;
+};
+
 export const validateAndNormalizeMallaSnapshot = (
   snapshot: unknown,
 ): MallaSnapshotValidationResult => {
@@ -744,24 +767,25 @@ export const validateAndNormalizeMallaSnapshot = (
     return { ok: false, error: 'Snapshot invalido: se esperaba un objeto JSON.' };
   }
 
-  if (snapshot.formatVersion !== MALLA_SNAPSHOT_FORMAT_VERSION) {
-    return {
-      ok: false,
-      error: `Version de snapshot no soportada: ${String(snapshot.formatVersion)}`,
-    };
+  const migrated = migrateSnapshot(snapshot);
+  if (!migrated) {
+    return { ok: false, error: 'Snapshot invalido: formatVersion es obligatorio.' };
+  }
+  if ('__migrationError' in migrated) {
+    return { ok: false, error: String(migrated.__migrationError) };
   }
 
-  const createdAt = typeof snapshot.createdAt === 'string' ? snapshot.createdAt.trim() : '';
+  const createdAt = typeof migrated.createdAt === 'string' ? migrated.createdAt.trim() : '';
   if (!createdAt || !isIsoDateString(createdAt)) {
     return { ok: false, error: 'Snapshot invalido: createdAt debe ser un ISO string valido.' };
   }
 
-  const projectName = typeof snapshot.projectName === 'string' ? snapshot.projectName.trim() : '';
+  const projectName = typeof migrated.projectName === 'string' ? migrated.projectName.trim() : '';
   if (!projectName) {
     return { ok: false, error: 'Snapshot invalido: projectName es obligatorio.' };
   }
 
-  const gridRecord = isRecord(snapshot.grid) ? snapshot.grid : null;
+  const gridRecord = isRecord(migrated.grid) ? migrated.grid : null;
   if (!gridRecord) {
     return { ok: false, error: 'Snapshot invalido: falta la definicion de grid.' };
   }
@@ -771,7 +795,7 @@ export const validateAndNormalizeMallaSnapshot = (
     return { ok: false, error: 'Snapshot invalido: grid.rows y grid.cols deben ser enteros positivos.' };
   }
 
-  const rawItems = Array.isArray(snapshot.items) ? snapshot.items : null;
+  const rawItems = Array.isArray(migrated.items) ? migrated.items : null;
   if (!rawItems) {
     return { ok: false, error: 'Snapshot invalido: items debe ser un arreglo.' };
   }
@@ -782,21 +806,31 @@ export const validateAndNormalizeMallaSnapshot = (
     return { ok: false, error: 'Snapshot invalido: hay items con formato incorrecto.' };
   }
 
-  const hasBands = snapshot.bands !== undefined;
-  const bands = hasBands ? normalizeSnapshotBands(snapshot.bands) : undefined;
+  const hasBands = migrated.bands !== undefined;
+  const bands = hasBands ? normalizeSnapshotBands(migrated.bands) : undefined;
   if (hasBands && !bands) {
     return { ok: false, error: 'Snapshot invalido: bandas con formato incorrecto.' };
   }
+
+  const sourceSchemaVersion =
+    typeof migrated.sourceSchemaVersion === 'number' &&
+    Number.isInteger(migrated.sourceSchemaVersion) &&
+    migrated.sourceSchemaVersion > 0
+      ? migrated.sourceSchemaVersion
+      : undefined;
 
   const normalizedSnapshot: MallaSnapshot = {
     formatVersion: MALLA_SNAPSHOT_FORMAT_VERSION,
     createdAt,
     projectName,
-    ...(typeof snapshot.snapshotId === 'string' && snapshot.snapshotId.trim()
-      ? { snapshotId: snapshot.snapshotId.trim() }
+    ...(typeof migrated.snapshotId === 'string' && migrated.snapshotId.trim()
+      ? { snapshotId: migrated.snapshotId.trim() }
       : {}),
-    ...(typeof snapshot.appVersion === 'string' && snapshot.appVersion.trim()
-      ? { appVersion: snapshot.appVersion.trim() }
+    ...(typeof migrated.appVersion === 'string' && migrated.appVersion.trim()
+      ? { appVersion: migrated.appVersion.trim() }
+      : {}),
+    ...(sourceSchemaVersion !== undefined
+      ? { sourceSchemaVersion }
       : {}),
     grid: {
       rows,
@@ -804,8 +838,8 @@ export const validateAndNormalizeMallaSnapshot = (
     },
     items,
     ...(bands ? { bands } : {}),
-    ...(snapshot.appearance !== undefined
-      ? { appearance: normalizeViewerTheme(snapshot.appearance) }
+    ...(migrated.appearance !== undefined
+      ? { appearance: normalizeViewerTheme(migrated.appearance) }
       : {}),
   };
 

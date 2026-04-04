@@ -8,7 +8,9 @@ import {
 import { buildBlockId, type BlockMetadata } from '../types/block';
 import type { RepositorySnapshot } from './repository-snapshot';
 import {
+  createBlockStateFromProjectMaster,
   diffPieceValues,
+  isBlockOnlyProjectState,
   prepareMallaProjectState,
   summarizePieceValues,
 } from './app-helpers';
@@ -96,5 +98,66 @@ describe('prepareMallaProjectState', () => {
     expect(result.malla.masters[repoId]).toBeDefined();
     expect(result.malla.repository).toEqual(snapshot.entries);
     expect(result.malla.columnHeaders).toEqual({ enabled: false, rows: [] });
+  });
+});
+
+describe('isBlockOnlyProjectState', () => {
+  test('detects block-only pseudo projects persisted from block editor', () => {
+    const project: MallaExport = {
+      version: MALLA_SCHEMA_VERSION,
+      masters: {
+        master: {
+          template: [[{ active: true, type: 'text', label: 'A' }]],
+          visual: {},
+          aspect: '1/1',
+        },
+      },
+      repository: {},
+      draftBlockName: 'Bloque Local',
+      grid: { cols: 5, rows: 5 },
+      pieces: [],
+      values: {},
+      floatingPieces: [],
+      activeMasterId: 'master',
+      theme: createDefaultProjectTheme(),
+    };
+
+    expect(isBlockOnlyProjectState(project)).toBe(true);
+    expect(createBlockStateFromProjectMaster(project).repoName).toBe('Bloque Local');
+    expect(createBlockStateFromProjectMaster(project).draft.template).toEqual(
+      project.masters.master?.template,
+    );
+  });
+
+  test('does not classify malla projects with placed pieces as block-only', () => {
+    const project: MallaExport = {
+      version: MALLA_SCHEMA_VERSION,
+      masters: {
+        master: {
+          template: [[{ active: true, type: 'text', label: 'A' }]],
+          visual: {},
+          aspect: '1/1',
+        },
+      },
+      repository: {},
+      grid: { cols: 5, rows: 5 },
+      pieces: [
+        {
+          id: 'piece-1',
+          x: 0,
+          y: 0,
+          kind: 'snapshot',
+          template: [[{ active: true, type: 'text', label: 'A' }]],
+          visual: {},
+          aspect: '1/1',
+        },
+      ],
+      values: {},
+      floatingPieces: [],
+      activeMasterId: 'master',
+      theme: createDefaultProjectTheme(),
+    };
+
+    expect(isBlockOnlyProjectState(project)).toBe(false);
   });
 });

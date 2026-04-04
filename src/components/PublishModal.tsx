@@ -1,57 +1,139 @@
-import React, { useEffect, useRef } from 'react';
-import type { JSX } from 'react';
+import { useEffect, useRef, type JSX } from 'react';
 import { Button } from './Button';
+import type {
+  PublicationMode,
+  PublicationProduct,
+} from '../utils/publication-output.ts';
+import {
+  getPublicationActionButtonLabel,
+  type OperationStatus,
+} from '../utils/publication-feedback.ts';
 import styles from './PublishModal.module.css';
 
 export type PublishOrigin = 'editor' | 'viewer';
 export type PublishActionAvailability = 'ready' | 'placeholder';
-export type PublishActionKey = 'json' | 'pdf' | 'openWeb' | 'copyLink';
+export type PublishActionKey = PublicationProduct;
 
 interface PublishActionConfig {
   availability: PublishActionAvailability;
-  isRunning?: boolean;
+  status?: OperationStatus;
+  detail?: string;
 }
 
-interface PublishActions {
-  json: PublishActionConfig;
-  pdf: PublishActionConfig;
-  openWeb: PublishActionConfig;
-  copyLink: PublishActionConfig;
-}
+type PublishActions = Record<PublishActionKey, PublishActionConfig>;
 
 interface Props {
   isOpen: boolean;
   origin: PublishOrigin;
+  mode: PublicationMode;
   actions: PublishActions;
   onClose: () => void;
-  onDownloadJson: () => Promise<void> | void;
-  onDownloadPdf: () => Promise<void> | void;
-  onOpenPublishedVersion: () => Promise<void> | void;
-  onCopyLink: () => Promise<void> | void;
-  onGoToEditor: () => void;
-  onGoToViewer: () => void;
+  onSelectProduct: (product: PublicationProduct) => Promise<void> | void;
+  onGoToPresentation: () => void;
+  onGoToDocument: () => void;
 }
 
-const ACTION_TOOLTIPS: Record<PublishActionKey, string> = {
-  json: 'Guarda el archivo para volver a editarlo o cargarlo en esta aplicación.',
-  pdf: 'Prepara una salida estática para archivar, imprimir o distribuir fuera de la app.',
-  openWeb: 'Abre la versión publicada en una pestaña para revisar o compartir.',
-  copyLink: 'Copia la URL pública para reutilizarla donde necesites.',
+interface ProductDescriptor {
+  key: PublicationProduct;
+  title: string;
+  description: string;
+}
+
+const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
+  'snapshot-json': {
+    key: 'snapshot-json',
+    title: 'Respaldo de lectura',
+    description: 'Descarga un archivo de datos para volver a abrir esta version especifica en el visor.',
+  },
+  print: {
+    key: 'print',
+    title: 'Impresion',
+    description: 'Abre el dialogo de impresion con la configuracion documental visible en pantalla.',
+  },
+  pdf: {
+    key: 'pdf',
+    title: 'PDF',
+    description: 'Prepara un documento paginado para guardarlo como PDF desde el navegador.',
+  },
+  'html-web': {
+    key: 'html-web',
+    title: 'Vista online',
+    description: 'Abre una publicacion continua en otra pestaña para revision o difusion web.',
+  },
+  'html-download': {
+    key: 'html-download',
+    title: 'Archivo web (.html)',
+    description: 'Descarga una version HTML autonoma para abrirla sin conexion.',
+  },
+  'html-paginated': {
+    key: 'html-paginated',
+    title: 'HTML paginado',
+    description: 'Descarga una version web que conserva la division por paginas del modo documento.',
+  },
+  'html-embed': {
+    key: 'html-embed',
+    title: 'Codigo para insertar',
+    description: 'Descarga una variante simplificada para embeber la malla en otro sitio.',
+  },
 };
 
-const SHARED_SECTION_NOTE = 'Cualquier persona con el enlace podrá ver la versión consolidada.';
+const MODE_SECTIONS: Record<
+  PublicationMode,
+  {
+    title: string;
+    subtitle: string;
+    sectionTitle: string;
+    sectionDescription: string;
+    products: PublicationProduct[];
+    note: string;
+    secondaryLabel: string;
+  }
+> = {
+  presentation: {
+    title: 'Publicar web/datos',
+    subtitle: 'Genera salidas continuas para compartir en linea o respaldar la informacion visible.',
+    sectionTitle: 'Visualizacion y respaldo',
+    sectionDescription: 'Opciones pensadas para pantalla, apertura en navegador y respaldo de datos.',
+    products: ['html-web', 'html-download', 'html-embed', 'snapshot-json'],
+    note: 'Para PDF, impresion o HTML paginado, cambia al modo documento.',
+    secondaryLabel: 'Ir al modo documento',
+  },
+  document: {
+    title: 'Publicar documento',
+    subtitle: 'Genera salidas paginadas para impresion, PDF o distribucion documental.',
+    sectionTitle: 'Formato documento',
+    sectionDescription: 'Salidas por pagina con margenes, orientacion y estructura editorial.',
+    products: ['pdf', 'html-paginated', 'print'],
+    note: 'Si necesitas una visualizacion continua o un respaldo de datos, vuelve al modo presentacion.',
+    secondaryLabel: 'Volver al modo presentacion',
+  },
+};
+
+const STATUS_LABEL: Record<OperationStatus, string> = {
+  success: 'Completado',
+  idle: '',
+  waiting: '',
+  running: '',
+  error: '',
+};
+
+const STATUS_CLASS_BY_KEY: Record<OperationStatus, string> = {
+  idle: styles.actionStatusIdle,
+  waiting: styles.actionStatusWaiting,
+  running: styles.actionStatusRunning,
+  success: styles.actionStatusSuccess,
+  error: styles.actionStatusError,
+};
 
 export function PublishModal({
   isOpen,
   origin,
+  mode,
   actions,
   onClose,
-  onDownloadJson,
-  onDownloadPdf,
-  onOpenPublishedVersion,
-  onCopyLink,
-  onGoToEditor,
-  onGoToViewer,
+  onSelectProduct,
+  onGoToPresentation,
+  onGoToDocument,
 }: Props): JSX.Element | null {
   const initialFocusRef = useRef<HTMLButtonElement | null>(null);
 
@@ -72,26 +154,13 @@ export function PublishModal({
 
   if (!isOpen) return null;
 
-  const footerSecondaryLabel = origin === 'viewer' ? 'Ir al editor' : 'Ver en modo Presentación';
-  const footerSecondaryAction = origin === 'viewer' ? onGoToEditor : onGoToViewer;
+  const section = MODE_SECTIONS[mode];
+  const isBusy = section.products.some((product) => actions[product].status === 'running');
+  const footerSecondaryAction = mode === 'document' ? onGoToPresentation : onGoToDocument;
   const footerNote =
     origin === 'viewer'
-      ? 'Desde aquí puedes exportar esta versión o volver al editor para seguir ajustándola.'
-      : 'Puedes revisar la salida en el viewer antes de compartir o exportar esta versión.';
-
-  const runAction =
-    (handler: () => Promise<void> | void, availability: PublishActionAvailability) =>
-    () => {
-      void handler();
-      if (availability === 'placeholder') return;
-    };
-
-  const isBusy = Boolean(
-    actions.json.isRunning ||
-      actions.pdf.isRunning ||
-      actions.openWeb.isRunning ||
-      actions.copyLink.isRunning,
-  );
+      ? 'Las salidas usan el mismo layout que ves en el visor activo.'
+      : 'Abre el visor en el modo adecuado si necesitas revisar la salida antes de publicarla.';
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -106,98 +175,60 @@ export function PublishModal({
       >
         <header className={styles.header}>
           <h2 className={styles.title} id="publish-modal-title">
-            Publicar versión
+            {section.title}
           </h2>
           <p className={styles.subtitle} id="publish-modal-description">
-            Elige qué salida quieres generar para esta versión consolidada.
+            {section.subtitle}
           </p>
         </header>
 
         <div className={styles.content}>
-          <section className={styles.section} aria-labelledby="publish-modal-web-title">
+          <section className={styles.section} aria-labelledby="publish-modal-products-title">
             <div className={styles.sectionHeader}>
               <div>
-                <h3 className={styles.sectionTitle} id="publish-modal-web-title">
-                  Publicación Web
+                <h3 className={styles.sectionTitle} id="publish-modal-products-title">
+                  {section.sectionTitle}
                 </h3>
-                <p className={styles.sectionDescription}>
-                  Comparte una versión consolidada para visualización online.
-                </p>
+                <p className={styles.sectionDescription}>{section.sectionDescription}</p>
               </div>
             </div>
 
             <div className={styles.grid}>
-              <article className={styles.actionCard}>
-                <Button
-                  type="button"
-                  variant="primary"
-                  title={ACTION_TOOLTIPS.openWeb}
-                  aria-busy={actions.openWeb.isRunning}
-                  aria-disabled={actions.openWeb.availability === 'placeholder'}
-                  disabled={actions.openWeb.isRunning}
-                  onClick={runAction(onOpenPublishedVersion, actions.openWeb.availability)}
-                >
-                  {actions.openWeb.isRunning ? 'Abriendo...' : 'Abrir en Navegador'}
-                </Button>
-              </article>
+              {section.products.map((product, index) => {
+                const descriptor = PRODUCT_COPY[product];
+                const action = actions[product];
+                const status = action.status ?? 'idle';
 
-              <article className={styles.actionCard}>
-                <Button
-                  type="button"
-                  title={ACTION_TOOLTIPS.copyLink}
-                  aria-busy={actions.copyLink.isRunning}
-                  aria-disabled={actions.copyLink.availability === 'placeholder'}
-                  disabled={actions.copyLink.isRunning}
-                  onClick={runAction(onCopyLink, actions.copyLink.availability)}
-                >
-                  {actions.copyLink.isRunning ? 'Copiando...' : 'Copiar Enlace'}
-                </Button>
-              </article>
+                return (
+                  <article key={product} className={styles.actionCard}>
+                    <div className={styles.actionCardBody}>
+                      <h4 className={styles.actionTitle}>{descriptor.title}</h4>
+                      <p className={styles.actionDescription}>{descriptor.description}</p>
+                      {status === 'success' ? (
+                        <p className={`${styles.actionStatus} ${STATUS_CLASS_BY_KEY[status]}`}>
+                          {STATUS_LABEL[status]}
+                        </p>
+                      ) : null}
+                      <Button
+                        ref={index === 0 ? initialFocusRef : undefined}
+                        type="button"
+                        variant={index === 0 ? 'primary' : 'default'}
+                        aria-busy={status === 'running'}
+                        className={status === 'success' ? styles.actionButtonSuccess : undefined}
+                        disabled={status === 'running' || action.availability !== 'ready'}
+                        onClick={() => void onSelectProduct(product)}
+                      >
+                        {getPublicationActionButtonLabel(product, status)}
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
-
-            <p className={styles.sectionNote}>{SHARED_SECTION_NOTE}</p>
           </section>
 
-          <section className={styles.section} aria-labelledby="publish-modal-files-title">
-            <div className={styles.sectionHeader}>
-              <div>
-                <h3 className={styles.sectionTitle} id="publish-modal-files-title">
-                  Formatos de Archivo
-                </h3>
-                <p className={styles.sectionDescription}>
-                  Exporta esta versión para respaldo, archivo o impresión.
-                </p>
-              </div>
-            </div>
-
-            <div className={styles.grid}>
-              <article className={styles.actionCard}>
-                <Button
-                  ref={initialFocusRef}
-                  type="button"
-                  variant="primary"
-                  title={ACTION_TOOLTIPS.json}
-                  aria-busy={actions.json.isRunning}
-                  disabled={actions.json.isRunning}
-                  onClick={runAction(onDownloadJson, actions.json.availability)}
-                >
-                  {actions.json.isRunning ? 'Descargando...' : 'Descargar Respaldo (.json)'}
-                </Button>
-              </article>
-
-              <article className={styles.actionCard}>
-                <Button
-                  type="button"
-                  title={ACTION_TOOLTIPS.pdf}
-                  aria-busy={actions.pdf.isRunning}
-                  aria-disabled={actions.pdf.availability === 'placeholder'}
-                  disabled={actions.pdf.isRunning}
-                  onClick={runAction(onDownloadPdf, actions.pdf.availability)}
-                >
-                  {actions.pdf.isRunning ? 'Generando...' : 'Generar Archivo (.pdf)'}
-                </Button>
-              </article>
-            </div>
+          <section className={styles.section}>
+            <p className={styles.sectionNote}>{section.note}</p>
           </section>
         </div>
 
@@ -208,7 +239,7 @@ export function PublishModal({
               Cerrar
             </Button>
             <Button type="button" variant="secondary" onClick={footerSecondaryAction}>
-              {footerSecondaryLabel}
+              {section.secondaryLabel}
             </Button>
           </div>
         </footer>

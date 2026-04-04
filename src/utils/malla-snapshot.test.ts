@@ -3,13 +3,18 @@ import { test } from 'vitest';
 import type { BlockTemplate, MasterBlockData } from '../types/curricular.ts';
 import type { VisualTemplate, BlockAspect } from '../types/visual.ts';
 import type { MallaExport } from './malla-io.ts';
-import { createDefaultMetaPanel, createDefaultProjectTheme } from './malla-io.ts';
+import {
+  createDefaultMetaPanel,
+  createDefaultProjectTheme,
+  MALLA_SCHEMA_VERSION,
+} from './malla-io.ts';
 import { createDefaultColumnHeaders } from './column-headers.ts';
 import { buildBlockId } from '../types/block.ts';
 import { BLOCK_SCHEMA_VERSION } from './block-io.ts';
 import { createDefaultViewerTheme } from './viewer-theme.ts';
 import {
   buildMallaSnapshotFromState,
+  migrateSnapshot,
   validateAndNormalizeMallaSnapshot,
 } from './malla-snapshot.ts';
 import { MALLA_SNAPSHOT_FORMAT_VERSION } from '../types/malla-snapshot.ts';
@@ -76,10 +81,15 @@ test('buildMallaSnapshotFromState creates v1 snapshot and excludes editor reposi
   const snapshot = buildMallaSnapshotFromState(malla, {
     projectName: 'Plan 2026',
     createdAt: '2026-03-05T12:00:00.000Z',
+    snapshotId: 'snapshot-1',
+    appVersion: '1.2.3',
   });
 
   assert.equal(snapshot.formatVersion, MALLA_SNAPSHOT_FORMAT_VERSION);
   assert.equal(snapshot.projectName, 'Plan 2026');
+  assert.equal(snapshot.snapshotId, 'snapshot-1');
+  assert.equal(snapshot.appVersion, '1.2.3');
+  assert.equal(snapshot.sourceSchemaVersion, MALLA_SCHEMA_VERSION);
   assert.equal(snapshot.items.length, 1);
   assert.equal(snapshot.items[0]?.cells[0]?.text, 'Introducción');
   assert.equal(snapshot.items[0]?.cells[1]?.text, 'Texto visible');
@@ -149,6 +159,9 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
     formatVersion: 1,
     createdAt: '2026-03-05T12:00:00.000Z',
     projectName: 'Plan 2026',
+    snapshotId: 'snapshot-2',
+    appVersion: '1.0.0',
+    sourceSchemaVersion: 6,
     grid: { rows: 3, cols: 4 },
     items: [],
     bands: {
@@ -181,6 +194,9 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
   assert.equal(okResult.ok, true);
   if (okResult.ok) {
     assert.equal(okResult.normalizedSnapshot.formatVersion, 1);
+    assert.equal(okResult.normalizedSnapshot.snapshotId, 'snapshot-2');
+    assert.equal(okResult.normalizedSnapshot.appVersion, '1.0.0');
+    assert.equal(okResult.normalizedSnapshot.sourceSchemaVersion, 6);
     assert.equal(okResult.normalizedSnapshot.grid.rows, 3);
     assert.equal(okResult.normalizedSnapshot.items.length, 0);
     assert.equal(okResult.normalizedSnapshot.bands?.headers?.rows.length, 1);
@@ -196,6 +212,17 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
   assert.equal(invalidVersion.ok, false);
   if (!invalidVersion.ok) {
     assert.equal(invalidVersion.error.includes('no soportada'), true);
+  }
+
+  const missingVersion = validateAndNormalizeMallaSnapshot({
+    createdAt: '2026-03-05T12:00:00.000Z',
+    projectName: 'Plan 2026',
+    grid: { rows: 3, cols: 4 },
+    items: [],
+  });
+  assert.equal(missingVersion.ok, false);
+  if (!missingVersion.ok) {
+    assert.equal(missingVersion.error.includes('formatVersion es obligatorio'), true);
   }
 
   const invalidBands = validateAndNormalizeMallaSnapshot({
@@ -238,17 +265,38 @@ test('snapshot publication appearance is normalized and preserved', () => {
     appearance: {
       ...createDefaultViewerTheme(),
       gapX: 999,
+      showTitle: true,
+      titleText: 'Titulo web',
+      titleFontSize: 99,
       showHeaderFooter: true,
     },
   });
 
   assert.equal(snapshot.appearance?.gapX, 96);
+  assert.equal(snapshot.appearance?.showTitle, true);
+  assert.equal(snapshot.appearance?.titleText, 'Titulo web');
+  assert.equal(snapshot.appearance?.titleFontSize, 40);
   assert.equal(snapshot.appearance?.showHeaderFooter, true);
 
   const normalized = validateAndNormalizeMallaSnapshot(snapshot);
   assert.equal(normalized.ok, true);
   if (normalized.ok) {
     assert.equal(normalized.normalizedSnapshot.appearance?.gapX, 96);
+    assert.equal(normalized.normalizedSnapshot.appearance?.showTitle, true);
+    assert.equal(normalized.normalizedSnapshot.appearance?.titleText, 'Titulo web');
+    assert.equal(normalized.normalizedSnapshot.appearance?.titleFontSize, 40);
     assert.equal(normalized.normalizedSnapshot.appearance?.showHeaderFooter, true);
   }
+});
+
+test('migrateSnapshot is identity for current format', () => {
+  const snapshot = {
+    formatVersion: MALLA_SNAPSHOT_FORMAT_VERSION,
+    createdAt: '2026-03-05T12:00:00.000Z',
+    projectName: 'Plan 2026',
+    grid: { rows: 1, cols: 1 },
+    items: [],
+  };
+
+  assert.deepEqual(migrateSnapshot(snapshot), snapshot);
 });

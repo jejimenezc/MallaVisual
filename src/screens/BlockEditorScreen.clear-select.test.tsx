@@ -15,6 +15,7 @@ const setProceedHandlerMock = vi.fn();
 const resetProceedHandlerMock = vi.fn();
 const defaultProceedMock = vi.fn();
 const skipNextDirtyCheckMock = vi.fn();
+const pushToastMock = vi.fn();
 
 vi.mock('../core/persistence/hooks.ts', () => ({
   useProject: () => ({
@@ -89,7 +90,7 @@ import { coordKey } from '../types/visual.ts';
 import * as alerts from '../ui/alerts';
 
 vi.mock('../ui/toast/ToastContext.tsx', () => ({
-  useToast: () => vi.fn(),
+  useToast: () => pushToastMock,
 }));
 
 const onRequestControlDataClear = vi.fn();
@@ -121,6 +122,7 @@ describe('BlockEditorScreen – borrar select con conditionalBg', () => {
     defaultProceedMock.mockReset();
     skipNextDirtyCheckMock.mockReset();
     onRequestControlDataClear.mockReset();
+    pushToastMock.mockReset();
 
     listBlocksMock.mockReturnValue([]);
     loadProjectMock.mockReturnValue(null);

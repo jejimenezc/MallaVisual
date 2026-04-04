@@ -1,8 +1,8 @@
 // src/components/TemplateCell.tsx
 
 import React from 'react';
-import { BlockTemplate, BlockTemplateCell } from '../types/curricular.ts';
-import { VisualTemplate } from '../types/visual.ts';
+import type { BlockTemplate, BlockTemplateCell } from '../types/curricular.ts';
+import type { VisualTemplate } from '../types/visual.ts';
 import { collectSelectControls } from '../utils/selectControls.ts';
 import { evaluateExpression } from '../utils/calc.ts';
 

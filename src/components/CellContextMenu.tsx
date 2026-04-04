@@ -1,6 +1,6 @@
 // src/components/CellContextMenu.tsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { InputType } from '../types/curricular';
+import type { InputType } from '../types/curricular';
 import '../styles/CellContextMenu.css';
 
 export interface CellContextMenuProps {

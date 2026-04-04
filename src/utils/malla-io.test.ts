@@ -7,6 +7,7 @@ import {
   getActiveMetaPanelRow,
   importMalla,
   MALLA_SCHEMA_VERSION,
+  SUPPORTED_MALLA_SCHEMA_VERSIONS,
   createDefaultProjectTheme,
 } from './malla-io.ts';
 import { buildBlockId } from '../types/block.ts';
@@ -245,6 +246,25 @@ test('importMalla adds default metaPanel when absent', () => {
   assert.deepEqual(activeRow.defaultCell.terms, []);
   assert.deepEqual(activeRow.columns, {});
   assert.deepEqual(result.columnHeaders, { enabled: false, rows: [] });
+});
+
+test('importMalla rejects unsupported future versions safely', () => {
+  assert.equal(SUPPORTED_MALLA_SCHEMA_VERSIONS.includes(MALLA_SCHEMA_VERSION), true);
+  assert.throws(
+    () =>
+      importMalla(
+        JSON.stringify({
+          version: 99,
+          masters: {},
+          repository: {},
+          grid: { cols: 1, rows: 1 },
+          pieces: [],
+          values: {},
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /incompatible/i,
+  );
 });
 
 test('importMalla migrates legacy row config (columns-only) into defaultCell and preserves overrides', () => {

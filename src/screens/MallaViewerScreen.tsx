@@ -6,30 +6,15 @@ import { Button } from '../components/Button';
 import type { MallaSnapshot } from '../types/malla-snapshot.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
-  applyViewerTheme,
   createDefaultViewerTheme,
   VIEWER_MAX_ZOOM,
   VIEWER_MIN_ZOOM,
+  VIEWER_THEME_MAX_TITLE_FONT_SIZE,
+  VIEWER_THEME_MIN_TITLE_FONT_SIZE,
+  VIEWER_THEME_TITLE_FONT_SIZE_STEP,
   VIEWER_ZOOM_STEP,
 } from '../utils/viewer-theme.ts';
 import {
-  createDefaultViewerPrintSettings,
-  resolveViewerAxisXColumnSegments,
-  resolveViewerContentPlacementMetrics,
-  resolveViewerEffectivePrintScale,
-  resolveViewerAxisYLineSegments,
-  resolveViewerGridCutGuides,
-  resolveViewerPaginatedSurfaceLayout,
-  resolveViewerPaginationGridMetrics,
-  resolveViewerPageMetrics,
-  resolveViewerPageEditorialHeights,
-  resolveViewerPageSliceLayout,
-  resolveViewerPrintCssVars,
-  resolveViewerPrintedPageEditorialLayout,
-  resolveViewerPrintedPagesFromPaginationGrid,
-  resolveViewerPreviewCssVars,
-  resolveViewerPreviewPageMetrics,
-  resolveViewerPrintPageCss,
   resolveViewerPanelMode,
   VIEWER_PRINT_MAX_SCALE,
   VIEWER_PRINT_MIN_SCALE,
@@ -38,24 +23,28 @@ import {
   VIEWER_PRINT_TITLE_MAX_FONT_SIZE,
   VIEWER_PRINT_TITLE_MIN_FONT_SIZE,
   type ViewerPanelMode,
-  type ViewerPaginationTile,
-  type ViewerPrintedPage,
   type ViewerPrintPaperSize,
+  type ViewerPrintSettings,
+} from '../utils/viewer-print.ts';
+import type {
+  resolveViewerPageSliceLayout,
+  resolveViewerPrintedPageEditorialLayout,
 } from '../utils/viewer-print.ts';
 import { useMeasuredPxPerMm } from '../utils/use-measured-px-per-mm.ts';
+import { ViewerPrintDocument } from '../components/ViewerPrintDocument.tsx';
 import styles from './MallaViewerScreen.module.css';
-
-const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
-  refineAxisX: true,
-  refineAxisY: true,
-} as const;
+import { logAppError } from '../core/runtime/logger.ts';
+import { useViewerLayoutModel } from '../state/use-viewer-layout-model.ts';
 
 interface Props {
   snapshot: MallaSnapshot | null;
   mode: 'preview' | 'publication' | null;
   initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
+  printSettings: ViewerPrintSettings;
   onThemeChange: (theme: ViewerTheme) => void;
+  onPrintSettingsChange: (settings: ViewerPrintSettings) => void;
+  onPanelModeChange?: (mode: ViewerPanelMode) => void;
   onBackToEditor: () => void;
   onOpenPublishModal: () => Promise<void> | void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
@@ -92,12 +81,27 @@ const resolveBandCellTextAlign = (align: 'left' | 'center' | 'right' | 'justify'
   return align;
 };
 
+const headerBandTextStyle: React.CSSProperties = {
+  display: '-webkit-box',
+  width: '100%',
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  lineHeight: '1.15',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 3,
+};
+
 export function MallaViewerScreen({
   snapshot,
   mode,
   initialPanelMode = 'preview',
   theme,
+  printSettings,
   onThemeChange,
+  onPrintSettingsChange,
+  onPanelModeChange,
   onBackToEditor,
   onOpenPublishModal,
   onImportPublicationFile,
@@ -106,220 +110,52 @@ export function MallaViewerScreen({
   const viewportRef = useRef<HTMLDivElement>(null);
   const printableRootRef = useRef<HTMLDivElement>(null);
   const printIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const appearancePanelScrollRef = useRef<HTMLDivElement>(null);
+  const appearanceScrollIntervalRef = useRef<number | null>(null);
+  const lastPublicationAppearanceResetRef = useRef<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isAppearanceOpen, setAppearanceOpen] = useState(true);
-  const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>('preview');
-  const [printSettings, setPrintSettings] = useState(() => createDefaultViewerPrintSettings());
+  const [viewerPanelMode, setViewerPanelMode] = useState<ViewerPanelMode>(initialPanelMode);
+  const [appearanceCanScrollUp, setAppearanceCanScrollUp] = useState(false);
+  const [appearanceCanScrollDown, setAppearanceCanScrollDown] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [pointerMode] = useState<'select' | 'pan'>('pan');
   const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
-
-  const renderModel = useMemo(() => {
-    if (!snapshot) return null;
-    return applyViewerTheme(snapshot, theme);
-  }, [snapshot, theme]);
 
   const zoomPct = `${Math.round(zoom * 100)}%`;
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
   const measuredPxPerMm = useMeasuredPxPerMm();
-  const pageMetrics = useMemo(
-    () => resolveViewerPageMetrics(printSettings),
-    [printSettings],
-  );
-  const previewMetrics = useMemo(
-    () => resolveViewerPreviewPageMetrics(pageMetrics, measuredPxPerMm),
-    [measuredPxPerMm, pageMetrics],
-  );
-  const printCssVars = useMemo(
-    () => resolveViewerPrintCssVars(pageMetrics),
-    [pageMetrics],
-  );
-  const previewCssVars = useMemo(
-    () => resolveViewerPreviewCssVars(previewMetrics),
-    [previewMetrics],
-  );
-  const editorialHeights = useMemo(
-    () =>
-      resolveViewerPageEditorialHeights({
-        showDocumentTitle: printSettings.showDocumentTitle,
-        documentTitleOverride: printSettings.documentTitleOverride,
-        pageLayoutMode: printSettings.pageLayoutMode,
-        showHeader: printSettings.showHeader,
-        headerText: printSettings.headerText,
-        showFooter: printSettings.showFooter,
-        footerText: printSettings.footerText,
-        showPageNumbers: printSettings.showPageNumbers,
-        projectName: renderModel?.projectName ?? '',
-        contentHeightMm: pageMetrics.contentHeightMm,
-        pxPerMmY: measuredPxPerMm.pxPerMmY,
-      }),
-    [
-      measuredPxPerMm.pxPerMmY,
-      pageMetrics.contentHeightMm,
-      printSettings.documentTitleOverride,
-      printSettings.footerText,
-      printSettings.headerText,
-      printSettings.pageLayoutMode,
-      printSettings.showDocumentTitle,
-      printSettings.showFooter,
-      printSettings.showHeader,
-      printSettings.showPageNumbers,
-      renderModel?.projectName,
-    ],
-  );
-  const effectivePrintScale = useMemo(
-    () =>
-      resolveViewerEffectivePrintScale({
-        fitToWidth: printSettings.fitToWidth,
-        manualScale: printSettings.scale,
-        baseContentWidthPx: renderModel?.width ?? 1,
-        previewContentWidthPx: previewMetrics.contentWidthPx,
-      }),
-    [previewMetrics.contentWidthPx, printSettings.fitToWidth, printSettings.scale, renderModel?.width],
-  );
-  const effectivePrintScalePct = `${Math.round(effectivePrintScale * 100)}%`;
-  const contentPlacementMetrics = useMemo(
-    () =>
-      resolveViewerContentPlacementMetrics({
-        baseContentWidthPx: renderModel?.width ?? 1,
-        baseContentHeightPx: renderModel?.height ?? 1,
-        previewContentWidthPx: previewMetrics.contentWidthPx,
-        previewContentHeightPx: previewMetrics.contentHeightPx,
-        scale: effectivePrintScale,
-      }),
-    [
-      effectivePrintScale,
-      previewMetrics.contentHeightPx,
-      previewMetrics.contentWidthPx,
-      renderModel?.height,
-      renderModel?.width,
-    ],
-  );
-  const gridPaginationMetrics = useMemo(
-    () =>
-      resolveViewerPaginationGridMetrics({
-        scaledContentWidthPx: contentPlacementMetrics.scaledContentWidthPx,
-        scaledContentHeightPx: contentPlacementMetrics.scaledContentHeightPx,
-        usablePageWidthPx: previewMetrics.contentWidthPx,
-        usablePageHeightPx: previewMetrics.contentHeightPx,
-        firstPageUsableHeightPx: editorialHeights.firstPageUsableHeightPx,
-        continuationPageUsableHeightPx: editorialHeights.continuationPageUsableHeightPx,
-        cutGuides: renderModel
-          ? resolveViewerGridCutGuides({
-              renderModel,
-              scale: contentPlacementMetrics.scale,
-            })
-          : undefined,
-        axisXColumnSegments: renderModel
-          ? resolveViewerAxisXColumnSegments({
-              renderModel,
-              scale: contentPlacementMetrics.scale,
-            })
-          : undefined,
-        axisYLineSegments: renderModel
-          ? resolveViewerAxisYLineSegments({
-              renderModel,
-              scale: contentPlacementMetrics.scale,
-            })
-          : undefined,
-        refinementPolicy: VIEWER_PRINT_CUT_REFINEMENT_POLICY,
-      }),
-    [
-      contentPlacementMetrics.scaledContentHeightPx,
-      contentPlacementMetrics.scaledContentWidthPx,
-      contentPlacementMetrics.scale,
-      editorialHeights.continuationPageUsableHeightPx,
-      editorialHeights.firstPageUsableHeightPx,
-      previewMetrics.contentHeightPx,
-      previewMetrics.contentWidthPx,
-      renderModel,
-    ],
-  );
-  const previewGridTiles = gridPaginationMetrics.tiles;
-  const printedPages = useMemo(
-    () => resolveViewerPrintedPagesFromPaginationGrid(gridPaginationMetrics),
-    [gridPaginationMetrics],
-  );
-  const paginatedSurfaceLayout = useMemo(
-    () =>
-      resolveViewerPaginatedSurfaceLayout({
-        previewMetrics,
-        scaledSurfaceWidthPx: contentPlacementMetrics.scaledContentWidthPx,
-        scaledSurfaceHeightPx: contentPlacementMetrics.scaledContentHeightPx,
-      }),
-    [
-      contentPlacementMetrics.scaledContentHeightPx,
-      contentPlacementMetrics.scaledContentWidthPx,
-      previewMetrics,
-    ],
-  );
-
-  const printFrameStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (!isPrintPreview) return undefined;
-    return {
-      width: `${paginatedSurfaceLayout.paperWidthPx}px`,
-      height: `${paginatedSurfaceLayout.paperHeightPx}px`,
-      minHeight: `${paginatedSurfaceLayout.paperHeightPx}px`,
-      maxHeight: `${paginatedSurfaceLayout.paperHeightPx}px`,
-      margin: '0 auto',
-    };
-  }, [
-    isPrintPreview,
-    paginatedSurfaceLayout.paperHeightPx,
-    paginatedSurfaceLayout.paperWidthPx,
-  ]);
-
-  const printContentBoxStyle = useMemo<React.CSSProperties | undefined>(() => {
-    if (!isPrintPreview) return undefined;
-    return {
-      width: `${paginatedSurfaceLayout.contentWidthPx}px`,
-      height: `${paginatedSurfaceLayout.contentHeightPx}px`,
-      minHeight: `${paginatedSurfaceLayout.contentHeightPx}px`,
-      maxHeight: `${paginatedSurfaceLayout.contentHeightPx}px`,
-      margin: `${paginatedSurfaceLayout.paperPaddingPx.top}px ${paginatedSurfaceLayout.paperPaddingPx.right}px ${paginatedSurfaceLayout.paperPaddingPx.bottom}px ${paginatedSurfaceLayout.paperPaddingPx.left}px`,
-    };
-  }, [
-    isPrintPreview,
-    paginatedSurfaceLayout.contentHeightPx,
-    paginatedSurfaceLayout.contentWidthPx,
-    paginatedSurfaceLayout.paperPaddingPx.bottom,
-    paginatedSurfaceLayout.paperPaddingPx.left,
-    paginatedSurfaceLayout.paperPaddingPx.right,
-    paginatedSurfaceLayout.paperPaddingPx.top,
-  ]);
-
-  const previewCanvasInnerStyle = useMemo<React.CSSProperties>(() => {
-    const width = `${contentPlacementMetrics.baseContentWidthPx}px`;
-    const height = `${contentPlacementMetrics.baseContentHeightPx}px`;
-    if (!isPrintPreview) {
-      return {
-        width,
-        height,
-        transform: `scale(${zoom})`,
-      };
-    }
-    return {
-      width,
-      height,
-      transform: `scale(${contentPlacementMetrics.scale})`,
-    };
-  }, [
-    contentPlacementMetrics.baseContentHeightPx,
-    contentPlacementMetrics.baseContentWidthPx,
-    contentPlacementMetrics.scale,
-    isPrintPreview,
+  const {
+    renderModel,
+    pageMetrics,
+    printCssVars,
+    previewCssVars,
+    effectivePrintScalePct,
+    contentPlacementMetrics,
+    gridPaginationMetrics,
+    printedPages,
+    paginatedSurfaceLayout,
+    previewTilePageModels,
+    viewerPrintDocumentClassNames,
+    printFrameStyle,
+    printContentBoxStyle,
+    previewCanvasInnerStyle,
+    printStyleText,
+  } = useViewerLayoutModel({
+    snapshot,
+    theme,
+    printSettings,
     zoom,
-  ]);
-
-  const printStyleText = useMemo(() => {
-    return resolveViewerPrintPageCss(pageMetrics);
-  }, [pageMetrics]);
+    isPrintPreview,
+    measuredPxPerMm,
+    styles,
+  });
   const snapshotVersionText = snapshot
     ? `Versión Publicable (${formatSnapshotVersionId(snapshot.createdAt)})`
     : '';
-  const snapshotModeText = isPrintPreview ? 'MODO IMPRESIÓN' : 'MODO PRESENTACIÓN';
+  const snapshotModeText = isPrintPreview ? 'MODO DOCUMENTO' : 'MODO PRESENTACION';
   const snapshotMetaText =
     snapshotVersionText && snapshotModeText
       ? `${snapshotVersionText}\n${snapshotModeText}`
@@ -339,6 +175,63 @@ export function MallaViewerScreen({
       onThemeChange(next);
     },
     [onThemeChange, theme],
+  );
+
+  const setPrintSettingsSafe = useCallback(
+    (next: ViewerPrintSettings | ((prev: ViewerPrintSettings) => ViewerPrintSettings)) => {
+      if (typeof next === 'function') {
+        const updater = next as (prev: ViewerPrintSettings) => ViewerPrintSettings;
+        onPrintSettingsChange(updater(printSettings));
+        return;
+      }
+      onPrintSettingsChange(next);
+    },
+    [onPrintSettingsChange, printSettings],
+  );
+
+  const updateAppearanceOverflowState = useCallback(() => {
+    const panel = appearancePanelScrollRef.current;
+    if (!panel || !isAppearanceOpen) {
+      setAppearanceCanScrollUp(false);
+      setAppearanceCanScrollDown(false);
+      return;
+    }
+
+    const maxScrollTop = Math.max(panel.scrollHeight - panel.clientHeight, 0);
+    const scrollTop = Math.min(Math.max(panel.scrollTop, 0), maxScrollTop);
+    const threshold = 2;
+    setAppearanceCanScrollUp(scrollTop > threshold);
+    setAppearanceCanScrollDown(maxScrollTop - scrollTop > threshold);
+  }, [isAppearanceOpen]);
+
+  const stopAppearanceAutoScroll = useCallback(() => {
+    if (appearanceScrollIntervalRef.current == null) return;
+    window.clearInterval(appearanceScrollIntervalRef.current);
+    appearanceScrollIntervalRef.current = null;
+  }, []);
+
+  const scrollAppearancePanelBy = useCallback(
+    (delta: number) => {
+      const panel = appearancePanelScrollRef.current;
+      if (!panel) return;
+      panel.scrollBy({ top: delta, behavior: 'smooth' });
+      window.requestAnimationFrame(updateAppearanceOverflowState);
+    },
+    [updateAppearanceOverflowState],
+  );
+
+  const startAppearanceAutoScroll = useCallback(
+    (direction: 'up' | 'down') => {
+      const panel = appearancePanelScrollRef.current;
+      if (!panel) return;
+      stopAppearanceAutoScroll();
+      const delta = direction === 'up' ? -11 : 11;
+      appearanceScrollIntervalRef.current = window.setInterval(() => {
+        panel.scrollTop += delta;
+        updateAppearanceOverflowState();
+      }, 16);
+    },
+    [stopAppearanceAutoScroll, updateAppearanceOverflowState],
   );
 
   const handleZoomIn = useCallback(() => {
@@ -406,6 +299,58 @@ export function MallaViewerScreen({
   useEffect(() => {
     setViewerPanelMode(initialPanelMode);
   }, [initialPanelMode, mode]);
+
+  useEffect(() => {
+    onPanelModeChange?.(viewerPanelMode);
+  }, [onPanelModeChange, viewerPanelMode]);
+
+  useEffect(() => {
+    const panel = appearancePanelScrollRef.current;
+    if (!panel || !isAppearanceOpen) {
+      updateAppearanceOverflowState();
+      return;
+    }
+
+    const handleScroll = () => updateAppearanceOverflowState();
+    panel.addEventListener('scroll', handleScroll, { passive: true });
+    updateAppearanceOverflowState();
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => updateAppearanceOverflowState());
+    resizeObserver?.observe(panel);
+
+    const handleWindowResize = () => updateAppearanceOverflowState();
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      panel.removeEventListener('scroll', handleScroll);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, [isAppearanceOpen, panelMode, snapshot, updateAppearanceOverflowState]);
+
+  useEffect(() => {
+    updateAppearanceOverflowState();
+  }, [updateAppearanceOverflowState, mode, printSettings, theme]);
+
+  useEffect(() => stopAppearanceAutoScroll, [stopAppearanceAutoScroll]);
+
+  useEffect(() => {
+    if (mode !== 'publication') {
+      lastPublicationAppearanceResetRef.current = null;
+      return;
+    }
+
+    const publicationSessionKey = snapshot
+      ? `${snapshot.createdAt}:${snapshot.projectName}`
+      : 'publication-empty';
+    if (lastPublicationAppearanceResetRef.current === publicationSessionKey) return;
+
+    setAppearanceOpen(false);
+    lastPublicationAppearanceResetRef.current = publicationSessionKey;
+  }, [mode, snapshot]);
 
   const handleEnterPrintPreview = useCallback(() => {
     setViewerPanelMode('print-preview');
@@ -505,7 +450,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       frameWindow.onafterprint = finish;
 
       void frameDocument.fonts.ready
-        .catch(() => undefined)
+        .catch((error) => {
+          logAppError({
+            scope: 'viewer',
+            severity: 'non-fatal',
+            message: 'La carga de fuentes para impresion fallo; se continuara con el print.',
+            error,
+          });
+          return undefined;
+        })
         .finally(() => window.requestAnimationFrame(printNow));
 
       window.setTimeout(() => {
@@ -554,7 +507,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
                   </div>
                 ) : (
-                  <span>{cell.text}</span>
+                  <span style={headerBandTextStyle}>{cell.text}</span>
                 )}
               </div>
             ))}
@@ -602,18 +555,171 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   }, [renderModel]);
 
+  const renderPrintSliceContent = useCallback(
+    (sliceLayout: ReturnType<typeof resolveViewerPageSliceLayout>) => {
+      if (!renderModel) return null;
+      const scale = Math.max(contentPlacementMetrics.scale, 0.0001);
+      const sliceLeftPx = sliceLayout.offsetX;
+      const sliceTopPx = sliceLayout.offsetY;
+      const sliceRightPx = sliceLayout.offsetX + sliceLayout.viewportWidthPx;
+      const sliceBottomPx = sliceLayout.offsetY + sliceLayout.viewportHeightPx;
+      const localWidthPx = sliceLayout.viewportWidthPx;
+      const localHeightPx = sliceLayout.viewportHeightPx;
+
+      const visibleBandRows = renderModel.bandsRenderRows
+        .filter((row) => {
+          const rowTopPx = row.top * scale;
+          const rowHeightPx = row.height * scale;
+          return rowTopPx + rowHeightPx > sliceTopPx && rowTopPx < sliceBottomPx;
+        })
+        .map((row) => ({
+          ...row,
+          top: row.top * scale - sliceTopPx,
+          height: row.height * scale,
+          cells: row.cells
+            .filter((cell) => {
+              const cellLeftPx = cell.left * scale;
+              const cellWidthPx = cell.width * scale;
+              return cellLeftPx + cellWidthPx > sliceLeftPx && cellLeftPx < sliceRightPx;
+            })
+            .map((cell) => ({
+              ...cell,
+              left: cell.left * scale - sliceLeftPx,
+              width: cell.width * scale,
+            })),
+        }));
+
+      const visibleItems = renderModel.items
+        .filter(
+          (item) =>
+            item.left * scale + item.width * scale > sliceLeftPx &&
+            item.left * scale < sliceRightPx &&
+            item.top * scale + item.height * scale > sliceTopPx &&
+            item.top * scale < sliceBottomPx,
+        )
+        .map((item) => ({
+          ...item,
+          left: item.left * scale - sliceLeftPx,
+          top: item.top * scale - sliceTopPx,
+          width: item.width * scale,
+          height: item.height * scale,
+          cellWidth: item.cellWidth * scale,
+          cellHeight: item.cellHeight * scale,
+          gridStyle: {
+            width: item.cols * item.cellWidth * scale + Math.max(0, item.cols - 1) * 2 * scale,
+            height: item.rows * item.cellHeight * scale + Math.max(0, item.rows - 1) * 2 * scale,
+            gridTemplateColumns: `repeat(${item.cols}, ${item.cellWidth * scale}px)`,
+            gridTemplateRows: `repeat(${item.rows}, ${item.cellHeight * scale}px)`,
+            gap: `${2 * scale}px`,
+            padding: `${4 * scale}px`,
+          },
+        }));
+
+      return (
+        <div
+          className={styles.viewerCanvasScaled}
+          style={{
+            width: `${localWidthPx}px`,
+            height: `${localHeightPx}px`,
+            transform: 'none',
+          }}
+        >
+          {visibleBandRows.map((row) => (
+            <div
+              key={`print-band-row-${row.kind}-${row.id}`}
+              className={`${styles.viewerBandRow} ${row.kind === 'header' ? styles.viewerBandRowHeader : styles.viewerBandRowMetric}`}
+              style={{
+                top: `${row.top}px`,
+                height: `${row.height}px`,
+                width: `${Math.max(localWidthPx, 1)}px`,
+              }}
+            >
+              {row.cells.map((cell, index) => (
+                <div
+                  key={`print-band-cell-${row.kind}-${row.id}-${cell.col}-${index}`}
+                  className={styles.viewerBandCell}
+                  style={{
+                    left: `${cell.left}px`,
+                    width: `${cell.width}px`,
+                    height: `${row.height}px`,
+                    backgroundColor: cell.style.backgroundColor,
+                    color: cell.style.textColor,
+                    border: borderStyleFromSnapshot(cell.style.border),
+                    textAlign: resolveBandCellTextAlign(cell.style.textAlign),
+                    fontSize: `${cell.style.fontSizePx * scale}px`,
+                    padding: `${cell.style.paddingY * scale}px ${cell.style.paddingX * scale}px`,
+                    fontWeight: cell.bold || cell.style.bold ? 700 : 400,
+                    fontStyle: cell.style.italic ? 'italic' : 'normal',
+                  }}
+                >
+                  {cell.label ? (
+                    <div className={styles.viewerBandCellMetric}>
+                      <span className={styles.viewerBandCellMetricLabel}>{cell.label}</span>
+                      <span className={styles.viewerBandCellMetricValue}>{cell.text}</span>
+                    </div>
+                  ) : (
+                    <span>{cell.text}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+          {visibleItems.map((item) => (
+            <article
+              key={`print-item-${item.id}`}
+              className={styles.viewerPiece}
+              style={{
+                left: `${item.left}px`,
+                top: `${item.top}px`,
+                width: `${item.width}px`,
+                height: `${item.height}px`,
+                borderWidth: `${renderModel.theme.blockBorderWidth * scale}px`,
+                borderRadius: `${renderModel.theme.blockBorderRadius * scale}px`,
+              }}
+            >
+              <div className={styles.viewerPieceGrid} style={item.gridStyle}>
+                {item.cells.map((cell) => (
+                  <div
+                    key={`print-${item.id}-${cell.row}-${cell.col}`}
+                    className={styles.viewerCell}
+                    style={{
+                      gridRow: `${cell.row + 1} / ${cell.row + cell.rowSpan + 1}`,
+                      gridColumn: `${cell.col + 1} / ${cell.col + cell.colSpan + 1}`,
+                      backgroundColor: cell.style.backgroundColor,
+                      color: cell.style.textColor,
+                      border: borderStyleFromSnapshot(cell.style.border),
+                      textAlign: cell.style.textAlign,
+                      fontSize: `${cell.style.fontSizePx * scale}px`,
+                      padding: `${cell.style.paddingY * scale}px ${cell.style.paddingX * scale}px`,
+                      fontWeight: cell.style.bold ? 700 : 400,
+                      fontStyle: cell.style.italic ? 'italic' : 'normal',
+                    }}
+                    title={cell.text}
+                  >
+                    <span>{cellTextFromType(cell.text, cell.type, cell.checked)}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      );
+    },
+    [contentPlacementMetrics.scale, renderModel],
+  );
+
   if (!snapshot || !renderModel) {
     return (
       <section className={styles.viewerEmpty}>
-        <h2>{mode === 'publication' ? 'Version publicada' : 'Vista previa de malla'}</h2>
+        <h2>{mode === 'publication' ? 'Versión publicada' : 'Vista previa de malla'}</h2>
         <p>
           {mode === 'publication'
-            ? 'No hay una version publicada cargada.'
+            ? 'No hay una versión publicada cargada.'
             : 'No hay datos para vista previa.'}
         </p>
         {mode === 'publication' ? (
           <Button type="button" variant="primary" onClick={handleOpenImporter}>
-            Abrir version publicada
+            Abrir versión publicada
           </Button>
         ) : (
           <Button type="button" variant="primary" onClick={onBackToEditor}>
@@ -684,18 +790,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 height: `${input.sliceLayout.viewportHeightPx}px`,
               }}
             >
-              <div
-                className={styles.viewerCanvasSliceTrack}
-                style={{
-                  width: `${input.sliceLayout.surfaceWidthPx}px`,
-                  height: `${input.sliceLayout.surfaceHeightPx}px`,
-                  transform: `translate(-${input.sliceLayout.offsetX}px, -${input.sliceLayout.offsetY}px)`,
-                }}
-              >
-                <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
-                  {canvasContent}
+              {input.variant === 'preview' ? (
+                <div
+                  className={styles.viewerCanvasSliceTrack}
+                  style={{
+                    width: `${input.sliceLayout.surfaceWidthPx}px`,
+                    height: `${input.sliceLayout.surfaceHeightPx}px`,
+                    transform: `translate(-${input.sliceLayout.offsetX}px, -${input.sliceLayout.offsetY}px)`,
+                  }}
+                >
+                  <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
+                    {canvasContent}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                renderPrintSliceContent(input.sliceLayout)
+              )}
             </div>
             {input.editorialLayout.footerText || input.editorialLayout.pageNumberText ? (
               <div className={styles.viewerPageFooterBlock}>
@@ -715,89 +825,6 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     );
   };
 
-  const renderPreviewGridTile = (tile: ViewerPaginationTile) => {
-    const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-      showDocumentTitle: printSettings.showDocumentTitle,
-      documentTitleOverride: printSettings.documentTitleOverride,
-      pageLayoutMode: printSettings.pageLayoutMode,
-      showHeader: printSettings.showHeader,
-      headerText: printSettings.headerText,
-      showFooter: printSettings.showFooter,
-      footerText: printSettings.footerText,
-      showPageNumbers: printSettings.showPageNumbers,
-      projectName: renderModel.projectName,
-      pageIndex: tile.pageNumber - 1,
-      pageCount: gridPaginationMetrics.pageCount,
-      contentHeightMm: pageMetrics.contentHeightMm,
-      pxPerMmY: measuredPxPerMm.pxPerMmY,
-    });
-    const isPartialLastPage =
-      tile.col === 0 &&
-      tile.row === gridPaginationMetrics.pagesY - 1 &&
-      tile.sliceHeightPx < tile.usablePageHeightPx;
-    const sliceLayout = resolveViewerPageSliceLayout({
-      viewportWidthPx: tile.sliceWidthPx,
-      viewportHeightPx: tile.sliceHeightPx,
-      surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
-      surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
-      offsetX: tile.offsetX,
-      offsetY: tile.offsetY,
-    });
-
-    return renderPaginatedSurfacePage({
-      key: `preview-page-${tile.row}-${tile.col}`,
-      variant: 'preview',
-      sliceLayout,
-      isPartialLastPage,
-      editorialLayout,
-      pageAttrs: {
-        'data-grid-row': `${tile.row}`,
-        'data-grid-col': `${tile.col}`,
-      },
-    });
-  };
-
-  const renderPrintedPage = (page: ViewerPrintedPage) => {
-    const editorialLayout = resolveViewerPrintedPageEditorialLayout({
-      showDocumentTitle: printSettings.showDocumentTitle,
-      documentTitleOverride: printSettings.documentTitleOverride,
-      pageLayoutMode: printSettings.pageLayoutMode,
-      showHeader: printSettings.showHeader,
-      headerText: printSettings.headerText,
-      showFooter: printSettings.showFooter,
-      footerText: printSettings.footerText,
-      showPageNumbers: printSettings.showPageNumbers,
-      projectName: renderModel.projectName,
-      pageIndex: page.pageNumber - 1,
-      pageCount: printedPages.length,
-      contentHeightMm: pageMetrics.contentHeightMm,
-      pxPerMmY: measuredPxPerMm.pxPerMmY,
-    });
-    const isPartialLastPage = page.tileCol === 0 && page.isLastRow && page.sliceHeightPx < page.usablePageHeightPx;
-
-    const sliceLayout = resolveViewerPageSliceLayout({
-      viewportWidthPx: page.viewportWidthPx,
-      viewportHeightPx: page.viewportHeightPx,
-      surfaceWidthPx: paginatedSurfaceLayout.scaledSurfaceWidthPx,
-      surfaceHeightPx: paginatedSurfaceLayout.scaledSurfaceHeightPx,
-      offsetX: page.printOffsetX,
-      offsetY: page.printOffsetY,
-    });
-
-    return renderPaginatedSurfacePage({
-      key: `printed-page-${page.pageNumber}`,
-      variant: 'print',
-      sliceLayout,
-      isPartialLastPage,
-      editorialLayout,
-      pageAttrs: {
-        'data-page-number': `${page.pageNumber}`,
-        'data-tile-row': `${page.tileRow}`,
-        'data-tile-col': `${page.tileCol}`,
-      },
-    });
-  };
-
   const previewPaginatedGridSurface = isPrintPreview ? (
     <div
       className={styles.viewerPreviewPageStack}
@@ -807,7 +834,19 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         gridTemplateColumns: `repeat(${gridPaginationMetrics.pagesX}, max-content)`,
       }}
     >
-      {previewGridTiles.map(renderPreviewGridTile)}
+      {previewTilePageModels.map(({ tile, editorialLayout, isPartialLastPage, sliceLayout }) =>
+        renderPaginatedSurfacePage({
+          key: `preview-page-${tile.row}-${tile.col}`,
+          variant: 'preview',
+          sliceLayout,
+          isPartialLastPage,
+          editorialLayout,
+          pageAttrs: {
+            'data-grid-row': `${tile.row}`,
+            'data-grid-col': `${tile.col}`,
+          },
+        }),
+      )}
     </div>
   ) : null;
 
@@ -831,7 +870,16 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
 
   const printDocumentContent = isPrintPreview ? (
     <div className={styles.printOnly}>
-      <div className={styles.viewerPrintedPageSequence}>{printedPages.map(renderPrintedPage)}</div>
+      <ViewerPrintDocument
+        renderModel={renderModel}
+        printedPages={printedPages}
+        paginatedSurfaceLayout={paginatedSurfaceLayout}
+        contentScale={contentPlacementMetrics.scale}
+        printSettings={printSettings}
+        pageMetrics={pageMetrics}
+        pxPerMmY={measuredPxPerMm.pxPerMmY}
+        classNames={viewerPrintDocumentClassNames}
+      />
     </div>
   ) : null;
 
@@ -926,13 +974,22 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             {isPrintPreview ? (
               <>
                 <Button type="button" onClick={handleExitPrintPreview}>
-                  Volver a Modo Presentación
+                  Volver al Modo Presentación
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void onOpenPublishModal()}
+                  className={styles.viewerPublishCta}
+                  title="Publica salidas documentales a partir del layout paginado visible"
+                >
+                  Publicar documento
                 </Button>
                 <Button
                   type="button"
                   variant="primary"
                   onClick={handlePrintNow}
                   className={styles.viewerPrintCta}
+                  title="Abre el dialogo de impresion usando esta misma configuracion documental"
                 >
                   Imprimir ahora
                 </Button>
@@ -941,9 +998,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <Button
                   type="button"
                   onClick={handleEnterPrintPreview}
-                  title="Configuración del formato de impresión para esta versión publicable"
+                  title="Cambia a modo documento para revisar paginacion, margenes y salida de impresion"
                 >
-                  Preparar impresión
+                  Ir al Modo Documento
                 </Button>
             )}
             {!isPrintPreview && mode === 'preview' ? (
@@ -951,12 +1008,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 type="button"
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
+                title="Publica una salida web o de respaldo desde la vista actual"
               >
-                Publicar esta versión
+                Publicar Web/Datos
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (
-              <Button type="button" onClick={handleOpenImporter}>
+              <Button type="button" onClick={handleOpenImporter} title="Carga un snapshot publicado para revisarlo en este visor">
                 Abrir publicación
               </Button>
             ) : null}
@@ -989,11 +1047,27 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               ‹
             </Button>
           </div>
-          {panelMode === 'preview' ? (
+          <div className={styles.appearancePanelScrollShell}>
+            <button
+              type="button"
+              className={`${styles.appearanceScrollFade} ${styles.appearanceScrollFadeTop} ${appearanceCanScrollUp ? styles.appearanceScrollFadeVisible : ''}`}
+              aria-label="Desplazar panel lateral hacia arriba"
+              tabIndex={appearanceCanScrollUp ? 0 : -1}
+              disabled={!appearanceCanScrollUp}
+              onMouseEnter={() => startAppearanceAutoScroll('up')}
+              onMouseLeave={stopAppearanceAutoScroll}
+              onFocus={() => startAppearanceAutoScroll('up')}
+              onBlur={stopAppearanceAutoScroll}
+              onClick={() => scrollAppearancePanelBy(-160)}
+            >
+              <span className={styles.appearanceScrollHint}>^</span>
+            </button>
+            <div ref={appearancePanelScrollRef} className={styles.appearancePanelContent}>
+              {panelMode === 'preview' ? (
             <>
-              <h3>Apariencia</h3>
+              <h3>Apariencia base</h3>
               <label className={`${styles.field} ${styles.scaleField}`}>
-                <span>Separacion horizontal</span>
+                <span>Separación horizontal</span>
                 <input
                   className={styles.compactRange}
                   type="range"
@@ -1004,7 +1078,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={`${styles.field} ${styles.scaleField}`}>
-                <span>Separacion vertical</span>
+                <span>Separación vertical</span>
                 <input
                   className={styles.compactRange}
                   type="range"
@@ -1015,7 +1089,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Ancho minimo de columnas</span>
+                <span>Ancho mínimo de columnas</span>
                 <input
                   type="range"
                   min={0}
@@ -1028,7 +1102,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 />
               </label>
               <label className={styles.field}>
-                <span>Alto minimo de lineas curriculares</span>
+                <span>Alto mínimo de líneas curriculares</span>
                 <input
                   type="range"
                   min={0}
@@ -1089,19 +1163,85 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   }
                 />
               </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={theme.showTitle}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, showTitle: event.target.checked }))
+                  }
+                />
+                <span>Agregar título</span>
+              </label>
+              <label className={styles.field} title="Si queda vacío, se usa el nombre del proyecto.">
+                <input
+                  type="text"
+                  value={theme.titleText}
+                  placeholder="Personaliza el título de la salida web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, titleText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Escala del título</span>
+                <input
+                  type="range"
+                  min={VIEWER_THEME_MIN_TITLE_FONT_SIZE}
+                  max={VIEWER_THEME_MAX_TITLE_FONT_SIZE}
+                  step={VIEWER_THEME_TITLE_FONT_SIZE_STEP}
+                  value={theme.titleFontSize}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, titleFontSize: Number(event.target.value) }))
+                  }
+                />
+                <span className={styles.fieldHint}>{`${Math.round(theme.titleFontSize)} px`}</span>
+              </label>
+              <label className={styles.toggleField}>
+                <input
+                  type="checkbox"
+                  checked={theme.showHeaderFooter}
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, showHeaderFooter: event.target.checked }))
+                  }
+                />
+                <span>Marco editorial web mínimo</span>
+              </label>
+              <label className={styles.field}>
+                <span>Encabezado web</span>
+                <input
+                  type="text"
+                  value={theme.headerText}
+                  placeholder="Texto opcional para la salida web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, headerText: event.target.value }))
+                  }
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Pie web</span>
+                <input
+                  type="text"
+                  value={theme.footerText}
+                  placeholder="Texto opcional para la salida web"
+                  onChange={(event) =>
+                    setThemeSafe((prev) => ({ ...prev, footerText: event.target.value }))
+                  }
+                />
+              </label>
               <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
                 Restablecer
               </Button>
             </>
           ) : (
             <>
-              <h3>Configuración de impresión</h3>
+              <h3>Ajustes documentales</h3>
               <label className={styles.field}>
                 <span>Tamaño de papel</span>
                 <select
                   value={printSettings.paperSize}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       paperSize: event.target.value as ViewerPrintPaperSize,
                     }))
@@ -1118,7 +1258,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <select
                   value={printSettings.orientation}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       orientation: event.target.value === 'landscape' ? 'landscape' : 'portrait',
                     }))
@@ -1139,7 +1279,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.scale}
                   disabled={printSettings.fitToWidth}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, scale: Number(event.target.value) }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, scale: Number(event.target.value) }))
                   }
                 />
                 <span className={styles.fieldHint}>
@@ -1154,7 +1294,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.fitToWidth}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, fitToWidth: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, fitToWidth: event.target.checked }))
                   }
                 />
                 <span>Autoajustar</span>
@@ -1164,7 +1304,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 <select
                   value={printSettings.margins}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       margins:
                         event.target.value === 'narrow' || event.target.value === 'wide'
@@ -1173,9 +1313,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                     }))
                   }
                 >
-                  <option value="narrow">Narrow</option>
-                  <option value="normal">Normal</option>
-                  <option value="wide">Wide</option>
+                  <option value="narrow">Estrechos</option>
+                  <option value="normal">Normales</option>
+                  <option value="wide">Amplios</option>
                 </select>
               </label>
               <label className={styles.toggleField}>
@@ -1183,7 +1323,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showDocumentTitle}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showDocumentTitle: event.target.checked }))
                   }
                 />
                 <span>Mostrar título</span>
@@ -1194,7 +1334,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.documentTitleOverride}
                   placeholder="Personaliza el título del documento"
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, documentTitleOverride: event.target.value }))
                   }
                 />
               </label>
@@ -1207,7 +1347,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   step={VIEWER_PRINT_TITLE_FONT_SIZE_STEP}
                   value={printSettings.documentTitleFontSize}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, documentTitleFontSize: Number(event.target.value) }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, documentTitleFontSize: Number(event.target.value) }))
                   }
                 />
                 <span className={styles.fieldHint}>{`${Math.round(printSettings.documentTitleFontSize)} px`}</span>
@@ -1220,7 +1360,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showPageNumbers}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showPageNumbers: event.target.checked }))
                   }
                 />
                 <span>Mostrar numeración</span>
@@ -1230,7 +1370,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showHeader}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showHeader: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showHeader: event.target.checked }))
                   }
                 />
                 <span>Encabezado</span>
@@ -1241,7 +1381,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.headerText}
                   placeholder="Personaliza el texto del encabezado"
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, headerText: event.target.value }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, headerText: event.target.value }))
                   }
                 />
               </label>
@@ -1250,7 +1390,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="checkbox"
                   checked={printSettings.showFooter}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, showFooter: event.target.checked }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, showFooter: event.target.checked }))
                   }
                 />
                 <span>Pie de página</span>
@@ -1261,16 +1401,16 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   value={printSettings.footerText}
                   placeholder="Personaliza el texto del pie de página"
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({ ...prev, footerText: event.target.value }))
+                    setPrintSettingsSafe((prev) => ({ ...prev, footerText: event.target.value }))
                   }
                 />
               </label>
               <label className={styles.field}>
-                <span>Layout de página</span>
+                <span>Distribución de páginas</span>
                 <select
                   value={printSettings.pageLayoutMode}
                   onChange={(event) =>
-                    setPrintSettings((prev) => ({
+                    setPrintSettingsSafe((prev) => ({
                       ...prev,
                       pageLayoutMode:
                         event.target.value === 'first-page-only'
@@ -1284,7 +1424,23 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 </select>
               </label>
             </>
-          )}
+              )}
+            </div>
+            <button
+              type="button"
+              className={`${styles.appearanceScrollFade} ${styles.appearanceScrollFadeBottom} ${appearanceCanScrollDown ? styles.appearanceScrollFadeVisible : ''}`}
+              aria-label="Desplazar panel lateral hacia abajo"
+              tabIndex={appearanceCanScrollDown ? 0 : -1}
+              disabled={!appearanceCanScrollDown}
+              onMouseEnter={() => startAppearanceAutoScroll('down')}
+              onMouseLeave={stopAppearanceAutoScroll}
+              onFocus={() => startAppearanceAutoScroll('down')}
+              onBlur={stopAppearanceAutoScroll}
+              onClick={() => scrollAppearancePanelBy(160)}
+            >
+              <span className={styles.appearanceScrollHint}>v</span>
+            </button>
+          </div>
         </aside>
 
         <div className={styles.viewerMain}>

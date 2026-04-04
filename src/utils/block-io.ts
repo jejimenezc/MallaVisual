@@ -18,6 +18,30 @@ export interface BlockExport {
 }
 
 export const BLOCK_SCHEMA_VERSION = 1;
+export const SUPPORTED_BLOCK_SCHEMA_VERSIONS = [BLOCK_SCHEMA_VERSION] as const;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+export function migrateBlock(input: unknown): Record<string, unknown> {
+  if (!isRecord(input)) {
+    throw new Error('JSON inválido');
+  }
+  if (input.version === undefined) {
+    throw new Error('Versión de bloque faltante');
+  }
+  if (typeof input.version !== 'number' || !Number.isFinite(input.version)) {
+    throw new Error('Versión de bloque inválida');
+  }
+  if (
+    !SUPPORTED_BLOCK_SCHEMA_VERSIONS.includes(
+      input.version as (typeof SUPPORTED_BLOCK_SCHEMA_VERSIONS)[number],
+    )
+  ) {
+    throw new Error(`Versión de bloque no soportada: ${String(input.version)}`);
+  }
+  return input;
+}
 
 export function exportBlock(
   template: BlockTemplate,
@@ -44,19 +68,14 @@ export function importBlock(json: string): BlockExport {
   } catch {
     throw new Error('JSON inválido');
   }
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error('JSON inválido');
-  }
-  const data = parsed as Partial<BlockExport>;
-  if (data.version !== BLOCK_SCHEMA_VERSION) {
-    throw new Error('Versión incompatible');
-  }
+  const migrated = migrateBlock(parsed);
+  const data = migrated as Partial<BlockExport>;
   if (!data.template || !data.visual || !data.aspect) {
     throw new Error('Datos incompletos');
   }
   const theme = normalizeProjectTheme((data as { theme?: unknown }).theme);
   return {
-    version: data.version,
+    version: BLOCK_SCHEMA_VERSION,
     template: data.template,
     visual: data.visual,
     aspect: data.aspect,

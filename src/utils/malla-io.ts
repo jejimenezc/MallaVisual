@@ -40,6 +40,7 @@ export interface MallaExport {
   masters: Record<string, MasterBlockData>;
   repository: Record<string, MallaRepositoryEntry>;
   repositoryMetadata?: Record<string, BlockMetadata>;
+  draftBlockName?: string;
   grid?: { cols: number; rows: number };
   pieces: CurricularPiece[];
   values: Record<string, Record<string, string | number | boolean>>;
@@ -53,6 +54,7 @@ export interface MallaExport {
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const MALLA_SCHEMA_VERSION = 6;
+export const SUPPORTED_MALLA_SCHEMA_VERSIONS = [2, 3, 4, 5, 6] as const;
 
 export { createDefaultProjectTheme, normalizeProjectTheme };
 export type { ProjectTheme, ProjectThemeTokens, ProjectThemeParameters };
@@ -224,6 +226,7 @@ const normalizeMetaPanelRowConfig = (
   const label = typeof value.label === 'string' && value.label.trim().length > 0
     ? value.label.trim()
     : undefined;
+  const hidden = value.hidden === true ? true : undefined;
   const normalizedColumns: Record<number, MetaCellConfig> = {};
   const rawColumns = isRecord(value.columns) ? value.columns : {};
   const sortedColumnIndices: number[] = [];
@@ -252,6 +255,7 @@ const normalizeMetaPanelRowConfig = (
     id,
     defaultCell,
     columns: normalizedColumns,
+    ...(hidden ? { hidden } : {}),
     ...(label ? { label } : {}),
   };
 };
@@ -521,6 +525,13 @@ export function importMalla(json: string): MallaExport {
   };
 
   const version = typeof data.version === 'number' ? data.version : 2;
+  if (
+    !SUPPORTED_MALLA_SCHEMA_VERSIONS.includes(
+      version as (typeof SUPPORTED_MALLA_SCHEMA_VERSIONS)[number],
+    )
+  ) {
+    throw new Error('Versión incompatible');
+  }
   if (version > MALLA_SCHEMA_VERSION) {
     throw new Error('Versión incompatible');
   }
@@ -565,6 +576,11 @@ export function importMalla(json: string): MallaExport {
     masters,
     repository,
     repositoryMetadata,
+    draftBlockName:
+      typeof (data as { draftBlockName?: unknown }).draftBlockName === 'string' &&
+      (data as { draftBlockName?: string }).draftBlockName?.trim()
+        ? (data as { draftBlockName?: string }).draftBlockName?.trim()
+        : undefined,
     grid: data.grid ?? { cols: 5, rows: 5 },
     pieces,
     values: data.values ?? {},
