@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 0 - Cierre de deuda de release local |
 | Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.2f refactor: extraer logica de franjas, encabezados y metricas de MallaEditorScreen` |
+| Proximo PR recomendado | `PR-0.2f-support fix: corregir duplicacion de metricas y omitir placeholders en publicacion` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -44,6 +44,7 @@ Objetivo: pasar de producto local solido a producto local maduro.
 | PR-0.2e | validated | Ocultar por defecto el panel Apariencia base al abrir publicaciones externas. | Las publicaciones abiertas en el viewer deben iniciar con menos confusion visual y con el panel bloqueado retraido. |
 | PR-0.2f | validated | Extraer logica de franjas, encabezados y metricas de `MallaEditorScreen`. | `MallaEditorScreen` mas corta y con una frontera clara para configuracion de bandas superiores, edicion de encabezados y wiring del meta-panel relacionado. |
 | PR-0.3 | validated | Reemplazar prompts nativos y unificar confirmaciones. | UX base consistente para flujos de confirmacion y renombrado. |
+| PR-0.2f-support | planned | Corregir duplicacion de metricas y excluir placeholders de salidas de publicacion. | La configuracion de metricas debe conservar referencias al duplicar y las publicaciones no deben mostrar textos placeholder como contenido final. |
 | PR-0.4 | planned | Endurecer checklist de release local y CI. | `lint` incorporado al criterio de calidad y documentacion de release actualizada. |
 
 **Hito desbloqueado al validar la fase:** "producto local maduro".
@@ -93,6 +94,18 @@ Objetivo: implementar la feature compleja en el contexto correcto, aun local.
 | PR-3.3 | planned | Incluir overlay en HTML, print y PDF como opcion. | Salidas con y sin capa de dibujo consistentes. |
 | PR-3.4 | planned | Agregar regresiones geometricas y de export con overlay. | Validacion automatica y manual suficiente para la nueva capa. |
 
+### Fase 3.5 - Infraestructura de UI bilingue
+Objetivo: preparar internacionalizacion de la UI antes de la operacion online, pero solo cuando la UX visible ya este suficientemente estabilizada.
+
+Condicion de entrada:
+- No iniciar esta fase mientras sigan cambiando con frecuencia labels, textos de modales, placeholders y mensajes de error en espanol.
+- La mayor parte de los flujos principales debe tener copy estable y review ortografica consistente.
+
+| PR | Estado | Objetivo principal | Cierre esperado |
+| --- | --- | --- | --- |
+| PR-3.5.1 | planned | Introducir infraestructura base de i18n para la UI. | Catalogo de strings, proveedor de locale y reemplazo progresivo de literales sin traducir aun toda la app. |
+| PR-3.5.2 | planned | Externalizar los textos visibles principales y habilitar locale en ingles. | Etiquetas y textos de la app listos para alternar entre espanol e ingles sin duplicar logica de pantalla. |
+
 ### Fase 4 - Preparacion para operacion online
 Objetivo: separar el modelo local del futuro backend sin sumar aun colaboracion real.
 
@@ -141,6 +154,7 @@ Objetivo: agregar colaboracion sobre entidades ya estabilizadas.
 2. Ejecutar pruebas acordes al riesgo del cambio.
 3. Si cambia comportamiento observable, actualizar la documentacion asociada en la misma rama.
 4. Si el PR es auxiliar dentro de una fase, etiquetarlo claramente como soporte y mantenerlo dentro de la misma fase.
+5. Si el PR toca textos visibles al usuario en espanol, revisar ortografia, tildes y consistencia terminologica antes de pasarlo a `review`.
 
 ### Al validar o cerrar un PR
 1. Cambiar su estado en este roadmap a `validated`.
@@ -152,6 +166,7 @@ Objetivo: agregar colaboracion sobre entidades ya estabilizadas.
 - Resumen del problema y de la solucion.
 - Lista breve de cambios clave.
 - Pruebas corridas y validacion manual relevante.
+- Revision de copy visible cuando el PR agregue o modifique textos de UI.
 - Nota de riesgo si toca export/import, viewer, print o persistencia.
 - Impacto en datos cuando aplique.
 - Nota de rollback simple si el cambio tiene riesgo operacional.
