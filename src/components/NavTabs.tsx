@@ -1,4 +1,3 @@
-// src/components/NavTabs.tsx
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import './NavTabs.css';
@@ -10,6 +9,7 @@ interface NavTabsProps {
 
 export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
   const { handler } = useProceedToMalla();
+
   const shouldBypassCustomNavigation = (
     event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
   ) =>
@@ -20,9 +20,7 @@ export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
     event.ctrlKey ||
     event.shiftKey;
 
-  const handleMallaClick = (
-    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
-  ) => {
+  const handleMallaClick = (event: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     if (!isProjectActive) {
       event.preventDefault();
       return;
@@ -34,9 +32,7 @@ export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
     }
   };
 
-  const handleRepoClick = (
-    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
-  ) => {
+  const handleRepoClick = (event: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     if (!isProjectActive) {
       event.preventDefault();
       return;
@@ -48,25 +44,26 @@ export const NavTabs: React.FC<NavTabsProps> = ({ isProjectActive }) => {
     }
   };
 
-  const handleBlockClick = (
-    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
-  ) => {
+  const handleBlockClick = (event: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     if (isProjectActive) return;
     event.preventDefault();
   };
 
   return (
-    <nav className={`nav-tabs${isProjectActive ? '' : ' nav-tabs--disabled'}`}>
+    <nav
+      className={`nav-tabs${isProjectActive ? '' : ' nav-tabs--disabled'}`}
+      aria-label="Navegación principal"
+    >
       <NavLink to="/" end>
         Escritorio
       </NavLink>
-      <NavLink to="/block/design" onClick={handleBlockClick}>
+      <NavLink to="/block/design" onClick={handleBlockClick} aria-disabled={!isProjectActive}>
         Diseño de bloque
       </NavLink>
-      <NavLink to="/blocks" onClick={handleRepoClick}>
+      <NavLink to="/blocks" onClick={handleRepoClick} aria-disabled={!isProjectActive}>
         Repositorio de bloques
       </NavLink>
-      <NavLink to="/malla/design" onClick={handleMallaClick}>
+      <NavLink to="/malla/design" onClick={handleMallaClick} aria-disabled={!isProjectActive}>
         Diseño de malla
       </NavLink>
     </nav>

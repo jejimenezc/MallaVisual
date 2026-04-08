@@ -239,6 +239,7 @@ export default function App(): JSX.Element | null {
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const [suspendMallaAutosave, setSuspendMallaAutosave] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
+  const introOverlayReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectSwitchTokenRef = useRef(0);
   const previousProjectIdRef = useRef<string | null>(projectId);
   const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
@@ -371,11 +372,23 @@ export default function App(): JSX.Element | null {
   ]);
 
   const handleShowIntroOverlay = useCallback(() => {
+    introOverlayReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setIntroOverlayVisible(true);
   }, []);
 
   const handleHideIntroOverlay = useCallback(() => {
     setIntroOverlayVisible(false);
+    window.requestAnimationFrame(() => {
+      const fallbackTarget =
+        document.getElementById('global-menu-trigger-ayuda') ??
+        document.getElementById('global-menu-trigger-archivo');
+      introOverlayReturnFocusRef.current?.focus?.();
+      if (document.activeElement === document.body) {
+        (fallbackTarget as HTMLElement | null)?.focus?.();
+      }
+      introOverlayReturnFocusRef.current = null;
+    });
   }, []);
 
   const handleOpenProjectPalette = useCallback(() => {
