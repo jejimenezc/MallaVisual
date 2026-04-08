@@ -84,7 +84,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 - Validado: 2026-04-08 - PR/commit: `6d5af4c` - Nota: `PR-1.1-support-a` elimina el menu `Editar` del GlobalMenuBar y deja `undo/redo` solo en herramientas locales; desbloquea `PR-1.1-support-b`.
 - Validado: 2026-04-08 - PR/commit: `c60216b` - Nota: `PR-1.1-support-b` corrige el copy contextual del modal al intentar ir a la malla desde Escritorio o Repositorio con bloque publicado desactualizado.
 - Validado: 2026-04-08 - PR/commit: `34d3ae6` - Nota: `PR-1.2` distingue mejor piezas referenciadas y snapshots en la malla con bordes suaves e iconos persistentes; desbloquea `PR-1.3`.
-- Validado: 2026-04-08 - PR/commit: pendiente tras commit de cierre de `PR-1.3` - Nota: `PR-1.3` amplía la cobertura del workflow de viewer/publicación en helpers puros y quedó validada además con `cmd /c npm test` en local; desbloquea `PR-1.4`.
+- Validado: 2026-04-08 - PR/commit: `89c2638` - Nota: `PR-1.3` amplía la cobertura del workflow de viewer/publicación en helpers puros y quedó validada además con `cmd /c npm test` en local; desbloquea `PR-1.4`.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.
