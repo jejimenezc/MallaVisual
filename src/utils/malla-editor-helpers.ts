@@ -118,6 +118,36 @@ export function isInteractive(target: HTMLElement) {
 export const describePieceLocation = (piece: CurricularPiece) =>
   `fila ${piece.y + 1}, columna ${piece.x + 1}`;
 
+export interface PieceVisualStatus {
+  label: string;
+  tone: 'reference' | 'snapshot';
+  detail: string;
+}
+
+export function getPieceVisualStatus(piece: CurricularPiece): PieceVisualStatus {
+  if (piece.kind === 'ref') {
+    return {
+      label: 'Referencia',
+      tone: 'reference',
+      detail: 'La pieza sigue vinculada al bloque maestro publicado.',
+    };
+  }
+
+  if (piece.origin) {
+    return {
+      label: 'Congelada',
+      tone: 'snapshot',
+      detail: 'La pieza conserva una copia propia y puede volver a vincularse.',
+    };
+  }
+
+  return {
+    label: 'Snapshot',
+    tone: 'snapshot',
+    detail: 'La pieza usa una copia local sin vinculo activo con el repositorio.',
+  };
+}
+
 export function findFirstFreeCell(
   cols: number,
   rows: number,

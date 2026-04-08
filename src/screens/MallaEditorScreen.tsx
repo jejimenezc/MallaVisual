@@ -1,6 +1,6 @@
 // src/screens/MallaEditorScreen.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Link2, Snowflake } from 'lucide-react';
 import type {
   BlockTemplate,
   CurricularPiece,
@@ -59,6 +59,7 @@ import {
   describePieceLocation,
   findFirstFreeCell,
   formatMasterDisplayName,
+  getPieceVisualStatus,
   isInteractive,
 } from '../utils/malla-editor-helpers.ts';
 
@@ -2108,9 +2109,13 @@ export const MallaEditorScreen: React.FC<Props> = ({
                     const canUnfreeze = p.kind === 'snapshot' && !!p.origin;
                     const toggleLabel = p.kind === 'ref' ? '🧊 Congelar' : '🔗 Descongelar';
 
+                    const pieceStatus = getPieceVisualStatus(p);
                     const floating = floatingPieces.includes(p.id);
                     const blockWrapperClassName = [
                       styles.blockWrapper,
+                      pieceStatus.tone === 'reference'
+                        ? styles.blockWrapperReference
+                        : styles.blockWrapperSnapshot,
                       floating ? styles.floating : '',
                       pointerMode === 'pan' ? styles.blockWrapperPan : '',
                     ]
@@ -2127,6 +2132,22 @@ export const MallaEditorScreen: React.FC<Props> = ({
                             : undefined
                         }
                       >
+                        <div
+                          className={`${styles.pieceBadge} ${
+                            pieceStatus.tone === 'reference'
+                              ? styles.pieceBadgeReference
+                              : styles.pieceBadgeSnapshot
+                          }`}
+                          title={`${pieceStatus.label}. ${pieceStatus.detail}`}
+                          aria-hidden="true"
+                        >
+                          {pieceStatus.tone === 'reference' ? (
+                            <Link2 size={16} strokeWidth={2.2} />
+                          ) : (
+                            <Snowflake size={16} strokeWidth={2.2} />
+                          )}
+                        </div>
+
                         {/* Toolbar por pieza */}
                         <div
                           className={`${styles.pieceToolbar} ${showPieceMenus ? '' : styles.toolbarHidden

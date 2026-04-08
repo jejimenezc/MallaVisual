@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type {
   BlockTemplate,
+  CurricularPieceSnapshot,
   CurricularPieceRef,
   MasterBlockData,
 } from '../types/curricular';
@@ -15,6 +16,7 @@ import {
   buildNormalizedInitialMalla,
   findFirstFreeCell,
   formatMasterDisplayName,
+  getPieceVisualStatus,
 } from './malla-editor-helpers';
 
 describe('formatMasterDisplayName', () => {
@@ -60,6 +62,69 @@ describe('findFirstFreeCell', () => {
     };
 
     expect(findFirstFreeCell(2, 1, [piece])).toEqual({ x: 1, y: 0 });
+  });
+});
+
+describe('getPieceVisualStatus', () => {
+  test('marks referenced pieces as reference', () => {
+    const piece: CurricularPieceRef = {
+      kind: 'ref',
+      id: 'piece-ref',
+      ref: {
+        sourceId: 'master-1',
+        bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 0, rows: 1, cols: 1 },
+        aspect: '1/1',
+      },
+      x: 0,
+      y: 0,
+    };
+
+    expect(getPieceVisualStatus(piece)).toEqual({
+      label: 'Referencia',
+      tone: 'reference',
+      detail: 'La pieza sigue vinculada al bloque maestro publicado.',
+    });
+  });
+
+  test('marks snapshots with origin as frozen copies', () => {
+    const piece: CurricularPieceSnapshot = {
+      kind: 'snapshot',
+      id: 'piece-snapshot',
+      template: [[{ active: true }]],
+      visual: {},
+      aspect: '1/1',
+      x: 1,
+      y: 1,
+      origin: {
+        sourceId: 'master-1',
+        bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 0, rows: 1, cols: 1 },
+        aspect: '1/1',
+      },
+    };
+
+    expect(getPieceVisualStatus(piece)).toEqual({
+      label: 'Congelada',
+      tone: 'snapshot',
+      detail: 'La pieza conserva una copia propia y puede volver a vincularse.',
+    });
+  });
+
+  test('marks detached snapshots as local snapshot', () => {
+    const piece: CurricularPieceSnapshot = {
+      kind: 'snapshot',
+      id: 'piece-detached',
+      template: [[{ active: true }]],
+      visual: {},
+      aspect: '1/1',
+      x: 2,
+      y: 2,
+    };
+
+    expect(getPieceVisualStatus(piece)).toEqual({
+      label: 'Snapshot',
+      tone: 'snapshot',
+      detail: 'La pieza usa una copia local sin vinculo activo con el repositorio.',
+    });
   });
 });
 
