@@ -69,7 +69,9 @@ Objetivo: pasar de maduro local a publicable externamente.
 
 | PR | Estado | Objetivo principal | Cierre esperado |
 | --- | --- | --- | --- |
-| PR-1.1 | planned | Baseline de accesibilidad para menus, overlays y navegacion. | Navegacion por teclado y ARIA minima defendible. |
+| PR-1.1 | review | Baseline de accesibilidad para menus, overlays y navegacion. | Navegacion por teclado y ARIA minima defendible. |
+| PR-1.1-support-a | planned | Suprimir el menu Editar del GlobalMenuBar y dejar undo/redo solo en herramientas de edicion locales. | Menubar alineado con el contexto real de cada pantalla, sin mezclar navegacion global con acciones de edicion. |
+| PR-1.1-support-b | planned | Corregir copy contextual de confirmaciones al intentar ir a la malla con bloque publicado desactualizado. | Los modales de navegacion deben nombrar acciones coherentes con la pantalla actual y no prometer un destino distinto al real. |
 | PR-1.2 | planned | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | planned | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
 | PR-1.4 | planned | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
