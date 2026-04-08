@@ -82,7 +82,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 
 - Validado: 2026-04-08 - PR/commit: `299c305`, `735da35` - Nota: `PR-1.1` deja una baseline defendible para menus, overlays y navegacion principal; se abren `PR-1.1-support-a` para simplificar el GlobalMenuBar y `PR-1.1-support-b` para corregir copy contextual de confirmaciones hacia malla.
 - Validado: 2026-04-08 - PR/commit: `6d5af4c` - Nota: `PR-1.1-support-a` elimina el menu `Editar` del GlobalMenuBar y deja `undo/redo` solo en herramientas locales; desbloquea `PR-1.1-support-b`.
-- Validado: 2026-04-08 - PR/commit: pendiente tras commit intermedio de `PR-1.1-support-b` - Nota: `PR-1.1-support-b` corrige el copy contextual del modal al intentar ir a la malla desde Escritorio o Repositorio con bloque publicado desactualizado.
+- Validado: 2026-04-08 - PR/commit: `c60216b` - Nota: `PR-1.1-support-b` corrige el copy contextual del modal al intentar ir a la malla desde Escritorio o Repositorio con bloque publicado desactualizado.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.
