@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.1-support-a suprimir menu Editar del GlobalMenuBar` |
+| Proximo PR recomendado | `PR-1.1-support-b copy contextual al navegar hacia la malla` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -70,7 +70,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR | Estado | Objetivo principal | Cierre esperado |
 | --- | --- | --- | --- |
 | PR-1.1 | validated | Baseline de accesibilidad para menus, overlays y navegacion. | Navegacion por teclado y ARIA minima defendible. |
-| PR-1.1-support-a | planned | Suprimir el menu Editar del GlobalMenuBar y dejar undo/redo solo en herramientas de edicion locales. | Menubar alineado con el contexto real de cada pantalla, sin mezclar navegacion global con acciones de edicion. |
+| PR-1.1-support-a | validated | Suprimir el menu Editar del GlobalMenuBar y dejar undo/redo solo en herramientas de edicion locales. | Menubar alineado con el contexto real de cada pantalla, sin mezclar navegacion global con acciones de edicion. |
 | PR-1.1-support-b | planned | Corregir copy contextual de confirmaciones al intentar ir a la malla con bloque publicado desactualizado. | Los modales de navegacion deben nombrar acciones coherentes con la pantalla actual y no prometer un destino distinto al real. |
 | PR-1.2 | planned | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | planned | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
@@ -81,6 +81,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
 
 - Validado: 2026-04-08 - PR/commit: `299c305`, `735da35` - Nota: `PR-1.1` deja una baseline defendible para menus, overlays y navegacion principal; se abren `PR-1.1-support-a` para simplificar el GlobalMenuBar y `PR-1.1-support-b` para corregir copy contextual de confirmaciones hacia malla.
+- Validado: 2026-04-08 - PR/commit: pendiente tras commit intermedio de `PR-1.1-support-a` - Nota: `PR-1.1-support-a` elimina el menu `Editar` del GlobalMenuBar y deja `undo/redo` solo en herramientas locales; desbloquea `PR-1.1-support-b`.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.

@@ -2,7 +2,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import styles from './GlobalMenuBar.module.css';
-import { useAppCommands } from '../../state/app-commands';
 
 interface RecentProject { id: string; name: string; date: string; }
 interface GlobalMenuBarProps {
@@ -14,12 +13,12 @@ interface GlobalMenuBarProps {
   onOpenProjectById: (id: string) => void; onShowIntro: () => void; onOpenProjectPalette: () => void;
 }
 
-type PrimaryMenuKey = 'archivo' | 'proyecto' | 'biblioteca' | 'publicar' | 'editar' | 'usuarios' | 'ayuda';
+type PrimaryMenuKey = 'archivo' | 'proyecto' | 'biblioteca' | 'publicar' | 'usuarios' | 'ayuda';
 type MenuKey = PrimaryMenuKey | null;
 type SubmenuKey = 'archivo-recientes' | 'biblioteca-maestros';
 type FocusTarget = 'first' | 'last';
 
-const MENU_ORDER: PrimaryMenuKey[] = ['archivo', 'proyecto', 'biblioteca', 'publicar', 'editar', 'usuarios', 'ayuda'];
+const MENU_ORDER: PrimaryMenuKey[] = ['archivo', 'proyecto', 'biblioteca', 'publicar', 'usuarios', 'ayuda'];
 
 const getMenuItems = (container: Document | Element | null) =>
   container ? Array.from(container.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)')) : [];
@@ -39,10 +38,6 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
   const triggerRefs = useRef<Partial<Record<PrimaryMenuKey, HTMLButtonElement | null>>>({});
   const pendingMenuFocusRef = useRef<{ menu: PrimaryMenuKey; target: FocusTarget } | null>(null);
   const pendingSubmenuFocusRef = useRef<{ submenu: SubmenuKey; target: FocusTarget } | null>(null);
-  const { commands, executeCommand } = useAppCommands();
-  const canUndo = Boolean(commands.undo?.isEnabled);
-  const canRedo = Boolean(commands.redo?.isEnabled);
-
   const menuTriggerId = (menu: PrimaryMenuKey) => `global-menu-trigger-${menu}`;
   const menuDropdownId = (menu: PrimaryMenuKey) => `global-menu-dropdown-${menu}`;
   const submenuDropdownId = (submenu: SubmenuKey) => `global-submenu-dropdown-${submenu}`;
@@ -177,7 +172,7 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
     id: menuTriggerId(menu),
     ref: (element: HTMLButtonElement | null) => { triggerRefs.current[menu] = element; },
     role: 'menuitem' as const,
-    'aria-label': menu === 'publicar' ? 'Publicación' : menu === 'archivo' ? 'Archivo' : menu === 'proyecto' ? 'Proyecto' : menu === 'biblioteca' ? 'Biblioteca' : menu === 'editar' ? 'Editar' : menu === 'usuarios' ? 'Usuarios' : 'Ayuda',
+    'aria-label': menu === 'publicar' ? 'Publicación' : menu === 'archivo' ? 'Archivo' : menu === 'proyecto' ? 'Proyecto' : menu === 'biblioteca' ? 'Biblioteca' : menu === 'usuarios' ? 'Usuarios' : 'Ayuda',
     'aria-haspopup': 'menu' as const,
     'aria-expanded': openMenu === menu,
     'aria-controls': openMenu === menu ? menuDropdownId(menu) : undefined,
@@ -235,17 +230,6 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
               <li className={styles.dropdownSeparator} aria-hidden="true" />
               <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" aria-label="Publicar versión actual. Generar captura de la malla." onClick={runAndClose(onOpenPublishModal, hasProject)} disabled={!hasProject}><span className={styles.itemPrimary} aria-hidden="true">Publicar versión actual</span><span className={styles.itemSecondary} aria-hidden="true">(Generar captura de la malla)</span></button></li>
               <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" aria-label="Abrir versión publicada. Cargar malla externa." onClick={openInput(publicationInputRef)}><span className={styles.itemPrimary} aria-hidden="true">Abrir versión publicada...</span><span className={styles.itemSecondary} aria-hidden="true">(Cargar malla externa)</span></button></li>
-            </ul>
-          ) : null}
-        </div>
-        <div className={styles.menuItem}>
-          <button type="button" className={styles.menuTrigger} {...triggerProps('editar')}><span aria-hidden="true">Editar</span></button>
-          {openMenu === 'editar' ? (
-            <ul id={menuDropdownId('editar')} className={styles.dropdown} role="menu" aria-labelledby={menuTriggerId('editar')} data-menu-dropdown="editar" onClick={(event) => event.stopPropagation()} onKeyDown={listKeyDown('editar')}>
-              <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" onClick={runAndClose(() => executeCommand('undo'), canUndo)} disabled={!canUndo}>Deshacer</button></li>
-              <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" onClick={runAndClose(() => executeCommand('redo'), canRedo)} disabled={!canRedo}>Rehacer</button></li>
-              <li className={styles.dropdownSeparator} aria-hidden="true" />
-              <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" disabled>Buscar...</button></li>
             </ul>
           ) : null}
         </div>
