@@ -6,9 +6,9 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 
 | Campo | Valor |
 | --- | --- |
-| Fase actual | Fase 0 - Cierre de deuda de release local |
-| Hito actual | Alcanzar "producto local maduro" |
-| Proximo PR recomendado | `PR-0.2g feat: agregar visibilidad por fila en metricas` |
+| Fase actual | Fase 1 - Endurecimiento de publicacion externa |
+| Hito actual | Alcanzar "producto maduro y publicable" |
+| Proximo PR recomendado | `PR-1.1 baseline de accesibilidad para menus, overlays y navegacion` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
