@@ -71,7 +71,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | --- | --- | --- | --- |
 | PR-1.1 | validated | Baseline de accesibilidad para menus, overlays y navegacion. | Navegacion por teclado y ARIA minima defendible. |
 | PR-1.1-support-a | validated | Suprimir el menu Editar del GlobalMenuBar y dejar undo/redo solo en herramientas de edicion locales. | Menubar alineado con el contexto real de cada pantalla, sin mezclar navegacion global con acciones de edicion. |
-| PR-1.1-support-b | planned | Corregir copy contextual de confirmaciones al intentar ir a la malla con bloque publicado desactualizado. | Los modales de navegacion deben nombrar acciones coherentes con la pantalla actual y no prometer un destino distinto al real. |
+| PR-1.1-support-b | validated | Corregir copy contextual de confirmaciones al intentar ir a la malla con bloque publicado desactualizado. | Los modales de navegacion deben nombrar acciones coherentes con la pantalla actual y no prometer un destino distinto al real. |
 | PR-1.2 | planned | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | planned | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
 | PR-1.4 | planned | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
@@ -81,7 +81,8 @@ Objetivo: pasar de maduro local a publicable externamente.
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
 
 - Validado: 2026-04-08 - PR/commit: `299c305`, `735da35` - Nota: `PR-1.1` deja una baseline defendible para menus, overlays y navegacion principal; se abren `PR-1.1-support-a` para simplificar el GlobalMenuBar y `PR-1.1-support-b` para corregir copy contextual de confirmaciones hacia malla.
-- Validado: 2026-04-08 - PR/commit: pendiente tras commit intermedio de `PR-1.1-support-a` - Nota: `PR-1.1-support-a` elimina el menu `Editar` del GlobalMenuBar y deja `undo/redo` solo en herramientas locales; desbloquea `PR-1.1-support-b`.
+- Validado: 2026-04-08 - PR/commit: `6d5af4c` - Nota: `PR-1.1-support-a` elimina el menu `Editar` del GlobalMenuBar y deja `undo/redo` solo en herramientas locales; desbloquea `PR-1.1-support-b`.
+- Validado: 2026-04-08 - PR/commit: pendiente tras commit intermedio de `PR-1.1-support-b` - Nota: `PR-1.1-support-b` corrige el copy contextual del modal al intentar ir a la malla desde Escritorio o Repositorio con bloque publicado desactualizado.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.

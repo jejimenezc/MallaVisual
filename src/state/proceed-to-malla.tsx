@@ -6,7 +6,7 @@ import React, {
   useState,
 } from 'react';
 import type { JSX } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfirm } from '../ui/confirm/ConfirmContext.tsx';
 import { useToast } from '../ui/toast/ToastContext.tsx';
 
@@ -41,12 +41,23 @@ interface ProceedToMallaProviderProps {
   hasPublishedRepositoryBlock: boolean;
 }
 
+export function getProceedToMallaCancelLabel(pathname: string): string {
+  if (pathname === '/' || pathname.startsWith('/blocks')) {
+    return 'Seguir en la pantalla actual';
+  }
+  if (pathname.startsWith('/block/')) {
+    return 'Seguir editando';
+  }
+  return 'Seguir en la malla';
+}
+
 export function ProceedToMallaProvider({
   children,
   hasDirtyBlock,
   hasPublishedBlock,
   hasPublishedRepositoryBlock,
 }: ProceedToMallaProviderProps): JSX.Element {
+  const location = useLocation();
   const navigate = useNavigate();
   const confirmAsync = useConfirm();
   const pushToast = useToast();
@@ -72,7 +83,7 @@ export function ProceedToMallaProvider({
               title: 'Publicar bloque antes de continuar',
               message,
               confirmLabel: 'Ir al editor de bloque',
-              cancelLabel: 'Seguir en la malla',
+              cancelLabel: getProceedToMallaCancelLabel(location.pathname),
               variant: 'info',
             });
             if (confirmed) {
@@ -86,7 +97,7 @@ export function ProceedToMallaProvider({
       })();
       return true;
     },
-    [confirmAsync, hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, navigate, pushToast],
+    [confirmAsync, hasDirtyBlock, hasPublishedBlock, hasPublishedRepositoryBlock, location.pathname, navigate, pushToast],
   );
 
   const [overrideHandler, setOverrideHandler] =
