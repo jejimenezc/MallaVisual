@@ -30,6 +30,52 @@ import { logAppError } from '../core/runtime/logger.ts';
 type ViewerMode = 'preview' | 'publication' | null;
 type ToastFn = (message: string, variant?: 'info' | 'success' | 'error') => void;
 
+export function resolvePublishModalContext(input: {
+  locationPathname: string;
+  viewerMode: ViewerMode;
+  viewerPanelModePreference: ViewerPanelMode;
+}): { origin: PublishOrigin; mode: PublicationMode } {
+  const { locationPathname, viewerMode, viewerPanelModePreference } = input;
+  const origin =
+    locationPathname === '/malla/viewer' && viewerMode === 'preview' ? 'viewer' : 'editor';
+  const mode =
+    origin === 'viewer'
+      ? resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference)
+      : 'presentation';
+  return { origin, mode };
+}
+
+export function resolvePublicationActionDetail(
+  product: PublicationProduct,
+): string | undefined {
+  if (product === 'html-web') {
+    return 'La publicacion se abrio en otra pestaÃ±a para revision inmediata.';
+  }
+  if (product === 'html-download') {
+    return 'El archivo web autonomo ya fue descargado con la apariencia actual.';
+  }
+  if (product === 'html-paginated') {
+    return 'La version descargada conserva la division por paginas del modo documento.';
+  }
+  if (product === 'html-embed') {
+    return 'La variante para insercion ya fue descargada sin elementos editoriales extra.';
+  }
+  return undefined;
+}
+
+export function resolvePublicationOutputConfigForProduct(
+  config: PublicationOutputConfig,
+  product: PublicationProduct,
+): PublicationOutputConfig {
+  if (product !== 'html-embed') {
+    return config;
+  }
+  return {
+    ...config,
+    flags: { ...config.flags, includeEditorial: false },
+  };
+}
+
 const createPublicationOperation = (
   key: PublicationOperationState['key'],
   status: OperationStatus,
@@ -286,10 +332,7 @@ export function usePublicationWorkflow({
         } else if (product === 'html-embed') {
           downloadViewerStandaloneHtml({
             snapshot,
-            config: {
-              ...publicationOutputConfig,
-              flags: { ...publicationOutputConfig.flags, includeEditorial: false },
-            },
+            config: resolvePublicationOutputConfigForProduct(publicationOutputConfig, product),
             product: 'html-embed',
           });
         }
@@ -390,9 +433,12 @@ export function usePublicationWorkflow({
   }, [openPublishModal, viewerPanelModePreference]);
 
   const handleOpenPublishModalFromMenu = useCallback(() => {
-    const origin = locationPathname === '/malla/viewer' && viewerMode === 'preview' ? 'viewer' : 'editor';
-    const mode = origin === 'viewer' ? resolvePublicationModeFromViewerPanelMode(viewerPanelModePreference) : 'presentation';
-    openPublishModal(origin, mode);
+    const nextContext = resolvePublishModalContext({
+      locationPathname,
+      viewerMode,
+      viewerPanelModePreference,
+    });
+    openPublishModal(nextContext.origin, nextContext.mode);
   }, [locationPathname, openPublishModal, viewerMode, viewerPanelModePreference]);
 
   const handleGoToPresentationFromPublishModal = useCallback(() => {
