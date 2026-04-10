@@ -7,6 +7,7 @@ import type { ViewerTheme } from './viewer-theme.ts';
  * sin repositorio, historial ni estado UI del editor.
  */
 export const MALLA_SNAPSHOT_FORMAT_VERSION = 1 as const;
+export const MALLA_SNAPSHOT_PAYLOAD_KIND = 'malla-publication-snapshot' as const;
 
 export interface SnapshotCellStyle {
   backgroundColor: string;
@@ -84,6 +85,7 @@ export interface SnapshotBands {
 }
 
 export interface MallaSnapshotV1 {
+  payloadKind: typeof MALLA_SNAPSHOT_PAYLOAD_KIND;
   formatVersion: typeof MALLA_SNAPSHOT_FORMAT_VERSION;
   createdAt: string;
   projectName: string;

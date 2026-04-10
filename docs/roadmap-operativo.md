@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.4 formalizar contrato estable de snapshot publicable` |
+| Proximo PR recomendado | `PR-1.4 review del contrato estable de snapshot publicable` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -74,7 +74,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.1-support-b | validated | Corregir copy contextual de confirmaciones al intentar ir a la malla con bloque publicado desactualizado. | Los modales de navegacion deben nombrar acciones coherentes con la pantalla actual y no prometer un destino distinto al real. |
 | PR-1.2 | validated | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | validated | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
-| PR-1.4 | planned | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
+| PR-1.4 | review | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
 | PR-1.5 | planned | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
 | PR-1.6 | planned | Definir politica de republicacion web/datos desde snapshot abierto en viewer. | Reglas claras sobre cuando un snapshot puede reutilizarse como fuente de salidas web/datos y como se comunica esa capacidad en UX. |
 

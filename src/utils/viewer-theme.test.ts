@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { MallaSnapshot } from '../types/malla-snapshot.ts';
+import { MALLA_SNAPSHOT_PAYLOAD_KIND, type MallaSnapshot } from '../types/malla-snapshot.ts';
 import {
   applyViewerTheme,
   createDefaultViewerTheme,
@@ -7,6 +7,7 @@ import {
 } from './viewer-theme.ts';
 
 const buildSnapshotFixture = (): MallaSnapshot => ({
+  payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
   formatVersion: 1,
   createdAt: '2026-03-05T12:00:00.000Z',
   projectName: 'Plan 2026',

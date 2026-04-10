@@ -17,7 +17,10 @@ import {
   migrateSnapshot,
   validateAndNormalizeMallaSnapshot,
 } from './malla-snapshot.ts';
-import { MALLA_SNAPSHOT_FORMAT_VERSION } from '../types/malla-snapshot.ts';
+import {
+  MALLA_SNAPSHOT_FORMAT_VERSION,
+  MALLA_SNAPSHOT_PAYLOAD_KIND,
+} from '../types/malla-snapshot.ts';
 
 test('buildMallaSnapshotFromState creates v1 snapshot and excludes editor repository state', () => {
   const template: BlockTemplate = [[
@@ -86,6 +89,7 @@ test('buildMallaSnapshotFromState creates v1 snapshot and excludes editor reposi
   });
 
   assert.equal(snapshot.formatVersion, MALLA_SNAPSHOT_FORMAT_VERSION);
+  assert.equal(snapshot.payloadKind, MALLA_SNAPSHOT_PAYLOAD_KIND);
   assert.equal(snapshot.projectName, 'Plan 2026');
   assert.equal(snapshot.snapshotId, 'snapshot-1');
   assert.equal(snapshot.appVersion, '1.2.3');
@@ -156,6 +160,7 @@ test('buildMallaSnapshotFromState includes only visible header rows and enabled 
 
 test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () => {
   const okResult = validateAndNormalizeMallaSnapshot({
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
     formatVersion: 1,
     createdAt: '2026-03-05T12:00:00.000Z',
     projectName: 'Plan 2026',
@@ -193,6 +198,7 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
   });
   assert.equal(okResult.ok, true);
   if (okResult.ok) {
+    assert.equal(okResult.normalizedSnapshot.payloadKind, MALLA_SNAPSHOT_PAYLOAD_KIND);
     assert.equal(okResult.normalizedSnapshot.formatVersion, 1);
     assert.equal(okResult.normalizedSnapshot.snapshotId, 'snapshot-2');
     assert.equal(okResult.normalizedSnapshot.appVersion, '1.0.0');
@@ -203,6 +209,7 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
   }
 
   const invalidVersion = validateAndNormalizeMallaSnapshot({
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
     formatVersion: 99,
     createdAt: '2026-03-05T12:00:00.000Z',
     projectName: 'Plan 2026',
@@ -226,6 +233,7 @@ test('validateAndNormalizeMallaSnapshot handles ok and unsupported version', () 
   }
 
   const invalidBands = validateAndNormalizeMallaSnapshot({
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
     formatVersion: 1,
     createdAt: '2026-03-05T12:00:00.000Z',
     projectName: 'Plan 2026',
@@ -291,6 +299,7 @@ test('snapshot publication appearance is normalized and preserved', () => {
 
 test('migrateSnapshot is identity for current format', () => {
   const snapshot = {
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
     formatVersion: MALLA_SNAPSHOT_FORMAT_VERSION,
     createdAt: '2026-03-05T12:00:00.000Z',
     projectName: 'Plan 2026',
@@ -299,4 +308,78 @@ test('migrateSnapshot is identity for current format', () => {
   };
 
   assert.deepEqual(migrateSnapshot(snapshot), snapshot);
+});
+
+test('migrateSnapshot fills payloadKind for legacy v1 snapshots and normalize canonicalizes ordering', () => {
+  const migrated = migrateSnapshot({
+    formatVersion: 1,
+    createdAt: '2026-03-05T12:00:00.000Z',
+    projectName: 'Plan 2026',
+    grid: { rows: 2, cols: 2 },
+    items: [
+      {
+        id: 'piece-b',
+        row: 1,
+        col: 0,
+        aspect: '1/1',
+        rows: 1,
+        cols: 1,
+        merges: [{ row: 0, col: 1, rowSpan: 1, colSpan: 2 }, { row: 0, col: 0, rowSpan: 1, colSpan: 1 }],
+        cells: [
+          {
+            row: 1,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+            type: 'staticText',
+            text: 'B',
+            style: { backgroundColor: '#fff', textColor: '#111827', textAlign: 'left', border: 'thin', fontSizePx: 14, paddingX: 8, paddingY: 6, bold: false, italic: false },
+          },
+          {
+            row: 0,
+            col: 0,
+            rowSpan: 1,
+            colSpan: 1,
+            type: 'staticText',
+            text: 'A',
+            style: { backgroundColor: '#fff', textColor: '#111827', textAlign: 'left', border: 'thin', fontSizePx: 14, paddingX: 8, paddingY: 6, bold: false, italic: false },
+          },
+        ],
+      },
+      {
+        id: 'piece-a',
+        row: 0,
+        col: 1,
+        aspect: '1/1',
+        rows: 1,
+        cols: 1,
+        merges: [],
+        cells: [],
+      },
+    ],
+    bands: {
+      headers: {
+        rows: [
+          {
+            id: 'hdr-1',
+            cells: [
+              { col: 1, text: 'B', style: { backgroundColor: '#fff', textColor: '#111827', textAlign: 'left', border: 'thin', fontSizePx: 12, paddingX: 6, paddingY: 4, bold: false, italic: false } },
+              { col: 0, text: 'A', style: { backgroundColor: '#fff', textColor: '#111827', textAlign: 'left', border: 'thin', fontSizePx: 12, paddingX: 6, paddingY: 4, bold: false, italic: false } },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(migrated?.payloadKind, MALLA_SNAPSHOT_PAYLOAD_KIND);
+
+  const normalized = validateAndNormalizeMallaSnapshot(migrated);
+  assert.equal(normalized.ok, true);
+  if (normalized.ok) {
+    assert.equal(normalized.normalizedSnapshot.items[0]?.id, 'piece-a');
+    assert.equal(normalized.normalizedSnapshot.items[1]?.cells[0]?.row, 0);
+    assert.equal(normalized.normalizedSnapshot.items[1]?.merges[0]?.col, 0);
+    assert.equal(normalized.normalizedSnapshot.bands?.headers?.rows[0]?.cells[0]?.col, 0);
+  }
 });

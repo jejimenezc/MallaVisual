@@ -2,6 +2,7 @@ import type { BlockTemplate, CurricularPiece, MasterBlockData } from '../types/c
 import type { VisualTemplate } from '../types/visual.ts';
 import {
   MALLA_SNAPSHOT_FORMAT_VERSION,
+  MALLA_SNAPSHOT_PAYLOAD_KIND,
   type MallaSnapshot,
   type SnapshotBandCell,
   type SnapshotBands,
@@ -98,6 +99,53 @@ const clampFontSize = (value: unknown, fallback: number): number => {
 
 const enumToPx = (fontSize?: 'small' | 'normal' | 'large') =>
   fontSize === 'small' ? 12 : fontSize === 'large' ? 20 : 14;
+
+const compareByRowCol = (a: { row: number; col: number }, b: { row: number; col: number }) =>
+  a.row - b.row || a.col - b.col;
+
+const canonicalizeSnapshotCells = (cells: MallaSnapshotCell[]): MallaSnapshotCell[] =>
+  cells.slice().sort(compareByRowCol);
+
+const canonicalizeSnapshotMerges = (merges: MallaSnapshotMerge[]): MallaSnapshotMerge[] =>
+  merges.slice().sort(compareByRowCol);
+
+const canonicalizeSnapshotItems = (items: MallaSnapshotItem[]): MallaSnapshotItem[] =>
+  items
+    .map((item) => ({
+      ...item,
+      merges: canonicalizeSnapshotMerges(item.merges),
+      cells: canonicalizeSnapshotCells(item.cells),
+    }))
+    .sort((a, b) => a.row - b.row || a.col - b.col || a.id.localeCompare(b.id));
+
+const canonicalizeBandCells = (cells: SnapshotBandCell[]): SnapshotBandCell[] =>
+  cells.slice().sort((a, b) => a.col - b.col);
+
+const canonicalizeBands = (bands: SnapshotBands | undefined): SnapshotBands | undefined => {
+  if (!bands) return undefined;
+  return {
+    ...(bands.headers
+      ? {
+          headers: {
+            rows: bands.headers.rows.map((row) => ({
+              ...row,
+              cells: canonicalizeBandCells(row.cells),
+            })),
+          },
+        }
+      : {}),
+    ...(bands.metrics
+      ? {
+          metrics: {
+            rows: bands.metrics.rows.map((row) => ({
+              ...row,
+              cells: canonicalizeBandCells(row.cells),
+            })),
+          },
+        }
+      : {}),
+  };
+};
 
 const safeCell = (template: BlockTemplate, row: number, col: number) =>
   template[row]?.[col] ?? { active: false };
@@ -518,6 +566,7 @@ export const buildMallaSnapshotFromState = (
       : undefined;
 
   return {
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
     formatVersion: MALLA_SNAPSHOT_FORMAT_VERSION,
     createdAt,
     projectName,
@@ -528,8 +577,8 @@ export const buildMallaSnapshotFromState = (
       rows: Math.max(1, malla.grid?.rows ?? 1),
       cols: Math.max(1, malla.grid?.cols ?? 1),
     },
-    items,
-    ...(bands ? { bands } : {}),
+    items: canonicalizeSnapshotItems(items),
+    ...(bands ? { bands: canonicalizeBands(bands) } : {}),
     ...(options.appearance ? { appearance: normalizeViewerTheme(options.appearance) } : {}),
   };
 };
@@ -757,7 +806,21 @@ export const migrateSnapshot = (snapshot: unknown): Record<string, unknown> | nu
       __migrationError: `Version de snapshot no soportada: ${String(snapshot.formatVersion)}`,
     };
   }
-  return snapshot;
+  const payloadKind =
+    snapshot.payloadKind === undefined
+      ? MALLA_SNAPSHOT_PAYLOAD_KIND
+      : typeof snapshot.payloadKind === 'string'
+        ? snapshot.payloadKind.trim()
+        : null;
+  if (payloadKind !== MALLA_SNAPSHOT_PAYLOAD_KIND) {
+    return {
+      __migrationError: `Payload de snapshot no soportado: ${String(snapshot.payloadKind)}`,
+    };
+  }
+  return {
+    ...snapshot,
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
+  };
 };
 
 export const validateAndNormalizeMallaSnapshot = (
@@ -820,6 +883,7 @@ export const validateAndNormalizeMallaSnapshot = (
       : undefined;
 
   const normalizedSnapshot: MallaSnapshot = {
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
     formatVersion: MALLA_SNAPSHOT_FORMAT_VERSION,
     createdAt,
     projectName,
@@ -836,8 +900,8 @@ export const validateAndNormalizeMallaSnapshot = (
       rows,
       cols,
     },
-    items,
-    ...(bands ? { bands } : {}),
+    items: canonicalizeSnapshotItems(items),
+    ...(bands ? { bands: canonicalizeBands(bands) } : {}),
     ...(migrated.appearance !== undefined
       ? { appearance: normalizeViewerTheme(migrated.appearance) }
       : {}),

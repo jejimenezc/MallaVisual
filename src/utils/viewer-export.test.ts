@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import type { MallaSnapshot } from '../types/malla-snapshot.ts';
+import { MALLA_SNAPSHOT_PAYLOAD_KIND, type MallaSnapshot } from '../types/malla-snapshot.ts';
 import { createDefaultViewerTheme } from './viewer-theme.ts';
 import { createDefaultViewerPrintSettings } from './viewer-print.ts';
 import {
@@ -10,6 +10,7 @@ import {
 } from './viewer-export.ts';
 
 const snapshot: MallaSnapshot = {
+  payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
   formatVersion: 1,
   createdAt: '2026-03-18T12:00:00.000Z',
   projectName: 'Ingeniería Ñ',
