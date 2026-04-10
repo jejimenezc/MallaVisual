@@ -10,6 +10,7 @@ import type { ViewerPanelMode, ViewerPrintSettings } from '../utils/viewer-print
 import { createDefaultViewerPrintSettings } from '../utils/viewer-print.ts';
 import { downloadViewerStandaloneHtml, openViewerPdfExport, openViewerStandaloneHtml } from '../utils/viewer-export.ts';
 import {
+  buildSnapshotDocumentProfileFromPrintSettings,
   createDefaultPublicationExportFlags,
   persistPublicationExportFlags,
   persistPublicationPrintSettings,
@@ -226,6 +227,7 @@ export function usePublicationWorkflow({
         return buildMallaSnapshotFromState(currentProject, {
           projectName: projectName || 'Proyecto',
           appearance,
+          documentProfile: buildSnapshotDocumentProfileFromPrintSettings(publicationPrintSettings),
         });
       } catch (error) {
         logAppError({
@@ -238,7 +240,7 @@ export function usePublicationWorkflow({
         return null;
       }
     },
-    [currentProject, projectId, projectName],
+    [currentProject, projectId, projectName, publicationPrintSettings],
   );
 
   const downloadPublication = useCallback((snapshot: MallaSnapshot) => {

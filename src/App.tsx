@@ -49,6 +49,7 @@ import { normalizeViewerTheme } from './utils/viewer-theme.ts';
 import type { ViewerTheme } from './types/viewer-theme.ts';
 import { usePublicationWorkflow } from './state/use-publication-workflow.ts';
 import { useBlockUsageAndControlCleanup } from './state/use-block-usage-and-control-cleanup.ts';
+import { applySnapshotDocumentProfileToPrintSettings } from './utils/publication-output.ts';
 import {
   type BlockState,
   MALLA_AUTOSAVE_STORAGE_KEY,
@@ -824,6 +825,15 @@ export default function App(): JSX.Element | null {
     }
     return publicationOutputConfig.theme;
   }, [publicationOutputConfig.theme, publicationSnapshot?.appearance, viewerMode]);
+  const activeViewerPrintSettings = useMemo(() => {
+    if (viewerMode === 'publication') {
+      return applySnapshotDocumentProfileToPrintSettings(
+        publicationPrintSettings,
+        publicationSnapshot?.documentProfile,
+      );
+    }
+    return publicationPrintSettings;
+  }, [publicationPrintSettings, publicationSnapshot?.documentProfile, viewerMode]);
 
   if (!isHydrated) {
     return null;
@@ -989,7 +999,7 @@ export default function App(): JSX.Element | null {
                       mode={viewerMode}
                       initialPanelMode={viewerPanelModePreference}
                       theme={activeViewerTheme}
-                      printSettings={publicationPrintSettings}
+                      printSettings={activeViewerPrintSettings}
                       onThemeChange={handleViewerThemeChange}
                       onPrintSettingsChange={handlePublicationPrintSettingsChange}
                       onPanelModeChange={handleViewerPanelModeChange}

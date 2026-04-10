@@ -223,4 +223,46 @@ describe('viewer-export', () => {
     expect(html).toContain('Documento paginado');
     expect(html).not.toContain('mve-print-page');
   });
+
+  test('document outputs prioritize snapshot document profile over local print settings', () => {
+    const html = createViewerPrintHtml({
+      snapshot: {
+        ...snapshot,
+        documentProfile: {
+          profileVersion: 1,
+          showDocumentTitle: true,
+          documentTitleFontSize: 28,
+          documentTitleOverride: 'Documento del snapshot',
+          pageLayoutMode: 'first-page-only',
+          showHeader: true,
+          headerText: 'Header del snapshot',
+          showFooter: true,
+          footerText: 'Footer del snapshot',
+          showPageNumbers: true,
+        },
+      },
+      config: {
+        theme: createDefaultViewerTheme(),
+        printSettings: {
+          ...createDefaultViewerPrintSettings(),
+          showDocumentTitle: false,
+          documentTitleOverride: 'Documento local',
+          showHeader: false,
+          headerText: 'Header local',
+          showFooter: false,
+          footerText: 'Footer local',
+          showPageNumbers: false,
+        },
+      },
+      product: 'pdf',
+    });
+
+    expect(html).toContain('Documento del snapshot');
+    expect(html).toContain('Header del snapshot');
+    expect(html).toContain('Footer del snapshot');
+    expect(html).toContain('Pagina 1 de 1');
+    expect(html).not.toContain('Documento local');
+    expect(html).not.toContain('Header local');
+    expect(html).not.toContain('Footer local');
+  });
 });

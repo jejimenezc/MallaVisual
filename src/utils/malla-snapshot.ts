@@ -4,6 +4,7 @@ import {
   MALLA_SNAPSHOT_FORMAT_VERSION,
   MALLA_SNAPSHOT_PAYLOAD_KIND,
   type MallaSnapshot,
+  type SnapshotDocumentProfileV1,
   type SnapshotBandCell,
   type SnapshotBands,
   type SnapshotHeaderBand,
@@ -38,6 +39,7 @@ import {
 } from './meta-calc.ts';
 import { normalizeViewerTheme } from './viewer-theme.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
+import { normalizeSnapshotDocumentProfile } from './publication-output.ts';
 
 const DEFAULT_BG_COLOR = '#ffffff';
 const DEFAULT_TEXT_COLOR = '#111827';
@@ -67,6 +69,7 @@ interface BuildSnapshotOptions {
   appVersion?: string;
   sourceSchemaVersion?: number;
   appearance?: ViewerTheme;
+  documentProfile?: SnapshotDocumentProfileV1;
 }
 
 export const SUPPORTED_MALLA_SNAPSHOT_FORMAT_VERSIONS = [MALLA_SNAPSHOT_FORMAT_VERSION] as const;
@@ -580,6 +583,9 @@ export const buildMallaSnapshotFromState = (
     items: canonicalizeSnapshotItems(items),
     ...(bands ? { bands: canonicalizeBands(bands) } : {}),
     ...(options.appearance ? { appearance: normalizeViewerTheme(options.appearance) } : {}),
+    ...(options.documentProfile
+      ? { documentProfile: normalizeSnapshotDocumentProfile(options.documentProfile) }
+      : {}),
   };
 };
 
@@ -789,6 +795,16 @@ const normalizeSnapshotBands = (value: unknown): SnapshotBands | null => {
   };
 };
 
+const normalizeSnapshotDocumentProfileRecord = (
+  value: unknown,
+): SnapshotDocumentProfileV1 | null => {
+  if (!isRecord(value)) return null;
+  if (value.profileVersion !== undefined && value.profileVersion !== 1) {
+    return null;
+  }
+  return normalizeSnapshotDocumentProfile(value);
+};
+
 export const migrateSnapshot = (snapshot: unknown): Record<string, unknown> | null => {
   if (!isRecord(snapshot)) {
     return null;
@@ -875,6 +891,14 @@ export const validateAndNormalizeMallaSnapshot = (
     return { ok: false, error: 'Snapshot invalido: bandas con formato incorrecto.' };
   }
 
+  const hasDocumentProfile = migrated.documentProfile !== undefined;
+  const documentProfile = hasDocumentProfile
+    ? normalizeSnapshotDocumentProfileRecord(migrated.documentProfile)
+    : undefined;
+  if (hasDocumentProfile && !documentProfile) {
+    return { ok: false, error: 'Snapshot invalido: documentProfile con formato incorrecto.' };
+  }
+
   const sourceSchemaVersion =
     typeof migrated.sourceSchemaVersion === 'number' &&
     Number.isInteger(migrated.sourceSchemaVersion) &&
@@ -905,6 +929,7 @@ export const validateAndNormalizeMallaSnapshot = (
     ...(migrated.appearance !== undefined
       ? { appearance: normalizeViewerTheme(migrated.appearance) }
       : {}),
+    ...(documentProfile ? { documentProfile } : {}),
   };
 
   return {

@@ -8,6 +8,7 @@ import {
 } from '../components/ViewerPrintDocument.tsx';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
 import {
+  applySnapshotDocumentProfileToPrintSettings,
   createDefaultPublicationOutputConfig,
   normalizePublicationOutputConfig,
   type PublicationExportFlags,
@@ -423,7 +424,10 @@ const resolvePublicationExportConfig = (
 export const resolvePublicationOutputModel = (input: PublicationExportInput) => {
   const config = resolvePublicationExportConfig(input.config);
   const renderModel = applyViewerTheme(input.snapshot, config.theme);
-  const printSettings = config.printSettings;
+  const printSettings =
+    input.product === 'pdf' || input.product === 'print' || input.product === 'html-paginated'
+      ? applySnapshotDocumentProfileToPrintSettings(config.printSettings, input.snapshot.documentProfile)
+      : config.printSettings;
   const flags = config.flags;
   const measuredPxPerMm = createDefaultViewerMeasuredPxPerMm();
   const pageMetrics = resolveViewerPageMetrics(printSettings);

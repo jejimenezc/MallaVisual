@@ -12,6 +12,8 @@ import { createDefaultColumnHeaders } from './column-headers.ts';
 import { buildBlockId } from '../types/block.ts';
 import { BLOCK_SCHEMA_VERSION } from './block-io.ts';
 import { createDefaultViewerTheme } from './viewer-theme.ts';
+import { createDefaultViewerPrintSettings } from './viewer-print.ts';
+import { buildSnapshotDocumentProfileFromPrintSettings } from './publication-output.ts';
 import {
   buildMallaSnapshotFromState,
   migrateSnapshot,
@@ -278,6 +280,18 @@ test('snapshot publication appearance is normalized and preserved', () => {
       titleFontSize: 99,
       showHeaderFooter: true,
     },
+    documentProfile: {
+      ...buildSnapshotDocumentProfileFromPrintSettings(createDefaultViewerPrintSettings()),
+      showDocumentTitle: true,
+      documentTitleFontSize: 40,
+      documentTitleOverride: 'Documento canonico',
+      showHeader: true,
+      headerText: 'Encabezado canonico',
+      showFooter: true,
+      footerText: 'Pie canonico',
+      showPageNumbers: true,
+      pageLayoutMode: 'first-page-only',
+    },
   });
 
   assert.equal(snapshot.appearance?.gapX, 96);
@@ -285,6 +299,10 @@ test('snapshot publication appearance is normalized and preserved', () => {
   assert.equal(snapshot.appearance?.titleText, 'Titulo web');
   assert.equal(snapshot.appearance?.titleFontSize, 40);
   assert.equal(snapshot.appearance?.showHeaderFooter, true);
+  assert.equal(snapshot.documentProfile?.profileVersion, 1);
+  assert.equal(snapshot.documentProfile?.documentTitleOverride, 'Documento canonico');
+  assert.equal(snapshot.documentProfile?.headerText, 'Encabezado canonico');
+  assert.equal(snapshot.documentProfile?.pageLayoutMode, 'first-page-only');
 
   const normalized = validateAndNormalizeMallaSnapshot(snapshot);
   assert.equal(normalized.ok, true);
@@ -294,6 +312,29 @@ test('snapshot publication appearance is normalized and preserved', () => {
     assert.equal(normalized.normalizedSnapshot.appearance?.titleText, 'Titulo web');
     assert.equal(normalized.normalizedSnapshot.appearance?.titleFontSize, 40);
     assert.equal(normalized.normalizedSnapshot.appearance?.showHeaderFooter, true);
+    assert.equal(normalized.normalizedSnapshot.documentProfile?.profileVersion, 1);
+    assert.equal(normalized.normalizedSnapshot.documentProfile?.documentTitleOverride, 'Documento canonico');
+    assert.equal(normalized.normalizedSnapshot.documentProfile?.headerText, 'Encabezado canonico');
+    assert.equal(normalized.normalizedSnapshot.documentProfile?.pageLayoutMode, 'first-page-only');
+  }
+});
+
+test('validateAndNormalizeMallaSnapshot rejects unsupported document profile versions', () => {
+  const result = validateAndNormalizeMallaSnapshot({
+    payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
+    formatVersion: 1,
+    createdAt: '2026-03-05T12:00:00.000Z',
+    projectName: 'Plan 2026',
+    grid: { rows: 1, cols: 1 },
+    items: [],
+    documentProfile: {
+      profileVersion: 99,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.includes('documentProfile'), true);
   }
 });
 

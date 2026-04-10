@@ -11,6 +11,10 @@ import {
   type ViewerPrintSettings,
 } from './viewer-print.ts';
 import { logAppError } from '../core/runtime/logger.ts';
+import {
+  SNAPSHOT_DOCUMENT_PROFILE_VERSION,
+  type SnapshotDocumentProfileV1,
+} from '../types/malla-snapshot.ts';
 
 export type PublicationMode = 'presentation' | 'document';
 export type PublicationProduct =
@@ -32,6 +36,67 @@ export interface PublicationOutputConfig {
   printSettings: ViewerPrintSettings;
   flags: PublicationExportFlags;
 }
+
+export const createDefaultSnapshotDocumentProfile = (): SnapshotDocumentProfileV1 => {
+  const defaults = createDefaultViewerPrintSettings();
+  return {
+    profileVersion: SNAPSHOT_DOCUMENT_PROFILE_VERSION,
+    showDocumentTitle: defaults.showDocumentTitle,
+    documentTitleFontSize: defaults.documentTitleFontSize,
+    documentTitleOverride: defaults.documentTitleOverride,
+    pageLayoutMode: defaults.pageLayoutMode,
+    showHeader: defaults.showHeader,
+    headerText: defaults.headerText,
+    showFooter: defaults.showFooter,
+    footerText: defaults.footerText,
+    showPageNumbers: defaults.showPageNumbers,
+  };
+};
+
+export const normalizeSnapshotDocumentProfile = (
+  value: unknown,
+): SnapshotDocumentProfileV1 => {
+  const normalized = normalizeViewerPrintSettings(value);
+  return {
+    profileVersion: SNAPSHOT_DOCUMENT_PROFILE_VERSION,
+    showDocumentTitle: normalized.showDocumentTitle,
+    documentTitleFontSize: normalized.documentTitleFontSize,
+    documentTitleOverride: normalized.documentTitleOverride,
+    pageLayoutMode: normalized.pageLayoutMode,
+    showHeader: normalized.showHeader,
+    headerText: normalized.headerText,
+    showFooter: normalized.showFooter,
+    footerText: normalized.footerText,
+    showPageNumbers: normalized.showPageNumbers,
+  };
+};
+
+export const buildSnapshotDocumentProfileFromPrintSettings = (
+  settings: ViewerPrintSettings,
+): SnapshotDocumentProfileV1 => normalizeSnapshotDocumentProfile(settings);
+
+export const applySnapshotDocumentProfileToPrintSettings = (
+  settings: ViewerPrintSettings,
+  profile?: SnapshotDocumentProfileV1 | null,
+): ViewerPrintSettings => {
+  const normalizedSettings = normalizeViewerPrintSettings(settings);
+  if (!profile) {
+    return normalizedSettings;
+  }
+  const normalizedProfile = normalizeSnapshotDocumentProfile(profile);
+  return {
+    ...normalizedSettings,
+    showDocumentTitle: normalizedProfile.showDocumentTitle,
+    documentTitleFontSize: normalizedProfile.documentTitleFontSize,
+    documentTitleOverride: normalizedProfile.documentTitleOverride,
+    pageLayoutMode: normalizedProfile.pageLayoutMode,
+    showHeader: normalizedProfile.showHeader,
+    headerText: normalizedProfile.headerText,
+    showFooter: normalizedProfile.showFooter,
+    footerText: normalizedProfile.footerText,
+    showPageNumbers: normalizedProfile.showPageNumbers,
+  };
+};
 
 export const resolvePublicationModeFromViewerPanelMode = (
   value: ViewerPanelMode,

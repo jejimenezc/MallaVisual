@@ -8,6 +8,7 @@ import type { ViewerTheme } from './viewer-theme.ts';
  */
 export const MALLA_SNAPSHOT_FORMAT_VERSION = 1 as const;
 export const MALLA_SNAPSHOT_PAYLOAD_KIND = 'malla-publication-snapshot' as const;
+export const SNAPSHOT_DOCUMENT_PROFILE_VERSION = 1 as const;
 
 export interface SnapshotCellStyle {
   backgroundColor: string;
@@ -84,6 +85,19 @@ export interface SnapshotBands {
   metrics?: SnapshotMetricsBand;
 }
 
+export interface SnapshotDocumentProfileV1 {
+  profileVersion: typeof SNAPSHOT_DOCUMENT_PROFILE_VERSION;
+  showDocumentTitle: boolean;
+  documentTitleFontSize: number;
+  documentTitleOverride: string;
+  pageLayoutMode: 'first-page-only' | 'same-on-all-pages';
+  showHeader: boolean;
+  headerText: string;
+  showFooter: boolean;
+  footerText: string;
+  showPageNumbers: boolean;
+}
+
 export interface MallaSnapshotV1 {
   payloadKind: typeof MALLA_SNAPSHOT_PAYLOAD_KIND;
   formatVersion: typeof MALLA_SNAPSHOT_FORMAT_VERSION;
@@ -99,6 +113,7 @@ export interface MallaSnapshotV1 {
   items: MallaSnapshotItem[];
   bands?: SnapshotBands;
   appearance?: ViewerTheme;
+  documentProfile?: SnapshotDocumentProfileV1;
 }
 
 export type MallaSnapshot = MallaSnapshotV1;
