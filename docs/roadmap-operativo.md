@@ -75,6 +75,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.2 | validated | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | validated | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
 | PR-1.4 | validated | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
+| PR-1.4-support-a | planned | Endurecer validacion minima de import para proyecto y bloque. | Importaciones con tipado mas robusto y validaciones minimas de seguridad sin elevar proyecto/bloque a contratos publicos. |
 | PR-1.5 | planned | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
 | PR-1.6 | planned | Definir politica de republicacion web/datos desde snapshot abierto en viewer. | Reglas claras sobre cuando un snapshot puede reutilizarse como fuente de salidas web/datos y como se comunica esa capacidad en UX. |
 
