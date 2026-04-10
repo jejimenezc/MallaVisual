@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.4 review del contrato estable de snapshot publicable` |
+| Proximo PR recomendado | `PR-1.5 definir perfil documental versionado para publicaciones` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -74,7 +74,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.1-support-b | validated | Corregir copy contextual de confirmaciones al intentar ir a la malla con bloque publicado desactualizado. | Los modales de navegacion deben nombrar acciones coherentes con la pantalla actual y no prometer un destino distinto al real. |
 | PR-1.2 | validated | Mejorar senales visuales de piezas referenciadas vs snapshot. | Estado de piezas legible en UX normal. |
 | PR-1.3 | validated | Ampliar cobertura de flujos de viewer y publicacion. | Regresiones importantes cubiertas por pruebas. |
-| PR-1.4 | review | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
+| PR-1.4 | validated | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
 | PR-1.5 | planned | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
 | PR-1.6 | planned | Definir politica de republicacion web/datos desde snapshot abierto en viewer. | Reglas claras sobre cuando un snapshot puede reutilizarse como fuente de salidas web/datos y como se comunica esa capacidad en UX. |
 
@@ -85,6 +85,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 - Validado: 2026-04-08 - PR/commit: `c60216b` - Nota: `PR-1.1-support-b` corrige el copy contextual del modal al intentar ir a la malla desde Escritorio o Repositorio con bloque publicado desactualizado.
 - Validado: 2026-04-08 - PR/commit: `34d3ae6` - Nota: `PR-1.2` distingue mejor piezas referenciadas y snapshots en la malla con bordes suaves e iconos persistentes; desbloquea `PR-1.3`.
 - Validado: 2026-04-08 - PR/commit: `89c2638` - Nota: `PR-1.3` amplía la cobertura del workflow de viewer/publicación en helpers puros y quedó validada además con `cmd /c npm test` en local; desbloquea `PR-1.4`.
+- Validado: 2026-04-10 - PR/commit: c28e210 - Nota: PR-1.4 formaliza el contrato del snapshot publicable con payloadKind y orden canonico estable; validacion manual sin retrocesos ni comportamientos inesperados; desbloquea PR-1.5.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.
@@ -219,3 +220,5 @@ Ejemplo:
 - Actualizar este archivo al iniciar un PR (`in-progress`) y al cerrarlo (`validated` o `blocked`) cuando el contexto del roadmap cambie.
 - Mantener `Working Agreement.md` breve; no duplicar aqui reglas generales de colaboracion.
 - Mantener `README.md` como punto de descubrimiento, no como copia del roadmap operativo.
+
+
