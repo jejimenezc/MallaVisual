@@ -92,3 +92,51 @@ test('migrateBlock is identity for current schema', () => {
 
   assert.deepEqual(migrateBlock(input), input);
 });
+
+test('importBlock rejects invalid template shape', () => {
+  assert.throws(
+    () =>
+      importBlock(
+        JSON.stringify({
+          version: BLOCK_SCHEMA_VERSION,
+          template: [{ active: true }],
+          visual: {},
+          aspect: '1/1',
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Template de bloque invalido/,
+  );
+});
+
+test('importBlock rejects invalid visual shape', () => {
+  assert.throws(
+    () =>
+      importBlock(
+        JSON.stringify({
+          version: BLOCK_SCHEMA_VERSION,
+          template: [[{ active: true }]],
+          visual: [],
+          aspect: '1/1',
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Visual de bloque invalido/,
+  );
+});
+
+test('importBlock rejects invalid aspect', () => {
+  assert.throws(
+    () =>
+      importBlock(
+        JSON.stringify({
+          version: BLOCK_SCHEMA_VERSION,
+          template: [[{ active: true }]],
+          visual: {},
+          aspect: '3/1',
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Aspecto de bloque invalido/,
+  );
+});

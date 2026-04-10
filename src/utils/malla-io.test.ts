@@ -267,6 +267,111 @@ test('importMalla rejects unsupported future versions safely', () => {
   );
 });
 
+test('importMalla rejects invalid grid shape', () => {
+  assert.throws(
+    () =>
+      importMalla(
+        JSON.stringify({
+          version: 6,
+          masters: {},
+          repository: {},
+          grid: { cols: 0, rows: 1 },
+          pieces: [],
+          values: {},
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Grid invalido/,
+  );
+});
+
+test('importMalla rejects malformed pieces', () => {
+  assert.throws(
+    () =>
+      importMalla(
+        JSON.stringify({
+          version: 6,
+          masters: {},
+          repository: {},
+          grid: { cols: 1, rows: 1 },
+          pieces: [
+            {
+              kind: 'ref',
+              id: 'piece-1',
+              x: 0,
+              y: 0,
+              ref: {
+                sourceId: '',
+                bounds: { minRow: 0, maxRow: 0, minCol: 0, maxCol: 0, rows: 1, cols: 1 },
+                aspect: '1/1',
+              },
+            },
+          ],
+          values: {},
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Piezas invalidas/,
+  );
+});
+
+test('importMalla rejects invalid nested repository block data', () => {
+  assert.throws(
+    () =>
+      importMalla(
+        JSON.stringify({
+          version: 6,
+          masters: {},
+          repository: {
+            repo1: {
+              id: buildBlockId('project', 'repo1'),
+              metadata: {
+                projectId: 'project',
+                uuid: 'repo1',
+                name: 'Repo 1',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+              data: {
+                version: BLOCK_SCHEMA_VERSION,
+                template: [[{ active: true }]],
+                visual: {},
+                aspect: '9/9',
+                theme: createDefaultProjectTheme(),
+              },
+            },
+          },
+          grid: { cols: 1, rows: 1 },
+          pieces: [],
+          values: {},
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Aspecto de bloque invalido/,
+  );
+});
+
+test('importMalla rejects invalid values map', () => {
+  assert.throws(
+    () =>
+      importMalla(
+        JSON.stringify({
+          version: 6,
+          masters: {},
+          repository: {},
+          grid: { cols: 1, rows: 1 },
+          pieces: [],
+          values: {
+            piece1: {
+              r0c0: { nested: true },
+            },
+          },
+          theme: createDefaultProjectTheme(),
+        }),
+      ),
+    /Valores invalidos/,
+  );
+});
+
 test('importMalla migrates legacy row config (columns-only) into defaultCell and preserves overrides', () => {
   const payload = {
     version: 6,

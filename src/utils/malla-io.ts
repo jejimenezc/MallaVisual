@@ -14,7 +14,11 @@ import {
   normalizeColumnHeadersConfig,
 } from './column-headers.ts';
 import { buildBlockId, parseBlockId, type BlockId, type BlockMetadata } from '../types/block.ts';
-import { BLOCK_SCHEMA_VERSION, type BlockExport } from './block-io.ts';
+import {
+  BLOCK_SCHEMA_VERSION,
+  normalizeImportedBlockContent,
+  type BlockExport,
+} from './block-io.ts';
 import {
   remapPiecesWithMapping,
   remapIds,
@@ -73,6 +77,173 @@ const DEFAULT_META_PANEL_ROW_ID = 'meta-row-main';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+const isPrimitiveProjectValue = (
+  value: unknown,
+): value is string | number | boolean =>
+  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+
+const normalizeImportedGrid = (value: unknown): { cols: number; rows: number } => {
+  if (!isRecord(value)) {
+    throw new Error('Grid invalido');
+  }
+  const cols = Number(value.cols);
+  const rows = Number(value.rows);
+  if (!Number.isInteger(cols) || cols < 1 || !Number.isInteger(rows) || rows < 1) {
+    throw new Error('Grid invalido');
+  }
+  return { cols, rows };
+};
+
+const normalizeImportedBounds = (
+  value: unknown,
+): { minRow: number; maxRow: number; minCol: number; maxCol: number; rows: number; cols: number } => {
+  if (!isRecord(value)) {
+    throw new Error('Pieza invalida');
+  }
+  const minRow = Number(value.minRow);
+  const maxRow = Number(value.maxRow);
+  const minCol = Number(value.minCol);
+  const maxCol = Number(value.maxCol);
+  const rows = Number(value.rows);
+  const cols = Number(value.cols);
+  if (
+    !Number.isInteger(minRow) ||
+    !Number.isInteger(maxRow) ||
+    !Number.isInteger(minCol) ||
+    !Number.isInteger(maxCol) ||
+    !Number.isInteger(rows) ||
+    !Number.isInteger(cols) ||
+    minRow < 0 ||
+    minCol < 0 ||
+    maxRow < minRow ||
+    maxCol < minCol ||
+    rows < 1 ||
+    cols < 1
+  ) {
+    throw new Error('Pieza invalida');
+  }
+  return { minRow, maxRow, minCol, maxCol, rows, cols };
+};
+
+const normalizeImportedPiece = (value: unknown): CurricularPiece => {
+  if (!isRecord(value)) {
+    throw new Error('Piezas invalidas');
+  }
+  const kind = value.kind;
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const x = Number(value.x);
+  const y = Number(value.y);
+  if (!id || !Number.isInteger(x) || x < 0 || !Number.isInteger(y) || y < 0) {
+    throw new Error('Piezas invalidas');
+  }
+
+  if (kind === 'ref') {
+    if (!isRecord(value.ref)) {
+      throw new Error('Piezas invalidas');
+    }
+    const sourceId = typeof value.ref.sourceId === 'string' ? value.ref.sourceId.trim() : '';
+    if (!sourceId) {
+      throw new Error('Piezas invalidas');
+    }
+    const aspect = normalizeImportedBlockContent({
+      template: [[{ active: true }]],
+      visual: {},
+      aspect: value.ref.aspect,
+    }).aspect;
+    return {
+      kind: 'ref',
+      id,
+      x,
+      y,
+      ref: {
+        sourceId,
+        bounds: normalizeImportedBounds(value.ref.bounds),
+        aspect,
+      },
+    };
+  }
+
+  if (kind === 'snapshot') {
+    const content = normalizeImportedBlockContent(value);
+    const origin = value.origin === undefined
+      ? undefined
+      : (() => {
+          if (!isRecord(value.origin)) throw new Error('Piezas invalidas');
+          const sourceId = typeof value.origin.sourceId === 'string' ? value.origin.sourceId.trim() : '';
+          if (!sourceId) throw new Error('Piezas invalidas');
+          const aspect = normalizeImportedBlockContent({
+            template: [[{ active: true }]],
+            visual: {},
+            aspect: value.origin.aspect,
+          }).aspect;
+          return {
+            sourceId,
+            bounds: normalizeImportedBounds(value.origin.bounds),
+            aspect,
+          };
+        })();
+    return {
+      kind: 'snapshot',
+      id,
+      x,
+      y,
+      template: content.template,
+      visual: content.visual,
+      aspect: content.aspect,
+      ...(origin ? { origin } : {}),
+    };
+  }
+
+  throw new Error('Piezas invalidas');
+};
+
+const normalizeImportedValues = (
+  value: unknown,
+): Record<string, Record<string, string | number | boolean>> => {
+  if (!isRecord(value)) {
+    throw new Error('Valores invalidos');
+  }
+  const normalized: Record<string, Record<string, string | number | boolean>> = {};
+  for (const [pieceId, rawValues] of Object.entries(value)) {
+    if (!isRecord(rawValues)) {
+      throw new Error('Valores invalidos');
+    }
+    const nextValues: Record<string, string | number | boolean> = {};
+    for (const [controlKey, controlValue] of Object.entries(rawValues)) {
+      if (!isPrimitiveProjectValue(controlValue)) {
+        throw new Error('Valores invalidos');
+      }
+      nextValues[controlKey] = controlValue;
+    }
+    normalized[pieceId] = nextValues;
+  }
+  return normalized;
+};
+
+const normalizeImportedFloatingPieces = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    throw new Error('Floating pieces invalidas');
+  }
+  if (!value.every((entry) => typeof entry === 'string')) {
+    throw new Error('Floating pieces invalidas');
+  }
+  return value as string[];
+};
+
+const normalizeImportedMasters = (
+  value: unknown,
+): Record<string, MasterBlockData> => {
+  if (!isRecord(value)) {
+    throw new Error('Datos "masters" incompletos');
+  }
+  const normalized: Record<string, MasterBlockData> = {};
+  for (const [key, rawMaster] of Object.entries(value)) {
+    const content = normalizeImportedBlockContent(rawMaster);
+    normalized[key] = content;
+  }
+  return normalized;
+};
 
 const buildDefaultMetaCellId = (rowId: string, colIndex: number) => `${rowId}-col-${colIndex}`;
 const buildDefaultMetaTermId = (cellId: string, index: number) => `${cellId}-term-${index + 1}`;
@@ -343,7 +514,18 @@ function normalizeRepositoryEntries(
           : uuid,
       updatedAt: metadata.updatedAt ?? new Date().toISOString(),
     };
-    const blockData: BlockExport = cloneBlockExport(entry.data, finalMetadata);
+    const normalizedContent = normalizeImportedBlockContent(entry.data);
+    const blockData: BlockExport = cloneBlockExport(
+      {
+        ...normalizedContent,
+        version: BLOCK_SCHEMA_VERSION,
+        metadata: isRecord((entry.data as { metadata?: unknown }).metadata)
+          ? ((entry.data as { metadata?: unknown }).metadata as BlockMetadata)
+          : finalMetadata,
+        theme: normalizeProjectTheme((entry.data as { theme?: unknown }).theme),
+      },
+      finalMetadata,
+    );
     normalized[uuid] = {
       id: entry.id,
       metadata: finalMetadata,
@@ -535,9 +717,7 @@ export function importMalla(json: string): MallaExport {
   if (version > MALLA_SCHEMA_VERSION) {
     throw new Error('Versión incompatible');
   }
-  if (!data.masters || typeof data.masters !== 'object') {
-    throw new Error('Datos "masters" incompletos');
-  }
+  const mastersInput = normalizeImportedMasters(data.masters);
 
   let repository: Record<string, MallaRepositoryEntry>;
   let masters: Record<string, MasterBlockData>;
@@ -548,9 +728,9 @@ export function importMalla(json: string): MallaExport {
 
   if (version >= 4) {
     repository = normalizeRepositoryEntries(data.repository as Record<string, unknown> | undefined);
-    masters = data.masters as Record<string, MasterBlockData>;
-    pieces = data.pieces ?? [];
-    floatingPieces = data.floatingPieces ?? [];
+    masters = mastersInput;
+    pieces = data.pieces === undefined ? [] : data.pieces.map(normalizeImportedPiece);
+    floatingPieces = data.floatingPieces === undefined ? [] : normalizeImportedFloatingPieces(data.floatingPieces);
     repositoryMetadata = Object.fromEntries(
       Object.entries(repository).map(([key, entry]) => [key, { ...entry.metadata }]),
     );
@@ -581,11 +761,14 @@ export function importMalla(json: string): MallaExport {
       (data as { draftBlockName?: string }).draftBlockName?.trim()
         ? (data as { draftBlockName?: string }).draftBlockName?.trim()
         : undefined,
-    grid: data.grid ?? { cols: 5, rows: 5 },
+    grid: data.grid === undefined ? { cols: 5, rows: 5 } : normalizeImportedGrid(data.grid),
     pieces,
-    values: data.values ?? {},
+    values: data.values === undefined ? {} : normalizeImportedValues(data.values),
     floatingPieces,
-    activeMasterId,
+    activeMasterId:
+      typeof activeMasterId === 'string' && activeMasterId.trim().length > 0
+        ? activeMasterId.trim()
+        : undefined,
     theme: normalizeProjectTheme((data as { theme?: unknown }).theme),
     metaPanel: normalizeMetaPanelConfig((data as { metaPanel?: unknown }).metaPanel),
     columnHeaders: normalizeColumnHeadersConfig((data as { columnHeaders?: unknown }).columnHeaders),
