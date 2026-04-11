@@ -250,6 +250,7 @@ export default function App(): JSX.Element | null {
   const [publicationSession, setPublicationSession] =
     useState<PublicationSessionMode>('design');
   const introOverlayReturnFocusRef = useRef<HTMLElement | null>(null);
+  const certificationViewerEnteredRef = useRef(false);
   const projectSwitchTokenRef = useRef(0);
   const previousProjectIdRef = useRef<string | null>(projectId);
   const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
@@ -848,11 +849,42 @@ export default function App(): JSX.Element | null {
   }, [publicationPrintSettings, publicationSnapshot?.documentProfile, viewerMode]);
 
   useEffect(() => {
-    if (!hasProject || publicationSession !== 'certify') {
+    if (!hasProject) {
+      certificationViewerEnteredRef.current = false;
       return;
     }
-    handleOpenPreview();
-  }, [handleOpenPreview, hasProject, publicationSession]);
+
+    if (publicationSession !== 'certify') {
+      certificationViewerEnteredRef.current = false;
+      return;
+    }
+
+    if (location.pathname === '/malla/viewer') {
+      certificationViewerEnteredRef.current = true;
+      return;
+    }
+
+    if (!certificationViewerEnteredRef.current) {
+      return;
+    }
+
+    certificationViewerEnteredRef.current = false;
+    setPublicationSession('design');
+  }, [hasProject, location.pathname, publicationSession]);
+
+  const handlePublicationSessionChange = useCallback(
+    (nextSession: PublicationSessionMode) => {
+      setPublicationSession(nextSession);
+      if (
+        nextSession === 'certify' &&
+        hasProject &&
+        location.pathname !== '/malla/viewer'
+      ) {
+        handleOpenPreview();
+      }
+    },
+    [handleOpenPreview, hasProject, location.pathname],
+  );
 
   if (!isHydrated) {
     return null;
@@ -871,7 +903,7 @@ export default function App(): JSX.Element | null {
             hasProject={hasProject}
             isActiveProjectOnStandby={isExternalPublicationOpen && hasProject}
             publicationSession={publicationSession}
-            onPublicationSessionChange={setPublicationSession}
+            onPublicationSessionChange={handlePublicationSessionChange}
             isMetaPanelEnabled={isMetaPanelEnabled}
             canToggleMetaPanel={canToggleMetaPanel}
             onNewProject={handleNewProject}
