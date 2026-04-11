@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.6a reencuadrar UX de publicacion canonica` |
+| Proximo PR recomendado | `PR-1.6a introducir sesion disenar/certificar en la UI` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -77,9 +77,9 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.4 | validated | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
 | PR-1.4-support-a | validated | Endurecer validacion minima de import para proyecto y bloque. | Importaciones con tipado mas robusto y validaciones minimas de seguridad sin elevar proyecto/bloque a contratos publicos. |
 | PR-1.5 | validated | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
-| PR-1.6a | in-progress | Reencuadrar la UX de publicacion canonica sin cambiar funcionalidad. | `Generar publicacion oficial` debe salir del panel de salidas web y quedar ubicado como accion transversal coherente con la nueva politica. |
-| PR-1.6b | planned | Implementar el flujo canonico y las derivaciones versionadas desde snapshot abierto. | El snapshot oficial debe abrirse automaticamente y permitir derivaciones web/documentales sin permitir generar un nuevo snapshot desde snapshot abierto. |
-| PR-1.6c | planned | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, publicacion canonica y derivado versionado sin romper la paridad con el viewer. |
+| PR-1.6a | in-progress | Introducir la sesion `Disenar | Certificar` y reordenar la UX base sin cambiar aun el flujo canonico. | La barra de estado y los paneles deben distinguir `En diseno` vs `En certificacion`, ocultando JSON en diseno y exponiendo `Acta de datos certificada` solo en certificacion. |
+| PR-1.6b | planned | Implementar el lazy snapshot y la identidad de sesion certificada. | La primera emision en certificacion debe materializar el snapshot, fijar un UUID de sesion y reutilizarlo hasta volver a diseno, incluyendo compatibilidad con snapshots abiertos. |
+| PR-1.6c | planned | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, copia oficial con UUID y derivado versionado sin romper la paridad con el viewer. |
 
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
 
@@ -92,6 +92,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 - Validado: 2026-04-10 - PR/commit: `066deff` - Nota: `PR-1.4-support-a` endurece la validacion minima de import para proyecto y bloque; pruebas manuales y `cmd /c npm test` en verde; deja preparado `PR-1.5`.
 - Validado: 2026-04-10 - PR/commit: `7c8fbef`, `4b78bc8` - Nota: `PR-1.5` agrega un perfil documental versionado dentro del snapshot publicable y hace que las salidas documentales respeten ese contrato al reabrir publicaciones; validado ademas con pruebas manuales y `cmd /c npm test`; desbloquea `PR-1.6`.
 - Decision: 2026-04-10 - Documento: `docs/politica-publicacion-canonica.md` - Nota: `PR-1.6` se subdivide en `PR-1.6a`, `PR-1.6b` y `PR-1.6c` para separar primero la coherencia UX, luego el flujo canonico y finalmente las marcas de trazabilidad.
+- Decision: 2026-04-11 - Documento: `docs/politica-publicacion-canonica.md` - Nota: el esquema de `PR-1.6` se reencuadra en torno a una sesion visible `Disenar | Certificar`, con lazy snapshot, UUID de sesion y compatibilidad explicita con `Abrir publicacion externa`.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.
