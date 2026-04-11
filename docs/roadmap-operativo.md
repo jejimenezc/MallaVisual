@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.6a introducir sesion disenar/certificar en la UI` |
+| Proximo PR recomendado | `Validar PR-1.6a sesion disenar/certificar en la UI` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -77,7 +77,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.4 | validated | Formalizar contrato estable de snapshot publicable. | Publicacion versionable y menos fragil ante cambios futuros. |
 | PR-1.4-support-a | validated | Endurecer validacion minima de import para proyecto y bloque. | Importaciones con tipado mas robusto y validaciones minimas de seguridad sin elevar proyecto/bloque a contratos publicos. |
 | PR-1.5 | validated | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
-| PR-1.6a | in-progress | Introducir la sesion `Disenar | Certificar` y reordenar la UX base sin cambiar aun el flujo canonico. | La barra de estado y los paneles deben distinguir `En diseno` vs `En certificacion`, ocultando JSON en diseno y exponiendo `Acta de datos certificada` solo en certificacion. |
+| PR-1.6a | review | Introducir la sesion `Disenar | Certificar` y reordenar la UX base sin cambiar aun el flujo canonico. | La barra de estado y los paneles deben distinguir `En diseno` vs `En certificacion`, ocultando JSON en diseno y exponiendo `Acta de datos certificada` solo en certificacion. |
 | PR-1.6b | planned | Implementar el lazy snapshot y la identidad de sesion certificada. | La primera emision en certificacion debe materializar el snapshot, fijar un UUID de sesion y reutilizarlo hasta volver a diseno, incluyendo compatibilidad con snapshots abiertos. |
 | PR-1.6c | planned | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, copia oficial con UUID y derivado versionado sin romper la paridad con el viewer. |
 
