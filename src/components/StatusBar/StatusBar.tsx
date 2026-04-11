@@ -17,6 +17,7 @@ interface StatusBarProps {
   isActiveProjectOnStandby?: boolean;
   publicationSession: PublicationSessionMode;
   onPublicationSessionChange: (session: PublicationSessionMode) => void;
+  isDesignSessionDisabled?: boolean;
   isChromeVisible: boolean;
   onToggleChrome: () => void;
 }
@@ -30,6 +31,7 @@ export function StatusBar({
   isActiveProjectOnStandby = false,
   publicationSession,
   onPublicationSessionChange,
+  isDesignSessionDisabled = false,
   isChromeVisible,
   onToggleChrome,
 }: StatusBarProps): JSX.Element {
@@ -59,7 +61,9 @@ export function StatusBar({
   const statusBarClassName = [
     styles.statusBar,
     isActiveProjectOnStandby ? styles.standby : '',
-    hasProject && publicationSession === 'certify' ? styles.certification : '',
+    hasProject && publicationSession === 'certify' && !isActiveProjectOnStandby
+      ? styles.certification
+      : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -89,6 +93,12 @@ export function StatusBar({
             <ActionPillButton
               aria-pressed={publicationSession === 'design'}
               className={`${styles.sessionButton} ${publicationSession === 'design' ? styles.sessionButtonActive : ''}`.trim()}
+              disabled={isDesignSessionDisabled}
+              title={
+                isDesignSessionDisabled
+                  ? 'La publicacion externa abierta solo admite sesion de certificacion'
+                  : undefined
+              }
               onClick={() => onPublicationSessionChange('design')}
             >
               {PUBLICATION_SESSION_LABEL.design}

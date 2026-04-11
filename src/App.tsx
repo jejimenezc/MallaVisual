@@ -209,6 +209,7 @@ function AppLayout({
         isActiveProjectOnStandby={isActiveProjectOnStandby}
         publicationSession={publicationSession}
         onPublicationSessionChange={onPublicationSessionChange}
+        isDesignSessionDisabled={isActiveProjectOnStandby}
         schemaVersion={schemaVersion}
         quickNavLabel={quickNav.label}
         onQuickNav={quickNav.action}
@@ -847,6 +848,15 @@ export default function App(): JSX.Element | null {
     }
     return publicationPrintSettings;
   }, [publicationPrintSettings, publicationSnapshot?.documentProfile, viewerMode]);
+
+  useEffect(() => {
+    if (!isExternalPublicationOpen) {
+      return;
+    }
+    if (publicationSession !== 'certify') {
+      setPublicationSession('certify');
+    }
+  }, [isExternalPublicationOpen, publicationSession]);
 
   useEffect(() => {
     if (!hasProject) {
