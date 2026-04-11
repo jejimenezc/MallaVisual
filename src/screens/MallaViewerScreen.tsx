@@ -35,10 +35,12 @@ import { ViewerPrintDocument } from '../components/ViewerPrintDocument.tsx';
 import styles from './MallaViewerScreen.module.css';
 import { logAppError } from '../core/runtime/logger.ts';
 import { useViewerLayoutModel } from '../state/use-viewer-layout-model.ts';
+import type { PublicationSessionMode } from '../types/publication-session.ts';
 
 interface Props {
   snapshot: MallaSnapshot | null;
   mode: 'preview' | 'publication' | null;
+  publicationSession: PublicationSessionMode;
   initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
   printSettings: ViewerPrintSettings;
@@ -96,6 +98,7 @@ const headerBandTextStyle: React.CSSProperties = {
 export function MallaViewerScreen({
   snapshot,
   mode,
+  publicationSession,
   initialPanelMode = 'preview',
   theme,
   printSettings,
@@ -124,6 +127,7 @@ export function MallaViewerScreen({
 
   const zoomPct = `${Math.round(zoom * 100)}%`;
   const isPrintPreview = viewerPanelMode === 'print-preview';
+  const isCertificationSession = publicationSession === 'certify';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
   const measuredPxPerMm = useMeasuredPxPerMm();
@@ -980,9 +984,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   type="button"
                   onClick={() => void onOpenPublishModal()}
                   className={styles.viewerPublishCta}
-                  title="Publica salidas documentales a partir del layout paginado visible"
+                  title={isCertificationSession ? 'Emite salidas documentales desde la sesion de certificacion visible' : 'Publica salidas documentales desde la vista actual en diseno'}
                 >
-                  Publicar documento
+                  {isCertificationSession ? 'Emitir documento' : 'Publicar documento'}
                 </Button>
                 <Button
                   type="button"
@@ -1008,9 +1012,9 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                 type="button"
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
-                title="Publica una salida web o de respaldo desde la vista actual"
+                title={isCertificationSession ? 'Emite salidas web o el acta certificada desde la vista actual' : 'Publica una salida web desde la vista actual en diseno'}
               >
-                Publicar Web/Datos
+                {isCertificationSession ? 'Emitir web/datos' : 'Publicar web/datos'}
               </Button>
             ) : null}
             {!isPrintPreview && mode !== 'preview' ? (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type JSX } from 'react';
+import { useEffect, useRef, type JSX, type RefObject } from 'react';
 import { Button } from './Button';
 import type {
   PublicationMode,
@@ -8,6 +8,10 @@ import {
   getPublicationActionButtonLabel,
   type OperationStatus,
 } from '../utils/publication-feedback.ts';
+import {
+  PUBLICATION_SESSION_BADGE,
+  type PublicationSessionMode,
+} from '../types/publication-session.ts';
 import styles from './PublishModal.module.css';
 
 export type PublishOrigin = 'editor' | 'viewer';
@@ -26,6 +30,7 @@ interface Props {
   isOpen: boolean;
   origin: PublishOrigin;
   mode: PublicationMode;
+  session: PublicationSessionMode;
   actions: PublishActions;
   onClose: () => void;
   onSelectProduct: (product: PublicationProduct) => Promise<void> | void;
@@ -39,11 +44,16 @@ interface ProductDescriptor {
   description: string;
 }
 
-const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
+const createProductCopy = (
+  session: PublicationSessionMode,
+): Record<PublicationProduct, ProductDescriptor> => ({
   'snapshot-json': {
     key: 'snapshot-json',
-    title: 'Respaldo de lectura',
-    description: 'Descarga un archivo de datos para volver a abrir esta version especifica en el visor.',
+    title: session === 'certify' ? 'Acta de datos certificada' : 'Respaldo de lectura',
+    description:
+      session === 'certify'
+        ? 'Emite el JSON canonico de la sesion para reabrirla despues como publicacion certificada.'
+        : 'Descarga un archivo de datos para volver a abrir esta version especifica en el visor.',
   },
   print: {
     key: 'print',
@@ -58,7 +68,7 @@ const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
   'html-web': {
     key: 'html-web',
     title: 'Vista online',
-    description: 'Abre una publicacion continua en otra pestaña para revision o difusion web.',
+    description: 'Abre una publicacion continua en otra pestana para revision o difusion web.',
   },
   'html-download': {
     key: 'html-download',
@@ -75,7 +85,7 @@ const PRODUCT_COPY: Record<PublicationProduct, ProductDescriptor> = {
     title: 'Codigo para insertar',
     description: 'Descarga una variante simplificada para embeber la malla en otro sitio.',
   },
-};
+});
 
 const MODE_SECTIONS: Record<
   PublicationMode,
@@ -90,21 +100,21 @@ const MODE_SECTIONS: Record<
   }
 > = {
   presentation: {
-    title: 'Publicar web/datos',
-    subtitle: 'Genera salidas continuas para compartir en linea o respaldar la informacion visible.',
-    sectionTitle: 'Visualizacion y respaldo',
-    sectionDescription: 'Opciones pensadas para pantalla, apertura en navegador y respaldo de datos.',
-    products: ['html-web', 'html-download', 'html-embed', 'snapshot-json'],
+    title: 'Salidas web y de lectura',
+    subtitle: 'Panel de salida para formatos continuos y derivados pensados para navegador.',
+    sectionTitle: 'Derivaciones de pantalla',
+    sectionDescription: 'Opciones pensadas para pantalla, apertura en navegador y entrega continua.',
+    products: ['html-web', 'html-download', 'html-embed'],
     note: 'Para PDF, impresion o HTML paginado, cambia al modo documento.',
     secondaryLabel: 'Ir al modo documento',
   },
   document: {
-    title: 'Publicar documento',
-    subtitle: 'Genera salidas paginadas para impresion, PDF o distribucion documental.',
-    sectionTitle: 'Formato documento',
+    title: 'Salidas documentales',
+    subtitle: 'Panel de salida para formatos paginados y emision documental.',
+    sectionTitle: 'Derivaciones documentales',
     sectionDescription: 'Salidas por pagina con margenes, orientacion y estructura editorial.',
     products: ['pdf', 'html-paginated', 'print'],
-    note: 'Si necesitas una visualizacion continua o un respaldo de datos, vuelve al modo presentacion.',
+    note: 'Si necesitas una visualizacion continua, vuelve al modo presentacion.',
     secondaryLabel: 'Volver al modo presentacion',
   },
 };
@@ -125,10 +135,49 @@ const STATUS_CLASS_BY_KEY: Record<OperationStatus, string> = {
   error: styles.actionStatusError,
 };
 
+function renderActionCard(input: {
+  product: PublicationProduct;
+  descriptor: ProductDescriptor;
+  action: PublishActionConfig;
+  index: number;
+  session: PublicationSessionMode;
+  initialFocusRef: RefObject<HTMLButtonElement | null>;
+  onSelectProduct: (product: PublicationProduct) => Promise<void> | void;
+}): JSX.Element {
+  const { product, descriptor, action, index, session, initialFocusRef, onSelectProduct } = input;
+  const status = action.status ?? 'idle';
+
+  return (
+    <article key={product} className={styles.actionCard}>
+      <div className={styles.actionCardBody}>
+        <h4 className={styles.actionTitle}>{descriptor.title}</h4>
+        <p className={styles.actionDescription}>{descriptor.description}</p>
+        {status === 'success' ? (
+          <p className={`${styles.actionStatus} ${STATUS_CLASS_BY_KEY[status]}`}>
+            {STATUS_LABEL[status]}
+          </p>
+        ) : null}
+        <Button
+          ref={index === 0 ? initialFocusRef : undefined}
+          type="button"
+          variant={index === 0 ? 'primary' : 'default'}
+          aria-busy={status === 'running'}
+          className={status === 'success' ? styles.actionButtonSuccess : undefined}
+          disabled={status === 'running' || action.availability !== 'ready'}
+          onClick={() => void onSelectProduct(product)}
+        >
+          {getPublicationActionButtonLabel(product, status, session)}
+        </Button>
+      </div>
+    </article>
+  );
+}
+
 export function PublishModal({
   isOpen,
   origin,
   mode,
+  session,
   actions,
   onClose,
   onSelectProduct,
@@ -155,12 +204,15 @@ export function PublishModal({
   if (!isOpen) return null;
 
   const section = MODE_SECTIONS[mode];
-  const isBusy = section.products.some((product) => actions[product].status === 'running');
+  const productCopy = createProductCopy(session);
+  const isBusy =
+    section.products.some((product) => actions[product].status === 'running') ||
+    (session === 'certify' && actions['snapshot-json'].status === 'running');
   const footerSecondaryAction = mode === 'document' ? onGoToPresentation : onGoToDocument;
   const footerNote =
     origin === 'viewer'
       ? 'Las salidas usan el mismo layout que ves en el visor activo.'
-      : 'Abre el visor en el modo adecuado si necesitas revisar la salida antes de publicarla.';
+      : 'Abre el visor en el modo adecuado si necesitas revisar la salida antes de emitirla.';
 
   return (
     <div className={styles.backdrop} role="presentation" onClick={onClose}>
@@ -174,15 +226,47 @@ export function PublishModal({
         onClick={(event) => event.stopPropagation()}
       >
         <header className={styles.header}>
-          <h2 className={styles.title} id="publish-modal-title">
-            {section.title}
-          </h2>
+          <div className={styles.titleRow}>
+            <h2 className={styles.title} id="publish-modal-title">
+              {section.title}
+            </h2>
+            <span className={`${styles.sessionBadge} ${session === 'certify' ? styles.sessionBadgeCertify : styles.sessionBadgeDesign}`}>
+              {PUBLICATION_SESSION_BADGE[session]}
+            </span>
+          </div>
           <p className={styles.subtitle} id="publish-modal-description">
             {section.subtitle}
           </p>
         </header>
 
         <div className={styles.content}>
+          {session === 'certify' ? (
+            <section className={styles.section} aria-labelledby="publish-modal-canonical-title">
+              <div className={styles.sectionHeader}>
+                <div>
+                  <h3 className={styles.sectionTitle} id="publish-modal-canonical-title">
+                    Publicacion oficial
+                  </h3>
+                  <p className={styles.sectionDescription}>
+                    La sesion de certificacion deja lista el acta canonica y sus derivaciones.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.grid}>
+                {renderActionCard({
+                  product: 'snapshot-json',
+                  descriptor: productCopy['snapshot-json'],
+                  action: actions['snapshot-json'],
+                  index: 0,
+                  session,
+                  initialFocusRef,
+                  onSelectProduct,
+                })}
+              </div>
+            </section>
+          ) : null}
+
           <section className={styles.section} aria-labelledby="publish-modal-products-title">
             <div className={styles.sectionHeader}>
               <div>
@@ -194,36 +278,17 @@ export function PublishModal({
             </div>
 
             <div className={styles.grid}>
-              {section.products.map((product, index) => {
-                const descriptor = PRODUCT_COPY[product];
-                const action = actions[product];
-                const status = action.status ?? 'idle';
-
-                return (
-                  <article key={product} className={styles.actionCard}>
-                    <div className={styles.actionCardBody}>
-                      <h4 className={styles.actionTitle}>{descriptor.title}</h4>
-                      <p className={styles.actionDescription}>{descriptor.description}</p>
-                      {status === 'success' ? (
-                        <p className={`${styles.actionStatus} ${STATUS_CLASS_BY_KEY[status]}`}>
-                          {STATUS_LABEL[status]}
-                        </p>
-                      ) : null}
-                      <Button
-                        ref={index === 0 ? initialFocusRef : undefined}
-                        type="button"
-                        variant={index === 0 ? 'primary' : 'default'}
-                        aria-busy={status === 'running'}
-                        className={status === 'success' ? styles.actionButtonSuccess : undefined}
-                        disabled={status === 'running' || action.availability !== 'ready'}
-                        onClick={() => void onSelectProduct(product)}
-                      >
-                        {getPublicationActionButtonLabel(product, status)}
-                      </Button>
-                    </div>
-                  </article>
-                );
-              })}
+              {section.products.map((product, index) =>
+                renderActionCard({
+                  product,
+                  descriptor: productCopy[product],
+                  action: actions[product],
+                  index: session === 'certify' ? index + 1 : index,
+                  session,
+                  initialFocusRef,
+                  onSelectProduct,
+                }),
+              )}
             </div>
           </section>
 

@@ -25,10 +25,38 @@
   padding: 20px 20px 10px;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .title {
   margin: 0;
   font-size: 1.55rem;
   line-height: 1.1;
+}
+
+.sessionBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sessionBadgeDesign {
+  background: rgba(226, 232, 240, 0.9);
+  color: #334155;
+}
+
+.sessionBadgeCertify {
+  background: rgba(54, 182, 182, 0.16);
+  color: #0f5d5d;
 }
 
 .subtitle {

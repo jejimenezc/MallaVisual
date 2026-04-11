@@ -24,9 +24,14 @@ import {
   type PublicationOutputConfig,
   type PublicationProduct,
 } from '../utils/publication-output.ts';
-import { PUBLICATION_ACTION_COPY, type OperationStatus, type PublicationOperationState } from '../utils/publication-feedback.ts';
+import {
+  getPublicationActionCopy,
+  type OperationStatus,
+  type PublicationOperationState,
+} from '../utils/publication-feedback.ts';
 import type { PublishActionKey, PublishOrigin } from '../components/PublishModal';
 import { logAppError } from '../core/runtime/logger.ts';
+import type { PublicationSessionMode } from '../types/publication-session.ts';
 
 type ViewerMode = 'preview' | 'publication' | null;
 type ToastFn = (message: string, variant?: 'info' | 'success' | 'error') => void;
@@ -90,6 +95,7 @@ interface UsePublicationWorkflowArgs {
   projectName: string;
   viewerMode: ViewerMode;
   publicationSnapshot: MallaSnapshot | null;
+  publicationSession: PublicationSessionMode;
   locationPathname: string;
   navigate: NavigateFunction;
   setPublicationSnapshot: React.Dispatch<React.SetStateAction<MallaSnapshot | null>>;
@@ -129,6 +135,7 @@ export function usePublicationWorkflow({
   projectName,
   viewerMode,
   publicationSnapshot,
+  publicationSession,
   locationPathname,
   navigate,
   setPublicationSnapshot,
@@ -304,7 +311,7 @@ export function usePublicationWorkflow({
 
   const handleSelectPublicationProduct = useCallback(
     async (product: PublicationProduct) => {
-      const copy = PUBLICATION_ACTION_COPY[product];
+      const copy = getPublicationActionCopy(product, publicationSession);
       setPublicationOperation(createPublicationOperation(product, 'running', copy.runningLabel, copy.statusDetail));
       try {
         const snapshot =
@@ -351,7 +358,7 @@ export function usePublicationWorkflow({
                   : undefined;
         setPublicationOperation(createPublicationOperation(product, 'success', 'Completado', detail));
       } catch (error) {
-        const failureMessage = `No se pudo completar ${copy.idleLabel.toLowerCase()}.`;
+          const failureMessage = `No se pudo completar ${copy.idleLabel.toLowerCase()}.`;
         logAppError({
           scope: 'publication',
           severity: 'non-fatal',
@@ -369,6 +376,7 @@ export function usePublicationWorkflow({
       downloadPublication,
       projectId,
       projectName,
+      publicationSession,
       publicationOutputConfig,
       pushToast,
       setPublicationSnapshot,

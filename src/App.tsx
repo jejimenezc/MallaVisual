@@ -50,6 +50,7 @@ import type { ViewerTheme } from './types/viewer-theme.ts';
 import { usePublicationWorkflow } from './state/use-publication-workflow.ts';
 import { useBlockUsageAndControlCleanup } from './state/use-block-usage-and-control-cleanup.ts';
 import { applySnapshotDocumentProfileToPrintSettings } from './utils/publication-output.ts';
+import type { PublicationSessionMode } from './types/publication-session.ts';
 import {
   type BlockState,
   MALLA_AUTOSAVE_STORAGE_KEY,
@@ -77,6 +78,8 @@ interface AppLayoutProps {
   projectName: string;
   hasProject: boolean;
   isActiveProjectOnStandby: boolean;
+  publicationSession: PublicationSessionMode;
+  onPublicationSessionChange: (session: PublicationSessionMode) => void;
   isMetaPanelEnabled: boolean;
   canToggleMetaPanel: boolean;
   onNewProject: () => void;
@@ -101,6 +104,8 @@ function AppLayout({
   projectName,
   hasProject,
   isActiveProjectOnStandby,
+  publicationSession,
+  onPublicationSessionChange,
   isMetaPanelEnabled,
   canToggleMetaPanel,
   onNewProject,
@@ -202,6 +207,8 @@ function AppLayout({
         projectName={projectName}
         hasProject={hasProject}
         isActiveProjectOnStandby={isActiveProjectOnStandby}
+        publicationSession={publicationSession}
+        onPublicationSessionChange={onPublicationSessionChange}
         schemaVersion={schemaVersion}
         quickNavLabel={quickNav.label}
         onQuickNav={quickNav.action}
@@ -240,6 +247,8 @@ export default function App(): JSX.Element | null {
   const [shouldPersistProject, setShouldPersistProject] = useState(false);
   const [suspendMallaAutosave, setSuspendMallaAutosave] = useState(false);
   const [isIntroOverlayVisible, setIntroOverlayVisible] = useState(false);
+  const [publicationSession, setPublicationSession] =
+    useState<PublicationSessionMode>('design');
   const introOverlayReturnFocusRef = useRef<HTMLElement | null>(null);
   const projectSwitchTokenRef = useRef(0);
   const previousProjectIdRef = useRef<string | null>(projectId);
@@ -355,6 +364,7 @@ export default function App(): JSX.Element | null {
     loadMallaState(null);
     setPublicationSnapshot(null);
     setViewerMode(null);
+    setPublicationSession('design');
     setProjectId(null);
     setProjectName('');
     const emptySnapshot = blocksToRepository([]);
@@ -662,6 +672,7 @@ export default function App(): JSX.Element | null {
     projectName,
     viewerMode,
     publicationSnapshot,
+    publicationSession,
     locationPathname: location.pathname,
     navigate,
     setPublicationSnapshot,
@@ -744,6 +755,7 @@ export default function App(): JSX.Element | null {
     setShouldPersistProject(false);
     setViewerMode(null);
     setPublicationSnapshot(null);
+    setPublicationSession('design');
     clearPersistedProjectMetadata();
     storedActiveProjectRef.current = { id: null, name: '' };
     clearDraft(MALLA_AUTOSAVE_STORAGE_KEY);
@@ -835,6 +847,13 @@ export default function App(): JSX.Element | null {
     return publicationPrintSettings;
   }, [publicationPrintSettings, publicationSnapshot?.documentProfile, viewerMode]);
 
+  useEffect(() => {
+    if (!hasProject || publicationSession !== 'certify') {
+      return;
+    }
+    handleOpenPreview();
+  }, [handleOpenPreview, hasProject, publicationSession]);
+
   if (!isHydrated) {
     return null;
   }
@@ -851,6 +870,8 @@ export default function App(): JSX.Element | null {
             projectName={projectName}
             hasProject={hasProject}
             isActiveProjectOnStandby={isExternalPublicationOpen && hasProject}
+            publicationSession={publicationSession}
+            onPublicationSessionChange={setPublicationSession}
             isMetaPanelEnabled={isMetaPanelEnabled}
             canToggleMetaPanel={canToggleMetaPanel}
             onNewProject={handleNewProject}
@@ -997,6 +1018,7 @@ export default function App(): JSX.Element | null {
                     <MallaViewerScreen
                       snapshot={activeViewerSnapshot}
                       mode={viewerMode}
+                      publicationSession={publicationSession}
                       initialPanelMode={viewerPanelModePreference}
                       theme={activeViewerTheme}
                       printSettings={activeViewerPrintSettings}
@@ -1025,6 +1047,7 @@ export default function App(): JSX.Element | null {
                 isOpen
                 origin={publishContext.origin}
                 mode={publishContext.mode}
+                session={publicationSession}
                 actions={publishActionStates}
                 onClose={closePublishModal}
                 onSelectProduct={handleSelectPublicationProduct}
