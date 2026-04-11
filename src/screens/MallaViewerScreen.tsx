@@ -1007,19 +1007,18 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   Ir al Modo Documento
                 </Button>
             )}
-            {!isPrintPreview && mode === 'preview' ? (
+            {!isPrintPreview ? (
               <Button
                 type="button"
                 onClick={() => void onOpenPublishModal()}
                 className={styles.viewerPublishCta}
-                title={isCertificationSession ? 'Emite salidas web o el acta certificada desde la vista actual' : 'Publica una salida web desde la vista actual en diseno'}
+                title={
+                  isCertificationSession
+                    ? 'Emite salidas web o el acta certificada desde la vista actual'
+                    : 'Publica una salida web desde la vista actual en diseno'
+                }
               >
                 {isCertificationSession ? 'Emitir web/datos' : 'Publicar web/datos'}
-              </Button>
-            ) : null}
-            {!isPrintPreview && mode !== 'preview' ? (
-              <Button type="button" onClick={handleOpenImporter} title="Carga un snapshot publicado para revisarlo en este visor">
-                Abrir publicación
               </Button>
             ) : null}
           </div>
