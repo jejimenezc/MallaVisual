@@ -12,6 +12,7 @@ interface StatusBarProps {
   quickNavLabel?: string | null;
   onQuickNav?: (() => void) | null;
   isActiveProjectOnStandby?: boolean;
+  isExternalPublicationOpen?: boolean;
   publicationSession: PublicationSessionMode;
   onPublicationSessionChange: (session: PublicationSessionMode) => void;
   isDesignSessionDisabled?: boolean;
@@ -31,6 +32,7 @@ export function StatusBar({
   quickNavLabel,
   onQuickNav,
   isActiveProjectOnStandby = false,
+  isExternalPublicationOpen = false,
   publicationSession,
   onPublicationSessionChange,
   isDesignSessionDisabled = false,
@@ -71,11 +73,12 @@ export function StatusBar({
     : 'No hay proyecto activo';
 
   const effectiveSession = pendingSession ?? publicationSession;
+  const showSessionPanel = hasProject || isExternalPublicationOpen;
 
   const statusBarClassName = [
     styles.statusBar,
     isActiveProjectOnStandby ? styles.standby : '',
-    hasProject && effectiveSession === 'certify' && !isActiveProjectOnStandby
+    showSessionPanel && effectiveSession === 'certify' && !isActiveProjectOnStandby
       ? styles.certification
       : '',
     pendingSession ? styles.pending : '',
@@ -119,7 +122,7 @@ export function StatusBar({
         <span className={styles.schemaLabel}>{`schema v${schemaVersion}`}</span>
       </div>
       <div className={styles.centerSection}>
-        {hasProject ? (
+        {showSessionPanel ? (
           <div className={styles.sessionPanel}>
             <span className={styles.sessionLegend}>Régimen:</span>
             <div

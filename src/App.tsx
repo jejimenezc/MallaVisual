@@ -78,6 +78,7 @@ interface AppLayoutProps {
   projectName: string;
   hasProject: boolean;
   isActiveProjectOnStandby: boolean;
+  isExternalPublicationOpen: boolean;
   publicationSession: PublicationSessionMode;
   onPublicationSessionChange: (session: PublicationSessionMode) => void;
   isMetaPanelEnabled: boolean;
@@ -104,6 +105,7 @@ function AppLayout({
   projectName,
   hasProject,
   isActiveProjectOnStandby,
+  isExternalPublicationOpen,
   publicationSession,
   onPublicationSessionChange,
   isMetaPanelEnabled,
@@ -207,9 +209,10 @@ function AppLayout({
         projectName={projectName}
         hasProject={hasProject}
         isActiveProjectOnStandby={isActiveProjectOnStandby}
+        isExternalPublicationOpen={isExternalPublicationOpen}
         publicationSession={publicationSession}
         onPublicationSessionChange={onPublicationSessionChange}
-        isDesignSessionDisabled={isActiveProjectOnStandby}
+        isDesignSessionDisabled={isExternalPublicationOpen}
         schemaVersion={schemaVersion}
         quickNavLabel={quickNav.label}
         onQuickNav={quickNav.action}
@@ -912,6 +915,7 @@ export default function App(): JSX.Element | null {
             projectName={projectName}
             hasProject={hasProject}
             isActiveProjectOnStandby={isExternalPublicationOpen && hasProject}
+            isExternalPublicationOpen={isExternalPublicationOpen}
             publicationSession={publicationSession}
             onPublicationSessionChange={handlePublicationSessionChange}
             isMetaPanelEnabled={isMetaPanelEnabled}
