@@ -82,6 +82,22 @@ export function resolvePublicationOutputConfigForProduct(
   };
 }
 
+export function resolvePublicationOutputConfigForSource(input: {
+  config: PublicationOutputConfig;
+  product: PublicationProduct;
+  viewerMode: ViewerMode;
+  snapshot: MallaSnapshot | null;
+}): PublicationOutputConfig {
+  const nextConfig = resolvePublicationOutputConfigForProduct(input.config, input.product);
+  if (input.viewerMode !== 'publication' || !input.snapshot?.appearance) {
+    return nextConfig;
+  }
+  return {
+    ...nextConfig,
+    theme: normalizeViewerTheme(input.snapshot.appearance),
+  };
+}
+
 const createPublicationOperation = (
   key: PublicationOperationState['key'],
   status: OperationStatus,
@@ -326,22 +342,29 @@ export function usePublicationWorkflow({
         }
         setPublicationSnapshot(snapshot);
 
+        const outputConfig = resolvePublicationOutputConfigForSource({
+          config: publicationOutputConfig,
+          product,
+          viewerMode,
+          snapshot,
+        });
+
         if (product === 'snapshot-json') {
           downloadPublication(snapshot);
         } else if (product === 'pdf') {
-          openViewerPdfExport({ snapshot, config: publicationOutputConfig, product: 'pdf' });
+          openViewerPdfExport({ snapshot, config: outputConfig, product: 'pdf' });
         } else if (product === 'print') {
-          openViewerPdfExport({ snapshot, config: publicationOutputConfig, product: 'print' });
+          openViewerPdfExport({ snapshot, config: outputConfig, product: 'print' });
         } else if (product === 'html-web') {
-          openViewerStandaloneHtml({ snapshot, config: publicationOutputConfig, product: 'html-web' });
+          openViewerStandaloneHtml({ snapshot, config: outputConfig, product: 'html-web' });
         } else if (product === 'html-download') {
-          downloadViewerStandaloneHtml({ snapshot, config: publicationOutputConfig, product: 'html-download' });
+          downloadViewerStandaloneHtml({ snapshot, config: outputConfig, product: 'html-download' });
         } else if (product === 'html-paginated') {
-          downloadViewerStandaloneHtml({ snapshot, config: publicationOutputConfig, product: 'html-paginated' });
+          downloadViewerStandaloneHtml({ snapshot, config: outputConfig, product: 'html-paginated' });
         } else if (product === 'html-embed') {
           downloadViewerStandaloneHtml({
             snapshot,
-            config: resolvePublicationOutputConfigForProduct(publicationOutputConfig, product),
+            config: outputConfig,
             product: 'html-embed',
           });
         }
