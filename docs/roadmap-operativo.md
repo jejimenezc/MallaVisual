@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.6a-support-b alinear viewer de presentacion con WYSIWYG editorial` |
+| Proximo PR recomendado | `PR-1.6b implementar el lazy snapshot y la identidad de sesion certificada` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -79,8 +79,8 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.5 | validated | Definir perfil documental versionado para publicaciones y reglas de override local. | La publicacion debe poder expresar una salida documental canonica sin heredar configuraciones del proyecto activo. |
 | PR-1.6a | validated | Introducir la sesion `Disenar | Certificar` y reordenar la UX base sin cambiar aun el flujo canonico. | La barra de estado y los paneles deben distinguir `Diseno` vs `Certificacion`, ocultando JSON en diseno y exponiendo `Acta de datos certificada` solo en certificacion. |
 | PR-1.6a-support-a | validated | Alinear las salidas web de publicaciones externas con la apariencia congelada del snapshot. | `html-web` y derivados de snapshots abiertos deben respetar titulo, encabezado y pie configurados en `snapshot.appearance`. |
-| PR-1.6a-support-b | review | Alinear el viewer de presentacion con WYSIWYG editorial. | El modo presentacion debe previsualizar los elementos editoriales activos antes de emitir, con simetria respecto del modo documental. |
-| PR-1.6b | planned | Implementar el lazy snapshot y la identidad de sesion certificada. | La primera emision en certificacion debe materializar el snapshot, fijar un UUID de sesion y reutilizarlo hasta volver a diseno, incluyendo compatibilidad con snapshots abiertos. |
+| PR-1.6a-support-b | validated | Alinear el viewer de presentacion con WYSIWYG editorial. | El modo presentacion debe previsualizar los elementos editoriales activos antes de emitir, con simetria respecto del modo documental. |
+| PR-1.6b | in-progress | Implementar el lazy snapshot y la identidad de sesion certificada. | La primera emision en certificacion debe materializar el snapshot, fijar un UUID de sesion y reutilizarlo hasta volver a diseno, incluyendo compatibilidad con snapshots abiertos. |
 | PR-1.6c | planned | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, copia oficial con UUID y derivado versionado sin romper la paridad con el viewer. |
 
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
@@ -97,6 +97,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 - Decision: 2026-04-11 - Documento: `docs/politica-publicacion-canonica.md` - Nota: el esquema de `PR-1.6` se reencuadra en torno a una sesion visible `Disenar | Certificar`, con lazy snapshot, UUID de sesion y compatibilidad explicita con `Abrir publicacion externa`.
 - Validado: 2026-04-12 - PR/commit: `de89808`, `1a97573`, `4387c08`, `4b86bf5`, `a2a4e5f`, `416e941`, `ade2cbd` - Nota: `PR-1.6a` deja la UX base de regimenes y certificacion consistente para proyecto activo y publicaciones externas; se abren `PR-1.6a-support-a` para alinear export web externa con `snapshot.appearance` y `PR-1.6a-support-b` para resolver WYSIWYG editorial del modo presentacion.
 - Validado: 2026-04-12 - PR/commit: `101b53c` + fix final de navegacion en modal - Nota: `PR-1.6a-support-a` hace que las salidas web desde snapshots abiertos respeten `snapshot.appearance` y preserven el contexto de publicacion al alternar desde el modal; desbloquea `PR-1.6a-support-b`.
+- Validado: 2026-04-12 - PR/commit: `8053c27` - Nota: `PR-1.6a-support-b` alinea el viewer de presentacion con WYSIWYG editorial y deja visible en preview el mismo titulo, encabezado y pie que luego salen en derivaciones web; desbloquea `PR-1.6b`.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.
