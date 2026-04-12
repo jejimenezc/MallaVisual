@@ -203,6 +203,38 @@
   color: #0f172a;
 }
 
+.panelSectionHeader {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: var(--space-sm);
+}
+
+.panelSectionHeaderFrozen {
+  opacity: 0.82;
+}
+
+.panelFreezeNote {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.panelFieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.panelFieldsetFrozen {
+  opacity: 0.56;
+}
+
+.panelFieldsetFrozen input,
+.panelFieldsetFrozen select,
+.panelFieldsetFrozen button {
+  cursor: not-allowed;
+}
+
 .appearancePanelScrollShell {
   position: relative;
   flex: 1;

@@ -128,6 +128,7 @@ export function MallaViewerScreen({
   const zoomPct = `${Math.round(zoom * 100)}%`;
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const isCertificationSession = publicationSession === 'certify';
+  const isPublicationFrozen = mode === 'publication';
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
   const measuredPxPerMm = useMeasuredPxPerMm();
@@ -472,6 +473,8 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       }, 4000);
     });
   }, [cleanupPrintIframe, printStyleText]);
+
+  const frozenPanelTitle = 'Propiedades congeladas por el Régimen de Certificación';
 
   const canvasContent = useMemo(() => {
     if (!renderModel) return null;
@@ -1068,7 +1071,20 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
             <div ref={appearancePanelScrollRef} className={styles.appearancePanelContent}>
               {panelMode === 'preview' ? (
             <>
-              <h3>Apariencia base</h3>
+              <div
+                className={`${styles.panelSectionHeader} ${isPublicationFrozen ? styles.panelSectionHeaderFrozen : ''}`}
+                title={isPublicationFrozen ? frozenPanelTitle : undefined}
+              >
+                <h3>Apariencia base</h3>
+                {isPublicationFrozen ? (
+                  <span className={styles.panelFreezeNote}>🔒 Propiedades congeladas por el Régimen de Certificación</span>
+                ) : null}
+              </div>
+              <fieldset
+                className={`${styles.panelFieldset} ${isPublicationFrozen ? styles.panelFieldsetFrozen : ''}`}
+                disabled={isPublicationFrozen}
+                title={isPublicationFrozen ? frozenPanelTitle : undefined}
+              >
               <label className={`${styles.field} ${styles.scaleField}`}>
                 <span>Separación horizontal</span>
                 <input
@@ -1235,10 +1251,19 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
               <Button type="button" onClick={() => onThemeChange(createDefaultViewerTheme())}>
                 Restablecer
               </Button>
+              </fieldset>
             </>
           ) : (
             <>
-              <h3>Ajustes documentales</h3>
+              <div
+                className={`${styles.panelSectionHeader} ${isPublicationFrozen ? styles.panelSectionHeaderFrozen : ''}`}
+                title={isPublicationFrozen ? frozenPanelTitle : undefined}
+              >
+                <h3>Ajustes documentales</h3>
+                {isPublicationFrozen ? (
+                  <span className={styles.panelFreezeNote}>🔒 Propiedades congeladas por el Régimen de Certificación</span>
+                ) : null}
+              </div>
               <label className={styles.field}>
                 <span>Tamaño de papel</span>
                 <select
@@ -1321,6 +1346,11 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="wide">Amplios</option>
                 </select>
               </label>
+              <fieldset
+                className={`${styles.panelFieldset} ${isPublicationFrozen ? styles.panelFieldsetFrozen : ''}`}
+                disabled={isPublicationFrozen}
+                title={isPublicationFrozen ? frozenPanelTitle : undefined}
+              >
               <label className={styles.toggleField}>
                 <input
                   type="checkbox"
@@ -1426,6 +1456,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
                   <option value="same-on-all-pages">Todas las páginas iguales</option>
                 </select>
               </label>
+              </fieldset>
             </>
               )}
             </div>
