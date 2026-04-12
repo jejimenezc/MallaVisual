@@ -57,7 +57,7 @@ describe('PublishModal session copy', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('En diseno');
+    expect(container.textContent).toContain('Publicaciones no oficiales');
     expect(container.textContent).not.toContain('Acta de datos certificada');
     expect(container.textContent).not.toContain('Emitir acta certificada');
   });
@@ -80,7 +80,7 @@ describe('PublishModal session copy', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('En certificacion');
+    expect(container.textContent).toContain('Publicaciones oficiales');
     expect(container.textContent).toContain('Publicacion oficial');
     expect(container.textContent).toContain('Acta de datos certificada');
     expect(container.textContent).toContain('Emitir acta certificada');

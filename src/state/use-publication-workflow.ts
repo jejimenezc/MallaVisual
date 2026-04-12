@@ -476,13 +476,39 @@ export function usePublicationWorkflow({
 
   const handleGoToPresentationFromPublishModal = useCallback(() => {
     closePublishModal();
+    if (viewerMode === 'publication') {
+      setViewerPanelModePreference('preview');
+      if (locationPathname !== '/malla/viewer') {
+        navigate('/malla/viewer');
+      }
+      return;
+    }
     handleOpenPreview();
-  }, [closePublishModal, handleOpenPreview]);
+  }, [
+    closePublishModal,
+    handleOpenPreview,
+    locationPathname,
+    navigate,
+    viewerMode,
+  ]);
 
   const handleGoToDocumentFromPublishModal = useCallback(() => {
     closePublishModal();
+    if (viewerMode === 'publication') {
+      setViewerPanelModePreference('print-preview');
+      if (locationPathname !== '/malla/viewer') {
+        navigate('/malla/viewer');
+      }
+      return;
+    }
     handleOpenPrintPreview();
-  }, [closePublishModal, handleOpenPrintPreview]);
+  }, [
+    closePublishModal,
+    handleOpenPrintPreview,
+    locationPathname,
+    navigate,
+    viewerMode,
+  ]);
 
   const publishActionStates = useMemo<Record<PublishActionKey, { availability: 'ready'; status: OperationStatus; detail?: string }>>(
     () => ({

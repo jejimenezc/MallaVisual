@@ -36,6 +36,19 @@ describe('resolvePublishModalContext', () => {
       mode: 'presentation',
     });
   });
+
+  test('treats publication viewer as editor-origin modal by default', () => {
+    expect(
+      resolvePublishModalContext({
+        locationPathname: '/malla/viewer',
+        viewerMode: 'publication',
+        viewerPanelModePreference: 'print-preview',
+      }),
+    ).toEqual({
+      origin: 'editor',
+      mode: 'presentation',
+    });
+  });
 });
 
 describe('resolvePublicationOutputConfigForProduct', () => {
