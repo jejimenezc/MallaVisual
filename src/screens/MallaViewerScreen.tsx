@@ -475,6 +475,23 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   }, [cleanupPrintIframe, printStyleText]);
 
   const frozenPanelTitle = 'Propiedades congeladas por el Régimen de Certificación';
+  const presentationEditorial = useMemo(() => {
+    if (!renderModel) {
+      return {
+        titleText: '',
+        headerText: '',
+        footerText: '',
+      };
+    }
+
+    const titleText = renderModel.theme.titleText.trim() || renderModel.projectName.trim();
+
+    return {
+      titleText: renderModel.theme.showTitle && titleText ? titleText : '',
+      headerText: renderModel.theme.showHeaderFooter ? renderModel.theme.headerText.trim() : '',
+      footerText: renderModel.theme.showHeaderFooter ? renderModel.theme.footerText.trim() : '',
+    };
+  }, [renderModel]);
 
   const canvasContent = useMemo(() => {
     if (!renderModel) return null;
@@ -864,12 +881,32 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   ) : (
     <div className={styles.viewerCanvasFrame}>
       <div className={styles.viewerPageContentBox}>
-        <div className={styles.viewerPrintDocumentFlow}>
-          <div className={styles.viewerCanvasScaledViewport}>
+        <div className={`${styles.viewerPrintDocumentFlow} ${styles.viewerPresentationFlow}`}>
+          {presentationEditorial.titleText ? (
+            <div className={styles.viewerPageTitleBlock}>
+              <h1
+                className={styles.runtimeDocumentTitle}
+                style={{ fontSize: `${renderModel.theme.titleFontSize}px` }}
+              >
+                {presentationEditorial.titleText}
+              </h1>
+            </div>
+          ) : null}
+          {presentationEditorial.headerText ? (
+            <div className={styles.viewerPageHeaderBlock}>
+              <div className={styles.runtimeHeader}>{presentationEditorial.headerText}</div>
+            </div>
+          ) : null}
+          <div className={`${styles.viewerCanvasScaledViewport} ${styles.viewerPresentationViewport}`}>
             <div className={styles.viewerCanvasScaled} style={previewCanvasInnerStyle}>
               {canvasContent}
             </div>
           </div>
+          {presentationEditorial.footerText ? (
+            <div className={styles.viewerPageFooterBlock}>
+              <div className={styles.runtimeFooter}>{presentationEditorial.footerText}</div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
