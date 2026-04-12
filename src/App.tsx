@@ -255,6 +255,7 @@ export default function App(): JSX.Element | null {
     useState<PublicationSessionMode>('design');
   const introOverlayReturnFocusRef = useRef<HTMLElement | null>(null);
   const certificationViewerEnteredRef = useRef(false);
+  const certificationExitGuardRef = useRef(false);
   const projectSwitchTokenRef = useRef(0);
   const previousProjectIdRef = useRef<string | null>(projectId);
   const previousMallaSnapshotRef = useRef<MallaExport | null>(malla);
@@ -657,7 +658,9 @@ export default function App(): JSX.Element | null {
     publishContext,
     publicationOutputConfig,
     previewSnapshot,
+    certificationSessionSnapshot,
     publishActionStates,
+    clearCertificationSessionSnapshot,
     closePublishModal,
     handleBackToEditorFromViewer,
     handleGoToDocumentFromPublishModal,
@@ -832,8 +835,19 @@ export default function App(): JSX.Element | null {
     location.pathname === '/malla/viewer' &&
     viewerMode === 'publication' &&
     publicationSnapshot !== null;
-  const activeViewerSnapshot = viewerMode === 'preview' ? previewSnapshot : publicationSnapshot;
+  const hasActiveCertificationSession =
+    publicationSession === 'certify' &&
+    (isExternalPublicationOpen || certificationSessionSnapshot !== null);
+  const activeViewerSnapshot =
+    viewerMode === 'preview'
+      ? publicationSession === 'certify' && certificationSessionSnapshot
+        ? certificationSessionSnapshot
+        : previewSnapshot
+      : publicationSnapshot;
   const activeViewerTheme = useMemo<ViewerTheme>(() => {
+    if (viewerMode === 'preview' && publicationSession === 'certify' && certificationSessionSnapshot?.appearance) {
+      return normalizeViewerTheme(certificationSessionSnapshot.appearance);
+    }
     if (viewerMode === 'preview') {
       return publicationOutputConfig.theme;
     }
@@ -841,8 +855,20 @@ export default function App(): JSX.Element | null {
       return normalizeViewerTheme(publicationSnapshot.appearance);
     }
     return publicationOutputConfig.theme;
-  }, [publicationOutputConfig.theme, publicationSnapshot?.appearance, viewerMode]);
+  }, [
+    certificationSessionSnapshot?.appearance,
+    publicationOutputConfig.theme,
+    publicationSession,
+    publicationSnapshot?.appearance,
+    viewerMode,
+  ]);
   const activeViewerPrintSettings = useMemo(() => {
+    if (viewerMode === 'preview' && publicationSession === 'certify') {
+      return applySnapshotDocumentProfileToPrintSettings(
+        publicationPrintSettings,
+        certificationSessionSnapshot?.documentProfile,
+      );
+    }
     if (viewerMode === 'publication') {
       return applySnapshotDocumentProfileToPrintSettings(
         publicationPrintSettings,
@@ -850,7 +876,27 @@ export default function App(): JSX.Element | null {
       );
     }
     return publicationPrintSettings;
-  }, [publicationPrintSettings, publicationSnapshot?.documentProfile, viewerMode]);
+  }, [
+    certificationSessionSnapshot?.documentProfile,
+    publicationPrintSettings,
+    publicationSession,
+    publicationSnapshot?.documentProfile,
+    viewerMode,
+  ]);
+
+  const confirmCertificationExit = useCallback(async () => {
+    if (!hasActiveCertificationSession || isExternalPublicationOpen) {
+      return true;
+    }
+    return confirmAsync({
+      title: 'Salir de la certificación',
+      message:
+        'Ya existe una publicación oficial activa para esta sesión. Si vuelves a Diseño, se cerrará su UUID de sesión y las próximas emisiones crearán una nueva certificación. ¿Deseas continuar?',
+      confirmLabel: 'Salir a Diseño',
+      cancelLabel: 'Seguir en Certificación',
+      variant: 'info',
+    });
+  }, [confirmAsync, hasActiveCertificationSession, isExternalPublicationOpen]);
 
   useEffect(() => {
     if (!isExternalPublicationOpen) {
@@ -862,18 +908,38 @@ export default function App(): JSX.Element | null {
   }, [isExternalPublicationOpen, publicationSession]);
 
   useEffect(() => {
+    if (isExternalPublicationOpen || !hasProject) {
+      return;
+    }
+    if (!certificationSessionSnapshot) {
+      return;
+    }
+    if (publicationSession !== 'certify') {
+      setPublicationSession('certify');
+    }
+  }, [
+    certificationSessionSnapshot,
+    hasProject,
+    isExternalPublicationOpen,
+    publicationSession,
+  ]);
+
+  useEffect(() => {
     if (!hasProject) {
       certificationViewerEnteredRef.current = false;
+      certificationExitGuardRef.current = false;
       return;
     }
 
     if (publicationSession !== 'certify') {
       certificationViewerEnteredRef.current = false;
+      certificationExitGuardRef.current = false;
       return;
     }
 
     if (location.pathname === '/malla/viewer') {
       certificationViewerEnteredRef.current = true;
+      certificationExitGuardRef.current = false;
       return;
     }
 
@@ -881,23 +947,116 @@ export default function App(): JSX.Element | null {
       return;
     }
 
-    certificationViewerEnteredRef.current = false;
-    setPublicationSession('design');
-  }, [hasProject, location.pathname, publicationSession]);
+    if (isExternalPublicationOpen) {
+      return;
+    }
+
+    if (certificationExitGuardRef.current) {
+      return;
+    }
+
+    certificationExitGuardRef.current = true;
+    let disposed = false;
+
+    void (async () => {
+      if (!hasActiveCertificationSession) {
+        if (disposed) {
+          return;
+        }
+        certificationViewerEnteredRef.current = false;
+        certificationExitGuardRef.current = false;
+        clearCertificationSessionSnapshot();
+        setPublicationSession('design');
+        return;
+      }
+
+      const confirmed = await confirmCertificationExit();
+      if (disposed) {
+        return;
+      }
+
+      certificationExitGuardRef.current = false;
+
+      if (!confirmed) {
+        navigate('/malla/viewer');
+        return;
+      }
+
+      certificationViewerEnteredRef.current = false;
+      clearCertificationSessionSnapshot();
+      setPublicationSession('design');
+    })();
+
+    return () => {
+      disposed = true;
+    };
+  }, [
+    clearCertificationSessionSnapshot,
+    confirmCertificationExit,
+    hasActiveCertificationSession,
+    hasProject,
+    isExternalPublicationOpen,
+    location.pathname,
+    navigate,
+    publicationSession,
+  ]);
 
   const handlePublicationSessionChange = useCallback(
     (nextSession: PublicationSessionMode) => {
-      setPublicationSession(nextSession);
-      if (
-        nextSession === 'certify' &&
-        hasProject &&
-        location.pathname !== '/malla/viewer'
-      ) {
-        handleOpenPreview();
-      }
+      void (async () => {
+        if (nextSession === publicationSession) {
+          return;
+        }
+
+        if (nextSession === 'design') {
+          const confirmed = await confirmCertificationExit();
+          if (!confirmed) {
+            return;
+          }
+          clearCertificationSessionSnapshot();
+          setPublicationSession('design');
+          return;
+        }
+
+        setPublicationSession(nextSession);
+        if (
+          nextSession === 'certify' &&
+          hasProject &&
+          location.pathname !== '/malla/viewer'
+        ) {
+          handleOpenPreview();
+        }
+      })();
     },
-    [handleOpenPreview, hasProject, location.pathname],
+    [
+      clearCertificationSessionSnapshot,
+      confirmCertificationExit,
+      handleOpenPreview,
+      hasProject,
+      location.pathname,
+      publicationSession,
+    ],
   );
+
+  const handleBackToEditorFromViewerWithCertification = useCallback(() => {
+    void (async () => {
+      const confirmed = await confirmCertificationExit();
+      if (!confirmed) {
+        return;
+      }
+      if (hasActiveCertificationSession && !isExternalPublicationOpen) {
+        clearCertificationSessionSnapshot();
+        setPublicationSession('design');
+      }
+      handleBackToEditorFromViewer();
+    })();
+  }, [
+    clearCertificationSessionSnapshot,
+    confirmCertificationExit,
+    handleBackToEditorFromViewer,
+    hasActiveCertificationSession,
+    isExternalPublicationOpen,
+  ]);
 
   if (!isHydrated) {
     return null;
@@ -1064,6 +1223,7 @@ export default function App(): JSX.Element | null {
                     <MallaViewerScreen
                       snapshot={activeViewerSnapshot}
                       mode={viewerMode}
+                      isEditorialFrozen={viewerMode === 'publication' || hasActiveCertificationSession}
                       publicationSession={publicationSession}
                       initialPanelMode={viewerPanelModePreference}
                       theme={activeViewerTheme}
@@ -1071,7 +1231,7 @@ export default function App(): JSX.Element | null {
                       onThemeChange={handleViewerThemeChange}
                       onPrintSettingsChange={handlePublicationPrintSettingsChange}
                       onPanelModeChange={handleViewerPanelModeChange}
-                      onBackToEditor={handleBackToEditorFromViewer}
+                      onBackToEditor={handleBackToEditorFromViewerWithCertification}
                       onOpenPublishModal={handlePublishFromPreview}
                       onImportPublicationFile={handleImportPublicationFile}
                     />

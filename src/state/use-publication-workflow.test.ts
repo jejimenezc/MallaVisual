@@ -121,6 +121,49 @@ describe('resolvePublicationOutputConfigForSource', () => {
 
     expect(resolved).toBe(baseConfig);
   });
+
+  test('prioritizes snapshot appearance for a locked certification session in preview mode', () => {
+    const config = {
+      ...baseConfig,
+      theme: {
+        ...baseConfig.theme,
+        showTitle: false,
+        titleText: 'Local vivo',
+        showHeaderFooter: false,
+        headerText: '',
+        footerText: '',
+      },
+    };
+
+    const resolved = resolvePublicationOutputConfigForSource({
+      config,
+      product: 'html-download',
+      viewerMode: 'preview',
+      snapshot: {
+        payloadKind: MALLA_SNAPSHOT_PAYLOAD_KIND,
+        formatVersion: 1,
+        createdAt: '2026-04-12T14:30:00.000Z',
+        snapshotId: 'session-uuid-123',
+        projectName: 'Snapshot de sesion',
+        grid: { rows: 1, cols: 1 },
+        items: [],
+        appearance: {
+          ...baseConfig.theme,
+          showTitle: true,
+          titleText: 'Titulo oficial',
+          showHeaderFooter: true,
+          headerText: 'Header oficial',
+          footerText: 'Footer oficial',
+        },
+      },
+      isFrozenSnapshotSource: true,
+    });
+
+    expect(resolved.theme.showTitle).toBe(true);
+    expect(resolved.theme.titleText).toBe('Titulo oficial');
+    expect(resolved.theme.headerText).toBe('Header oficial');
+    expect(resolved.theme.footerText).toBe('Footer oficial');
+  });
 });
 
 describe('resolvePublicationActionDetail', () => {

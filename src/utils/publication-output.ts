@@ -13,6 +13,7 @@ import {
 import { logAppError } from '../core/runtime/logger.ts';
 import {
   SNAPSHOT_DOCUMENT_PROFILE_VERSION,
+  type MallaSnapshot,
   type SnapshotDocumentProfileV1,
 } from '../types/malla-snapshot.ts';
 
@@ -111,6 +112,7 @@ export const resolvePublicationProductsForMode = (
 
 export const PUBLICATION_PRINT_SETTINGS_STORAGE_KEY = 'viewerPrintSettingsLastUsed';
 export const PUBLICATION_EXPORT_FLAGS_STORAGE_KEY = 'publicationExportFlagsLastUsed';
+export const PUBLICATION_SESSION_SNAPSHOT_STORAGE_KEY = 'publicationCertificationSessionSnapshot';
 
 export const createDefaultPublicationExportFlags = (): PublicationExportFlags => ({
   includeEditorial: true,
@@ -238,4 +240,47 @@ export const persistPublicationExportFlags = (
     resolvePublicationStorageKey(PUBLICATION_EXPORT_FLAGS_STORAGE_KEY, scopeKey),
     normalizePublicationExportFlags(flags),
   );
+};
+
+export const readStoredPublicationSessionSnapshot = (
+  storage: Storage | null,
+  scopeKey?: string | null,
+): unknown =>
+  readJsonFromStorage(
+    storage,
+    resolvePublicationStorageKey(PUBLICATION_SESSION_SNAPSHOT_STORAGE_KEY, scopeKey),
+  );
+
+export const persistPublicationSessionSnapshot = (
+  storage: Storage | null,
+  snapshot: MallaSnapshot,
+  scopeKey?: string | null,
+): void => {
+  persistJsonToStorage(
+    storage,
+    resolvePublicationStorageKey(PUBLICATION_SESSION_SNAPSHOT_STORAGE_KEY, scopeKey),
+    snapshot,
+  );
+};
+
+export const clearStoredPublicationSessionSnapshot = (
+  storage: Storage | null,
+  scopeKey?: string | null,
+): void => {
+  if (!storage) return;
+  try {
+    storage.removeItem(
+      resolvePublicationStorageKey(PUBLICATION_SESSION_SNAPSHOT_STORAGE_KEY, scopeKey),
+    );
+  } catch (error) {
+    logAppError({
+      scope: 'publication',
+      severity: 'non-fatal',
+      message: 'Fallo la limpieza de la sesion certificada persistida.',
+      error,
+      context: {
+        scopeKey,
+      },
+    });
+  }
 };

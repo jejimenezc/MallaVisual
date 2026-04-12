@@ -40,6 +40,7 @@ import type { PublicationSessionMode } from '../types/publication-session.ts';
 interface Props {
   snapshot: MallaSnapshot | null;
   mode: 'preview' | 'publication' | null;
+  isEditorialFrozen?: boolean;
   publicationSession: PublicationSessionMode;
   initialPanelMode?: ViewerPanelMode;
   theme: ViewerTheme;
@@ -98,6 +99,7 @@ const headerBandTextStyle: React.CSSProperties = {
 export function MallaViewerScreen({
   snapshot,
   mode,
+  isEditorialFrozen = false,
   publicationSession,
   initialPanelMode = 'preview',
   theme,
@@ -128,7 +130,7 @@ export function MallaViewerScreen({
   const zoomPct = `${Math.round(zoom * 100)}%`;
   const isPrintPreview = viewerPanelMode === 'print-preview';
   const isCertificationSession = publicationSession === 'certify';
-  const isPublicationFrozen = mode === 'publication';
+  const isPublicationFrozen = isEditorialFrozen;
   const panelMode = resolveViewerPanelMode(isPrintPreview);
   const printScalePct = `${Math.round(printSettings.scale * 100)}%`;
   const measuredPxPerMm = useMeasuredPxPerMm();

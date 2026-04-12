@@ -11,12 +11,15 @@ import { createDefaultViewerPrintSettings } from '../utils/viewer-print.ts';
 import { downloadViewerStandaloneHtml, openViewerPdfExport, openViewerStandaloneHtml } from '../utils/viewer-export.ts';
 import {
   buildSnapshotDocumentProfileFromPrintSettings,
+  clearStoredPublicationSessionSnapshot,
   createDefaultPublicationExportFlags,
   persistPublicationExportFlags,
   persistPublicationPrintSettings,
+  persistPublicationSessionSnapshot,
   persistPublicationTheme,
   readStoredPublicationExportFlags,
   readStoredPublicationPrintSettings,
+  readStoredPublicationSessionSnapshot,
   readStoredPublicationTheme,
   resolvePublicationModeFromViewerPanelMode,
   type PublicationExportFlags,
@@ -87,9 +90,13 @@ export function resolvePublicationOutputConfigForSource(input: {
   product: PublicationProduct;
   viewerMode: ViewerMode;
   snapshot: MallaSnapshot | null;
+  isFrozenSnapshotSource?: boolean;
 }): PublicationOutputConfig {
   const nextConfig = resolvePublicationOutputConfigForProduct(input.config, input.product);
-  if (input.viewerMode !== 'publication' || !input.snapshot?.appearance) {
+  if (
+    (!input.isFrozenSnapshotSource && input.viewerMode !== 'publication') ||
+    !input.snapshot?.appearance
+  ) {
     return nextConfig;
   }
   return {
@@ -128,6 +135,7 @@ interface UsePublicationWorkflowResult {
   publicationOperation: PublicationOperationState | null;
   publicationOutputConfig: PublicationOutputConfig;
   previewSnapshot: MallaSnapshot | null;
+  certificationSessionSnapshot: MallaSnapshot | null;
   publishActionStates: Record<PublishActionKey, { availability: 'ready'; status: OperationStatus; detail?: string }>;
   handleOpenPreview: () => void;
   handleOpenPrintPreview: () => void;
@@ -143,6 +151,7 @@ interface UsePublicationWorkflowResult {
   handleOpenPublishModalFromMenu: () => void;
   handleGoToPresentationFromPublishModal: () => void;
   handleGoToDocumentFromPublishModal: () => void;
+  clearCertificationSessionSnapshot: () => void;
 }
 
 export function usePublicationWorkflow({
@@ -187,12 +196,24 @@ export function usePublicationWorkflow({
   const [publicationExportFlags, setPublicationExportFlags] = useState<PublicationExportFlags>(readExportFlagsState);
   const [publishContext, setPublishContext] = useState<{ origin: PublishOrigin; mode: PublicationMode } | null>(null);
   const [publicationOperation, setPublicationOperation] = useState<PublicationOperationState | null>(null);
+  const readCertificationSessionSnapshotState = useCallback(() => {
+    if (!publicationStorageScope) return null;
+    const stored = readStoredPublicationSessionSnapshot(
+      getSafeLocalStorage(),
+      publicationStorageScope,
+    );
+    const validation = validateAndNormalizeMallaSnapshot(stored);
+    return validation.ok ? validation.normalizedSnapshot : null;
+  }, [getSafeLocalStorage, publicationStorageScope]);
+  const [certificationSessionSnapshot, setCertificationSessionSnapshot] =
+    useState<MallaSnapshot | null>(readCertificationSessionSnapshotState);
 
   useEffect(() => {
     setPublicationTheme(readThemeState());
     setPublicationPrintSettings(readPrintSettingsState());
     setPublicationExportFlags(readExportFlagsState());
-  }, [readExportFlagsState, readPrintSettingsState, readThemeState]);
+    setCertificationSessionSnapshot(readCertificationSessionSnapshotState());
+  }, [readCertificationSessionSnapshotState, readExportFlagsState, readPrintSettingsState, readThemeState]);
 
   useEffect(() => {
     if (!publicationStorageScope) return;
@@ -208,6 +229,19 @@ export function usePublicationWorkflow({
     if (!publicationStorageScope) return;
     persistPublicationExportFlags(getSafeLocalStorage(), publicationExportFlags, publicationStorageScope);
   }, [getSafeLocalStorage, publicationExportFlags, publicationStorageScope]);
+
+  useEffect(() => {
+    if (!publicationStorageScope) return;
+    if (!certificationSessionSnapshot) {
+      clearStoredPublicationSessionSnapshot(getSafeLocalStorage(), publicationStorageScope);
+      return;
+    }
+    persistPublicationSessionSnapshot(
+      getSafeLocalStorage(),
+      certificationSessionSnapshot,
+      publicationStorageScope,
+    );
+  }, [certificationSessionSnapshot, getSafeLocalStorage, publicationStorageScope]);
 
   const publicationOutputConfig = useMemo<PublicationOutputConfig>(
     () => ({
@@ -244,11 +278,12 @@ export function usePublicationWorkflow({
   }, [previewSnapshot, publicationSnapshot, viewerMode]);
 
   const createPublicationSnapshot = useCallback(
-    (appearance: ViewerTheme): MallaSnapshot | null => {
+    (appearance: ViewerTheme, options?: { snapshotId?: string }): MallaSnapshot | null => {
       if (!currentProject) return null;
       try {
         return buildMallaSnapshotFromState(currentProject, {
           projectName: projectName || 'Proyecto',
+          ...(options?.snapshotId ? { snapshotId: options.snapshotId } : {}),
           appearance,
           documentProfile: buildSnapshotDocumentProfileFromPrintSettings(publicationPrintSettings),
         });
@@ -275,6 +310,10 @@ export function usePublicationWorkflow({
     anchor.download = `${snapshot.projectName || 'proyecto'}-publicacion-v1.json`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }, []);
+
+  const clearCertificationSessionSnapshot = useCallback(() => {
+    setCertificationSessionSnapshot(null);
   }, []);
 
   const handleOpenPreview = useCallback(() => {
@@ -333,7 +372,18 @@ export function usePublicationWorkflow({
         const snapshot =
           viewerMode === 'publication'
             ? activePublicationSource
-            : createPublicationSnapshot(publicationOutputConfig.theme);
+            : publicationSession === 'certify'
+              ? certificationSessionSnapshot ??
+                (() => {
+                  const nextSnapshot = createPublicationSnapshot(publicationOutputConfig.theme, {
+                    snapshotId: crypto.randomUUID(),
+                  });
+                  if (nextSnapshot) {
+                    setCertificationSessionSnapshot(nextSnapshot);
+                  }
+                  return nextSnapshot;
+                })()
+              : createPublicationSnapshot(publicationOutputConfig.theme);
         if (!snapshot) {
           const failureMessage = 'No se pudo generar la salida publicada.';
           setPublicationOperation(createPublicationOperation(product, 'error', failureMessage, 'Revisa la configuracion visible y vuelve a intentarlo.'));
@@ -347,6 +397,9 @@ export function usePublicationWorkflow({
           product,
           viewerMode,
           snapshot,
+          isFrozenSnapshotSource:
+            viewerMode === 'publication' ||
+            (publicationSession === 'certify' && certificationSessionSnapshot !== null),
         });
 
         if (product === 'snapshot-json') {
@@ -396,6 +449,7 @@ export function usePublicationWorkflow({
     [
       activePublicationSource,
       createPublicationSnapshot,
+      certificationSessionSnapshot,
       downloadPublication,
       projectId,
       projectName,
@@ -447,10 +501,10 @@ export function usePublicationWorkflow({
 
   const handleViewerThemeChange = useCallback(
     (next: ViewerTheme) => {
-      if (viewerMode !== 'preview') return;
+      if (viewerMode !== 'preview' || certificationSessionSnapshot) return;
       setPublicationTheme(normalizeViewerTheme(next));
     },
-    [viewerMode],
+    [certificationSessionSnapshot, viewerMode],
   );
 
   const handlePublicationPrintSettingsChange = useCallback((next: ViewerPrintSettings) => {
@@ -531,6 +585,7 @@ export function usePublicationWorkflow({
     publicationOperation,
     publicationOutputConfig,
     previewSnapshot,
+    certificationSessionSnapshot,
     publishActionStates,
     handleOpenPreview,
     handleOpenPrintPreview,
@@ -546,5 +601,6 @@ export function usePublicationWorkflow({
     handleOpenPublishModalFromMenu,
     handleGoToPresentationFromPublishModal,
     handleGoToDocumentFromPublishModal,
+    clearCertificationSessionSnapshot,
   };
 }
