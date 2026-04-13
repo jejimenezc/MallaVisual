@@ -112,13 +112,20 @@ const canonicalizeSnapshotCells = (cells: MallaSnapshotCell[]): MallaSnapshotCel
 const canonicalizeSnapshotMerges = (merges: MallaSnapshotMerge[]): MallaSnapshotMerge[] =>
   merges.slice().sort(compareByRowCol);
 
+const canonicalizeSnapshotItem = (item: MallaSnapshotItem): MallaSnapshotItem => ({
+  id: item.id,
+  row: item.row,
+  col: item.col,
+  aspect: item.aspect,
+  rows: item.rows,
+  cols: item.cols,
+  merges: canonicalizeSnapshotMerges(item.merges),
+  cells: canonicalizeSnapshotCells(item.cells),
+});
+
 const canonicalizeSnapshotItems = (items: MallaSnapshotItem[]): MallaSnapshotItem[] =>
   items
-    .map((item) => ({
-      ...item,
-      merges: canonicalizeSnapshotMerges(item.merges),
-      cells: canonicalizeSnapshotCells(item.cells),
-    }))
+    .map(canonicalizeSnapshotItem)
     .sort((a, b) => a.row - b.row || a.col - b.col || a.id.localeCompare(b.id));
 
 const canonicalizeBandCells = (cells: SnapshotBandCell[]): SnapshotBandCell[] =>

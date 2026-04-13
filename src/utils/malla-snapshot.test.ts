@@ -424,3 +424,76 @@ test('migrateSnapshot fills payloadKind for legacy v1 snapshots and normalize ca
     assert.equal(normalized.normalizedSnapshot.bands?.headers?.rows[0]?.cells[0]?.col, 0);
   }
 });
+
+test('snapshot serialization stays byte-stable between build and rehydration when identity is the same', () => {
+  const template: BlockTemplate = [
+    [
+      { active: true, type: 'staticText', label: '1' },
+      { active: true, mergedWith: '0-0' },
+      { active: true, type: 'text', placeholder: '' },
+      { active: true, mergedWith: '0-2' },
+    ],
+    [
+      { active: true, type: 'checkbox', label: '12' },
+      { active: true, type: 'select', dropdownOptions: ['A', 'B'] },
+      { active: true, type: 'text', placeholder: '' },
+      { active: true, mergedWith: '1-2' },
+    ],
+  ];
+  const visual: VisualTemplate = {
+    '0-0': { backgroundColor: '#ffffff', textColor: '#111827', border: true },
+    '0-2': { backgroundColor: '#ffffff', textColor: '#111827', border: true },
+    '1-0': { backgroundColor: '#ffffff', textColor: '#111827', border: true },
+    '1-1': { backgroundColor: '#ffffff', textColor: '#111827', border: true },
+    '1-2': { backgroundColor: '#ffffff', textColor: '#111827', border: true },
+  };
+
+  const malla: MallaExport = {
+    version: 6,
+    masters: {
+      masterA: { template, visual, aspect: '1/1' },
+    },
+    repository: {},
+    grid: { cols: 4, rows: 2 },
+    pieces: [
+      {
+        kind: 'ref',
+        id: 'piece-1',
+        ref: {
+          sourceId: 'masterA',
+          bounds: { minRow: 0, maxRow: 1, minCol: 0, maxCol: 3, rows: 2, cols: 4 },
+          aspect: '1/1',
+        },
+        x: 0,
+        y: 0,
+      },
+    ],
+    values: {
+      'piece-1': {
+        r1c0: true,
+        r1c1: 'B',
+        r1c2: 'valor',
+      },
+    },
+    floatingPieces: [],
+    activeMasterId: 'masterA',
+    theme: createDefaultProjectTheme(),
+    metaPanel: createDefaultMetaPanel(false),
+    columnHeaders: createDefaultColumnHeaders(false),
+  };
+
+  const built = buildMallaSnapshotFromState(malla, {
+    projectName: 'Accesibilidad',
+    createdAt: '2026-04-13T02:16:33.327Z',
+    snapshotId: 'snapshot-byte-stable',
+  });
+
+  const normalized = validateAndNormalizeMallaSnapshot(JSON.parse(JSON.stringify(built)));
+  assert.equal(normalized.ok, true);
+  if (!normalized.ok) return;
+
+  assert.equal(
+    JSON.stringify(built, null, 2),
+    JSON.stringify(normalized.normalizedSnapshot, null, 2),
+  );
+});
