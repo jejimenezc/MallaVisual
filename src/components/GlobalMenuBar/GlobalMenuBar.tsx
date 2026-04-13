@@ -4,18 +4,21 @@ import type { JSX } from 'react';
 import styles from './GlobalMenuBar.module.css';
 
 interface RecentProject { id: string; name: string; date: string; }
+interface RecentCertifiedPublication { snapshotId: string; name: string; date: string; }
 interface GlobalMenuBarProps {
   hasProject: boolean; isMetaPanelEnabled: boolean; canToggleMetaPanel: boolean;
   onNewProject: () => void; onImportProjectFile: (file: File) => Promise<void> | void;
   onExportProject: () => void; onOpenPreview: () => void; onOpenPrintPreview: () => void;
   onOpenPublishModal: () => void; onImportPublicationFile: (file: File) => Promise<void> | void;
+  getRecentCertifiedPublications: () => RecentCertifiedPublication[];
+  onOpenCertifiedPublicationById: (snapshotId: string) => void;
   onCloseProject: () => void; onToggleMetaPanelEnabled: () => void; getRecentProjects: () => RecentProject[];
   onOpenProjectById: (id: string) => void; onShowIntro: () => void; onOpenProjectPalette: () => void;
 }
 
 type PrimaryMenuKey = 'archivo' | 'proyecto' | 'biblioteca' | 'publicar' | 'usuarios' | 'ayuda';
 type MenuKey = PrimaryMenuKey | null;
-type SubmenuKey = 'archivo-recientes' | 'biblioteca-maestros';
+type SubmenuKey = 'archivo-recientes' | 'biblioteca-maestros' | 'publicar-certificados';
 type FocusTarget = 'first' | 'last';
 
 const MENU_ORDER: PrimaryMenuKey[] = ['archivo', 'proyecto', 'biblioteca', 'publicar', 'usuarios', 'ayuda'];
@@ -27,11 +30,13 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
   const {
     hasProject, isMetaPanelEnabled, canToggleMetaPanel, onNewProject, onImportProjectFile, onExportProject,
     onOpenPreview, onOpenPrintPreview, onOpenPublishModal, onImportPublicationFile, onCloseProject,
+    getRecentCertifiedPublications, onOpenCertifiedPublicationById,
     onToggleMetaPanelEnabled, getRecentProjects, onOpenProjectById, onShowIntro, onOpenProjectPalette,
   } = props;
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
   const [openSubmenu, setOpenSubmenu] = useState<SubmenuKey | null>(null);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [recentCertifiedPublications, setRecentCertifiedPublications] = useState<RecentCertifiedPublication[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const publicationInputRef = useRef<HTMLInputElement>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
@@ -127,6 +132,11 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
 
   useEffect(() => { if (openMenu === 'archivo') setRecentProjects(getRecentProjects().slice(0, 10)); }, [getRecentProjects, openMenu]);
   useEffect(() => {
+    if (openMenu === 'publicar') {
+      setRecentCertifiedPublications(getRecentCertifiedPublications().slice(0, 10));
+    }
+  }, [getRecentCertifiedPublications, openMenu]);
+  useEffect(() => {
     const pending = pendingMenuFocusRef.current;
     if (!pending || openMenu !== pending.menu) return;
     const items = getMenuItems(menuBarRef.current?.querySelector(`[data-menu-dropdown="${pending.menu}"]`) ?? null);
@@ -164,6 +174,23 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
         <button type="button" className={styles.dropdownItem} role="menuitem" aria-label={`${project.name}. ${Number.isNaN(new Date(project.date).getTime()) ? project.date : new Date(project.date).toLocaleString()}`} onClick={runAndClose(() => onOpenProjectById(project.id))}>
           <span className={styles.itemPrimary} aria-hidden="true">{project.name}</span>
           <span className={styles.itemSecondary} aria-hidden="true">{Number.isNaN(new Date(project.date).getTime()) ? project.date : new Date(project.date).toLocaleString()}</span>
+        </button>
+      </li>
+    ));
+
+  const recentCertifiedItems = !recentCertifiedPublications.length
+    ? <li className={styles.dropdownItemWrapper} role="none"><span className={styles.dropdownLabelDisabled}>No hay certificados recientes</span></li>
+    : recentCertifiedPublications.map((publication) => (
+      <li key={publication.snapshotId} className={styles.dropdownItemWrapper} role="none">
+        <button
+          type="button"
+          className={styles.dropdownItem}
+          role="menuitem"
+          aria-label={`${publication.name}. ${publication.snapshotId}. ${Number.isNaN(new Date(publication.date).getTime()) ? publication.date : new Date(publication.date).toLocaleString()}`}
+          onClick={runAndClose(() => onOpenCertifiedPublicationById(publication.snapshotId))}
+        >
+          <span className={styles.itemPrimary} aria-hidden="true">{publication.name}</span>
+          <span className={styles.itemSecondary} aria-hidden="true">{publication.snapshotId.slice(0, 8)}</span>
         </button>
       </li>
     ));
@@ -230,6 +257,24 @@ export function GlobalMenuBar(props: GlobalMenuBarProps): JSX.Element {
               <li className={styles.dropdownSeparator} aria-hidden="true" />
               <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" aria-label="Publicar versión actual. Generar captura de la malla." onClick={runAndClose(onOpenPublishModal, hasProject)} disabled={!hasProject}><span className={styles.itemPrimary} aria-hidden="true">Publicar versión actual</span><span className={styles.itemSecondary} aria-hidden="true">(Generar captura de la malla)</span></button></li>
               <li className={styles.dropdownItemWrapper} role="none"><button type="button" className={styles.dropdownItem} role="menuitem" aria-label="Abrir versión publicada. Cargar malla externa." onClick={openInput(publicationInputRef)}><span className={styles.itemPrimary} aria-hidden="true">Abrir versión publicada...</span><span className={styles.itemSecondary} aria-hidden="true">(Cargar malla externa)</span></button></li>
+              <li className={`${styles.dropdownItemWrapper} ${styles.hasSubmenu}`} role="none">
+                <button
+                  type="button"
+                  className={styles.dropdownItem}
+                  role="menuitem"
+                  onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpenSubmenu((prev) => (prev === 'publicar-certificados' ? null : 'publicar-certificados')); }}
+                  onKeyDown={submenuTriggerKeyDown('publicar', 'publicar-certificados')}
+                  aria-haspopup="menu"
+                  aria-expanded={openSubmenu === 'publicar-certificados'}
+                  aria-controls={openSubmenu === 'publicar-certificados' ? submenuDropdownId('publicar-certificados') : undefined}
+                >
+                  Certificados recientes
+                  <span className={styles.caret} aria-hidden="true">▸</span>
+                </button>
+                {openSubmenu === 'publicar-certificados'
+                  ? <ul id={submenuDropdownId('publicar-certificados')} className={styles.submenuList} role="menu" data-submenu-dropdown="publicar-certificados" onKeyDown={submenuListKeyDown('publicar', 'publicar-certificados')}>{recentCertifiedItems}</ul>
+                  : null}
+              </li>
             </ul>
           ) : null}
         </div>

@@ -81,7 +81,8 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.6a-support-a | validated | Alinear las salidas web de publicaciones externas con la apariencia congelada del snapshot. | `html-web` y derivados de snapshots abiertos deben respetar titulo, encabezado y pie configurados en `snapshot.appearance`. |
 | PR-1.6a-support-b | validated | Alinear el viewer de presentacion con WYSIWYG editorial. | El modo presentacion debe previsualizar los elementos editoriales activos antes de emitir, con simetria respecto del modo documental. |
 | PR-1.6b | validated | Implementar el lazy snapshot y la identidad de sesion certificada. | La primera emision en certificacion debe materializar el snapshot, fijar un UUID de sesion y reutilizarlo hasta volver a diseno, incluyendo compatibilidad con snapshots abiertos. |
-| PR-1.6b-support-a | planned | Persistir certificados recientes y reapertura local. | La app debe guardar una lista local de snapshots certificados recientes por `snapshotId` y permitir reabrirlos como publicaciones certificadas para seguir emitiendo derivados con la misma identidad. |
+| PR-1.6b-support-a | review | Persistir certificados recientes y reapertura local. | La app debe guardar una lista local de snapshots certificados recientes por `snapshotId` y permitir reabrirlos como publicaciones certificadas para seguir emitiendo derivados con la misma identidad. |
+| PR-1.6b-support-b | planned | Canonizar la serializacion textual del snapshot certificado. | El JSON certificado debe mantenerse byte a byte estable cuando representa la misma certificacion, unificando orden de claves y forma de serializacion entre snapshot en memoria y snapshot rehidratado. |
 | PR-1.6c | planned | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, copia oficial con UUID y derivado versionado sin romper la paridad con el viewer. |
 
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
@@ -100,6 +101,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 - Validado: 2026-04-12 - PR/commit: `101b53c` + fix final de navegacion en modal - Nota: `PR-1.6a-support-a` hace que las salidas web desde snapshots abiertos respeten `snapshot.appearance` y preserven el contexto de publicacion al alternar desde el modal; desbloquea `PR-1.6a-support-b`.
 - Validado: 2026-04-12 - PR/commit: `8053c27` - Nota: `PR-1.6a-support-b` alinea el viewer de presentacion con WYSIWYG editorial y deja visible en preview el mismo titulo, encabezado y pie que luego salen en derivaciones web; desbloquea `PR-1.6b`.
 - Validado: 2026-04-12 - PR/commit: `2b2dd38` - Nota: `PR-1.6b` introduce lazy snapshot con UUID de sesion certificada, reutiliza el mismo snapshot durante la sesion activa y exige confirmacion al volver a Diseño; se abre `PR-1.6b-support-a` para persistir certificados recientes y permitir reapertura local simple.
+- Decision: 2026-04-12 - Nota: se agrega `PR-1.6b-support-b` para canonizar la serializacion textual del snapshot y evitar diferencias byte a byte entre la misma certificacion segun la ruta de emision o rehidratacion.
 
 ### Fase 2 - Preparacion para capa de dibujo
 Objetivo: preparar la arquitectura de overlay sin implementar aun toda la UX.

@@ -52,6 +52,10 @@ import { useBlockUsageAndControlCleanup } from './state/use-block-usage-and-cont
 import { applySnapshotDocumentProfileToPrintSettings } from './utils/publication-output.ts';
 import type { PublicationSessionMode } from './types/publication-session.ts';
 import {
+  findRecentCertifiedPublicationById,
+  readRecentCertifiedPublications,
+} from './utils/publication-recents.ts';
+import {
   type BlockState,
   MALLA_AUTOSAVE_STORAGE_KEY,
   clearStoredActiveProject,
@@ -90,6 +94,8 @@ interface AppLayoutProps {
   onOpenPrintPreview: () => void;
   onOpenPublishModal: () => void;
   onImportPublicationFile: (file: File) => Promise<void> | void;
+  getRecentCertifiedPublications: () => Array<{ snapshotId: string; name: string; date: string }>;
+  onOpenCertifiedPublicationById: (snapshotId: string) => void;
   onCloseProject: () => void;
   onToggleMetaPanelEnabled: () => void;
   getRecentProjects: () => Array<{ id: string; name: string; date: string }>;
@@ -117,6 +123,8 @@ function AppLayout({
   onOpenPrintPreview,
   onOpenPublishModal,
   onImportPublicationFile,
+  getRecentCertifiedPublications,
+  onOpenCertifiedPublicationById,
   onCloseProject,
   onToggleMetaPanelEnabled,
   getRecentProjects,
@@ -195,6 +203,8 @@ function AppLayout({
             onOpenPrintPreview={onOpenPrintPreview}
             onOpenPublishModal={onOpenPublishModal}
             onImportPublicationFile={onImportPublicationFile}
+            getRecentCertifiedPublications={getRecentCertifiedPublications}
+            onOpenCertifiedPublicationById={onOpenCertifiedPublicationById}
             onCloseProject={onCloseProject}
             onToggleMetaPanelEnabled={onToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}
@@ -1058,6 +1068,31 @@ export default function App(): JSX.Element | null {
     isExternalPublicationOpen,
   ]);
 
+  const getRecentCertifiedPublications = useCallback(() => {
+    return readRecentCertifiedPublications(getSafeLocalStorage()).map((entry) => ({
+      snapshotId: entry.snapshotId,
+      name: entry.projectName,
+      date: entry.lastOpenedAt || entry.createdAt,
+    }));
+  }, []);
+
+  const handleOpenCertifiedPublicationById = useCallback(
+    (snapshotId: string) => {
+      const recent = findRecentCertifiedPublicationById(getSafeLocalStorage(), snapshotId);
+      if (!recent) {
+        pushToast('No se pudo reabrir el certificado reciente', 'error');
+        return;
+      }
+      setPublicationSnapshot(recent.snapshot);
+      setPublicationSession('certify');
+      setViewerMode('publication');
+      handleViewerPanelModeChange('preview');
+      navigate('/malla/viewer');
+      pushToast('Certificado reciente reabierto', 'success');
+    },
+    [handleViewerPanelModeChange, navigate, pushToast, setPublicationSnapshot, setViewerMode],
+  );
+
   if (!isHydrated) {
     return null;
   }
@@ -1086,6 +1121,8 @@ export default function App(): JSX.Element | null {
             onOpenPrintPreview={handleOpenPrintPreview}
             onOpenPublishModal={handleOpenPublishModalFromMenu}
             onImportPublicationFile={handleImportPublicationFile}
+            getRecentCertifiedPublications={getRecentCertifiedPublications}
+            onOpenCertifiedPublicationById={handleOpenCertifiedPublicationById}
             onCloseProject={handleCloseProject}
             onToggleMetaPanelEnabled={handleToggleMetaPanelEnabled}
             getRecentProjects={getRecentProjects}

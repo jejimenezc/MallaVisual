@@ -42,6 +42,11 @@ describe('GlobalMenuBar accessibility baseline', () => {
             onOpenPrintPreview={vi.fn()}
             onOpenPublishModal={vi.fn()}
             onImportPublicationFile={vi.fn()}
+            getRecentCertifiedPublications={() => [
+              { snapshotId: 'uuid-cert-1', name: 'Certificado alfa', date: '2026-04-12T15:00:00.000Z' },
+              { snapshotId: 'uuid-cert-2', name: 'Certificado beta', date: '2026-04-12T16:00:00.000Z' },
+            ]}
+            onOpenCertifiedPublicationById={vi.fn()}
             onCloseProject={vi.fn()}
             onToggleMetaPanelEnabled={vi.fn()}
             getRecentProjects={() => [
@@ -251,5 +256,36 @@ describe('GlobalMenuBar accessibility baseline', () => {
     });
 
     expect(document.activeElement).toBe(proyectoTrigger);
+  });
+
+  test('abre certificados recientes desde Publicacion y enfoca su primer item', async () => {
+    await renderMenu();
+
+    const publicarTrigger = container.querySelector<HTMLButtonElement>('#global-menu-trigger-publicar');
+    publicarTrigger?.focus();
+
+    await act(async () => {
+      publicarTrigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      await Promise.resolve();
+    });
+
+    const certificatesTrigger = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[data-menu-dropdown="publicar"] button[role="menuitem"]'),
+    ).find((button) => button.textContent?.includes('Certificados recientes'));
+    expect(certificatesTrigger).not.toBeNull();
+
+    certificatesTrigger?.focus();
+    await act(async () => {
+      certificatesTrigger?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      await Promise.resolve();
+    });
+    await flushAnimationFrame();
+
+    const submenu = container.querySelector<HTMLElement>('[data-submenu-dropdown="publicar-certificados"]');
+    const firstCertified = submenu?.querySelector<HTMLButtonElement>('button[role="menuitem"]');
+    expect(submenu).not.toBeNull();
+    expect(firstCertified).not.toBeNull();
+    expect(firstCertified?.textContent).toContain('Certificado alfa');
+    expect(document.activeElement).toBe(firstCertified);
   });
 });

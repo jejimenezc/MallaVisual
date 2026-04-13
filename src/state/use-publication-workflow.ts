@@ -35,6 +35,7 @@ import {
 import type { PublishActionKey, PublishOrigin } from '../components/PublishModal';
 import { logAppError } from '../core/runtime/logger.ts';
 import type { PublicationSessionMode } from '../types/publication-session.ts';
+import { persistRecentCertifiedPublication } from '../utils/publication-recents.ts';
 
 type ViewerMode = 'preview' | 'publication' | null;
 type ToastFn = (message: string, variant?: 'info' | 'success' | 'error') => void;
@@ -391,6 +392,7 @@ export function usePublicationWorkflow({
           return;
         }
         setPublicationSnapshot(snapshot);
+        persistRecentCertifiedPublication(getSafeLocalStorage(), snapshot);
 
         const outputConfig = resolvePublicationOutputConfigForSource({
           config: publicationOutputConfig,
@@ -451,6 +453,7 @@ export function usePublicationWorkflow({
       createPublicationSnapshot,
       certificationSessionSnapshot,
       downloadPublication,
+      getSafeLocalStorage,
       projectId,
       projectName,
       publicationSession,
@@ -474,6 +477,7 @@ export function usePublicationWorkflow({
           return;
         }
         setPublicationSnapshot(validation.normalizedSnapshot);
+        persistRecentCertifiedPublication(getSafeLocalStorage(), validation.normalizedSnapshot);
         setViewerPanelModePreference('preview');
         setViewerMode('publication');
         navigate('/malla/viewer');
@@ -490,7 +494,7 @@ export function usePublicationWorkflow({
         pushToast('No se pudo abrir la versión publicada', 'error');
       }
     },
-    [navigate, pushToast, setPublicationSnapshot, setViewerMode],
+    [getSafeLocalStorage, navigate, pushToast, setPublicationSnapshot, setViewerMode],
   );
 
   const handleBackToEditorFromViewer = useCallback(() => {
