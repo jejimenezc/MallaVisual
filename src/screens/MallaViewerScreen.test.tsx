@@ -7,6 +7,7 @@ import { createDefaultViewerTheme } from '../utils/viewer-theme.ts';
 import { createDefaultViewerPrintSettings } from '../utils/viewer-print.ts';
 import { MALLA_SNAPSHOT_PAYLOAD_KIND, type MallaSnapshot } from '../types/malla-snapshot.ts';
 import type { ViewerTheme } from '../types/viewer-theme.ts';
+import type { PublicationSessionMode } from '../types/publication-session.ts';
 
 vi.mock('../utils/use-measured-px-per-mm.ts', () => ({
   useMeasuredPxPerMm: () => ({ pxPerMmX: 3.78, pxPerMmY: 3.78 }),
@@ -158,15 +159,20 @@ describe('MallaViewerScreen presentation preview', () => {
     container.remove();
   });
 
-  async function renderViewer(theme: ViewerTheme) {
+  async function renderViewer(input: {
+    theme: ViewerTheme;
+    publicationSession?: PublicationSessionMode;
+    mode?: 'preview' | 'publication';
+    snapshotOverride?: Partial<MallaSnapshot>;
+  }) {
     await act(async () => {
       root.render(
         <MallaViewerScreen
-          snapshot={snapshot}
-          mode="preview"
-          publicationSession="design"
+          snapshot={{ ...snapshot, ...input.snapshotOverride }}
+          mode={input.mode ?? 'preview'}
+          publicationSession={input.publicationSession ?? 'design'}
           initialPanelMode="preview"
-          theme={theme}
+          theme={input.theme}
           printSettings={createDefaultViewerPrintSettings()}
           onThemeChange={vi.fn()}
           onPrintSettingsChange={vi.fn()}
@@ -181,13 +187,15 @@ describe('MallaViewerScreen presentation preview', () => {
 
   test('muestra titulo, encabezado y pie en modo presentacion cuando estan activos', async () => {
     await renderViewer({
-      ...createDefaultViewerTheme(),
-      showTitle: true,
-      titleText: 'Titulo visible',
-      titleFontSize: 28,
-      showHeaderFooter: true,
-      headerText: 'Encabezado visible',
-      footerText: 'Pie visible',
+      theme: {
+        ...createDefaultViewerTheme(),
+        showTitle: true,
+        titleText: 'Titulo visible',
+        titleFontSize: 28,
+        showHeaderFooter: true,
+        headerText: 'Encabezado visible',
+        footerText: 'Pie visible',
+      },
     });
 
     expect(container.textContent).toContain('Titulo visible');
@@ -196,14 +204,51 @@ describe('MallaViewerScreen presentation preview', () => {
     expect(container.textContent).toContain('Malla de prueba');
   });
 
+  test('muestra marca de version no trazable en diseno sin UUID', async () => {
+    await renderViewer({
+      theme: createDefaultViewerTheme(),
+    });
+
+    expect(container.textContent).toContain('Versión no trazable');
+  });
+
+  test('muestra copia oficial con UUID en certificacion activa', async () => {
+    await renderViewer({
+      theme: createDefaultViewerTheme(),
+      publicationSession: 'certify',
+      snapshotOverride: {
+        snapshotId: 'uuid-cert-12345678',
+      },
+    });
+
+    expect(container.textContent).toContain('Original certificado');
+    expect(container.textContent).toContain('uuid-cer');
+  });
+
+  test('muestra derivado de UUID al abrir snapshot publicado', async () => {
+    await renderViewer({
+      theme: createDefaultViewerTheme(),
+      mode: 'publication',
+      publicationSession: 'certify',
+      snapshotOverride: {
+        snapshotId: 'uuid-derivado-87654321',
+      },
+    });
+
+    expect(container.textContent).toContain('Copia fiel de');
+    expect(container.textContent).toContain('uuid-der');
+  });
+
   test('oculta bloques editoriales en modo presentacion cuando no estan activos', async () => {
     await renderViewer({
-      ...createDefaultViewerTheme(),
-      showTitle: false,
-      titleText: 'Titulo oculto',
-      showHeaderFooter: false,
-      headerText: 'Encabezado oculto',
-      footerText: 'Pie oculto',
+      theme: {
+        ...createDefaultViewerTheme(),
+        showTitle: false,
+        titleText: 'Titulo oculto',
+        showHeaderFooter: false,
+        headerText: 'Encabezado oculto',
+        footerText: 'Pie oculto',
+      },
     });
 
     expect(container.textContent).not.toContain('Titulo oculto');

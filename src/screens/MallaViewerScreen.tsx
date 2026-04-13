@@ -36,6 +36,7 @@ import styles from './MallaViewerScreen.module.css';
 import { logAppError } from '../core/runtime/logger.ts';
 import { useViewerLayoutModel } from '../state/use-viewer-layout-model.ts';
 import type { PublicationSessionMode } from '../types/publication-session.ts';
+import { resolvePublicationTraceMark } from '../utils/publication-trace.ts';
 
 interface Props {
   snapshot: MallaSnapshot | null;
@@ -477,6 +478,15 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
   }, [cleanupPrintIframe, printStyleText]);
 
   const frozenPanelTitle = 'Propiedades congeladas por el Régimen de Certificación';
+  const traceMark = useMemo(
+    () =>
+      resolvePublicationTraceMark({
+        snapshotId: snapshot?.snapshotId ?? null,
+        mode,
+        publicationSession,
+      }),
+    [mode, publicationSession, snapshot?.snapshotId],
+  );
   const presentationEditorial = useMemo(() => {
     if (!renderModel) {
       return {
@@ -794,6 +804,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
       >
         <div className={contentBoxClassName} style={input.variant === 'preview' ? printContentBoxStyle : undefined}>
           <div className={flowClassName}>
+            <div
+              className={`${styles.viewerTraceMark} ${styles[`viewerTraceMark${traceMark.mode[0].toUpperCase()}${traceMark.mode.slice(1)}`]}`}
+              data-traceability-mode={traceMark.mode}
+            >
+              <span className={styles.viewerTraceMarkSeal} aria-hidden="true" />
+              <span className={styles.viewerTraceMarkText}>{traceMark.text}</span>
+            </div>
             {input.editorialLayout.headerText ? (
               <div className={styles.viewerPageHeaderBlock}>
                 <div className={styles.runtimeHeader}>{input.editorialLayout.headerText}</div>
@@ -884,6 +901,13 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
     <div className={styles.viewerCanvasFrame}>
       <div className={styles.viewerPageContentBox}>
         <div className={`${styles.viewerPrintDocumentFlow} ${styles.viewerPresentationFlow}`}>
+          <div
+            className={`${styles.viewerTraceMark} ${styles[`viewerTraceMark${traceMark.mode[0].toUpperCase()}${traceMark.mode.slice(1)}`]}`}
+            data-traceability-mode={traceMark.mode}
+          >
+            <span className={styles.viewerTraceMarkSeal} aria-hidden="true" />
+            <span className={styles.viewerTraceMarkText}>{traceMark.text}</span>
+          </div>
           {presentationEditorial.titleText ? (
             <div className={styles.viewerPageTitleBlock}>
               <h1
@@ -925,6 +949,7 @@ body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }`;
         pageMetrics={pageMetrics}
         pxPerMmY={measuredPxPerMm.pxPerMmY}
         classNames={viewerPrintDocumentClassNames}
+        traceMark={traceMark}
       />
     </div>
   ) : null;

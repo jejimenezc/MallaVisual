@@ -630,6 +630,52 @@
   width: max-content;
 }
 
+.viewerTraceMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.88);
+  color: #0f172a;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  overflow-wrap: anywhere;
+}
+
+.viewerTraceMarkWork {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #475569;
+}
+
+.viewerTraceMarkOfficial {
+  border-color: rgba(54, 182, 182, 0.42);
+  color: #0f766e;
+}
+
+.viewerTraceMarkDerived {
+  border-color: rgba(249, 207, 74, 0.46);
+  color: #8a5a00;
+}
+
+.viewerTraceMarkSeal {
+  flex: 0 0 auto;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  border: 1.5px solid currentColor;
+  opacity: 0.72;
+}
+
+.viewerTraceMarkText {
+  min-width: 0;
+}
+
 .viewerPresentationFlow {
   gap: 0.5rem;
 }

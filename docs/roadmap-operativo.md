@@ -8,7 +8,7 @@ Este documento es la fuente de verdad para ejecutar el roadmap del proyecto fase
 | --- | --- |
 | Fase actual | Fase 1 - Endurecimiento de publicacion externa |
 | Hito actual | Alcanzar "producto maduro y publicable" |
-| Proximo PR recomendado | `PR-1.6c agregar marcas de trazabilidad en las salidas publicadas` |
+| Proximo PR recomendado | `Validar PR-1.6c agregar marcas de trazabilidad en las salidas publicadas` |
 | Seguimiento | Centralizado en este documento |
 | Rigor | Moderado |
 
@@ -83,7 +83,7 @@ Objetivo: pasar de maduro local a publicable externamente.
 | PR-1.6b | validated | Implementar el lazy snapshot y la identidad de sesion certificada. | La primera emision en certificacion debe materializar el snapshot, fijar un UUID de sesion y reutilizarlo hasta volver a diseno, incluyendo compatibilidad con snapshots abiertos. |
 | PR-1.6b-support-a | validated | Persistir certificados recientes y reapertura local. | La app debe guardar una lista local de snapshots certificados recientes por `snapshotId` y permitir reabrirlos como publicaciones certificadas para seguir emitiendo derivados con la misma identidad. |
 | PR-1.6b-support-b | validated | Canonizar la serializacion textual del snapshot certificado. | El JSON certificado debe mantenerse byte a byte estable cuando representa la misma certificacion, unificando orden de claves y forma de serializacion entre snapshot en memoria y snapshot rehidratado. |
-| PR-1.6c | in-progress | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, copia oficial con UUID y derivado versionado sin romper la paridad con el viewer. |
+| PR-1.6c | review | Agregar marcas de trazabilidad en las salidas publicadas. | Las salidas deben distinguir entre version de trabajo, copia oficial con UUID y derivado versionado sin romper la paridad con el viewer. |
 
 **Hito desbloqueado al validar la fase:** "producto maduro y publicable".
 

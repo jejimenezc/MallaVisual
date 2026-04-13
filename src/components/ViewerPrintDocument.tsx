@@ -9,12 +9,16 @@ import {
   type ViewerPrintSettings,
   type ViewerPaginatedSurfaceLayout,
 } from '../utils/viewer-print.ts';
+import type { PublicationTraceMark } from '../utils/publication-trace.ts';
 
 export interface ViewerPrintDocumentClassNames {
   sequence: string;
   page: string;
   contentBox: string;
   flow: string;
+  traceBlock: string;
+  traceSeal: string;
+  traceText: string;
   headerBlock: string;
   header: string;
   titleBlock: string;
@@ -41,6 +45,9 @@ export const VIEWER_PRINT_DOCUMENT_EXPORT_CLASS_NAMES: ViewerPrintDocumentClassN
   page: 'viewerCanvasFrame viewerPaginatedPageFrame viewerPaginatedPageFramePrint viewerPrintedPage',
   contentBox: 'viewerPageContentBox viewerPaginatedPageContentBox viewerPaginatedPageContentBoxPrint',
   flow: 'viewerPrintDocumentFlow viewerPaginatedPageFlow viewerPaginatedPageFlowPrint',
+  traceBlock: 'viewerTraceMark',
+  traceSeal: 'viewerTraceMarkSeal',
+  traceText: 'viewerTraceMarkText',
   headerBlock: 'viewerPageHeaderBlock',
   header: 'runtimeHeader',
   titleBlock: 'viewerPageTitleBlock',
@@ -304,6 +311,7 @@ interface ViewerPrintDocumentProps {
   pageMetrics: ViewerResolvedPageMetrics;
   pxPerMmY: number;
   classNames: ViewerPrintDocumentClassNames;
+  traceMark?: PublicationTraceMark | null;
   pageStyle?: CSSProperties;
   contentBoxStyle?: CSSProperties;
 }
@@ -317,6 +325,7 @@ export function ViewerPrintDocument({
   pageMetrics,
   pxPerMmY,
   classNames,
+  traceMark,
   pageStyle,
   contentBoxStyle,
 }: ViewerPrintDocumentProps): JSX.Element {
@@ -383,6 +392,18 @@ export function ViewerPrintDocument({
           >
             <div className={classNames.contentBox} style={contentBoxStyle}>
               <div className={classNames.flow}>
+                {traceMark ? (
+                  <div
+                    className={joinClasses(
+                      classNames.traceBlock,
+                      `viewerTraceMark-${traceMark.mode}`,
+                    )}
+                    data-traceability-mode={traceMark.mode}
+                  >
+                    <span className={classNames.traceSeal} aria-hidden="true" />
+                    <span className={classNames.traceText}>{traceMark.text}</span>
+                  </div>
+                ) : null}
                 {editorialLayout.headerText ? (
                   <div className={classNames.headerBlock}>
                     <div className={classNames.header}>{editorialLayout.headerText}</div>
@@ -512,6 +533,52 @@ export const createViewerPrintDocumentExportStyles = (): string => `
     flex-direction: column;
     gap: 0.35rem;
     width: 100%;
+  }
+
+  .viewerTraceMark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: fit-content;
+    max-width: 100%;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(255, 255, 255, 0.88);
+    color: #0f172a;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    overflow-wrap: anywhere;
+  }
+
+  .viewerTraceMark-work {
+    border-color: rgba(148, 163, 184, 0.45);
+    color: #475569;
+  }
+
+  .viewerTraceMark-official {
+    border-color: rgba(54, 182, 182, 0.42);
+    color: #0f766e;
+  }
+
+  .viewerTraceMark-derived {
+    border-color: rgba(249, 207, 74, 0.46);
+    color: #8a5a00;
+  }
+
+  .viewerTraceMarkSeal {
+    flex: 0 0 auto;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
+    border: 1.5px solid currentColor;
+    opacity: 0.72;
+  }
+
+  .viewerTraceMarkText {
+    min-width: 0;
   }
 
   .viewerPaginatedPageFlowPrint {
@@ -746,6 +813,11 @@ export const createViewerPrintDocumentExportStyles = (): string => `
       max-height: none !important;
       background: transparent !important;
       box-shadow: none !important;
+    }
+
+    .viewerTraceMark {
+      background: transparent;
+      box-shadow: none;
     }
 
     .runtimeHeader,

@@ -109,8 +109,27 @@ describe('viewer-export', () => {
     expect(html).toContain('Cabecera standalone');
     expect(html).toContain('Pie standalone');
     expect(html).toContain('Calculo I');
+    expect(html).toContain('Versión no trazable');
+    expect(html).toContain('data-traceability-mode="work"');
     expect(html).toContain('"includeOverlay":false');
     expect(html).not.toContain('GlobalMenuBar');
+  });
+
+  test('marks publication-mode web outputs as derived from the certified snapshot', () => {
+    const html = createViewerStandaloneHtml({
+      snapshot: {
+        ...snapshot,
+        snapshotId: 'uuid-derivado-87654321',
+      },
+      config: {
+        theme: createDefaultViewerTheme(),
+      },
+      product: 'html-web',
+      traceabilityMode: 'derived',
+    });
+
+    expect(html).toContain('Copia fiel de uuid-der');
+    expect(html).toContain('data-traceability-mode="derived"');
   });
 
   test('creates print html and honors editorial flag', () => {
@@ -140,6 +159,7 @@ describe('viewer-export', () => {
     expect(html).not.toContain('<div>Pie PDF</div>');
     expect(html).not.toContain('Pagina 1 de 1');
     expect(html).toContain('"kind":"print-document"');
+    expect(html).toContain('Versión no trazable');
     expect(html).toContain('viewerPrintedPageSequence');
     expect(html).not.toContain('mve-print-page');
     expect(html).toContain('--print-content-width-mm');
@@ -228,6 +248,7 @@ describe('viewer-export', () => {
     const html = createViewerPrintHtml({
       snapshot: {
         ...snapshot,
+        snapshotId: 'uuid-cert-12345678',
         documentProfile: {
           profileVersion: 1,
           showDocumentTitle: true,
@@ -255,8 +276,11 @@ describe('viewer-export', () => {
         },
       },
       product: 'pdf',
+      traceabilityMode: 'official',
     });
 
+    expect(html).toContain('Original certificado');
+    expect(html).toContain('12345678');
     expect(html).toContain('Documento del snapshot');
     expect(html).toContain('Header del snapshot');
     expect(html).toContain('Footer del snapshot');

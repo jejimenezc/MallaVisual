@@ -16,6 +16,10 @@ import {
   type PublicationOutputConfig,
 } from './publication-output.ts';
 import {
+  resolvePublicationTraceMark,
+  type PublicationTraceabilityMode,
+} from './publication-trace.ts';
+import {
   applyViewerTheme,
   type ViewerRenderBandCell,
   type ViewerRenderBandRow,
@@ -45,6 +49,7 @@ export interface PublicationExportInput {
   snapshot: MallaSnapshot;
   config?: Partial<PublicationOutputConfig>;
   product: PublicationProduct;
+  traceabilityMode?: PublicationTraceabilityMode;
 }
 
 interface ViewerExportPayload {
@@ -58,6 +63,7 @@ interface ViewerExportPayload {
   kind: 'standalone-html' | 'print-document';
   printSettings?: PublicationOutputConfig['printSettings'];
   variant: 'presentation' | 'print';
+  traceabilityMode: PublicationTraceabilityMode;
 }
 
 const VIEWER_PRINT_CUT_REFINEMENT_POLICY = {
@@ -81,6 +87,9 @@ const styleToString = (styles: Record<string, string | number | undefined>): str
     .filter(([, value]) => value !== undefined)
     .map(([key, value]) => `${key}:${String(value)}`)
     .join(';');
+
+const createTraceMarkHtml = (mark: ReturnType<typeof resolvePublicationTraceMark>): string =>
+  `<div class="mve-trace-mark mve-trace-mark-${mark.mode}" data-traceability-mode="${mark.mode}"><span class="mve-trace-mark-seal" aria-hidden="true"></span><span class="mve-trace-mark-text">${escapeHtml(mark.text)}</span></div>`;
 
 const borderStyleFromSnapshot = (value: 'none' | 'thin' | 'strong') => {
   if (value === 'none') return 'none';
@@ -289,6 +298,53 @@ const createViewerDocumentStyles = (): string => `
     box-shadow: 0 24px 80px rgba(15, 23, 42, 0.14);
   }
 
+  .mve-trace-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 16px;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: rgba(255, 255, 255, 0.88);
+    color: #0f172a;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    overflow-wrap: anywhere;
+  }
+
+  .mve-trace-mark-work {
+    border-color: rgba(148, 163, 184, 0.45);
+    color: #475569;
+  }
+
+  .mve-trace-mark-official {
+    border-color: rgba(54, 182, 182, 0.42);
+    color: #0f766e;
+  }
+
+  .mve-trace-mark-derived {
+    border-color: rgba(249, 207, 74, 0.46);
+    color: #8a5a00;
+  }
+
+  .mve-trace-mark-seal {
+    flex: 0 0 auto;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
+    border: 1.5px solid currentColor;
+    opacity: 0.72;
+  }
+
+  .mve-trace-mark-text {
+    min-width: 0;
+  }
+
   .mve-canvas,
   .mve-print-canvas {
     position: relative;
@@ -376,6 +432,11 @@ const createViewerDocumentStyles = (): string => `
       box-shadow: none;
       border: none;
       background: transparent;
+    }
+
+    .mve-trace-mark {
+      background: transparent;
+      box-shadow: none;
     }
 
   }
@@ -500,6 +561,12 @@ export const resolvePublicationOutputModel = (input: PublicationExportInput) => 
     scaledSurfaceWidthPx: contentPlacementMetrics.scaledContentWidthPx,
     scaledSurfaceHeightPx: contentPlacementMetrics.scaledContentHeightPx,
   });
+  const traceMark = resolvePublicationTraceMark({
+    snapshotId: input.snapshot.snapshotId ?? null,
+    mode: input.traceabilityMode === 'derived' ? 'publication' : 'preview',
+    publicationSession: input.traceabilityMode === 'official' ? 'certify' : 'design',
+    traceabilityMode: input.traceabilityMode,
+  });
 
   return {
     config,
@@ -518,6 +585,7 @@ export const resolvePublicationOutputModel = (input: PublicationExportInput) => 
     product: input.product,
     variant: resolvePublicationVariantFromProduct(input.product),
     snapshot: input.snapshot,
+    traceMark,
   };
 };
 
@@ -543,6 +611,7 @@ const createStandaloneHtmlFromResolvedModel = (
     kind: 'standalone-html',
     printSettings: resolved.normalizedPrintSettings,
     variant: resolved.variant,
+    traceabilityMode: resolved.traceMark.mode,
   };
   const shellClass = resolved.product === 'html-embed' ? 'mve-standalone-embed' : 'mve-standalone-shell';
 
@@ -556,6 +625,7 @@ const createStandaloneHtmlFromResolvedModel = (
   </head>
   <body>
     <main class="mve-export-root ${shellClass}" data-export-kind="standalone-html" data-export-product="${resolved.product}" data-export-variant="${resolved.variant}">
+      ${createTraceMarkHtml(resolved.traceMark)}
       ${editorial.title}
       ${editorial.header}
       <section class="mve-standalone-surface">
@@ -587,6 +657,7 @@ const createPrintHtmlFromResolvedModel = (
     kind: 'print-document',
     printSettings: resolved.normalizedPrintSettings,
     variant: resolved.variant,
+    traceabilityMode: resolved.traceMark.mode,
   };
   const printPageCss = resolveViewerPrintPageCss(resolved.pageMetrics);
   const printCssVars = resolveViewerPrintCssVars(resolved.pageMetrics);
@@ -609,6 +680,7 @@ const createPrintHtmlFromResolvedModel = (
       pageMetrics: resolved.pageMetrics,
       pxPerMmY: resolved.measuredPxPerMm.pxPerMmY,
       classNames: VIEWER_PRINT_DOCUMENT_EXPORT_CLASS_NAMES,
+      traceMark: resolved.traceMark,
       pageStyle: {
         width: `${resolved.previewMetrics.paperWidthPx}px`,
         height: `${resolved.previewMetrics.paperHeightPx}px`,
