@@ -53,6 +53,7 @@ import { applySnapshotDocumentProfileToPrintSettings } from './utils/publication
 import type { PublicationSessionMode } from './types/publication-session.ts';
 import {
   findRecentCertifiedPublicationById,
+  persistRecentCertifiedPublication,
   readRecentCertifiedPublications,
 } from './utils/publication-recents.ts';
 import {
@@ -916,6 +917,13 @@ export default function App(): JSX.Element | null {
       setPublicationSession('certify');
     }
   }, [isExternalPublicationOpen, publicationSession]);
+
+  useEffect(() => {
+    if (viewerMode !== 'publication' || !publicationSnapshot) {
+      return;
+    }
+    persistRecentCertifiedPublication(getSafeLocalStorage(), publicationSnapshot);
+  }, [publicationSnapshot, viewerMode]);
 
   useEffect(() => {
     if (isExternalPublicationOpen || !hasProject) {
