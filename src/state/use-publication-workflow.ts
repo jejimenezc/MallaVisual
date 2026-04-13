@@ -403,24 +403,56 @@ export function usePublicationWorkflow({
             viewerMode === 'publication' ||
             (publicationSession === 'certify' && certificationSessionSnapshot !== null),
         });
+        const traceabilityMode =
+          viewerMode === 'publication'
+            ? 'derived'
+            : publicationSession === 'certify' && snapshot.snapshotId
+              ? 'official'
+              : 'work';
 
         if (product === 'snapshot-json') {
           downloadPublication(snapshot);
         } else if (product === 'pdf') {
-          openViewerPdfExport({ snapshot, config: outputConfig, product: 'pdf' });
+          openViewerPdfExport({
+            snapshot,
+            config: outputConfig,
+            product: 'pdf',
+            traceabilityMode,
+          });
         } else if (product === 'print') {
-          openViewerPdfExport({ snapshot, config: outputConfig, product: 'print' });
+          openViewerPdfExport({
+            snapshot,
+            config: outputConfig,
+            product: 'print',
+            traceabilityMode,
+          });
         } else if (product === 'html-web') {
-          openViewerStandaloneHtml({ snapshot, config: outputConfig, product: 'html-web' });
+          openViewerStandaloneHtml({
+            snapshot,
+            config: outputConfig,
+            product: 'html-web',
+            traceabilityMode,
+          });
         } else if (product === 'html-download') {
-          downloadViewerStandaloneHtml({ snapshot, config: outputConfig, product: 'html-download' });
+          downloadViewerStandaloneHtml({
+            snapshot,
+            config: outputConfig,
+            product: 'html-download',
+            traceabilityMode,
+          });
         } else if (product === 'html-paginated') {
-          downloadViewerStandaloneHtml({ snapshot, config: outputConfig, product: 'html-paginated' });
+          downloadViewerStandaloneHtml({
+            snapshot,
+            config: outputConfig,
+            product: 'html-paginated',
+            traceabilityMode,
+          });
         } else if (product === 'html-embed') {
           downloadViewerStandaloneHtml({
             snapshot,
             config: outputConfig,
             product: 'html-embed',
+            traceabilityMode,
           });
         }
 
